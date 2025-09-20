@@ -264,7 +264,7 @@ export default function CreateGameSetPage() {
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="과목 선택" />
-                              </Trigger>
+                              </SelectTrigger>
                             </FormControl>
                             <SelectContent>
                               {subjects.map(subject => (
