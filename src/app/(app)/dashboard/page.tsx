@@ -53,6 +53,16 @@ export default function DashboardPage() {
   const { toast } = useToast();
 
   useEffect(() => {
+    if (!user && !loadingUser) {
+        // Not logged in, no need to fetch. Or handle guest view.
+        setLoading(false);
+        return;
+    }
+    if (loadingUser) {
+        // Still loading user state, wait.
+        return;
+    }
+
     const q = query(collection(db, 'game-sets'), orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const sets: GameSetDocument[] = [];
@@ -61,10 +71,18 @@ export default function DashboardPage() {
       });
       setGameSets(sets);
       setLoading(false);
+    }, (error) => {
+        console.error("Error fetching game sets: ", error);
+        toast({
+            variant: "destructive",
+            title: "오류",
+            description: "퀴즈 세트를 불러오는 중 오류가 발생했습니다."
+        });
+        setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [user, loadingUser, toast]);
 
   const handleDelete = async () => {
     if (!deleteCandidate) return;
@@ -124,7 +142,12 @@ export default function DashboardPage() {
         {loading || loadingUser ? (
            <p>게임 세트를 불러오는 중...</p>
         ) : gameSets.length === 0 ? (
-            <p>아직 만들어진 게임 세트가 없습니다. 첫 번째 퀴즈를 만들어보세요!</p>
+            <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                <p className="text-muted-foreground">아직 만들어진 게임 세트가 없습니다.</p>
+                <Button asChild className="mt-4">
+                    <Link href="/game-sets/create">첫 번째 퀴즈 만들어보기</Link>
+                </Button>
+            </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {gameSets.map((set) => {
