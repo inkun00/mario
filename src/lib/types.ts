@@ -18,6 +18,8 @@ export interface Question {
   // for multiple choice or ox
   options?: string[];
   correctAnswer?: string;
+  subject?: string;
+  unit?: string;
 }
 
 export interface GameSet {
@@ -70,6 +72,7 @@ export interface GameRoom {
 }
 
 export interface CorrectAnswer {
+    id: string;
     gameSetId: string;
     gameSetTitle: string;
     question: string;
@@ -81,6 +84,7 @@ export interface CorrectAnswer {
 }
 
 export interface IncorrectAnswer {
+    id: string;
     gameSetId: string;
     gameSetTitle: string;
     question: Question;
