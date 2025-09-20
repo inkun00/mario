@@ -45,7 +45,7 @@ const questionSchema = z.object({
   question: z.string().min(1, '질문을 입력해주세요.'),
   points: z.coerce.number().min(1).max(5),
   hasMysteryBox: z.boolean().default(false),
-  type: z.enum(['subjective', 'multipleChoice']),
+  type: z.enum(['subjective', 'multipleChoice', 'ox']),
   answer: z.string().optional(),
   options: z.array(z.string()).optional(),
   correctAnswer: z.string().optional(),
@@ -56,9 +56,12 @@ const questionSchema = z.object({
   if (data.type === 'subjective') {
     return data.answer && data.answer.length > 0;
   }
+  if (data.type === 'ox') {
+    return data.correctAnswer === 'O' || data.correctAnswer === 'X';
+  }
   return true;
 }, {
-    message: '객관식 문제는 4개의 보기를 모두 입력하고 정답을 선택해야 합니다. 주관식 문제는 정답을 입력해야 합니다.',
+    message: '객관식 문제는 4개의 보기를 모두 입력하고 정답을 선택해야 합니다. 주관식 문제는 정답을 입력해야 합니다. O/X 문제는 O 또는 X를 정답으로 선택해야 합니다.',
     path: ['correctAnswer'],
 });
 
@@ -360,8 +363,11 @@ export default function EditGameSetPage() {
                                       if (value === 'subjective') {
                                           form.setValue(`questions.${index}.options`, ['', '', '', '']);
                                           form.setValue(`questions.${index}.correctAnswer`, '');
-                                      } else {
+                                      } else if (value === 'multipleChoice') {
                                           form.setValue(`questions.${index}.answer`, '');
+                                      } else { // ox
+                                           form.setValue(`questions.${index}.answer`, '');
+                                           form.setValue(`questions.${index}.options`, []);
                                       }
                                   }}
                                   value={field.value}
@@ -378,6 +384,12 @@ export default function EditGameSetPage() {
                                       <RadioGroupItem value="multipleChoice" />
                                     </FormControl>
                                     <FormLabel className="font-normal">객관식</FormLabel>
+                                  </FormItem>
+                                  <FormItem className="flex items-center space-x-2">
+                                    <FormControl>
+                                      <RadioGroupItem value="ox" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">O/X</FormLabel>
                                   </FormItem>
                                 </RadioGroup>
                               </FormControl>
@@ -443,6 +455,39 @@ export default function EditGameSetPage() {
                                   />
                                 </div>
                               )}
+
+                              {typeValue === 'ox' && (
+                                  <FormField
+                                    control={form.control}
+                                    name={`questions.${index}.correctAnswer`}
+                                    render={({ field }) => (
+                                      <FormItem className="mt-4">
+                                        <FormLabel>정답</FormLabel>
+                                        <FormControl>
+                                          <RadioGroup
+                                            onValueChange={field.onChange}
+                                            value={field.value}
+                                            className="flex items-center gap-4"
+                                          >
+                                            <FormItem className="flex items-center space-x-2">
+                                              <FormControl>
+                                                <RadioGroupItem value="O" />
+                                              </FormControl>
+                                              <FormLabel className="font-normal">O</FormLabel>
+                                            </FormItem>
+                                            <FormItem className="flex items-center space-x-2">
+                                              <FormControl>
+                                                <RadioGroupItem value="X" />
+                                              </FormControl>
+                                              <FormLabel className="font-normal">X</FormLabel>
+                                            </FormItem>
+                                          </RadioGroup>
+                                        </FormControl>
+                                         <FormMessage />
+                                      </FormItem>
+                                    )}
+                                  />
+                                )}
                             </>
                           )}
                         />

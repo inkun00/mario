@@ -10,10 +10,10 @@ export interface Question {
   question: string;
   points: number;
   hasMysteryBox: boolean;
-  type: 'subjective' | 'multipleChoice';
+  type: 'subjective' | 'multipleChoice' | 'ox';
   // for subjective
   answer?: string;
-  // for multiple choice
+  // for multiple choice or ox
   options?: string[];
   correctAnswer?: string;
 }

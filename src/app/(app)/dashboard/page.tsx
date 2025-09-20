@@ -237,6 +237,15 @@ export default function DashboardPage() {
                                     })}
                                 </div>
                             )}
+
+                            {q.type === 'ox' && (
+                                <div className="mt-3 flex items-center gap-4">
+                                   <p className="font-medium">정답:</p>
+                                    <div className={cn("flex items-center gap-2 text-sm p-2 rounded-md font-bold", q.correctAnswer === 'O' ? "bg-primary/20 border border-primary text-primary" : "bg-destructive/20 border border-destructive text-destructive")}>
+                                       {q.correctAnswer}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
