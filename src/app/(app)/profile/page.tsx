@@ -216,10 +216,10 @@ export default function ProfilePage() {
           <div className="flex items-center gap-4">
             <Avatar className="h-20 w-20 border-2 border-primary">
               <AvatarImage src={user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`} />
-              <AvatarFallback>{userData.nickname.substring(0, 2)}</AvatarFallback>
+              <AvatarFallback>{userData?.nickname?.substring(0, 2) || user.displayName?.substring(0,2) || ''}</AvatarFallback>
             </Avatar>
             <div>
-              <CardTitle className="font-headline text-3xl">{userData.nickname}</CardTitle>
+              <CardTitle className="font-headline text-3xl">{userData?.nickname}</CardTitle>
               <CardDescription>학습을 즐기는 탐험가</CardDescription>
             </div>
           </div>
@@ -227,7 +227,7 @@ export default function ProfilePage() {
         <CardContent>
           <div className="grid grid-cols-2 gap-4 text-center">
             <div>
-              <p className="text-2xl font-bold">{userData.xp.toLocaleString()}</p>
+              <p className="text-2xl font-bold">{userData?.xp?.toLocaleString()}</p>
               <p className="text-sm text-muted-foreground">누적 포인트</p>
             </div>
             <div>
