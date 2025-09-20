@@ -9,8 +9,16 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users } from 'lucide-react';
+import { Book, PlusCircle, Users, Star } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
@@ -29,6 +37,7 @@ export default function DashboardPage() {
   const [user] = useAuthState(auth);
   const [gameSets, setGameSets] = useState<GameSetDocument[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedGameSet, setSelectedGameSet] = useState<GameSetDocument | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, 'game-sets'), orderBy('createdAt', 'desc'));
@@ -100,7 +109,7 @@ export default function DashboardPage() {
                   </div>
                 </CardHeader>
                 <CardFooter className="flex justify-end gap-2">
-                  <Button variant="ghost">미리보기</Button>
+                  <Button variant="ghost" onClick={() => setSelectedGameSet(set)}>미리보기</Button>
                   <Button asChild>
                       <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
                   </Button>
@@ -110,6 +119,38 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {selectedGameSet && (
+        <Dialog open={!!selectedGameSet} onOpenChange={(isOpen) => !isOpen && setSelectedGameSet(null)}>
+          <DialogContent className="max-w-xl">
+            <DialogHeader>
+              <DialogTitle className="font-headline text-2xl">{selectedGameSet.title}</DialogTitle>
+              <DialogDescription>
+                총 {selectedGameSet.questions.length}개의 질문이 있습니다.
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="h-96 pr-6">
+                <div className="space-y-4">
+                    {selectedGameSet.questions.map((q, index) => (
+                        <div key={index} className="p-4 rounded-md border bg-secondary/30">
+                            <div className="flex justify-between items-center">
+                                <p className="font-semibold">질문 {index + 1}</p>
+                                <div className="flex items-center gap-2 text-sm">
+                                    <span className="flex items-center gap-1 font-semibold text-primary">
+                                        <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
+                                        {q.points}점
+                                    </span>
+                                    {q.hasMysteryBox && <span className="text-accent font-semibold">미스터리</span>}
+                                </div>
+                            </div>
+                            <p className="mt-2 text-foreground/90">{q.question}</p>
+                        </div>
+                    ))}
+                </div>
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
