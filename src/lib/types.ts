@@ -1,3 +1,4 @@
+
 export interface User {
   uid: string;
   email: string | null;
@@ -43,16 +44,22 @@ export interface Player {
 
 export type JoinType = 'remote' | 'local';
 
+export interface LocalPlayer {
+    nickname: string;
+    confirmed: boolean;
+}
+
 export interface GameRoom {
   id: string;
   gameSetId: string;
   password?: string;
   status: 'waiting' | 'playing' | 'finished';
   hostId: string;
-  currentTurn: string; // userId
-  players: Record<string, Player>; // key is userId
+  currentTurn: string; // userId or nickname for local
+  players: Record<string, Player>; // key is userId for remote, or nickname for local
   gameState: Record<string, 'available' | 'answered'>; // key is questionId
   mysteryBoxEnabled: boolean;
   joinType: JoinType;
   createdAt: any;
+  localPlayers?: LocalPlayer[];
 }
