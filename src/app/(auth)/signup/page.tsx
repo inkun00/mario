@@ -21,6 +21,12 @@ import {
   CardFooter,
 } from '@/components/ui/card';
 import Link from 'next/link';
+import { auth } from '@/lib/firebase';
+import { createUserWithEmailAndPassword, updateProfile, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { useRouter } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
+import { useState } from 'react';
+
 
 const formSchema = z.object({
   email: z.string().email({ message: '유효한 이메일을 입력해주세요.' }),
@@ -29,6 +35,10 @@ const formSchema = z.object({
 });
 
 export default function SignupPage() {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -38,9 +48,49 @@ export default function SignupPage() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values);
-    // TODO: Implement Firebase signup
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setIsLoading(true);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCredential.user;
+      await updateProfile(user, {
+        displayName: values.nickname
+      });
+      toast({
+        title: "회원가입 성공",
+        description: "마리오 교실 챌린지에 오신 것을 환영합니다!",
+      });
+      router.push('/dashboard');
+    } catch (error: any) {
+       toast({
+        variant: "destructive",
+        title: "회원가입 실패",
+        description: error.message,
+      });
+    } finally {
+        setIsLoading(false);
+    }
+  }
+
+  async function handleGoogleSignup() {
+    setIsLoading(true);
+    const provider = new GoogleAuthProvider();
+    try {
+        await signInWithPopup(auth, provider);
+        toast({
+            title: "회원가입 성공",
+            description: "마리오 교실 챌린지에 오신 것을 환영합니다!",
+        });
+        router.push('/dashboard');
+    } catch (error: any) {
+        toast({
+            variant: "destructive",
+            title: "Google 회원가입 실패",
+            description: error.message,
+        });
+    } finally {
+        setIsLoading(false);
+    }
   }
 
   return (
@@ -59,7 +109,7 @@ export default function SignupPage() {
                 <FormItem>
                   <FormLabel>이메일</FormLabel>
                   <FormControl>
-                    <Input placeholder="user@example.com" {...field} />
+                    <Input placeholder="user@example.com" {...field} disabled={isLoading}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -72,7 +122,7 @@ export default function SignupPage() {
                 <FormItem>
                   <FormLabel>닉네임</FormLabel>
                   <FormControl>
-                    <Input placeholder="슈퍼마리오" {...field} />
+                    <Input placeholder="슈퍼마리오" {...field} disabled={isLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -85,14 +135,14 @@ export default function SignupPage() {
                 <FormItem>
                   <FormLabel>비밀번호</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
+                    <Input type="password" placeholder="••••••••" {...field} disabled={isLoading}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full font-headline">
-              계정 만들기
+            <Button type="submit" className="w-full font-headline" disabled={isLoading}>
+              {isLoading ? '계정 생성 중...' : '계정 만들기'}
             </Button>
           </form>
         </Form>
@@ -106,7 +156,7 @@ export default function SignupPage() {
             </span>
           </div>
         </div>
-        <Button variant="outline" className="w-full">
+        <Button variant="outline" className="w-full" onClick={handleGoogleSignup} disabled={isLoading}>
             <svg className="mr-2 h-4 w-4" viewBox="0 0 48 48" aria-hidden="true">
                 <path fill="#4285F4" d="M24 9.5c3.2 0 5.8 1.4 7.6 3.2l5.8-5.8C33.6 2.7 29.2 1 24 1 14.9 1 7.4 6.6 4.1 14.5l6.9 5.3C12.5 13.5 17.8 9.5 24 9.5z"/>
                 <path fill="#34A853" d="M46.2 25.4c0-1.8-.2-3.5-.5-5.2H24v9.9h12.5c-.5 3.2-2.3 5.9-5.1 7.8l6.5 5C43.1 38.8 46.2 32.8 46.2 25.4z"/>
