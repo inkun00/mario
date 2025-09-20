@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -147,9 +146,9 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
             } else {
                 toast({ variant: 'destructive', title: '오류', description: `"${userId}" 님을 찾을 수 없습니다.`});
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            toast({ variant: 'destructive', title: '오류', description: '아이디 확인 중 오류가 발생했습니다.'});
+            toast({ variant: 'destructive', title: '오류', description: `아이디 확인 중 오류가 발생했습니다: ${error.message}`});
         } finally {
             newPlayers[index].isChecking = false;
             setPlayers(newPlayers);

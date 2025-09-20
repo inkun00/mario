@@ -60,11 +60,11 @@ const checkUserIdFlow = ai.defineFlow(
             // Return the displayName from the users collection.
             return { exists: true, nickname: userData.displayName || userId };
         }
-    } catch(e) {
+    } catch(e: any) {
         console.error("Error checking user ID in checkUserIdFlow:", e);
-        // If the Firestore query fails (e.g., index issue), treat as user not found.
-        // The previous fallback logic (slicing email) was obscuring the root cause.
-        return { exists: false, nickname: '' };
+        // If the Firestore query fails (e.g., index issue), rethrow the error
+        // so the client can display a more specific message.
+        throw e;
     }
 
     // If no user is found in the database.
