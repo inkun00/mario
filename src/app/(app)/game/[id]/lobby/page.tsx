@@ -17,7 +17,7 @@ import Image from 'next/image';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
-import { checkNickname } from '@/ai/flows/check-nickname-flow';
+import { checkUserId } from '@/ai/flows/check-nickname-flow';
 
 
 function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
@@ -110,16 +110,16 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
 
 function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
     const [numPlayers, setNumPlayers] = useState(2);
-    const [players, setPlayers] = useState<Array<{nickname: string; confirmed: boolean; isChecking: boolean }>>([]);
+    const [players, setPlayers] = useState<Array<{userId: string; confirmed: boolean; isChecking: boolean }>>([]);
     const { toast } = useToast();
 
     useEffect(() => {
-        setPlayers(Array.from({ length: numPlayers }, () => ({ nickname: '', confirmed: false, isChecking: false })));
+        setPlayers(Array.from({ length: numPlayers }, () => ({ userId: '', confirmed: false, isChecking: false })));
     }, [numPlayers]);
     
-    const handleNicknameChange = (index: number, nickname: string) => {
+    const handleUserIdChange = (index: number, userId: string) => {
         const newPlayers = [...players];
-        newPlayers[index].nickname = nickname;
+        newPlayers[index].userId = userId;
         setPlayers(newPlayers);
     };
 
@@ -128,25 +128,25 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
         newPlayers[index].isChecking = true;
         setPlayers(newPlayers);
 
-        const nickname = players[index].nickname;
-        if (!nickname) {
-            toast({ variant: 'destructive', title: '오류', description: '닉네임을 입력해주세요.'});
+        const userId = players[index].userId;
+        if (!userId) {
+            toast({ variant: 'destructive', title: '오류', description: '아이디를 입력해주세요.'});
             newPlayers[index].isChecking = false;
             setPlayers(newPlayers);
             return;
         }
 
         try {
-            const { exists } = await checkNickname({ nickname });
+            const { exists } = await checkUserId({ userId });
             if (exists) {
                 newPlayers[index].confirmed = true;
-                 toast({ title: '성공', description: `"${nickname}" 님이 확인되었습니다.`});
+                 toast({ title: '성공', description: `"${userId}" 님이 확인되었습니다.`});
             } else {
-                toast({ variant: 'destructive', title: '오류', description: `"${nickname}" 님을 찾을 수 없습니다.`});
+                toast({ variant: 'destructive', title: '오류', description: `"${userId}" 님을 찾을 수 없습니다.`});
             }
         } catch (error) {
             console.error(error);
-            toast({ variant: 'destructive', title: '오류', description: '닉네임 확인 중 오류가 발생했습니다.'});
+            toast({ variant: 'destructive', title: '오류', description: '아이디 확인 중 오류가 발생했습니다.'});
         } finally {
             newPlayers[index].isChecking = false;
             setPlayers(newPlayers);
@@ -159,7 +159,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
             <CardHeader className="text-center">
                  <p className="text-sm text-muted-foreground">{[gameSet?.grade, gameSet?.semester, gameSet?.subject].filter(Boolean).join(' / ')}</p>
                 <CardTitle className="font-headline text-3xl">{gameSet?.title || '로컬 게임 로비'}</CardTitle>
-                <CardDescription>함께 플레이할 친구들의 닉네임을 입력하고 확인해주세요.</CardDescription>
+                <CardDescription>함께 플레이할 친구들의 아이디를 입력하고 확인해주세요.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
                 <div className="space-y-4">
@@ -181,19 +181,19 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {players.map((player, index) => (
                             <div key={index} className="space-y-2 p-4 border rounded-lg">
-                                <Label htmlFor={`nickname-${index}`}>플레이어 {index + 1}</Label>
+                                <Label htmlFor={`userId-${index}`}>플레이어 {index + 1}</Label>
                                 {player.confirmed ? (
                                     <div className="flex items-center justify-between h-10 px-3 py-2 text-sm rounded-md border border-transparent bg-secondary">
-                                        <span className="font-semibold">{player.nickname}</span>
+                                        <span className="font-semibold">{player.userId}</span>
                                         <span className="text-primary flex items-center gap-1"><CheckCircle className="w-4 h-4"/> 참여 완료</span>
                                     </div>
                                 ) : (
                                     <div className="flex gap-2">
                                         <Input 
-                                            id={`nickname-${index}`}
-                                            placeholder="닉네임 입력"
-                                            value={player.nickname}
-                                            onChange={(e) => handleNicknameChange(index, e.target.value)}
+                                            id={`userId-${index}`}
+                                            placeholder="아이디 입력"
+                                            value={player.userId}
+                                            onChange={(e) => handleUserIdChange(index, e.target.value)}
                                             disabled={player.isChecking}
                                         />
                                         <Button onClick={() => handleConfirmPlayer(index)} disabled={player.isChecking}>
@@ -279,3 +279,5 @@ export default function LobbyPage() {
     </div>
   )
 }
+
+    

@@ -45,7 +45,7 @@ export interface Player {
 export type JoinType = 'remote' | 'local';
 
 export interface LocalPlayer {
-    nickname: string;
+    userId: string;
     confirmed: boolean;
 }
 
@@ -63,3 +63,5 @@ export interface GameRoom {
   createdAt: any;
   localPlayers?: LocalPlayer[];
 }
+
+    

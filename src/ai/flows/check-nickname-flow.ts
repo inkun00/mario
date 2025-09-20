@@ -2,27 +2,27 @@
 'use server';
 
 /**
- * @fileOverview An AI agent that checks for the existence of a nickname.
+ * @fileOverview An AI agent that checks for the existence of a user ID.
  *
- * - checkNickname - A function that checks if a nickname exists.
- * - CheckNicknameInput - The input type for the checkNickname function.
- * - CheckNicknameOutput - The return type for the checkNickname function.
+ * - checkUserId - A function that checks if a user ID exists.
+ * - CheckUserIdInput - The input type for the checkUserId function.
+ * - CheckUserIdOutput - The return type for the checkUserId function.
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 import { getFirestore } from 'firebase-admin/firestore';
 import { initializeApp, getApps, App } from 'firebase-admin/app';
 
-const CheckNicknameInputSchema = z.object({
-  nickname: z.string().describe('The nickname to check.'),
+const CheckUserIdInputSchema = z.object({
+  userId: z.string().describe('The user ID to check.'),
 });
-export type CheckNicknameInput = z.infer<typeof CheckNicknameInputSchema>;
+export type CheckUserIdInput = z.infer<typeof CheckUserIdInputSchema>;
 
-const CheckNicknameOutputSchema = z.object({
-  exists: z.boolean().describe('Whether the nickname exists.'),
+const CheckUserIdOutputSchema = z.object({
+  exists: z.boolean().describe('Whether the user ID exists.'),
 });
-export type CheckNicknameOutput = z.infer<typeof CheckNicknameOutputSchema>;
+export type CheckUserIdOutput = z.infer<typeof CheckUserIdOutputSchema>;
 
 
 let app: App;
@@ -35,29 +35,31 @@ if (!getApps().length) {
 const db = getFirestore(app);
 
 
-export async function checkNickname(input: CheckNicknameInput): Promise<CheckNicknameOutput> {
-  return checkNicknameFlow(input);
+export async function checkUserId(input: CheckUserIdInput): Promise<CheckUserIdOutput> {
+  return checkUserIdFlow(input);
 }
 
 
-const checkNicknameFlow = ai.defineFlow(
+const checkUserIdFlow = ai.defineFlow(
   {
-    name: 'checkNicknameFlow',
-    inputSchema: CheckNicknameInputSchema,
-    outputSchema: CheckNicknameOutputSchema,
+    name: 'checkUserIdFlow',
+    inputSchema: CheckUserIdInputSchema,
+    outputSchema: CheckUserIdOutputSchema,
   },
-  async ({ nickname }) => {
+  async ({ userId }) => {
     
-    const gameSetsRef = db.collection('game-sets');
-    const snapshot = await gameSetsRef.where('creatorNickname', '==', nickname).limit(1).get();
+    // This is not a secure way to check for users. 
+    // It's a temporary solution for the local lobby functionality.
+    // A proper user search service should be implemented.
+    const usersRef = db.collection('users');
+    const snapshot = await usersRef.where('displayName', '==', userId).limit(1).get();
 
     if (!snapshot.empty) {
       return { exists: true };
     }
-    
-    // Potentially check other collections if nicknames are stored elsewhere
-    // For now, we only check game-sets creators.
 
     return { exists: false };
   }
 );
+
+  
