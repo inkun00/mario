@@ -21,8 +21,9 @@ import {
   CardFooter,
 } from '@/components/ui/card';
 import Link from 'next/link';
-import { auth } from '@/lib/firebase';
-import { createUserWithEmailAndPassword, updateProfile, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { auth, db } from '@/lib/firebase';
+import { createUserWithEmailAndPassword, updateProfile, signInWithPopup, GoogleAuthProvider, User } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
@@ -48,6 +49,19 @@ export default function SignupPage() {
     },
   });
 
+  // Function to create user document in Firestore
+  const createUserDocument = async (user: User) => {
+    const userRef = doc(db, 'users', user.uid);
+    await setDoc(userRef, {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        createdAt: serverTimestamp(),
+        xp: 0,
+        level: 1,
+    });
+  };
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
@@ -56,6 +70,9 @@ export default function SignupPage() {
       await updateProfile(user, {
         displayName: values.nickname
       });
+      // Create user document in firestore
+      await createUserDocument({ ...user, displayName: values.nickname });
+
       toast({
         title: "회원가입 성공",
         description: "마리오 교실 챌린지에 오신 것을 환영합니다!",
@@ -76,7 +93,12 @@ export default function SignupPage() {
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-        await signInWithPopup(auth, provider);
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+        
+        // Create user document in firestore
+        await createUserDocument(user);
+
         toast({
             title: "회원가입 성공",
             description: "마리오 교실 챌린지에 오신 것을 환영합니다!",

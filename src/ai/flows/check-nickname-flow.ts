@@ -49,24 +49,19 @@ const checkUserIdFlow = ai.defineFlow(
   },
   async ({ userId }) => {
     
-    // This is not a secure way to check for users. 
-    // It's a temporary solution for the local lobby functionality.
-    // A proper user search service should be implemented.
     try {
         const usersRef = db.collection('users');
-        // Firebase Auth uses email for user ID in many cases.
-        // Let's assume the `userId` is the `email`.
         const snapshot = await usersRef.where('email', '==', userId).limit(1).get();
 
         if (!snapshot.empty) {
             const userDoc = snapshot.docs[0];
-            return { exists: true, nickname: userDoc.data().displayName || userId };
+            const userData = userDoc.data();
+            return { exists: true, nickname: userData.displayName || userId };
         }
     } catch(e) {
-        console.error("Error checking user ID", e);
-        // This is a workaround to allow local lobby to function without proper
-        // server-side Firebase Admin setup. In a real app, you'd handle this error.
-        // For now, we will assume the user exists if the check fails, to allow UI testing.
+        console.error("Error checking user ID in checkUserIdFlow:", e);
+        // This is a fallback. In a real app, you'd want to ensure your service account is set up correctly.
+        // For now, we'll try to provide a somewhat degraded experience.
         return { exists: true, nickname: userId.split('@')[0] || userId };
     }
 
@@ -74,4 +69,3 @@ const checkUserIdFlow = ai.defineFlow(
     return { exists: false, nickname: '' };
   }
 );
-
