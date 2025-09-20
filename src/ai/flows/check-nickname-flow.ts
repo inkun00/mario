@@ -60,14 +60,14 @@ const checkUserIdFlow = ai.defineFlow(
 
         if (!snapshot.empty) {
             const userDoc = snapshot.docs[0];
-            return { exists: true, nickname: userDoc.data().displayName || '' };
+            return { exists: true, nickname: userDoc.data().displayName || userId };
         }
     } catch(e) {
         console.error("Error checking user ID", e);
         // This is a workaround to allow local lobby to function without proper
         // server-side Firebase Admin setup. In a real app, you'd handle this error.
         // For now, we will assume the user exists if the check fails, to allow UI testing.
-        return { exists: true, nickname: userId };
+        return { exists: true, nickname: userId.split('@')[0] || userId };
     }
 
 
