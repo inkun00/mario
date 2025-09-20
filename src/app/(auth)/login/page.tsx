@@ -65,7 +65,8 @@ export default function LoginPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, values.email, values.password);
+      const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+      await createUserDocument(userCredential.user);
       router.push('/dashboard');
     } catch (error: any) {
       toast({
