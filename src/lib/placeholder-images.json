@@ -1,3 +1,46 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "question-block",
+      "description": "A yellow question mark block from a video game.",
+      "imageUrl": "https://picsum.photos/seed/101/200/200",
+      "imageHint": "question block"
+    },
+    {
+      "id": "answered-block",
+      "description": "A used, brown block from a video game.",
+      "imageUrl": "https://picsum.photos/seed/102/200/200",
+      "imageHint": "brick block"
+    },
+    {
+      "id": "mushroom",
+      "description": "A red and white mushroom item from a video game.",
+      "imageUrl": "https://picsum.photos/seed/103/100/100",
+      "imageHint": "red mushroom"
+    },
+    {
+      "id": "player-avatar-1",
+      "description": "Pixelated avatar of a plumber in a red cap.",
+      "imageUrl": "https://picsum.photos/seed/104/100/100",
+      "imageHint": "pixel avatar"
+    },
+    {
+      "id": "player-avatar-2",
+      "description": "Pixelated avatar of a princess in a pink dress.",
+      "imageUrl": "https://picsum.photos/seed/105/100/100",
+      "imageHint": "pixel princess"
+    },
+    {
+      "id": "player-avatar-3",
+      "description": "Pixelated avatar of a green dinosaur.",
+      "imageUrl": "https://picsum.photos/seed/106/100/100",
+      "imageHint": "pixel dinosaur"
+    },
+    {
+      "id": "player-avatar-4",
+      "description": "Pixelated avatar of a mushroom person.",
+      "imageUrl": "https://picsum.photos/seed/107/100/100",
+      "imageHint": "pixel mushroom"
+    }
+  ]
 }
