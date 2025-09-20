@@ -267,7 +267,6 @@ export default function DashboardPage() {
                             <div className="flex justify-between items-start">
                                 <p className="font-semibold text-base">질문 {index + 1}. {q.question}</p>
                                 <div className="flex items-center gap-2 text-sm">
-                                    {q.hint && <Badge variant="outline" className="text-xs"><Lightbulb className="w-3 h-3 mr-1"/> 힌트 있음</Badge>}
                                     <span className="flex items-center gap-1 font-semibold text-primary">
                                         <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
                                         {q.points === -1 ? '랜덤' : `${q.points}점`}
@@ -275,12 +274,6 @@ export default function DashboardPage() {
                                     {q.points === -1 && <HelpCircle className="w-4 h-4 text-muted-foreground" title="10-50점 사이의 랜덤 점수가 부여됩니다."/>}
                                 </div>
                             </div>
-
-                             {q.hint && (
-                                <p className="mt-3 text-sm text-foreground/80 bg-background/50 rounded p-2">
-                                    <span className="font-medium">힌트:</span> {q.hint}
-                                </p>
-                            )}
 
                             {q.type === 'multipleChoice' && q.options && (
                                 <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
