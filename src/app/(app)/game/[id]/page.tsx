@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question } from '@/lib/types';
@@ -58,6 +58,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
   const [isMyTurn, setIsMyTurn] = useState(false);
   
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch GameRoom and GameSet data
   useEffect(() => {
@@ -145,7 +146,12 @@ export default function GamePage({ params }: { params: { id: string } }) {
 
       if (block.type === 'question' && block.question) {
         setCurrentQuestion(block.question);
-        setCurrentPoints(block.question.points);
+        
+        let points = block.question.points;
+        if (points === -1) { // Random points
+            points = (Math.floor(Math.random() * 5) + 1) * 10;
+        }
+        setCurrentPoints(points);
         setShowHint(false);
         setUserAnswer('');
         
@@ -168,8 +174,62 @@ export default function GamePage({ params }: { params: { id: string } }) {
   };
 
   const handleCloseDialog = () => {
+    if (isSubmitting) return;
     setCurrentQuestion(null);
   }
+
+  const handleSubmitAnswer = async () => {
+    if (!currentQuestion || !gameRoom || !userAnswer) {
+      toast({ variant: 'destructive', title: '오류', description: '답변을 선택하거나 입력해주세요.'});
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    const isCorrect = (currentQuestion.type === 'subjective' && userAnswer.trim().toLowerCase() === currentQuestion.answer?.trim().toLowerCase())
+      || (currentQuestion.type !== 'subjective' && userAnswer === currentQuestion.correctAnswer);
+
+    const pointsToAward = isCorrect ? currentPoints : 0;
+
+    if (isCorrect) {
+        toast({
+            title: '정답입니다!',
+            description: `${pointsToAward}점을 획득했습니다!`,
+        });
+    } else {
+        toast({
+            variant: 'destructive',
+            title: '오답입니다...',
+            description: `정답은 "${currentQuestion.answer || currentQuestion.correctAnswer}" 입니다.`,
+        });
+    }
+
+    try {
+        const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+        const currentTurnUID = gameRoom.currentTurn;
+        
+        // Find next turn
+        const playerUIDs = Object.keys(gameRoom.players);
+        const currentTurnIndex = playerUIDs.indexOf(currentTurnUID);
+        const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
+        const nextTurnUID = playerUIDs[nextTurnIndex];
+
+        const updates: any = {
+            [`players.${currentTurnUID}.score`]: increment(pointsToAward),
+            currentTurn: nextTurnUID
+        };
+
+        await updateDoc(roomRef, updates);
+
+    } catch (error) {
+        console.error("Error submitting answer: ", error);
+        toast({ variant: 'destructive', title: '오류', description: '답변 제출 중 오류가 발생했습니다.'});
+    } finally {
+        setIsSubmitting(false);
+        handleCloseDialog();
+    }
+  };
+
 
   const currentTurnPlayer = players.find(p => p.uid === gameRoom?.currentTurn);
   
@@ -184,7 +244,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
 
   const isClickDisabled = (block: GameBlock) => {
     const isRemoteAndNotMyTurn = gameRoom.joinType === 'remote' && !isMyTurn;
-    return isRemoteAndNotMyTurn || block.isOpened;
+    return isRemoteAndNotMyTurn || block.isOpened || block.isFlipping;
   };
 
   return (
@@ -266,7 +326,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
                             <Image src={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageUrl || ''} alt={player.nickname} width={40} height={40} className="rounded-full" data-ai-hint={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageHint} />
                             <div className="flex-grow">
                                 <p className="font-semibold">{player.nickname}</p>
-                                <Progress value={(player.score / 50) * 100} className="h-2 mt-1" />
+                                <Progress value={(player.score / 500) * 100} className="h-2 mt-1" />
                             </div>
                             <div className="font-bold text-primary text-lg w-12 text-right">{player.score}</div>
                        </div>
@@ -298,11 +358,11 @@ export default function GamePage({ params }: { params: { id: string } }) {
                         질문
                         <span className="flex items-center gap-1 font-semibold text-primary text-base">
                             <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
-                            {currentPoints === -1 ? '랜덤' : `${currentPoints}점`}
+                            {currentPoints}점
                         </span>
                     </DialogTitle>
                     {currentQuestion?.hint && !showHint && (
-                        <Button variant="outline" size="sm" onClick={handleShowHint}>
+                        <Button variant="outline" size="sm" onClick={handleShowHint} disabled={isSubmitting}>
                             <Lightbulb className="w-4 h-4 mr-2" />
                             힌트 보기 (점수 절반)
                         </Button>
@@ -321,10 +381,11 @@ export default function GamePage({ params }: { params: { id: string } }) {
                             placeholder="정답을 입력하세요" 
                             value={userAnswer}
                             onChange={(e) => setUserAnswer(e.target.value)}
+                            disabled={isSubmitting}
                         />
                     )}
                     {currentQuestion?.type === 'multipleChoice' && currentQuestion.options && (
-                        <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="space-y-2">
+                        <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="space-y-2" disabled={isSubmitting}>
                             {currentQuestion.options.map((option, index) => (
                                 <div key={index} className="flex items-center space-x-2">
                                     <RadioGroupItem value={option} id={`option-${index}`} />
@@ -334,7 +395,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
                         </RadioGroup>
                     )}
                     {currentQuestion?.type === 'ox' && (
-                        <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="grid grid-cols-2 gap-4">
+                        <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="grid grid-cols-2 gap-4" disabled={isSubmitting}>
                             <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'O' && 'border-primary bg-primary/10')}>
                                 <RadioGroupItem value="O" id="option-o" className="sr-only"/>
                                 O
@@ -348,7 +409,9 @@ export default function GamePage({ params }: { params: { id: string } }) {
                 </div>
             </div>
             
-            <Button className="w-full">정답 제출</Button>
+            <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
+            </Button>
         </DialogContent>
     </Dialog>
     </>
