@@ -16,8 +16,6 @@ import Image from 'next/image';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
-// import { checkUserId } from '@/ai/flows/check-nickname-flow';
-
 
 function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
     const router = useRouter();
@@ -36,8 +34,13 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
     const handleStartGame = async () => {
         if (!isHost) return;
         const roomRef = doc(db, 'game-rooms', gameRoom.id as string);
-        await updateDoc(roomRef, { status: 'playing' });
-        router.push(`/game/${gameRoom.id}`);
+        try {
+            await updateDoc(roomRef, { status: 'playing' });
+            // The onSnapshot listener in the main component will handle the redirection
+        } catch (error) {
+            console.error("Error starting game: ", error);
+            toast({ variant: 'destructive', title: '오류', description: '게임을 시작하는 중 오류가 발생했습니다.'});
+        }
     };
 
     return (
@@ -109,11 +112,11 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
 
 function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
     const [numPlayers, setNumPlayers] = useState(2);
-    const [players, setPlayers] = useState<Array<{userId: string; nickname: string; confirmed: boolean; isChecking: boolean }>>([]);
+    const [players, setPlayers] = useState<Array<{userId: string; uid: string; nickname: string; confirmed: boolean; isChecking: boolean }>>([]);
     const { toast } = useToast();
 
     useEffect(() => {
-        setPlayers(Array.from({ length: numPlayers }, () => ({ userId: '', nickname: '', confirmed: false, isChecking: false })));
+        setPlayers(Array.from({ length: numPlayers }, () => ({ userId: '', uid: '', nickname: '', confirmed: false, isChecking: false })));
     }, [numPlayers]);
     
     const handleUserIdChange = (index: number, userId: string) => {
@@ -121,6 +124,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
         newPlayers[index].userId = userId;
         newPlayers[index].confirmed = false;
         newPlayers[index].nickname = '';
+        newPlayers[index].uid = '';
         setPlayers(newPlayers);
     };
 
@@ -148,6 +152,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
                 
                 newPlayers[index].confirmed = true;
                 newPlayers[index].nickname = nickname;
+                newPlayers[index].uid = userData.uid;
                 toast({ title: '성공', description: `"${nickname}" 님이 확인되었습니다.`});
             } else {
                 toast({ variant: 'destructive', title: '오류', description: `"${userId}" 님을 찾을 수 없습니다.`});
@@ -160,6 +165,43 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
             setPlayers(newPlayers);
         }
     };
+    
+    const handleStartGame = async () => {
+        if (players.some(p => !p.confirmed)) {
+            toast({ variant: 'destructive', title: '오류', description: '모든 플레이어를 확인해주세요.'});
+            return;
+        }
+        
+        const roomRef = doc(db, 'game-rooms', gameRoom.id as string);
+
+        const playerObjects: Record<string, Player> = {};
+        const playerUIDs: string[] = [];
+
+        players.forEach((p, index) => {
+            const newPlayer: Player = {
+                uid: p.uid,
+                nickname: p.nickname,
+                score: 0,
+                avatarId: `player-avatar-${(index % 4) + 1}`,
+                isHost: index === 0, // First confirmed player is host
+            };
+            playerObjects[p.uid] = newPlayer;
+            playerUIDs.push(p.uid);
+        });
+
+        try {
+            await updateDoc(roomRef, { 
+                status: 'playing',
+                players: playerObjects,
+                currentTurn: playerUIDs[0], // First player's turn
+                hostId: playerUIDs[0]
+            });
+            // The onSnapshot listener will handle redirection.
+        } catch (error) {
+            console.error("Error starting local game:", error);
+            toast({ variant: 'destructive', title: '오류', description: '게임 시작 중 오류가 발생했습니다.'});
+        }
+    };
 
 
     return (
@@ -167,7 +209,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
             <CardHeader className="text-center">
                  <p className="text-sm text-muted-foreground">{[gameSet?.grade, gameSet?.semester, gameSet?.subject].filter(Boolean).join(' / ')}</p>
                 <CardTitle className="font-headline text-3xl">{gameSet?.title || '로컬 게임 로비'}</CardTitle>
-                <CardDescription>함께 플레이할 친구들의 아이디를 입력하고 확인해주세요.</CardDescription>
+                <CardDescription>함께 플레이할 친구들의 아이디를 입력하고 확인해주세요. 첫 번째 플레이어가 호스트가 됩니다.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
                 <div className="space-y-4">
@@ -189,7 +231,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {players.map((player, index) => (
                             <div key={index} className="space-y-2 p-4 border rounded-lg">
-                                <Label htmlFor={`userId-${index}`}>플레이어 {index + 1}</Label>
+                                <Label htmlFor={`userId-${index}`}>플레이어 {index + 1} {index === 0 && '(호스트)'}</Label>
                                 {player.confirmed ? (
                                     <div className="flex items-center justify-between h-10 px-3 py-2 text-sm rounded-md border border-transparent bg-secondary">
                                         <span className="font-semibold">{player.nickname}</span>
@@ -199,7 +241,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
                                     <div className="flex gap-2">
                                         <Input 
                                             id={`userId-${index}`}
-                                            placeholder="아이디 입력"
+                                            placeholder="아이디(이메일) 입력"
                                             value={player.userId}
                                             onChange={(e) => handleUserIdChange(index, e.target.value)}
                                             disabled={player.isChecking}
@@ -214,7 +256,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
                     </div>
                 </div>
                  <div className="flex flex-col items-center gap-4 pt-4">
-                    <Button size="lg" className="font-headline text-lg" disabled={players.some(p => !p.confirmed)}>
+                    <Button size="lg" className="font-headline text-lg" onClick={handleStartGame} disabled={players.some(p => !p.confirmed)}>
                        <Gamepad2 className="w-5 h-5 mr-2" /> 게임 시작
                     </Button>
                  </div>
@@ -243,16 +285,18 @@ export default function LobbyPage() {
         const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
         setGameRoom(roomData);
 
+        // Check if game has started and redirect if needed
+        if (roomData.status === 'playing') {
+            router.push(`/game/${gameRoomId}`);
+            return; // Stop further processing for this snapshot
+        }
+
         if (!gameSet && roomData.gameSetId) {
             const setRef = doc(db, 'game-sets', roomData.gameSetId);
             const setSnap = await getDoc(setRef);
             if(setSnap.exists()) {
                 setGameSet({ id: setSnap.id, ...setSnap.data()} as GameSet);
             }
-        }
-        
-        if (roomData.status === 'playing') {
-            router.push(`/game/${gameRoomId}`);
         }
 
       } else {
@@ -261,6 +305,7 @@ export default function LobbyPage() {
       }
       setIsLoading(false);
     }, (error) => {
+        console.error("Error fetching game room: ", error);
         toast({ variant: 'destructive', title: '오류', description: '게임방 정보를 불러오는 중 오류가 발생했습니다.' });
         setIsLoading(false);
         router.push('/dashboard');
