@@ -126,7 +126,8 @@ export default function GamePage({ params }: { params: { id: string } }) {
   }, [gameSet, gameRoom, blocks.length]);
   
   const handleBlockClick = (block: GameBlock) => {
-    if (!isMyTurn || block.isOpened || block.isFlipping) return;
+    const isTurnRestricted = gameRoom?.joinType === 'remote' && !isMyTurn;
+    if (isTurnRestricted || block.isOpened || block.isFlipping) return;
 
     // 1. Start flipping animation
     setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: true } : b));
@@ -153,7 +154,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
 
   const currentTurnPlayer = players.find(p => p.uid === gameRoom?.currentTurn);
   
-  if (isLoading || loadingUser) {
+  if (isLoading || loadingUser || !gameRoom) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
@@ -161,6 +162,11 @@ export default function GamePage({ params }: { params: { id: string } }) {
       </div>
     );
   }
+
+  const isClickDisabled = (block: GameBlock) => {
+    const isRemoteAndNotMyTurn = gameRoom.joinType === 'remote' && !isMyTurn;
+    return isRemoteAndNotMyTurn || block.isOpened;
+  };
 
   return (
     <>
@@ -170,7 +176,9 @@ export default function GamePage({ params }: { params: { id: string } }) {
         <Card className="w-full max-w-4xl p-4 sm:p-6 bg-background/70 backdrop-blur-sm">
            <div className="text-center mb-6">
                 <h2 className="text-2xl font-bold font-headline">
-                    {isMyTurn ? (
+                    {gameRoom.joinType === 'local' ? (
+                        <span>박스를 선택하여 문제를 풀어보세요!</span>
+                    ) : isMyTurn ? (
                         <span className="text-primary">내 차례입니다!</span>
                     ) : (
                         <span><span className="text-primary">{currentTurnPlayer?.nickname || ''}</span>님의 차례입니다!</span>
@@ -184,7 +192,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
                     <div className={cn(
                         "relative aspect-square w-full transform-style-3d transition-transform duration-700",
                         block.isFlipping ? "rotate-y-180" : "",
-                        !isMyTurn || block.isOpened ? 'cursor-not-allowed' : 'cursor-pointer'
+                        isClickDisabled(block) ? 'cursor-not-allowed' : 'cursor-pointer'
                     )}>
                         {/* Front of the card */}
                         <div className={cn(
@@ -290,3 +298,5 @@ export default function GamePage({ params }: { params: { id: string } }) {
     </>
   );
 }
+
+    
