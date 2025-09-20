@@ -21,11 +21,12 @@ import {
   CardFooter,
 } from '@/components/ui/card';
 import Link from 'next/link';
-import { auth } from '@/lib/firebase';
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { auth, db } from '@/lib/firebase';
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, User } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
+import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
 
 const formSchema = z.object({
   email: z.string().email({ message: '유효한 이메일을 입력해주세요.' }),
@@ -44,6 +45,22 @@ export default function LoginPage() {
       password: '',
     },
   });
+  
+  const createUserDocument = async (user: User) => {
+    const userRef = doc(db, 'users', user.uid);
+    const docSnap = await getDoc(userRef);
+    if (!docSnap.exists()) {
+        await setDoc(userRef, {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            createdAt: serverTimestamp(),
+            xp: 0,
+            level: 1,
+        });
+    }
+  };
+
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
@@ -65,7 +82,8 @@ export default function LoginPage() {
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
     try {
-        await signInWithPopup(auth, provider);
+        const result = await signInWithPopup(auth, provider);
+        await createUserDocument(result.user);
         router.push('/dashboard');
     } catch (error: any) {
         toast({

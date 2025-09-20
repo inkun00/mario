@@ -23,7 +23,7 @@ import {
 import Link from 'next/link';
 import { auth, db } from '@/lib/firebase';
 import { createUserWithEmailAndPassword, updateProfile, signInWithPopup, GoogleAuthProvider, User } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
@@ -52,14 +52,17 @@ export default function SignupPage() {
   // Function to create user document in Firestore
   const createUserDocument = async (user: User) => {
     const userRef = doc(db, 'users', user.uid);
-    await setDoc(userRef, {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        createdAt: serverTimestamp(),
-        xp: 0,
-        level: 1,
-    });
+    const docSnap = await getDoc(userRef);
+    if (!docSnap.exists()) {
+        await setDoc(userRef, {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            createdAt: serverTimestamp(),
+            xp: 0,
+            level: 1,
+        });
+    }
   };
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -96,7 +99,7 @@ export default function SignupPage() {
         const result = await signInWithPopup(auth, provider);
         const user = result.user;
         
-        // Create user document in firestore
+        // Create user document in firestore if it doesn't exist
         await createUserDocument(user);
 
         toast({
