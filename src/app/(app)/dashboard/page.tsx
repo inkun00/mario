@@ -143,7 +143,7 @@ export default function DashboardPage() {
                       </div>
                   </div>
                 </CardHeader>
-                <CardFooter className="mt-auto flex flex-wrap justify-end gap-2">
+                <CardFooter className="mt-auto flex justify-end gap-2">
                    <Button variant="ghost" onClick={() => setSelectedGameSet(set)}>미리보기</Button>
                   {isCreator ? (
                     <>
