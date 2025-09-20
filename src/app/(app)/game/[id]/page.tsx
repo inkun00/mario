@@ -365,10 +365,9 @@ export default function GamePage() {
                             "hover:scale-105 hover:shadow-xl",
                             block.isOpened ? 'opacity-30 bg-gray-300 border-gray-400' : ''
                         )}>
-                            <span className="text-3xl font-bold text-white" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.5)' }}>
-                                {block.type === 'question' ? '?' : '!'}
+                            <span className="text-4xl font-bold text-white" style={{ textShadow: '2px 2px 0px #b45309, 4px 4px 0px #854d0e' }}>
+                                {index + 1}
                             </span>
-                             <span className="absolute bottom-1 right-2 text-sm font-bold text-white/70">{index + 1}</span>
                         </div>
                         
                         {/* Back of the card */}
