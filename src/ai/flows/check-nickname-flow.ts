@@ -26,6 +26,7 @@ const CheckUserIdOutputSchema = z.object({
 export type CheckUserIdOutput = z.infer<typeof CheckUserIdOutputSchema>;
 
 
+// Correctly initialize Firebase Admin SDK for server-side execution.
 let app: App;
 if (!getApps().length) {
   app = initializeApp();
@@ -56,16 +57,17 @@ const checkUserIdFlow = ai.defineFlow(
         if (!snapshot.empty) {
             const userDoc = snapshot.docs[0];
             const userData = userDoc.data();
+            // Return the displayName from the users collection.
             return { exists: true, nickname: userData.displayName || userId };
         }
     } catch(e) {
         console.error("Error checking user ID in checkUserIdFlow:", e);
-        // Firestore 쿼리가 실패하면 (예: 색인 문제), 사용자를 찾을 수 없는 것으로 처리합니다.
-        // 이전에 있던 예비 로직(이메일 자르기)이 문제의 원인을 파악하기 어렵게 만들었습니다.
+        // If the Firestore query fails (e.g., index issue), treat as user not found.
+        // The previous fallback logic (slicing email) was obscuring the root cause.
         return { exists: false, nickname: '' };
     }
 
-
+    // If no user is found in the database.
     return { exists: false, nickname: '' };
   }
 );
