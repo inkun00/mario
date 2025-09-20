@@ -7,7 +7,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { Crown, HelpCircle, Loader2, Shield, Star, Swords, Zap } from 'lucide-react';
+import { Crown, HelpCircle, Loader2, Shield, Star, Swords, Zap, Lightbulb } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 import { Progress } from '@/components/ui/progress';
@@ -16,6 +16,9 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 
 interface GameBlock {
@@ -48,6 +51,10 @@ export default function GamePage({ params }: { params: { id: string } }) {
   const [blocks, setBlocks] = useState<GameBlock[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
+  const [currentPoints, setCurrentPoints] = useState(0);
+  const [showHint, setShowHint] = useState(false);
+  const [userAnswer, setUserAnswer] = useState('');
+  
   const [isMyTurn, setIsMyTurn] = useState(false);
   
   const [isLoading, setIsLoading] = useState(true);
@@ -136,8 +143,11 @@ export default function GamePage({ params }: { params: { id: string } }) {
     setTimeout(() => {
       setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: false, isOpened: true } : b));
 
-      if (block.type === 'question') {
-        setCurrentQuestion(block.question || null);
+      if (block.type === 'question' && block.question) {
+        setCurrentQuestion(block.question);
+        setCurrentPoints(block.question.points);
+        setShowHint(false);
+        setUserAnswer('');
         
         // Update Firestore state
         const roomRef = doc(db, 'game-rooms', gameRoomId as string);
@@ -151,6 +161,15 @@ export default function GamePage({ params }: { params: { id: string } }) {
       }
     }, 800); // Animation duration
   };
+
+  const handleShowHint = () => {
+    setShowHint(true);
+    setCurrentPoints(prev => Math.floor(prev / 2));
+  };
+
+  const handleCloseDialog = () => {
+    setCurrentQuestion(null);
+  }
 
   const currentTurnPlayer = players.find(p => p.uid === gameRoom?.currentTurn);
   
@@ -271,32 +290,67 @@ export default function GamePage({ params }: { params: { id: string } }) {
     </div>
 
     {/* Question Popup */}
-    <Dialog open={!!currentQuestion} onOpenChange={(isOpen) => !isOpen && setCurrentQuestion(null)}>
+    <Dialog open={!!currentQuestion} onOpenChange={(isOpen) => !isOpen && handleCloseDialog()}>
         <DialogContent className="max-w-2xl">
             <DialogHeader>
-                 <DialogTitle className="font-headline text-2xl flex items-center gap-2">
-                    질문
-                    <span className="flex items-center gap-1 font-semibold text-primary text-base">
-                        <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
-                        {currentQuestion?.points === -1 ? '랜덤' : `${currentQuestion?.points}점`}
-                    </span>
-                 </DialogTitle>
-                 {currentQuestion?.hint && (
+                 <div className="flex justify-between items-center">
+                    <DialogTitle className="font-headline text-2xl flex items-center gap-2">
+                        질문
+                        <span className="flex items-center gap-1 font-semibold text-primary text-base">
+                            <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
+                            {currentPoints === -1 ? '랜덤' : `${currentPoints}점`}
+                        </span>
+                    </DialogTitle>
+                    {currentQuestion?.hint && !showHint && (
+                        <Button variant="outline" size="sm" onClick={handleShowHint}>
+                            <Lightbulb className="w-4 h-4 mr-2" />
+                            힌트 보기 (점수 절반)
+                        </Button>
+                    )}
+                 </div>
+                 {currentQuestion?.hint && showHint && (
                     <DialogDescription>힌트: {currentQuestion.hint}</DialogDescription>
                  )}
             </DialogHeader>
-            <div className="py-4">
+            <div className="py-4 space-y-6">
                 <p className="text-lg font-medium">{currentQuestion?.question}</p>
+
+                <div>
+                    {currentQuestion?.type === 'subjective' && (
+                        <Input 
+                            placeholder="정답을 입력하세요" 
+                            value={userAnswer}
+                            onChange={(e) => setUserAnswer(e.target.value)}
+                        />
+                    )}
+                    {currentQuestion?.type === 'multipleChoice' && currentQuestion.options && (
+                        <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="space-y-2">
+                            {currentQuestion.options.map((option, index) => (
+                                <div key={index} className="flex items-center space-x-2">
+                                    <RadioGroupItem value={option} id={`option-${index}`} />
+                                    <Label htmlFor={`option-${index}`} className="flex-1 p-3 rounded-md border hover:border-primary cursor-pointer">{option}</Label>
+                                </div>
+                            ))}
+                        </RadioGroup>
+                    )}
+                    {currentQuestion?.type === 'ox' && (
+                        <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="grid grid-cols-2 gap-4">
+                            <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'O' && 'border-primary bg-primary/10')}>
+                                <RadioGroupItem value="O" id="option-o" className="sr-only"/>
+                                O
+                            </Label>
+                            <Label htmlFor="option-x" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'X' && 'border-primary bg-primary/10')}>
+                                <RadioGroupItem value="X" id="option-x" className="sr-only"/>
+                                X
+                            </Label>
+                        </RadioGroup>
+                    )}
+                </div>
             </div>
-            {/* TODO: Add answer input/options and submit button */}
-            <div className="text-center p-8 border-2 border-dashed rounded-md text-muted-foreground">
-                <p>답변 입력 영역</p>
-            </div>
+            
             <Button className="w-full">정답 제출</Button>
         </DialogContent>
     </Dialog>
     </>
   );
 }
-
-    
