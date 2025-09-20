@@ -16,17 +16,29 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, CheckCircle } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, CheckCircle, Pencil, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { GameSet } from '@/lib/types';
 import { auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { cn } from '@/lib/utils';
+import { useToast } from '@/hooks/use-toast';
+
 
 interface GameSetDocument extends GameSet {
   id: string;
@@ -37,6 +49,8 @@ export default function DashboardPage() {
   const [gameSets, setGameSets] = useState<GameSetDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGameSet, setSelectedGameSet] = useState<GameSetDocument | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<GameSetDocument | null>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     const q = query(collection(db, 'game-sets'), orderBy('createdAt', 'desc'));
@@ -51,6 +65,26 @@ export default function DashboardPage() {
 
     return () => unsubscribe();
   }, []);
+
+  const handleDelete = async () => {
+    if (!deleteCandidate) return;
+
+    try {
+        await deleteDoc(doc(db, "game-sets", deleteCandidate.id));
+        toast({
+            title: "성공",
+            description: "퀴즈 세트를 삭제했습니다."
+        });
+        setDeleteCandidate(null);
+    } catch (error) {
+        console.error("Error deleting document: ", error);
+        toast({
+            variant: "destructive",
+            title: "오류",
+            description: "퀴즈 세트 삭제 중 오류가 발생했습니다."
+        });
+    }
+  };
 
   return (
     <div className="flex flex-col gap-8">
@@ -87,14 +121,16 @@ export default function DashboardPage() {
 
       <div>
         <h2 className="text-2xl font-bold font-headline mb-4">게임 세트 둘러보기</h2>
-        {loading ? (
+        {loading || loadingUser ? (
            <p>게임 세트를 불러오는 중...</p>
         ) : gameSets.length === 0 ? (
             <p>아직 만들어진 게임 세트가 없습니다. 첫 번째 퀴즈를 만들어보세요!</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {gameSets.map((set) => (
-              <Card key={set.id} className="hover:shadow-lg transition-shadow">
+            {gameSets.map((set) => {
+              const isCreator = user && set.creatorId === user.uid;
+              return (
+              <Card key={set.id} className="hover:shadow-lg transition-shadow flex flex-col">
                 <CardHeader>
                   <div className="flex items-start justify-between">
                       <div>
@@ -107,14 +143,25 @@ export default function DashboardPage() {
                       </div>
                   </div>
                 </CardHeader>
-                <CardFooter className="flex justify-end gap-2">
-                  <Button variant="ghost" onClick={() => setSelectedGameSet(set)}>미리보기</Button>
-                  <Button asChild>
-                      <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
-                  </Button>
+                <CardFooter className="mt-auto flex justify-end gap-2">
+                   <Button variant="ghost" onClick={() => setSelectedGameSet(set)}>미리보기</Button>
+                  {isCreator ? (
+                    <>
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={`/game-sets/edit/${set.id}`}><Pencil className="mr-2 h-4 w-4" /> 수정</Link>
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={() => setDeleteCandidate(set)}>
+                        <Trash2 className="mr-2 h-4 w-4" /> 삭제
+                      </Button>
+                    </>
+                  ) : (
+                     <Button asChild>
+                        <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
+                    </Button>
+                  )}
                 </CardFooter>
               </Card>
-            ))}
+            )})}
           </div>
         )}
       </div>
@@ -169,6 +216,21 @@ export default function DashboardPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      <AlertDialog open={!!deleteCandidate} onOpenChange={(isOpen) => !isOpen && setDeleteCandidate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>정말 삭제하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              이 퀴즈 세트를 삭제하면 되돌릴 수 없습니다. "{deleteCandidate?.title}" 퀴즈를 영구적으로 삭제합니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">삭제</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
