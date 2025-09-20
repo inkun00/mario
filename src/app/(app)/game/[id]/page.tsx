@@ -457,18 +457,6 @@ export default function GamePage() {
                     </div>
                 ))}
             </div>
-            {gameRoom?.mysteryBoxEnabled && (
-                <div className="p-4 border-t bg-secondary/30">
-                    <h3 className="font-headline font-semibold mb-2 text-center">미스터리 박스 효과</h3>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                        <Badge variant="outline" className="justify-center py-1"><Star className="w-3 h-3 mr-1.5"/> 점수 2배</Badge>
-                        <Badge variant="outline" className="justify-center py-1"><Shield className="w-3 h-3 mr-1.5"/> 감점 방어</Badge>
-                        <Badge variant="outline" className="justify-center py-1"><Swords className="w-3 h-3 mr-1.5"/> 점수 뺏기</Badge>
-                        <Badge variant="outline" className="justify-center py-1"><Zap className="w-3 h-3 mr-1.5"/> 한 턴 쉬기</Badge>
-                        <Badge variant="outline" className="justify-center py-1 col-span-2"><HelpCircle className="w-3 h-3 mr-1.5"/> ???</Badge>
-                    </div>
-                </div>
-            )}
         </Card>
       </aside>
     </div>
