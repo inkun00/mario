@@ -7,7 +7,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { Crown, HelpCircle, Loader2, Shield, Star, Swords, Zap, Lightbulb } from 'lucide-react';
+import { Crown, HelpCircle, Loader2, Shield, Star, Swords, Zap, Lightbulb, ChevronsRight, Gift, TrendingDown, Repeat, Bomb } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 import { Progress } from '@/components/ui/progress';
@@ -29,6 +29,16 @@ interface GameBlock {
   isOpened: boolean;
 }
 
+type MysteryEffectType = 'bonus' | 'double' | 'penalty' | 'half' | 'swap';
+
+interface MysteryEffect {
+    type: MysteryEffectType;
+    title: string;
+    description: string;
+    icon: React.ReactNode;
+    value?: number;
+}
+
 // Function to shuffle an array
 const shuffleArray = <T,>(array: T[]): T[] => {
   const newArray = [...array];
@@ -40,7 +50,7 @@ const shuffleArray = <T,>(array: T[]): T[] => {
 };
 
 
-export default function GamePage({ params }: { params: { id: string } }) {
+export default function GamePage() {
   const { id: gameRoomId } = useParams();
   const [user, loadingUser] = useAuthState(auth);
   const router = useRouter();
@@ -50,6 +60,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
   const [gameSet, setGameSet] = useState<GameSet | null>(null);
   const [blocks, setBlocks] = useState<GameBlock[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
+  
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
   const [currentPoints, setCurrentPoints] = useState(0);
   const [showHint, setShowHint] = useState(false);
@@ -59,6 +70,11 @@ export default function GamePage({ params }: { params: { id: string } }) {
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [showMysteryBoxPopup, setShowMysteryBoxPopup] = useState(false);
+  const [mysteryBoxEffect, setMysteryBoxEffect] = useState<MysteryEffect | null>(null);
+  const [playerForSwap, setPlayerForSwap] = useState<string | null>(null);
+
 
   // Fetch GameRoom and GameSet data
   useEffect(() => {
@@ -133,6 +149,18 @@ export default function GamePage({ params }: { params: { id: string } }) {
 
   }, [gameSet, gameRoom, blocks.length]);
   
+  const handleNextTurn = async () => {
+      if (!gameRoom) return;
+
+      const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+      const playerUIDs = Object.keys(gameRoom.players);
+      const currentTurnIndex = playerUIDs.indexOf(gameRoom.currentTurn);
+      const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
+      const nextTurnUID = playerUIDs[nextTurnIndex];
+
+      await updateDoc(roomRef, { currentTurn: nextTurnUID });
+  };
+  
   const handleBlockClick = (block: GameBlock) => {
     const isTurnRestricted = gameRoom?.joinType === 'remote' && !isMyTurn;
     if (isTurnRestricted || block.isOpened || block.isFlipping) return;
@@ -155,15 +183,34 @@ export default function GamePage({ params }: { params: { id: string } }) {
         setShowHint(false);
         setUserAnswer('');
         
-        // Update Firestore state
         const roomRef = doc(db, 'game-rooms', gameRoomId as string);
-        updateDoc(roomRef, {
-            [`gameState.${block.id}`]: 'answered'
-        });
-      } else {
-        // Handle mystery box logic
-        toast({ title: "미스터리 박스!", description: "놀라운 효과가 발동됩니다!" });
-        // TODO: Implement next turn logic after mystery box
+        updateDoc(roomRef, { [`gameState.${block.id}`]: 'answered' });
+      } else { // Mystery Box
+        const effects: MysteryEffectType[] = ['bonus', 'double', 'penalty', 'half', 'swap'];
+        const randomEffect = effects[Math.floor(Math.random() * effects.length)];
+        let effectDetails: MysteryEffect;
+
+        const randomPoints = (Math.floor(Math.random() * 5) + 1) * 10;
+
+        switch (randomEffect) {
+            case 'bonus':
+                effectDetails = { type: 'bonus', title: '점수 보너스!', description: `축하합니다! ${randomPoints}점을 추가로 획득합니다.`, icon: <Star className="w-16 h-16 text-yellow-400"/>, value: randomPoints };
+                break;
+            case 'double':
+                effectDetails = { type: 'double', title: '점수 2배!', description: '행운의 주인공! 현재까지 누적된 모든 점수가 2배가 됩니다.', icon: <ChevronsRight className="w-16 h-16 text-green-500"/> };
+                break;
+            case 'penalty':
+                effectDetails = { type: 'penalty', title: '점수 감점...', description: `이런! ${randomPoints}점이 감점됩니다.`, icon: <Bomb className="w-16 h-16 text-destructive"/>, value: -randomPoints };
+                break;
+            case 'half':
+                effectDetails = { type: 'half', title: '점수 반감', description: '치명적인 실수! 현재까지 누적된 모든 점수가 절반으로 줄어듭니다.', icon: <TrendingDown className="w-16 h-16 text-orange-500"/> };
+                break;
+            case 'swap':
+                effectDetails = { type: 'swap', title: '점수 바꾸기!', description: '전략적 선택! 다른 플레이어와 점수를 바꿀 수 있습니다.', icon: <Repeat className="w-16 h-16 text-blue-500"/> };
+                break;
+        }
+        setMysteryBoxEffect(effectDetails);
+        setShowMysteryBoxPopup(true);
       }
     }, 800); // Animation duration
   };
@@ -173,9 +220,11 @@ export default function GamePage({ params }: { params: { id: string } }) {
     setCurrentPoints(prev => Math.floor(prev / 2));
   };
 
-  const handleCloseDialog = () => {
-    if (isSubmitting) return;
+  const handleCloseDialogs = () => {
     setCurrentQuestion(null);
+    setShowMysteryBoxPopup(false);
+    setMysteryBoxEffect(null);
+    setPlayerForSwap(null);
   }
 
   const handleSubmitAnswer = async () => {
@@ -208,26 +257,62 @@ export default function GamePage({ params }: { params: { id: string } }) {
         const roomRef = doc(db, 'game-rooms', gameRoomId as string);
         const currentTurnUID = gameRoom.currentTurn;
         
-        // Find next turn
-        const playerUIDs = Object.keys(gameRoom.players);
-        const currentTurnIndex = playerUIDs.indexOf(currentTurnUID);
-        const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
-        const nextTurnUID = playerUIDs[nextTurnIndex];
+        await updateDoc(roomRef, {
+            [`players.${currentTurnUID}.score`]: increment(pointsToAward)
+        });
 
-        const updates: any = {
-            [`players.${currentTurnUID}.score`]: increment(pointsToAward),
-            currentTurn: nextTurnUID
-        };
-
-        await updateDoc(roomRef, updates);
-
+        await handleNextTurn();
     } catch (error) {
         console.error("Error submitting answer: ", error);
         toast({ variant: 'destructive', title: '오류', description: '답변 제출 중 오류가 발생했습니다.'});
+    } finally {
+        setIsSubmitting(false);
+        handleCloseDialogs();
     }
+  };
 
-    setIsSubmitting(false);
-    handleCloseDialog();
+  const handleMysteryEffect = async () => {
+    if (!mysteryBoxEffect || !gameRoom) return;
+
+    setIsSubmitting(true);
+    const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+    const currentTurnUID = gameRoom.currentTurn;
+    const currentPlayer = gameRoom.players[currentTurnUID];
+    let updates: any = {};
+
+    switch (mysteryBoxEffect.type) {
+        case 'bonus':
+        case 'penalty':
+            updates[`players.${currentTurnUID}.score`] = increment(mysteryBoxEffect.value || 0);
+            break;
+        case 'double':
+            updates[`players.${currentTurnUID}.score`] = currentPlayer.score * 2;
+            break;
+        case 'half':
+            updates[`players.${currentTurnUID}.score`] = Math.floor(currentPlayer.score / 2);
+            break;
+        case 'swap':
+            if (!playerForSwap) {
+                toast({ variant: 'destructive', title: '오류', description: '점수를 바꿀 플레이어를 선택해주세요.'});
+                setIsSubmitting(false);
+                return;
+            }
+            const targetPlayer = gameRoom.players[playerForSwap];
+            updates[`players.${currentTurnUID}.score`] = targetPlayer.score;
+            updates[`players.${playerForSwap}.score`] = currentPlayer.score;
+            break;
+    }
+    
+    try {
+        await updateDoc(roomRef, updates);
+        await handleNextTurn();
+    } catch (error) {
+        console.error("Error applying mystery effect:", error);
+        toast({ variant: 'destructive', title: '오류', description: '미스터리 효과 적용 중 오류 발생'});
+    } finally {
+        setIsSubmitting(false);
+        handleCloseDialogs();
+    }
   };
 
 
@@ -295,7 +380,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
                              </div>
                            ) : (
                              <div className="flex flex-col items-center text-accent font-bold text-center p-1">
-                                <HelpCircle className="w-1/2 h-1/2" />
+                                <Gift className="w-1/2 h-1/2" />
                                 <span className="text-sm">미스터리</span>
                              </div>
                            )}
@@ -350,7 +435,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
     </div>
 
     {/* Question Popup */}
-    <Dialog open={!!currentQuestion} onOpenChange={(isOpen) => !isOpen && handleCloseDialog()}>
+    <Dialog open={!!currentQuestion} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
         <DialogContent className="max-w-2xl">
             <DialogHeader>
                  <div className="flex justify-between items-center">
@@ -411,6 +496,39 @@ export default function GamePage({ params }: { params: { id: string } }) {
             
             <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting}>
                 {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
+            </Button>
+        </DialogContent>
+    </Dialog>
+
+    {/* Mystery Box Popup */}
+    <Dialog open={showMysteryBoxPopup} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
+        <DialogContent className="max-w-md text-center">
+            <DialogHeader>
+                 <div className="flex flex-col items-center gap-4">
+                    {mysteryBoxEffect?.icon}
+                    <DialogTitle className="font-headline text-3xl">{mysteryBoxEffect?.title}</DialogTitle>
+                    <DialogDescription className="text-base">{mysteryBoxEffect?.description}</DialogDescription>
+                 </div>
+            </DialogHeader>
+            <div className="py-4">
+                {mysteryBoxEffect?.type === 'swap' && (
+                  <div className="text-left space-y-2">
+                    <Label className="font-semibold">바꿀 플레이어 선택:</Label>
+                     <RadioGroup value={playerForSwap || ''} onValueChange={setPlayerForSwap} className="space-y-2" disabled={isSubmitting}>
+                        {players.filter(p => p.uid !== gameRoom?.currentTurn).map((player) => (
+                           <Label key={player.uid} htmlFor={`swap-${player.uid}`} className="flex items-center gap-3 p-3 rounded-md border hover:border-primary cursor-pointer">
+                                <RadioGroupItem value={player.uid} id={`swap-${player.uid}`} />
+                                <Image src={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageUrl || ''} alt={player.nickname} width={32} height={32} className="rounded-full" data-ai-hint={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageHint}/>
+                                <span className="font-semibold">{player.nickname}</span>
+                                <span className="ml-auto text-primary font-bold">{player.score}점</span>
+                           </Label>
+                        ))}
+                    </RadioGroup>
+                  </div>
+                )}
+            </div>
+            <Button className="w-full" onClick={handleMysteryEffect} disabled={isSubmitting || (mysteryBoxEffect?.type === 'swap' && !playerForSwap)}>
+                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "효과 적용"}
             </Button>
         </DialogContent>
     </Dialog>
