@@ -166,7 +166,7 @@ export default function DashboardPage() {
                       </div>
                   </div>
                 </CardHeader>
-                <CardFooter className="mt-auto flex justify-end gap-2">
+                <CardFooter className="mt-auto flex justify-end gap-2 flex-wrap">
                    <Button variant="ghost" onClick={() => setSelectedGameSet(set)}>미리보기</Button>
                   {isCreator ? (
                     <>
@@ -175,6 +175,9 @@ export default function DashboardPage() {
                       </Button>
                       <Button variant="destructive" size="sm" onClick={() => setDeleteCandidate(set)}>
                         <Trash2 className="mr-2 h-4 w-4" /> 삭제
+                      </Button>
+                       <Button asChild size="sm">
+                          <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
                       </Button>
                     </>
                   ) : (
