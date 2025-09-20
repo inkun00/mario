@@ -28,7 +28,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
   const currentTurnPlayer = players[0];
 
   return (
-    <div className="flex h-full max-h-[calc(100vh-4rem)] flex-col lg:flex-row gap-6">
+    <div className="container mx-auto flex h-full max-h-[calc(100vh-4rem)] flex-col lg:flex-row gap-6">
       {/* Game Board */}
       <div className="flex-grow flex flex-col items-center justify-center p-6 bg-blue-100/50 dark:bg-blue-900/20 rounded-xl shadow-inner">
         <Card className="w-full max-w-4xl p-4 sm:p-6 bg-background/70 backdrop-blur-sm">

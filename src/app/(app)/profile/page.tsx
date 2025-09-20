@@ -44,7 +44,7 @@ const incorrectAnswers = [
 
 export default function ProfilePage() {
   return (
-    <div className="flex flex-col gap-8">
+    <div className="container mx-auto flex flex-col gap-8">
       <Card>
         <CardHeader>
           <div className="flex items-center gap-4">

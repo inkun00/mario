@@ -28,7 +28,7 @@ const leaderboardData = [
 
 export default function LeaderboardPage() {
   return (
-    <div className="container mx-auto py-8">
+    <div className="container mx-auto">
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="font-headline text-3xl">리더보드</CardTitle>
