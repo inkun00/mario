@@ -26,8 +26,6 @@ interface GameBlock {
   isOpened: boolean;
 }
 
-const questionBlockImage = PlaceHolderImages.find(p => p.id === 'question-block');
-
 // Function to shuffle an array
 const shuffleArray = <T,>(array: T[]): T[] => {
   const newArray = [...array];
@@ -187,29 +185,29 @@ export default function GamePage({ params }: { params: { id: string } }) {
                         !isMyTurn || block.isOpened ? 'cursor-not-allowed' : 'cursor-pointer'
                     )}>
                         {/* Front of the card */}
-                         <div className={cn("absolute inset-0 backface-hidden flex flex-col items-center justify-center rounded-lg shadow-md transition-opacity", block.isOpened && 'opacity-25')}>
-                            <Image 
-                                src={questionBlockImage?.imageUrl || ''}
-                                alt="Question Block"
-                                fill
-                                className="object-contain"
-                                data-ai-hint={questionBlockImage?.imageHint}
-                            />
-                            <span className="absolute text-2xl font-bold text-white" style={{textShadow: '2px 2px 4px rgba(0,0,0,0.7)'}}>
-                                {index + 1}
+                        <div className={cn(
+                            "absolute inset-0 backface-hidden flex flex-col items-center justify-center rounded-lg shadow-md transition-all duration-300",
+                            "bg-yellow-400 border-b-8 border-yellow-600",
+                            "hover:scale-105 hover:shadow-xl",
+                            block.isOpened ? 'opacity-30 bg-gray-300 border-gray-400' : ''
+                        )}>
+                            <span className="text-3xl font-bold text-white" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.5)' }}>
+                                {block.type === 'question' ? '?' : '!'}
                             </span>
+                             <span className="absolute bottom-1 right-2 text-sm font-bold text-white/70">{index + 1}</span>
                         </div>
+                        
                         {/* Back of the card */}
                         <div className="absolute inset-0 backface-hidden rotate-y-180 flex items-center justify-center bg-secondary rounded-lg">
                            {block.type === 'question' ? (
-                             <div className="flex flex-col items-center text-primary font-bold">
-                                <Star className="w-1/3 h-1/3 text-yellow-400 fill-yellow-400" />
-                                <span>{block.question?.points === -1 ? '랜덤' : `${block.question?.points}점`}</span>
+                             <div className="flex flex-col items-center text-primary font-bold text-center p-1">
+                                <Star className="w-1/2 h-1/2 text-yellow-400 fill-yellow-400" />
+                                <span className="text-sm">{block.question?.points === -1 ? '랜덤' : `${block.question?.points}점`}</span>
                              </div>
                            ) : (
-                             <div className="flex flex-col items-center text-accent font-bold">
-                                <HelpCircle className="w-1/3 h-1/3" />
-                                <span>미스터리</span>
+                             <div className="flex flex-col items-center text-accent font-bold text-center p-1">
+                                <HelpCircle className="w-1/2 h-1/2" />
+                                <span className="text-sm">미스터리</span>
                              </div>
                            )}
                         </div>
