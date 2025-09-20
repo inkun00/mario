@@ -1,26 +1,19 @@
-
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow users to create their own user document
     match /users/{userId} {
-      allow create: if request.auth != null && request.auth.uid == userId;
-      allow read, update, delete: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Game sets can be read by anyone, but only created/updated/deleted by the owner
-    match /game-sets/{gameSetId} {
+    match /game-sets/{document=**} {
       allow read: if true;
       allow create: if request.auth != null;
       allow update, delete: if request.auth != null && resource.data.creatorId == request.auth.uid;
     }
 
-    // Game rooms can be created by any authenticated user.
-    // Reading/updating depends on the game logic, allowing any authenticated user for now.
-    match /game-rooms/{gameRoomId} {
-       allow read, update, delete: if true; // In a real app, you'd restrict this more.
-       allow create: if request.auth != null;
+    match /game-rooms/{document=**} {
+      allow read, write: if true;
     }
   }
 }
