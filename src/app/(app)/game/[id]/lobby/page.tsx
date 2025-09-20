@@ -110,16 +110,18 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
 
 function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
     const [numPlayers, setNumPlayers] = useState(2);
-    const [players, setPlayers] = useState<Array<{userId: string; confirmed: boolean; isChecking: boolean }>>([]);
+    const [players, setPlayers] = useState<Array<{userId: string; nickname: string; confirmed: boolean; isChecking: boolean }>>([]);
     const { toast } = useToast();
 
     useEffect(() => {
-        setPlayers(Array.from({ length: numPlayers }, () => ({ userId: '', confirmed: false, isChecking: false })));
+        setPlayers(Array.from({ length: numPlayers }, () => ({ userId: '', nickname: '', confirmed: false, isChecking: false })));
     }, [numPlayers]);
     
     const handleUserIdChange = (index: number, userId: string) => {
         const newPlayers = [...players];
         newPlayers[index].userId = userId;
+        newPlayers[index].confirmed = false;
+        newPlayers[index].nickname = '';
         setPlayers(newPlayers);
     };
 
@@ -137,10 +139,11 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
         }
 
         try {
-            const { exists } = await checkUserId({ userId });
+            const { exists, nickname } = await checkUserId({ userId });
             if (exists) {
                 newPlayers[index].confirmed = true;
-                 toast({ title: '성공', description: `"${userId}" 님이 확인되었습니다.`});
+                newPlayers[index].nickname = nickname;
+                 toast({ title: '성공', description: `"${nickname}" 님이 확인되었습니다.`});
             } else {
                 toast({ variant: 'destructive', title: '오류', description: `"${userId}" 님을 찾을 수 없습니다.`});
             }
@@ -184,7 +187,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
                                 <Label htmlFor={`userId-${index}`}>플레이어 {index + 1}</Label>
                                 {player.confirmed ? (
                                     <div className="flex items-center justify-between h-10 px-3 py-2 text-sm rounded-md border border-transparent bg-secondary">
-                                        <span className="font-semibold">{player.userId}</span>
+                                        <span className="font-semibold">{player.nickname}</span>
                                         <span className="text-primary flex items-center gap-1"><CheckCircle className="w-4 h-4"/> 참여 완료</span>
                                     </div>
                                 ) : (
@@ -252,6 +255,10 @@ export default function LobbyPage() {
         router.push('/dashboard');
       }
       setIsLoading(false);
+    }, (error) => {
+        toast({ variant: 'destructive', title: '오류', description: '게임방 정보를 불러오는 중 오류가 발생했습니다.' });
+        setIsLoading(false);
+        router.push('/dashboard');
     });
 
     return () => unsubscribe();
@@ -279,5 +286,3 @@ export default function LobbyPage() {
     </div>
   )
 }
-
-    

@@ -2,9 +2,9 @@
 'use server';
 
 /**
- * @fileOverview An AI agent that checks for the existence of a user ID.
+ * @fileOverview An AI agent that checks for the existence of a user ID and returns their nickname.
  *
- * - checkUserId - A function that checks if a user ID exists.
+ * - checkUserId - A function that checks if a user ID exists and returns the nickname.
  * - CheckUserIdInput - The input type for the checkUserId function.
  * - CheckUserIdOutput - The return type for the checkUserId function.
  */
@@ -21,15 +21,13 @@ export type CheckUserIdInput = z.infer<typeof CheckUserIdInputSchema>;
 
 const CheckUserIdOutputSchema = z.object({
   exists: z.boolean().describe('Whether the user ID exists.'),
+  nickname: z.string().describe('The nickname of the user if they exist.'),
 });
 export type CheckUserIdOutput = z.infer<typeof CheckUserIdOutputSchema>;
 
 
 let app: App;
 if (!getApps().length) {
-  // In a real environment, you would use service account credentials.
-  // For local development, this might rely on GOOGLE_APPLICATION_CREDENTIALS
-  // or default credentials, which might not be set up.
   app = initializeApp();
 } else {
   app = getApps()[0];
@@ -56,22 +54,23 @@ const checkUserIdFlow = ai.defineFlow(
     // A proper user search service should be implemented.
     try {
         const usersRef = db.collection('users');
-        const snapshot = await usersRef.where('displayName', '==', userId).limit(1).get();
+        // Firebase Auth uses email for user ID in many cases.
+        // Let's assume the `userId` is the `email`.
+        const snapshot = await usersRef.where('email', '==', userId).limit(1).get();
 
         if (!snapshot.empty) {
-        return { exists: true };
+            const userDoc = snapshot.docs[0];
+            return { exists: true, nickname: userDoc.data().displayName || '' };
         }
     } catch(e) {
         console.error("Error checking user ID", e);
         // This is a workaround to allow local lobby to function without proper
         // server-side Firebase Admin setup. In a real app, you'd handle this error.
         // For now, we will assume the user exists if the check fails, to allow UI testing.
-        return { exists: true };
+        return { exists: true, nickname: userId };
     }
 
 
-    return { exists: false };
+    return { exists: false, nickname: '' };
   }
 );
-
-  
