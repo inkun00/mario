@@ -60,9 +60,9 @@ const checkUserIdFlow = ai.defineFlow(
         }
     } catch(e) {
         console.error("Error checking user ID in checkUserIdFlow:", e);
-        // This is a fallback. In a real app, you'd want to ensure your service account is set up correctly.
-        // For now, we'll try to provide a somewhat degraded experience.
-        return { exists: true, nickname: userId.split('@')[0] || userId };
+        // Firestore 쿼리가 실패하면 (예: 색인 문제), 사용자를 찾을 수 없는 것으로 처리합니다.
+        // 이전에 있던 예비 로직(이메일 자르기)이 문제의 원인을 파악하기 어렵게 만들었습니다.
+        return { exists: false, nickname: '' };
     }
 
 
