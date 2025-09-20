@@ -34,7 +34,7 @@ interface GameSetDocument extends Omit<GameSet, 'questions'> {
 }
 
 export default function DashboardPage() {
-  const [user] = useAuthState(auth);
+  const [user, loadingUser] = useAuthState(auth);
   const [gameSets, setGameSets] = useState<GameSetDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGameSet, setSelectedGameSet] = useState<GameSetDocument | null>(null);
