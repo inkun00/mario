@@ -119,7 +119,7 @@ export default function GamePage({ params }: { params: { id: string } }) {
 
     let mysteryItems: GameBlock[] = [];
     if(gameRoom.mysteryBoxEnabled) {
-        const mysteryCount = Math.floor(gameSet.questions.length * 0.3);
+        const mysteryCount = Math.round(gameSet.questions.length * 0.3);
         mysteryItems = Array.from({ length: mysteryCount }, (_, i) => ({
             id: gameSet.questions.length + i,
             type: 'mystery',
