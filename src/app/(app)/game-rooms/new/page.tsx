@@ -110,6 +110,7 @@ export default function NewGameRoomPage() {
         },
         gameState: {},
         mysteryBoxEnabled: mysteryBoxEnabled,
+        isMysterySettingDone: false,
         joinType: joinType,
         ...(usePassword && password && { password }),
       };

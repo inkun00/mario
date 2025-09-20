@@ -49,6 +49,8 @@ export interface LocalPlayer {
     confirmed: boolean;
 }
 
+export type MysteryEffectType = 'bonus' | 'double' | 'penalty' | 'half' | 'swap';
+
 export interface GameRoom {
   id: string;
   gameSetId: string;
@@ -59,9 +61,9 @@ export interface GameRoom {
   players: Record<string, Player>; // key is userId for remote, or nickname for local
   gameState: Record<string, 'available' | 'answered'>; // key is questionId
   mysteryBoxEnabled: boolean;
+  isMysterySettingDone?: boolean;
+  enabledMysteryEffects?: MysteryEffectType[];
   joinType: JoinType;
   createdAt: any;
   localPlayers?: LocalPlayer[];
 }
-
-    

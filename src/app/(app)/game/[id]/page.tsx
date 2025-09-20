@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { doc, onSnapshot, getDoc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import type { GameRoom, GameSet, Player, Question } from '@/lib/types';
+import type { GameRoom, GameSet, Player, Question, MysteryEffectType } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Crown, HelpCircle, Loader2, Shield, Star, Swords, Zap, Lightbulb, ChevronsRight, Gift, TrendingDown, Repeat, Bomb } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 interface GameBlock {
@@ -29,8 +30,6 @@ interface GameBlock {
   isOpened: boolean;
 }
 
-type MysteryEffectType = 'bonus' | 'double' | 'penalty' | 'half' | 'swap';
-
 interface MysteryEffect {
     type: MysteryEffectType;
     title: string;
@@ -38,6 +37,14 @@ interface MysteryEffect {
     icon: React.ReactNode;
     value?: number;
 }
+
+const allMysteryEffects: {type: MysteryEffectType, title: string, description: string}[] = [
+    { type: 'bonus', title: '점수 보너스', description: '10-50점의 보너스 점수를 획득합니다.'},
+    { type: 'double', title: '점수 2배', description: '현재까지 누적된 모든 점수가 2배가 됩니다.'},
+    { type: 'penalty', title: '점수 감점', description: '10-50점의 점수가 감점됩니다.'},
+    { type: 'half', title: '점수 반감', description: '현재까지 누적된 모든 점수가 절반으로 줄어듭니다.'},
+    { type: 'swap', title: '점수 바꾸기', description: '다른 플레이어와 점수를 바꿀 수 있습니다.'},
+];
 
 // Function to shuffle an array
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -74,6 +81,9 @@ export default function GamePage() {
   const [showMysteryBoxPopup, setShowMysteryBoxPopup] = useState(false);
   const [mysteryBoxEffect, setMysteryBoxEffect] = useState<MysteryEffect | null>(null);
   const [playerForSwap, setPlayerForSwap] = useState<string | null>(null);
+  
+  const [showMysterySettings, setShowMysterySettings] = useState(false);
+  const [selectedEffects, setSelectedEffects] = useState<MysteryEffectType[]>(allMysteryEffects.map(e => e.type));
 
 
   // Fetch GameRoom and GameSet data
@@ -98,6 +108,11 @@ export default function GamePage() {
              router.push('/dashboard');
           }
         }
+        
+        if (roomData.mysteryBoxEnabled && !roomData.isMysterySettingDone && user?.uid === roomData.hostId) {
+            setShowMysterySettings(true);
+        }
+
       } else {
         toast({ variant: 'destructive', title: '오류', description: '게임방을 찾을 수 없습니다.' });
         router.push('/dashboard');
@@ -111,7 +126,7 @@ export default function GamePage() {
     });
 
     return () => unsubscribe();
-  }, [gameRoomId, router, toast, gameSet]);
+  }, [gameRoomId, router, toast, gameSet, user]);
   
   // Update players and turn status when gameRoom or user changes
   useEffect(() => {
@@ -186,7 +201,13 @@ export default function GamePage() {
         const roomRef = doc(db, 'game-rooms', gameRoomId as string);
         updateDoc(roomRef, { [`gameState.${block.id}`]: 'answered' });
       } else { // Mystery Box
-        const effects: MysteryEffectType[] = ['bonus', 'double', 'penalty', 'half', 'swap'];
+        const effects = gameRoom?.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
+        if (effects.length === 0) {
+            toast({ title: '이런!', description: '아무 일도 일어나지 않았습니다. 설정된 미스터리 효과가 없습니다.' });
+            handleNextTurn();
+            return;
+        }
+        
         const randomEffect = effects[Math.floor(Math.random() * effects.length)];
         let effectDetails: MysteryEffect;
 
@@ -315,6 +336,25 @@ export default function GamePage() {
     }
   };
 
+  const handleSaveMysterySettings = async () => {
+      if (!gameRoomId) return;
+      setIsSubmitting(true);
+      try {
+          const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+          await updateDoc(roomRef, {
+              enabledMysteryEffects: selectedEffects,
+              isMysterySettingDone: true,
+          });
+          setShowMysterySettings(false);
+          toast({ title: '성공', description: '미스터리 박스 설정이 저장되었습니다.'});
+      } catch (error) {
+          console.error("Error saving mystery settings:", error);
+          toast({ variant: 'destructive', title: '오류', description: '설정 저장 중 오류가 발생했습니다.'});
+      } finally {
+          setIsSubmitting(false);
+      }
+  }
+
 
   const currentTurnPlayer = players.find(p => p.uid === gameRoom?.currentTurn);
   
@@ -432,6 +472,38 @@ export default function GamePage() {
         </Card>
       </aside>
     </div>
+
+    {/* Mystery Box Settings Popup */}
+     <Dialog open={showMysterySettings} onOpenChange={setShowMysterySettings}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle className="font-headline text-2xl">미스터리 박스 효과 설정</DialogTitle>
+                <DialogDescription>게임에 적용할 미스터리 박스 효과를 선택하세요. (호스트만 설정 가능)</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+                {allMysteryEffects.map((effect) => (
+                    <div key={effect.type} className="flex items-center space-x-2">
+                        <Checkbox
+                            id={effect.type}
+                            checked={selectedEffects.includes(effect.type)}
+                            onCheckedChange={(checked) => {
+                                return checked
+                                    ? setSelectedEffects([...selectedEffects, effect.type])
+                                    : setSelectedEffects(selectedEffects.filter(e => e !== effect.type));
+                            }}
+                        />
+                        <Label htmlFor={effect.type} className="flex flex-col gap-0.5">
+                            <span>{effect.title}</span>
+                            <span className="text-xs text-muted-foreground">{effect.description}</span>
+                        </Label>
+                    </div>
+                ))}
+            </div>
+            <Button onClick={handleSaveMysterySettings} disabled={isSubmitting}>
+                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "설정 완료하고 게임 시작"}
+            </Button>
+        </DialogContent>
+    </Dialog>
 
     {/* Question Popup */}
     <Dialog open={!!currentQuestion} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
