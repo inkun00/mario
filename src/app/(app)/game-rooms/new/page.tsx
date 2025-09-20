@@ -74,14 +74,6 @@ export default function NewGameRoomPage() {
   const handleCreateRoom = async () => {
     if (!user || !gameSet) return;
     
-    if (joinType === 'local') {
-      toast({
-        title: '준비 중인 기능',
-        description: '한 기기에서 여러 명이 참여하는 기능은 현재 준비 중입니다.',
-      });
-      return;
-    }
-
     setIsCreating(true);
 
     try {
