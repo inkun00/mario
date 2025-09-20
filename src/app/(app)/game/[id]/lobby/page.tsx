@@ -16,7 +16,7 @@ import Image from 'next/image';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
-import { checkUserId } from '@/ai/flows/check-nickname-flow';
+// import { checkUserId } from '@/ai/flows/check-nickname-flow';
 
 
 function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
@@ -138,16 +138,22 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
         }
 
         try {
-            const { exists, nickname } = await checkUserId({ userId });
-            if (exists) {
+            const q = query(collection(db, "users"), where("email", "==", userId), limit(1));
+            const querySnapshot = await getDocs(q);
+
+            if (!querySnapshot.empty) {
+                const userDoc = querySnapshot.docs[0];
+                const userData = userDoc.data();
+                const nickname = userData.displayName || userId;
+                
                 newPlayers[index].confirmed = true;
                 newPlayers[index].nickname = nickname;
-                 toast({ title: '성공', description: `"${nickname}" 님이 확인되었습니다.`});
+                toast({ title: '성공', description: `"${nickname}" 님이 확인되었습니다.`});
             } else {
                 toast({ variant: 'destructive', title: '오류', description: `"${userId}" 님을 찾을 수 없습니다.`});
             }
         } catch (error: any) {
-            console.error(error);
+            console.error("Error confirming player:", error);
             toast({ variant: 'destructive', title: '오류', description: `아이디 확인 중 오류가 발생했습니다: ${error.message}`});
         } finally {
             newPlayers[index].isChecking = false;
