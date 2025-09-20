@@ -282,34 +282,18 @@ export default function DashboardPage() {
                                 </p>
                             )}
 
-                            {q.type === 'subjective' && (
-                                <p className="mt-3 text-sm text-foreground/80 bg-background/50 rounded p-2">
-                                    <span className="font-medium">주관식 정답:</span> {q.answer}
-                                </p>
-                            )}
-
                             {q.type === 'multipleChoice' && q.options && (
                                 <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                                     {q.options.map((option, optIndex) => {
-                                        const isCorrect = option === q.correctAnswer;
                                         return (
-                                            <div key={optIndex} className={cn("flex items-center gap-2 text-sm p-2 rounded-md", isCorrect ? "bg-primary/20 border border-primary" : "bg-background/50")}>
-                                                {isCorrect && <CheckCircle className="w-4 h-4 text-primary shrink-0" />}
-                                                <span className={cn(isCorrect && "font-semibold")}>{option}</span>
+                                            <div key={optIndex} className="flex items-center gap-2 text-sm p-2 rounded-md bg-background/50">
+                                                <span>{option}</span>
                                             </div>
                                         )
                                     })}
                                 </div>
                             )}
 
-                            {q.type === 'ox' && (
-                                <div className="mt-3 flex items-center gap-4">
-                                   <p className="font-medium">정답:</p>
-                                    <div className={cn("flex items-center gap-2 text-sm p-2 rounded-md font-bold", q.correctAnswer === 'O' ? "bg-primary/20 border border-primary text-primary" : "bg-destructive/20 border border-destructive text-destructive")}>
-                                       {q.correctAnswer}
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     ))}
                 </div>
