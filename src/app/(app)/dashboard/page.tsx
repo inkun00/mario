@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, CheckCircle, Pencil, Trash2, HelpCircle } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, CheckCircle, Pencil, Trash2, HelpCircle, Lightbulb } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
@@ -38,6 +38,7 @@ import { auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
 
 
 interface GameSetDocument extends GameSet {
@@ -105,87 +106,89 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex flex-col gap-8">
-      <div>
-        <h1 className="text-3xl font-bold font-headline">안녕하세요, {user?.displayName || '게스트'}님!</h1>
-        <p className="text-muted-foreground mt-1">오늘도 즐거운 학습을 시작해볼까요?</p>
-      </div>
+    <>
+      <div className="flex flex-col gap-8">
+        <div>
+          <h1 className="text-3xl font-bold font-headline">안녕하세요, {user?.displayName || '게스트'}님!</h1>
+          <p className="text-muted-foreground mt-1">오늘도 즐거운 학습을 시작해볼까요?</p>
+        </div>
 
-      <div className="grid md:grid-cols-3 gap-6">
-        <Card className="md:col-span-1">
-          <CardHeader>
-            <CardTitle className="font-headline">게임 참여하기</CardTitle>
-            <CardDescription>참여 코드를 입력하여 친구의 게임에 참여하세요.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-2">
-              <Input placeholder="참여 코드 입력" />
-              <Button>참여</Button>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="md:col-span-2">
-           <CardHeader>
-            <CardTitle className="font-headline">새로운 게임 시작하기</CardTitle>
-            <CardDescription>원하는 게임 세트를 선택하여 새로운 게임방을 만드세요.</CardDescription>
-          </CardHeader>
-          <CardContent>
-             <Button asChild className="w-full md:w-auto">
-                <Link href="/game-sets/create"><PlusCircle className="mr-2 h-4 w-4"/>새로운 퀴즈 세트 만들기</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+        <div className="grid md:grid-cols-3 gap-6">
+          <Card className="md:col-span-1">
+            <CardHeader>
+              <CardTitle className="font-headline">게임 참여하기</CardTitle>
+              <CardDescription>참여 코드를 입력하여 친구의 게임에 참여하세요.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-2">
+                <Input placeholder="참여 코드 입력" />
+                <Button>참여</Button>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="md:col-span-2">
+            <CardHeader>
+              <CardTitle className="font-headline">새로운 게임 시작하기</CardTitle>
+              <CardDescription>원하는 게임 세트를 선택하여 새로운 게임방을 만드세요.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full md:w-auto">
+                  <Link href="/game-sets/create"><PlusCircle className="mr-2 h-4 w-4"/>새로운 퀴즈 세트 만들기</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
 
-      <div>
-        <h2 className="text-2xl font-bold font-headline mb-4">게임 세트 둘러보기</h2>
-        {loading || loadingUser ? (
-           <p>게임 세트를 불러오는 중...</p>
-        ) : gameSets.length === 0 ? (
-            <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                <p className="text-muted-foreground">아직 만들어진 게임 세트가 없습니다.</p>
-                <Button asChild className="mt-4">
-                    <Link href="/game-sets/create">첫 번째 퀴즈 만들어보기</Link>
-                </Button>
-            </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {gameSets.map((set) => {
-              const isCreator = user && set.creatorId === user.uid;
-              return (
-              <Card key={set.id} className="hover:shadow-lg transition-shadow flex flex-col">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                      <div>
-                          <CardTitle className="font-headline text-lg">{set.title}</CardTitle>
-                          <CardDescription className="mt-1">By {set.creatorNickname}</CardDescription>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Book className="h-4 w-4" />
-                          <span>{set.questions.length} 문제</span>
-                      </div>
-                  </div>
-                </CardHeader>
-                <CardFooter className="mt-auto flex justify-end gap-2">
-                   <Button variant="ghost" onClick={() => setSelectedGameSet(set)}>미리보기</Button>
-                  {isCreator && (
-                    <>
-                      <Button variant="outline" size="sm" asChild>
-                        <Link href={`/game-sets/edit/${set.id}`}><Pencil className="mr-2 h-4 w-4" /> 수정</Link>
-                      </Button>
-                      <Button variant="destructive" size="sm" onClick={() => setDeleteCandidate(set)}>
-                        <Trash2 className="mr-2 h-4 w-4" /> 삭제
-                      </Button>
-                    </>
-                  )}
-                  <Button asChild size="sm">
-                      <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
+        <div>
+          <h2 className="text-2xl font-bold font-headline mb-4">게임 세트 둘러보기</h2>
+          {loading || loadingUser ? (
+            <p>게임 세트를 불러오는 중...</p>
+          ) : gameSets.length === 0 ? (
+              <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                  <p className="text-muted-foreground">아직 만들어진 게임 세트가 없습니다.</p>
+                  <Button asChild className="mt-4">
+                      <Link href="/game-sets/create">첫 번째 퀴즈 만들어보기</Link>
                   </Button>
-                </CardFooter>
-              </Card>
-            )})}
-          </div>
-        )}
+              </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {gameSets.map((set) => {
+                const isCreator = user && set.creatorId === user.uid;
+                return (
+                <Card key={set.id} className="hover:shadow-lg transition-shadow flex flex-col">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                        <div>
+                            <CardTitle className="font-headline text-lg">{set.title}</CardTitle>
+                            <CardDescription className="mt-1">By {set.creatorNickname}</CardDescription>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Book className="h-4 w-4" />
+                            <span>{set.questions.length} 문제</span>
+                        </div>
+                    </div>
+                  </CardHeader>
+                  <CardFooter className="mt-auto flex justify-end items-center gap-2">
+                    <Button variant="ghost" onClick={() => setSelectedGameSet(set)}>미리보기</Button>
+                    {isCreator && (
+                      <>
+                        <Button variant="outline" size="sm" asChild>
+                          <Link href={`/game-sets/edit/${set.id}`}><Pencil className="mr-2 h-4 w-4" /> 수정</Link>
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => setDeleteCandidate(set)}>
+                          <Trash2 className="mr-2 h-4 w-4" /> 삭제
+                        </Button>
+                      </>
+                    )}
+                    <Button asChild size="sm">
+                        <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
+                    </Button>
+                  </CardFooter>
+                </Card>
+              )})}
+            </div>
+          )}
+        </div>
       </div>
 
       {selectedGameSet && (
@@ -206,6 +209,7 @@ export default function DashboardPage() {
                             <div className="flex justify-between items-start">
                                 <p className="font-semibold text-base">질문 {index + 1}. {q.question}</p>
                                 <div className="flex items-center gap-2 text-sm">
+                                    {q.hint && <Badge variant="outline" className="text-xs"><Lightbulb className="w-3 h-3 mr-1"/> 힌트 있음</Badge>}
                                     <span className="flex items-center gap-1 font-semibold text-primary">
                                         <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
                                         {q.points === -1 ? '랜덤' : `${q.points}점`}
@@ -213,6 +217,12 @@ export default function DashboardPage() {
                                     {q.points === -1 && <HelpCircle className="w-4 h-4 text-muted-foreground" title="10-50점 사이의 랜덤 점수가 부여됩니다."/>}
                                 </div>
                             </div>
+
+                             {q.hint && (
+                                <p className="mt-3 text-sm text-foreground/80 bg-background/50 rounded p-2">
+                                    <span className="font-medium">힌트:</span> {q.hint}
+                                </p>
+                            )}
 
                             {q.type === 'subjective' && (
                                 <p className="mt-3 text-sm text-foreground/80 bg-background/50 rounded p-2">
@@ -264,6 +274,6 @@ export default function DashboardPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }

@@ -10,6 +10,7 @@ export interface Question {
   question: string;
   points: number;
   type: 'subjective' | 'multipleChoice' | 'ox';
+  hint?: string;
   // for subjective
   answer?: string;
   // for multiple choice or ox
@@ -33,7 +34,7 @@ export interface GameSet {
 
 export interface Player {
   uid: string;
-  nickname: string;
+  nickname:string;
   score: number;
   avatarId: string;
 }

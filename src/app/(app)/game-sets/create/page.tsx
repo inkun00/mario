@@ -44,6 +44,7 @@ const questionSchema = z.object({
   question: z.string().min(1, '질문을 입력해주세요.'),
   points: z.coerce.number(),
   type: z.enum(['subjective', 'multipleChoice', 'ox']),
+  hint: z.string().optional(),
   answer: z.string().optional(),
   options: z.array(z.string()).optional(),
   correctAnswer: z.string().optional(),
@@ -79,6 +80,7 @@ const defaultQuestion: z.infer<typeof questionSchema> = {
   question: '',
   points: 10,
   type: 'subjective',
+  hint: '',
   answer: '',
   options: ['', '', '', ''],
   correctAnswer: '',
@@ -305,184 +307,201 @@ export default function CreateGameSetPage() {
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
+
+                        <div className="space-y-4">
                         
-                        <FormField
-                          control={form.control}
-                          name={`questions.${index}.question`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>문제</FormLabel>
-                              <FormControl>
-                                <Textarea placeholder="문제를 입력하세요." {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
+                            <FormField
+                            control={form.control}
+                            name={`questions.${index}.question`}
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>문제</FormLabel>
+                                <FormControl>
+                                    <Textarea placeholder="문제를 입력하세요." {...field} />
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                            />
 
-                        <FormField
-                          control={form.control}
-                          name={`questions.${index}.type`}
-                          render={({ field }) => (
-                            <FormItem className="mt-4">
-                              <FormLabel>유형</FormLabel>
-                              <FormControl>
-                                <RadioGroup
-                                  onValueChange={field.onChange}
-                                  defaultValue={field.value}
-                                  className="flex items-center gap-4"
-                                >
-                                  <FormItem className="flex items-center space-x-2">
-                                    <FormControl>
-                                      <RadioGroupItem value="subjective" />
-                                    </FormControl>
-                                    <FormLabel className="font-normal">주관식</FormLabel>
-                                  </FormItem>
-                                  <FormItem className="flex items-center space-x-2">
-                                    <FormControl>
-                                      <RadioGroupItem value="multipleChoice" />
-                                    </FormControl>
-                                    <FormLabel className="font-normal">객관식</FormLabel>
-                                  </FormItem>
-                                  <FormItem className="flex items-center space-x-2">
-                                    <FormControl>
-                                      <RadioGroupItem value="ox" />
-                                    </FormControl>
-                                    <FormLabel className="font-normal">O/X</FormLabel>
-                                  </FormItem>
-                                </RadioGroup>
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
+                            <FormField
+                            control={form.control}
+                            name={`questions.${index}.hint`}
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>힌트 (선택 사항)</FormLabel>
+                                <FormControl>
+                                    <Textarea placeholder="힌트를 입력하세요." {...field} />
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                            />
 
-                        <Controller
-                          control={form.control}
-                          name={`questions.${index}.type`}
-                          render={({ field: { value: typeValue } }) => (
-                            <>
-                              {typeValue === 'subjective' && (
-                                <FormField
-                                  control={form.control}
-                                  name={`questions.${index}.answer`}
-                                  render={({ field }) => (
-                                    <FormItem className="mt-4">
-                                      <FormLabel>정답</FormLabel>
-                                      <FormControl>
-                                        <Input placeholder="주관식 정답을 입력하세요." {...field} />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-                              )}
-
-                              {typeValue === 'multipleChoice' && (
-                                <div className="mt-4 space-y-4">
-                                  <FormLabel>보기 및 정답</FormLabel>
-                                  <FormField
-                                    control={form.control}
-                                    name={`questions.${index}.correctAnswer`}
-                                    render={({ field }) => (
-                                      <FormItem>
+                            <FormField
+                            control={form.control}
+                            name={`questions.${index}.type`}
+                            render={({ field }) => (
+                                <FormItem className="mt-4">
+                                <FormLabel>유형</FormLabel>
+                                <FormControl>
+                                    <RadioGroup
+                                    onValueChange={field.onChange}
+                                    defaultValue={field.value}
+                                    className="flex items-center gap-4"
+                                    >
+                                    <FormItem className="flex items-center space-x-2">
                                         <FormControl>
-                                          <RadioGroup
-                                            onValueChange={field.onChange}
-                                            value={field.value}
-                                            className="space-y-2"
-                                          >
-                                            {Array.from({ length: 4 }).map((_, optIndex) => (
-                                              <FormField
-                                                key={`${field.name}-option-${optIndex}`}
-                                                control={form.control}
-                                                name={`questions.${index}.options.${optIndex}`}
-                                                render={({ field: optionField }) => (
-                                                  <FormItem className="flex items-center gap-2">
-                                                    <FormControl>
-                                                      <RadioGroupItem value={optionField.value} />
-                                                    </FormControl>
-                                                    <Input placeholder={`보기 ${optIndex + 1}`} {...optionField} />
-                                                  </FormItem>
-                                                )}
-                                              />
-                                            ))}
-                                          </RadioGroup>
+                                        <RadioGroupItem value="subjective" />
                                         </FormControl>
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-                                </div>
-                              )}
-                                {typeValue === 'ox' && (
-                                  <FormField
+                                        <FormLabel className="font-normal">주관식</FormLabel>
+                                    </FormItem>
+                                    <FormItem className="flex items-center space-x-2">
+                                        <FormControl>
+                                        <RadioGroupItem value="multipleChoice" />
+                                        </FormControl>
+                                        <FormLabel className="font-normal">객관식</FormLabel>
+                                    </FormItem>
+                                    <FormItem className="flex items-center space-x-2">
+                                        <FormControl>
+                                        <RadioGroupItem value="ox" />
+                                        </FormControl>
+                                        <FormLabel className="font-normal">O/X</FormLabel>
+                                    </FormItem>
+                                    </RadioGroup>
+                                </FormControl>
+                                </FormItem>
+                            )}
+                            />
+
+                            <Controller
+                            control={form.control}
+                            name={`questions.${index}.type`}
+                            render={({ field: { value: typeValue } }) => (
+                                <>
+                                {typeValue === 'subjective' && (
+                                    <FormField
                                     control={form.control}
-                                    name={`questions.${index}.correctAnswer`}
+                                    name={`questions.${index}.answer`}
                                     render={({ field }) => (
-                                      <FormItem className="mt-4">
+                                        <FormItem className="mt-4">
                                         <FormLabel>정답</FormLabel>
                                         <FormControl>
-                                          <RadioGroup
-                                            onValueChange={field.onChange}
-                                            value={field.value}
-                                            className="flex items-center gap-4"
-                                          >
-                                            <FormItem className="flex items-center space-x-2">
-                                              <FormControl>
-                                                <RadioGroupItem value="O" />
-                                              </FormControl>
-                                              <FormLabel className="font-normal">O</FormLabel>
-                                            </FormItem>
-                                            <FormItem className="flex items-center space-x-2">
-                                              <FormControl>
-                                                <RadioGroupItem value="X" />
-                                              </FormControl>
-                                              <FormLabel className="font-normal">X</FormLabel>
-                                            </FormItem>
-                                          </RadioGroup>
+                                            <Input placeholder="주관식 정답을 입력하세요." {...field} />
                                         </FormControl>
-                                         <FormMessage />
-                                      </FormItem>
+                                        <FormMessage />
+                                        </FormItem>
                                     )}
-                                  />
-                                )}
-                            </>
-                          )}
-                        />
-                        
-                        <div className="grid grid-cols-1 gap-4 mt-4">
-                          <FormField
-                            control={form.control}
-                            name={`questions.${index}.points`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <div className="flex justify-between">
-                                  <FormLabel>획득 점수</FormLabel>
-                                  <span className="text-sm font-medium text-primary">
-                                    {field.value === -1 ? '랜덤 (10-50점)' : `${field.value}점`}
-                                  </span>
-                                </div>
-                                <FormControl>
-                                    <Slider
-                                        min={0}
-                                        max={5}
-                                        step={1}
-                                        value={[pointMapping.indexOf(field.value)]}
-                                        onValueChange={(value) => field.onChange(pointMapping[value[0]])}
                                     />
-                                </FormControl>
-                                <div className="flex justify-between text-xs text-muted-foreground">
-                                    <span>랜덤</span>
-                                    <span>10</span>
-                                    <span>20</span>
-                                    <span>30</span>
-                                    <span>40</span>
-                                    <span>50</span>
-                                </div>
-                                <FormMessage />
-                              </FormItem>
+                                )}
+
+                                {typeValue === 'multipleChoice' && (
+                                    <div className="mt-4 space-y-4">
+                                    <FormLabel>보기 및 정답</FormLabel>
+                                    <FormField
+                                        control={form.control}
+                                        name={`questions.${index}.correctAnswer`}
+                                        render={({ field }) => (
+                                        <FormItem>
+                                            <FormControl>
+                                            <RadioGroup
+                                                onValueChange={field.onChange}
+                                                value={field.value}
+                                                className="space-y-2"
+                                            >
+                                                {Array.from({ length: 4 }).map((_, optIndex) => (
+                                                <FormField
+                                                    key={`${field.name}-option-${optIndex}`}
+                                                    control={form.control}
+                                                    name={`questions.${index}.options.${optIndex}`}
+                                                    render={({ field: optionField }) => (
+                                                    <FormItem className="flex items-center gap-2">
+                                                        <FormControl>
+                                                        <RadioGroupItem value={optionField.value} />
+                                                        </FormControl>
+                                                        <Input placeholder={`보기 ${optIndex + 1}`} {...optionField} />
+                                                    </FormItem>
+                                                    )}
+                                                />
+                                                ))}
+                                            </RadioGroup>
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                        )}
+                                    />
+                                    </div>
+                                )}
+                                    {typeValue === 'ox' && (
+                                    <FormField
+                                        control={form.control}
+                                        name={`questions.${index}.correctAnswer`}
+                                        render={({ field }) => (
+                                        <FormItem className="mt-4">
+                                            <FormLabel>정답</FormLabel>
+                                            <FormControl>
+                                            <RadioGroup
+                                                onValueChange={field.onChange}
+                                                value={field.value}
+                                                className="flex items-center gap-4"
+                                            >
+                                                <FormItem className="flex items-center space-x-2">
+                                                <FormControl>
+                                                    <RadioGroupItem value="O" />
+                                                </FormControl>
+                                                <FormLabel className="font-normal">O</FormLabel>
+                                                </FormItem>
+                                                <FormItem className="flex items-center space-x-2">
+                                                <FormControl>
+                                                    <RadioGroupItem value="X" />
+                                                </FormControl>
+                                                <FormLabel className="font-normal">X</FormLabel>
+                                                </FormItem>
+                                            </RadioGroup>
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                        )}
+                                    />
+                                    )}
+                                </>
                             )}
-                          />
+                            />
+                        
+                            <div className="grid grid-cols-1 gap-4 pt-2">
+                                <FormField
+                                    control={form.control}
+                                    name={`questions.${index}.points`}
+                                    render={({ field }) => (
+                                    <FormItem>
+                                        <div className="flex justify-between">
+                                        <FormLabel>획득 점수</FormLabel>
+                                        <span className="text-sm font-medium text-primary">
+                                            {field.value === -1 ? '랜덤 (10-50점)' : `${field.value}점`}
+                                        </span>
+                                        </div>
+                                        <FormControl>
+                                            <Slider
+                                                min={0}
+                                                max={5}
+                                                step={1}
+                                                value={[pointMapping.indexOf(field.value)]}
+                                                onValueChange={(value) => field.onChange(pointMapping[value[0]])}
+                                            />
+                                        </FormControl>
+                                        <div className="flex justify-between text-xs text-muted-foreground px-1">
+                                            <span>랜덤</span>
+                                            <span>10</span>
+                                            <span>20</span>
+                                            <span>30</span>
+                                            <span>40</span>
+                                            <span>50</span>
+                                        </div>
+                                        <FormMessage />
+                                    </FormItem>
+                                    )}
+                                />
+                            </div>
                         </div>
                       </Card>
                     ))}
