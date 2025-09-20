@@ -224,10 +224,10 @@ export default function GamePage({ params }: { params: { id: string } }) {
     } catch (error) {
         console.error("Error submitting answer: ", error);
         toast({ variant: 'destructive', title: '오류', description: '답변 제출 중 오류가 발생했습니다.'});
-    } finally {
-        setIsSubmitting(false);
-        handleCloseDialog();
     }
+
+    setIsSubmitting(false);
+    handleCloseDialog();
   };
 
 
