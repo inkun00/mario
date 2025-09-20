@@ -1,3 +1,5 @@
+'use client';
+
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -10,39 +12,42 @@ import {
 import { Input } from '@/components/ui/input';
 import { Book, PlusCircle, Users } from 'lucide-react';
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import type { GameSet } from '@/lib/types';
+import { auth } from '@/lib/firebase';
+import { useAuthState } from 'react-firebase-hooks/auth';
 
-const gameSets = [
-  {
-    id: '1',
-    title: '5학년 2학기 사회 퀴즈',
-    creator: '역사 선생님',
-    questionCount: 25,
-  },
-  {
-    id: '2',
-    title: '중급 영어 단어 50',
-    creator: '영어 마스터',
-    questionCount: 50,
-  },
-  {
-    id: '3',
-    title: '코딩 기초 상식',
-    creator: '개발자 아빠',
-    questionCount: 30,
-  },
-    {
-    id: '4',
-    title: '수도 맞추기 게임',
-    creator: '지리 박사',
-    questionCount: 40,
-  },
-];
+interface GameSetDocument extends Omit<GameSet, 'questions'> {
+  id: string;
+  questions: { question: string; answer: string; points: number; hasMysteryBox: boolean }[];
+  creatorNickname: string;
+}
 
 export default function DashboardPage() {
+  const [user] = useAuthState(auth);
+  const [gameSets, setGameSets] = useState<GameSetDocument[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const q = query(collection(db, 'game-sets'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const sets: GameSetDocument[] = [];
+      querySnapshot.forEach((doc) => {
+        sets.push({ id: doc.id, ...doc.data() } as GameSetDocument);
+      });
+      setGameSets(sets);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-3xl font-bold font-headline">안녕하세요, 슈퍼마리오님!</h1>
+        <h1 className="text-3xl font-bold font-headline">안녕하세요, {user?.displayName || '게스트'}님!</h1>
         <p className="text-muted-foreground mt-1">오늘도 즐거운 학습을 시작해볼까요?</p>
       </div>
 
@@ -74,30 +79,36 @@ export default function DashboardPage() {
 
       <div>
         <h2 className="text-2xl font-bold font-headline mb-4">게임 세트 둘러보기</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {gameSets.map((set) => (
-            <Card key={set.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                    <div>
-                        <CardTitle className="font-headline text-lg">{set.title}</CardTitle>
-                        <CardDescription className="mt-1">By {set.creator}</CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Book className="h-4 w-4" />
-                        <span>{set.questionCount} 문제</span>
-                    </div>
-                </div>
-              </CardHeader>
-              <CardFooter className="flex justify-end gap-2">
-                <Button variant="ghost">미리보기</Button>
-                <Button asChild>
-                    <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
-                </Button>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
+        {loading ? (
+           <p>게임 세트를 불러오는 중...</p>
+        ) : gameSets.length === 0 ? (
+            <p>아직 만들어진 게임 세트가 없습니다. 첫 번째 퀴즈를 만들어보세요!</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {gameSets.map((set) => (
+              <Card key={set.id} className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                      <div>
+                          <CardTitle className="font-headline text-lg">{set.title}</CardTitle>
+                          <CardDescription className="mt-1">By {set.creatorNickname}</CardDescription>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Book className="h-4 w-4" />
+                          <span>{set.questions.length} 문제</span>
+                      </div>
+                  </div>
+                </CardHeader>
+                <CardFooter className="flex justify-end gap-2">
+                  <Button variant="ghost">미리보기</Button>
+                  <Button asChild>
+                      <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
+                  </Button>
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

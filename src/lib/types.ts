@@ -7,19 +7,20 @@ export interface User {
 }
 
 export interface Question {
-  id: string;
   question: string;
   answer: string;
-  points: number; // 1-5
+  points: number;
   hasMysteryBox: boolean;
 }
 
 export interface GameSet {
   id: string;
   creatorId: string;
+  creatorNickname: string;
   title: string;
   description: string;
   questions: Question[];
+  createdAt: any;
 }
 
 export interface Player {
