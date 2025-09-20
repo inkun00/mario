@@ -1,28 +1,38 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Users can only read/write their own data.
+    // Anybody can read any user's data (for local player lookup).
+    // Writes are restricted to the user themselves.
     match /users/{userId} {
-      // Allow any authenticated user to read user data (for nicknames, etc.)
       allow read: if request.auth != null;
-      // Only allow a user to write to their own document
       allow write: if request.auth.uid == userId;
 
+      // Users can only manage their own answer records
       match /correct-answers/{answerId} {
-        allow create, get, list, delete: if request.auth.uid == userId;
+        allow read, create, delete: if request.auth.uid == userId;
+        allow update: if false; // updates not allowed
       }
       match /incorrect-answers/{answerId} {
-        allow create, get, list, delete: if request.auth.uid == userId;
+         allow read, create, delete: if request.auth.uid == userId;
+         allow update: if false; // updates not allowed
       }
     }
 
+    // Game sets can be read by anyone, but only created/modified by the owner.
     match /game-sets/{gameSetId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null && request.resource.data.creatorId == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.creatorId == request.auth.uid;
+        allow read: if request.auth != null;
+        allow create: if request.auth != null && request.resource.data.creatorId == request.auth.uid;
+        allow update, delete: if request.auth != null && resource.data.creatorId == request.auth.uid;
     }
 
-    match /game-rooms/{gameRoomId} {
-      allow read, create, update: if request.auth != null;
+    // Game rooms can be read by anyone. They can be created by any authenticated user.
+    // Once created, they can be updated by any authenticated user (e.g., joining, playing).
+    match /game-rooms/{roomId} {
+        allow read, update: if request.auth != null;
+        allow create: if request.auth != null;
     }
   }
 }
