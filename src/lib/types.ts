@@ -28,6 +28,7 @@ export interface GameSet {
   semester?: string;
   subject?: string;
   unit?: string;
+  isPublic: boolean;
   questions: Question[];
   createdAt: any;
 }

@@ -14,6 +14,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -72,6 +73,7 @@ const gameSetSchema = z.object({
   semester: z.string().optional(),
   subject: z.string().optional(),
   unit: z.string().optional(),
+  isPublic: z.boolean(),
   questions: z.array(questionSchema).min(1, '최소 1개 이상의 질문이 필요합니다.'),
 });
 
@@ -108,6 +110,7 @@ export default function EditGameSetPage() {
       semester: '',
       subject: '',
       unit: '',
+      isPublic: true,
       questions: [],
     },
   });
@@ -135,6 +138,7 @@ export default function EditGameSetPage() {
             semester: gameSetData.semester || '',
             subject: gameSetData.subject || '',
             unit: gameSetData.unit || '',
+            isPublic: gameSetData.isPublic === undefined ? true : gameSetData.isPublic,
             questions: gameSetData.questions.map(q => ({
                 ...q,
                 hint: q.hint || '',
@@ -335,6 +339,39 @@ export default function EditGameSetPage() {
                         )}
                     />
                   </div>
+
+                  <FormField
+                        control={form.control}
+                        name="isPublic"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>공개 여부</FormLabel>
+                                <FormControl>
+                                <RadioGroup
+                                  onValueChange={(value) => field.onChange(value === 'true')}
+                                  value={String(field.value)}
+                                  className="flex items-center gap-4 h-10"
+                                >
+                                  <FormItem className="flex items-center space-x-2">
+                                    <FormControl>
+                                      <RadioGroupItem value="true" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">공개</FormLabel>
+                                  </FormItem>
+                                  <FormItem className="flex items-center space-x-2">
+                                    <FormControl>
+                                      <RadioGroupItem value="false" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">비공개</FormLabel>
+                                  </FormItem>
+                                </RadioGroup>
+                              </FormControl>
+                              <FormDescription>비공개 퀴즈는 나에게만 보입니다.</FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+
                 </div>
 
                 <Separator />

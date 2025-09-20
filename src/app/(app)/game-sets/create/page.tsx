@@ -71,6 +71,7 @@ const gameSetSchema = z.object({
   semester: z.string().optional(),
   subject: z.string().optional(),
   unit: z.string().optional(),
+  isPublic: z.boolean(),
   questions: z.array(questionSchema).min(1, '최소 1개 이상의 질문이 필요합니다.'),
 });
 
@@ -104,6 +105,7 @@ export default function CreateGameSetPage() {
       semester: '',
       subject: '',
       unit: '',
+      isPublic: true,
       questions: [defaultQuestion],
     },
   });
@@ -290,6 +292,39 @@ export default function CreateGameSetPage() {
                         )}
                     />
                   </div>
+
+                   <FormField
+                        control={form.control}
+                        name="isPublic"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>공개 여부</FormLabel>
+                                <FormControl>
+                                <RadioGroup
+                                  onValueChange={(value) => field.onChange(value === 'true')}
+                                  defaultValue={String(field.value)}
+                                  className="flex items-center gap-4 h-10"
+                                >
+                                  <FormItem className="flex items-center space-x-2">
+                                    <FormControl>
+                                      <RadioGroupItem value="true" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">공개</FormLabel>
+                                  </FormItem>
+                                  <FormItem className="flex items-center space-x-2">
+                                    <FormControl>
+                                      <RadioGroupItem value="false" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">비공개</FormLabel>
+                                  </FormItem>
+                                </RadioGroup>
+                              </FormControl>
+                              <FormDescription>비공개 퀴즈는 나에게만 보입니다.</FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+
                 </div>
 
                 <Separator />

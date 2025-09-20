@@ -28,10 +28,10 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, CheckCircle, Pencil, Trash2, HelpCircle, Lightbulb } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, CheckCircle, Pencil, Trash2, HelpCircle, Lightbulb, Lock, Globe } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, deleteDoc, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { GameSet } from '@/lib/types';
 import { auth } from '@/lib/firebase';
@@ -54,26 +54,57 @@ export default function DashboardPage() {
   const { toast } = useToast();
 
   useEffect(() => {
-    if (!user && !loadingUser) {
-        // Not logged in, no need to fetch. Or handle guest view.
-        setLoading(false);
-        return;
-    }
     if (loadingUser) {
-        // Still loading user state, wait.
-        return;
+      return;
     }
+    setLoading(true);
 
-    const q = query(collection(db, 'game-sets'), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const sets: GameSetDocument[] = [];
-      querySnapshot.forEach((doc) => {
-        sets.push({ id: doc.id, ...doc.data() } as GameSetDocument);
-      });
-      setGameSets(sets);
-      setLoading(false);
+    const publicQuery = query(
+      collection(db, 'game-sets'),
+      where('isPublic', '==', true),
+      orderBy('createdAt', 'desc')
+    );
+
+    const publicUnsubscribe = onSnapshot(publicQuery, async (publicSnapshot) => {
+        const publicSets = publicSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSetDocument));
+        
+        let finalSets = [...publicSets];
+        const publicSetIds = new Set(publicSets.map(s => s.id));
+
+        if (user) {
+            try {
+                const privateQuery = query(
+                    collection(db, 'game-sets'),
+                    where('creatorId', '==', user.uid),
+                    where('isPublic', '==', false)
+                );
+                const privateSnapshot = await getDocs(privateQuery);
+                const privateSets = privateSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSetDocument));
+
+                // Add private sets that are not already in the public list (shouldn't happen but good for safety)
+                privateSets.forEach(privateSet => {
+                    if (!publicSetIds.has(privateSet.id)) {
+                        finalSets.push(privateSet);
+                    }
+                });
+
+                // Sort again after merging
+                finalSets.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+
+            } catch (error) {
+                 console.error("Error fetching private game sets: ", error);
+                 toast({
+                    variant: "destructive",
+                    title: "오류",
+                    description: "비공개 퀴즈 세트를 불러오는 중 오류가 발생했습니다."
+                });
+            }
+        }
+        
+        setGameSets(finalSets);
+        setLoading(false);
     }, (error) => {
-        console.error("Error fetching game sets: ", error);
+        console.error("Error fetching public game sets: ", error);
         toast({
             variant: "destructive",
             title: "오류",
@@ -82,7 +113,7 @@ export default function DashboardPage() {
         setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => publicUnsubscribe();
   }, [user, loadingUser, toast]);
 
   const handleDelete = async () => {
@@ -141,7 +172,7 @@ export default function DashboardPage() {
 
         <div>
           <h2 className="text-2xl font-bold font-headline mb-4">게임 세트 둘러보기</h2>
-          {loading || loadingUser ? (
+          {loading ? (
             <p>게임 세트를 불러오는 중...</p>
           ) : gameSets.length === 0 ? (
               <div className="text-center py-12 border-2 border-dashed rounded-lg">
@@ -159,7 +190,14 @@ export default function DashboardPage() {
                   <CardHeader>
                     <div className="flex items-start justify-between">
                         <div>
-                            <CardTitle className="font-headline text-lg">{set.title}</CardTitle>
+                            <div className="flex items-center gap-2">
+                                <CardTitle className="font-headline text-lg">{set.title}</CardTitle>
+                                {set.isPublic ? (
+                                    <Globe className="w-4 h-4 text-muted-foreground" title="공개"/>
+                                ) : (
+                                    <Lock className="w-4 h-4 text-muted-foreground" title="비공개"/>
+                                )}
+                            </div>
                             <CardDescription className="mt-1">By {set.creatorNickname}</CardDescription>
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
