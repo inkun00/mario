@@ -12,19 +12,12 @@ const firebaseConfig = {
   "messagingSenderId": "726562212716"
 };
 
-let app: FirebaseApp;
-let auth: Auth;
-let db: Firestore;
+const app: FirebaseApp = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+const auth: Auth = getAuth(app);
+const db: Firestore = getFirestore(app);
 
-if (typeof window !== 'undefined' && !getApps().length) {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
+if (typeof window !== 'undefined') {
   setPersistence(auth, browserLocalPersistence);
-} else {
-  app = getApp();
-  auth = getAuth(app);
-  db = getFirestore(app);
 }
 
 export { app, auth, db };
