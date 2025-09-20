@@ -61,11 +61,6 @@ export default function GamePage({ params }: { params: { id: string } }) {
       if (docSnap.exists()) {
         const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
         setGameRoom(roomData);
-        setPlayers(Object.values(roomData.players).sort((a, b) => b.score - a.score));
-
-        if (user) {
-            setIsMyTurn(roomData.currentTurn === user.uid);
-        }
 
         // Fetch GameSet if not already fetched
         if (!gameSet && roomData.gameSetId) {
@@ -92,7 +87,14 @@ export default function GamePage({ params }: { params: { id: string } }) {
     });
 
     return () => unsubscribe();
-  }, [gameRoomId, router, toast, user, gameSet]);
+  }, [gameRoomId, router, toast, gameSet]);
+  
+  // Update players and turn status when gameRoom or user changes
+  useEffect(() => {
+    if (!gameRoom || !user) return;
+    setPlayers(Object.values(gameRoom.players).sort((a, b) => b.score - a.score));
+    setIsMyTurn(gameRoom.currentTurn === user.uid);
+  }, [gameRoom, user]);
 
 
   // Initialize game blocks
