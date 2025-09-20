@@ -14,11 +14,19 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { PlusCircle, Trash2 } from 'lucide-react';
@@ -56,6 +64,10 @@ const questionSchema = z.object({
 const gameSetSchema = z.object({
   title: z.string().min(1, '제목을 입력해주세요.'),
   description: z.string().optional(),
+  grade: z.string().optional(),
+  semester: z.string().optional(),
+  subject: z.string().optional(),
+  unit: z.string().optional(),
   questions: z.array(questionSchema).min(1, '최소 1개 이상의 질문이 필요합니다.'),
 });
 
@@ -70,6 +82,8 @@ const defaultQuestion: z.infer<typeof questionSchema> = {
   options: ['', '', '', ''],
   correctAnswer: '',
 };
+
+const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '음악', '미술', '체육', '영어', '창체'];
 
 export default function CreateGameSetPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -177,6 +191,96 @@ export default function CreateGameSetPage() {
                       </FormItem>
                     )}
                   />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="grade"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>학년</FormLabel>
+                           <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="학년 선택" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {Array.from({ length: 6 }, (_, i) => i + 1).map(grade => (
+                                <SelectItem key={grade} value={`${grade}학년`}>{grade}학년</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="semester"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>학기</FormLabel>
+                                <FormControl>
+                                <RadioGroup
+                                  onValueChange={field.onChange}
+                                  defaultValue={field.value}
+                                  className="flex items-center gap-4 h-10"
+                                >
+                                  <FormItem className="flex items-center space-x-2">
+                                    <FormControl>
+                                      <RadioGroupItem value="1학기" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">1학기</FormLabel>
+                                  </FormItem>
+                                  <FormItem className="flex items-center space-x-2">
+                                    <FormControl>
+                                      <RadioGroupItem value="2학기" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">2학기</FormLabel>
+                                  </FormItem>
+                                </RadioGroup>
+                              </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                    <FormField
+                      control={form.control}
+                      name="subject"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>과목</FormLabel>
+                           <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="과목 선택" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {subjects.map(subject => (
+                                <SelectItem key={subject} value={subject}>{subject}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="unit"
+                        render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>단원</FormLabel>
+                            <FormControl>
+                            <Input placeholder="예: 1. 우리 지역의 자연환경" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                        )}
+                    />
+                  </div>
                 </div>
 
                 <Separator />

@@ -198,6 +198,8 @@ export default function DashboardPage() {
             <DialogHeader>
               <DialogTitle className="font-headline text-2xl">{selectedGameSet.title}</DialogTitle>
               <DialogDescription>
+                 {[selectedGameSet.grade, selectedGameSet.semester, selectedGameSet.subject, selectedGameSet.unit].filter(Boolean).join(' / ')}
+                 {' · '}
                 총 {selectedGameSet.questions.length}개의 질문이 있습니다.
               </DialogDescription>
             </DialogHeader>

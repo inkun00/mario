@@ -24,6 +24,10 @@ export interface GameSet {
   creatorNickname: string;
   title: string;
   description: string;
+  grade?: string;
+  semester?: string;
+  subject?: string;
+  unit?: string;
   questions: Question[];
   createdAt: any;
 }
