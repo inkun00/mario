@@ -12,13 +12,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { db, auth } from '@/lib/firebase';
-import type { GameSet, GameRoom } from '@/lib/types';
+import type { GameSet, GameRoom, Player } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Lock, Users } from 'lucide-react';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function NewGameRoomPage() {
   const [user, loadingUser] = useAuthState(auth);
@@ -64,12 +65,22 @@ export default function NewGameRoomPage() {
     setIsCreating(true);
 
     try {
-      const newRoom: Omit<GameRoom, 'id'> = {
+      const hostPlayer: Player = {
+        uid: user.uid,
+        nickname: user.displayName || '호스트',
+        score: 0,
+        avatarId: `player-avatar-${Math.floor(Math.random() * 4) + 1}`,
+        isHost: true,
+      };
+      
+      const newRoom: Omit<GameRoom, 'id' | 'createdAt'> = {
         gameSetId: gameSet.id,
         status: 'waiting',
         hostId: user.uid,
         currentTurn: user.uid,
-        players: {},
+        players: {
+            [user.uid]: hostPlayer
+        },
         gameState: {},
         mysteryBoxEnabled: mysteryBoxEnabled,
         ...(usePassword && password && { password }),

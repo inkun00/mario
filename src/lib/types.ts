@@ -38,6 +38,7 @@ export interface Player {
   nickname:string;
   score: number;
   avatarId: string;
+  isHost?: boolean;
 }
 
 export interface GameRoom {
@@ -50,4 +51,5 @@ export interface GameRoom {
   players: Record<string, Player>; // key is userId
   gameState: Record<string, 'available' | 'answered'>; // key is questionId
   mysteryBoxEnabled: boolean;
+  createdAt: any;
 }
