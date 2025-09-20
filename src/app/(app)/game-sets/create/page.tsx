@@ -92,6 +92,7 @@ export default function CreateGameSetPage() {
         description: '새로운 퀴즈 세트를 성공적으로 만들었습니다.',
       });
       router.push('/dashboard');
+
     } catch (error) {
       console.error("Error creating game set: ", error);
       toast({
@@ -99,9 +100,8 @@ export default function CreateGameSetPage() {
         title: '오류',
         description: '퀴즈 세트를 만드는 중 오류가 발생했습니다.',
       });
-    } finally {
       setIsLoading(false);
-    }
+    } 
   }
 
   return (
