@@ -9,7 +9,6 @@ export interface User {
 export interface Question {
   question: string;
   points: number;
-  hasMysteryBox: boolean;
   type: 'subjective' | 'multipleChoice' | 'ox';
   // for subjective
   answer?: string;
@@ -48,4 +47,5 @@ export interface GameRoom {
   currentTurn: string; // userId
   players: Record<string, Player>; // key is userId
   gameState: Record<string, 'available' | 'answered'>; // key is questionId
+  mysteryBoxEnabled: boolean;
 }

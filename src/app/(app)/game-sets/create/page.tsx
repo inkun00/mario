@@ -31,7 +31,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { PlusCircle, Trash2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
-import { Switch } from '@/components/ui/switch';
+import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useState } from 'react';
@@ -42,8 +42,7 @@ import { useRouter } from 'next/navigation';
 
 const questionSchema = z.object({
   question: z.string().min(1, '질문을 입력해주세요.'),
-  points: z.coerce.number().min(1).max(5),
-  hasMysteryBox: z.boolean().default(false),
+  points: z.coerce.number(),
   type: z.enum(['subjective', 'multipleChoice', 'ox']),
   answer: z.string().optional(),
   options: z.array(z.string()).optional(),
@@ -78,8 +77,7 @@ type GameSetFormValues = z.infer<typeof gameSetSchema>;
 
 const defaultQuestion: z.infer<typeof questionSchema> = {
   question: '',
-  points: 3,
-  hasMysteryBox: false,
+  points: 10,
   type: 'subjective',
   answer: '',
   options: ['', '', '', ''],
@@ -87,6 +85,8 @@ const defaultQuestion: z.infer<typeof questionSchema> = {
 };
 
 const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '음악', '미술', '체육', '영어', '창체'];
+
+const pointMapping = [-1, 10, 20, 30, 40, 50];
 
 export default function CreateGameSetPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -450,35 +450,36 @@ export default function CreateGameSetPage() {
                           )}
                         />
                         
-                        <div className="grid grid-cols-2 gap-4 mt-4">
+                        <div className="grid grid-cols-1 gap-4 mt-4">
                           <FormField
                             control={form.control}
                             name={`questions.${index}.points`}
                             render={({ field }) => (
                               <FormItem>
-                                <FormLabel>획득 점수 (1-5)</FormLabel>
+                                <div className="flex justify-between">
+                                  <FormLabel>획득 점수</FormLabel>
+                                  <span className="text-sm font-medium text-primary">
+                                    {field.value === -1 ? '랜덤 (10-50점)' : `${field.value}점`}
+                                  </span>
+                                </div>
                                 <FormControl>
-                                  <Input type="number" min="1" max="5" {...field} />
+                                    <Slider
+                                        min={0}
+                                        max={5}
+                                        step={1}
+                                        value={[pointMapping.indexOf(field.value)]}
+                                        onValueChange={(value) => field.onChange(pointMapping[value[0]])}
+                                    />
                                 </FormControl>
+                                <div className="flex justify-between text-xs text-muted-foreground">
+                                    <span>랜덤</span>
+                                    <span>10</span>
+                                    <span>20</span>
+                                    <span>30</span>
+                                    <span>40</span>
+                                    <span>50</span>
+                                </div>
                                 <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name={`questions.${index}.hasMysteryBox`}
-                            render={({ field }) => (
-                              <FormItem className="flex flex-col">
-                                <FormLabel>특수 효과</FormLabel>
-                                  <div className="flex items-center space-x-2 h-10">
-                                      <FormControl>
-                                          <Switch
-                                          checked={field.value}
-                                          onCheckedChange={field.onChange}
-                                          />
-                                      </FormControl>
-                                      <Label htmlFor="mystery-box">미스터리 박스</Label>
-                                  </div>
                               </FormItem>
                             )}
                           />

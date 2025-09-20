@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, CheckCircle, Pencil, Trash2 } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, CheckCircle, Pencil, Trash2, HelpCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
@@ -168,7 +168,7 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardFooter className="mt-auto flex justify-end gap-2">
                    <Button variant="ghost" onClick={() => setSelectedGameSet(set)}>미리보기</Button>
-                  {isCreator ? (
+                  {isCreator && (
                     <>
                       <Button variant="outline" size="sm" asChild>
                         <Link href={`/game-sets/edit/${set.id}`}><Pencil className="mr-2 h-4 w-4" /> 수정</Link>
@@ -176,15 +176,11 @@ export default function DashboardPage() {
                       <Button variant="destructive" size="sm" onClick={() => setDeleteCandidate(set)}>
                         <Trash2 className="mr-2 h-4 w-4" /> 삭제
                       </Button>
-                       <Button asChild size="sm">
-                          <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
-                      </Button>
                     </>
-                  ) : (
-                     <Button asChild>
-                        <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
-                    </Button>
                   )}
+                  <Button asChild size="sm">
+                      <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
+                  </Button>
                 </CardFooter>
               </Card>
             )})}
@@ -212,9 +208,9 @@ export default function DashboardPage() {
                                 <div className="flex items-center gap-2 text-sm">
                                     <span className="flex items-center gap-1 font-semibold text-primary">
                                         <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
-                                        {q.points}점
+                                        {q.points === -1 ? '랜덤' : `${q.points}점`}
                                     </span>
-                                    {q.hasMysteryBox && <span className="text-accent font-semibold">미스터리</span>}
+                                    {q.points === -1 && <HelpCircle className="w-4 h-4 text-muted-foreground" title="10-50점 사이의 랜덤 점수가 부여됩니다."/>}
                                 </div>
                             </div>
 
