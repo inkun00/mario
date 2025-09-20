@@ -5,6 +5,7 @@ export interface User {
   nickname: string;
   xp: number;
   level: number;
+  lastPlayed?: any;
 }
 
 export interface Question {
@@ -66,4 +67,23 @@ export interface GameRoom {
   joinType: JoinType;
   createdAt: any;
   localPlayers?: LocalPlayer[];
+}
+
+export interface CorrectAnswer {
+    gameSetId: string;
+    gameSetTitle: string;
+    question: string;
+    timestamp: any;
+    grade?: string;
+    semester?: string;
+    subject?: string;
+    unit?: string;
+}
+
+export interface IncorrectAnswer {
+    gameSetId: string;
+    gameSetTitle: string;
+    question: Question;
+    userAnswer: string;
+    timestamp: any;
 }

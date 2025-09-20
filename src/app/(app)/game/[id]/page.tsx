@@ -2,24 +2,24 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, getDoc, updateDoc, arrayUnion, increment } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc, increment, collection, addDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { Crown, HelpCircle, Loader2, Shield, Star, Swords, Zap, Lightbulb, ChevronsRight, Gift, TrendingDown, Repeat, Bomb } from 'lucide-react';
+import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
+import Link from 'next/link';
 
 
 interface GameBlock {
@@ -68,7 +68,7 @@ export default function GamePage() {
   const [blocks, setBlocks] = useState<GameBlock[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   
-  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
+  const [currentQuestionInfo, setCurrentQuestionInfo] = useState<{question: Question, blockId: number} | null>(null);
   const [currentPoints, setCurrentPoints] = useState(0);
   const [showHint, setShowHint] = useState(false);
   const [userAnswer, setUserAnswer] = useState('');
@@ -84,6 +84,7 @@ export default function GamePage() {
   
   const [showMysterySettings, setShowMysterySettings] = useState(false);
   const [selectedEffects, setSelectedEffects] = useState<MysteryEffectType[]>(allMysteryEffects.map(e => e.type));
+  const [showGameOverPopup, setShowGameOverPopup] = useState(false);
 
 
   // Fetch GameRoom and GameSet data
@@ -109,7 +110,9 @@ export default function GamePage() {
           }
         }
         
-        if (roomData.mysteryBoxEnabled && !roomData.isMysterySettingDone && user?.uid === roomData.hostId) {
+        if (roomData.status === 'finished') {
+            setShowGameOverPopup(true);
+        } else if (roomData.mysteryBoxEnabled && !roomData.isMysterySettingDone && user?.uid === roomData.hostId) {
             setShowMysterySettings(true);
         }
 
@@ -163,9 +166,48 @@ export default function GamePage() {
     setBlocks(shuffleArray(allItems));
 
   }, [gameSet, gameRoom, blocks.length]);
+
+  const finishGame = async () => {
+    if (!gameRoom) return;
+    const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+    
+    try {
+        const batch = writeBatch(db);
+        
+        // 1. Update game room status
+        batch.update(roomRef, { status: 'finished' });
+
+        // 2. Update player XPs
+        for (const player of Object.values(gameRoom.players)) {
+            if (player.uid) { // Ensure UID exists
+                const userRef = doc(db, 'users', player.uid);
+                batch.update(userRef, { 
+                    xp: increment(player.score),
+                    lastPlayed: serverTimestamp()
+                });
+            }
+        }
+
+        await batch.commit();
+        setShowGameOverPopup(true);
+
+    } catch (error) {
+        console.error("Error finishing game: ", error);
+        toast({ variant: 'destructive', title: '오류', description: '게임 종료 처리 중 오류가 발생했습니다.'});
+    }
+  };
   
   const handleNextTurn = async () => {
-      if (!gameRoom) return;
+      if (!gameRoom || !gameSet) return;
+
+      const updatedGameState = { ...gameRoom.gameState };
+      const questionBlocks = blocks.filter(b => b.type === 'question');
+      const allQuestionsOpened = questionBlocks.every(b => updatedGameState[b.id] === 'answered');
+
+      if (allQuestionsOpened) {
+          await finishGame();
+          return;
+      }
 
       const roomRef = doc(db, 'game-rooms', gameRoomId as string);
       const playerUIDs = Object.keys(gameRoom.players);
@@ -188,7 +230,7 @@ export default function GamePage() {
       setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: false, isOpened: true } : b));
 
       if (block.type === 'question' && block.question) {
-        setCurrentQuestion(block.question);
+        setCurrentQuestionInfo({question: block.question, blockId: block.id});
         
         let points = block.question.points;
         if (points === -1) { // Random points
@@ -198,8 +240,6 @@ export default function GamePage() {
         setShowHint(false);
         setUserAnswer('');
         
-        const roomRef = doc(db, 'game-rooms', gameRoomId as string);
-        updateDoc(roomRef, { [`gameState.${block.id}`]: 'answered' });
       } else { // Mystery Box
         const effects = gameRoom?.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
         if (effects.length === 0) {
@@ -242,17 +282,18 @@ export default function GamePage() {
   };
 
   const handleCloseDialogs = () => {
-    setCurrentQuestion(null);
+    setCurrentQuestionInfo(null);
     setShowMysteryBoxPopup(false);
     setMysteryBoxEffect(null);
     setPlayerForSwap(null);
   }
 
   const handleSubmitAnswer = async () => {
-    if (!currentQuestion || !gameRoom || !userAnswer) {
+    if (!currentQuestionInfo || !gameRoom || !userAnswer || !gameSet) {
       toast({ variant: 'destructive', title: '오류', description: '답변을 선택하거나 입력해주세요.'});
       return;
     }
+    const currentQuestion = currentQuestionInfo.question;
 
     setIsSubmitting(true);
 
@@ -260,35 +301,60 @@ export default function GamePage() {
       || (currentQuestion.type !== 'subjective' && userAnswer === currentQuestion.correctAnswer);
 
     const pointsToAward = isCorrect ? currentPoints : 0;
-
-    if (isCorrect) {
-        toast({
-            title: '정답입니다!',
-            description: `${pointsToAward}점을 획득했습니다!`,
-        });
-    } else {
-        toast({
-            variant: 'destructive',
-            title: '오답입니다...',
-            description: `정답은 "${currentQuestion.answer || currentQuestion.correctAnswer}" 입니다.`,
-        });
-    }
+    const currentTurnUID = gameRoom.currentTurn;
 
     try {
         const roomRef = doc(db, 'game-rooms', gameRoomId as string);
-        const currentTurnUID = gameRoom.currentTurn;
         
         await updateDoc(roomRef, {
-            [`players.${currentTurnUID}.score`]: increment(pointsToAward)
+            [`players.${currentTurnUID}.score`]: increment(pointsToAward),
+            [`gameState.${currentQuestionInfo.blockId}`]: 'answered',
         });
+        
+        // Record answer
+        if (currentTurnUID) {
+            if (isCorrect) {
+                 const correctAnswersRef = collection(db, 'users', currentTurnUID, 'correct-answers');
+                 await addDoc(correctAnswersRef, {
+                    gameSetId: gameSet.id,
+                    gameSetTitle: gameSet.title,
+                    question: currentQuestion.question,
+                    grade: gameSet.grade || '',
+                    semester: gameSet.semester || '',
+                    subject: gameSet.subject || '',
+                    unit: gameSet.unit || '',
+                    timestamp: serverTimestamp(),
+                 });
+                 toast({
+                    title: '정답입니다!',
+                    description: `${pointsToAward}점을 획득했습니다!`,
+                });
 
+            } else {
+                const incorrectAnswersRef = collection(db, 'users', currentTurnUID, 'incorrect-answers');
+                await addDoc(incorrectAnswersRef, {
+                    gameSetId: gameSet.id,
+                    gameSetTitle: gameSet.title,
+                    question: currentQuestion,
+                    userAnswer: userAnswer,
+                    timestamp: serverTimestamp(),
+                });
+                toast({
+                    variant: 'destructive',
+                    title: '오답입니다...',
+                    description: `정답은 "${currentQuestion.answer || currentQuestion.correctAnswer}" 입니다.`,
+                });
+            }
+        }
+
+        handleCloseDialogs();
         await handleNextTurn();
+
     } catch (error) {
         console.error("Error submitting answer: ", error);
         toast({ variant: 'destructive', title: '오류', description: '답변 제출 중 오류가 발생했습니다.'});
     } finally {
         setIsSubmitting(false);
-        handleCloseDialogs();
     }
   };
 
@@ -357,6 +423,7 @@ export default function GamePage() {
 
 
   const currentTurnPlayer = players.find(p => p.uid === gameRoom?.currentTurn);
+  const currentQuestion = currentQuestionInfo?.question;
   
   if (isLoading || loadingUser || !gameRoom) {
     return (
@@ -368,9 +435,11 @@ export default function GamePage() {
   }
 
   const isClickDisabled = (block: GameBlock) => {
-    const isRemoteAndNotMyTurn = gameRoom.joinType === 'remote' && !isMyTurn;
-    return isRemoteAndNotMyTurn || block.isOpened || block.isFlipping;
+    const isTurnRestricted = gameRoom.joinType === 'remote' && !isMyTurn;
+    return isTurnRestricted || block.isOpened || block.isFlipping;
   };
+
+  const winner = players.length > 0 ? players[0] : null;
 
   return (
     <>
@@ -589,6 +658,39 @@ export default function GamePage() {
             <Button className="w-full" onClick={handleMysteryEffect} disabled={isSubmitting || (mysteryBoxEffect?.type === 'swap' && !playerForSwap)}>
                 {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "효과 적용"}
             </Button>
+        </DialogContent>
+    </Dialog>
+
+    {/* Game Over Popup */}
+    <Dialog open={showGameOverPopup}>
+        <DialogContent className="max-w-md text-center">
+            <DialogHeader>
+                <div className="flex flex-col items-center gap-2">
+                    <Crown className="w-20 h-20 text-yellow-400 fill-yellow-300" />
+                    <DialogTitle className="font-headline text-3xl">게임 종료!</DialogTitle>
+                    {winner && (
+                        <DialogDescription className="text-base">
+                           우승자는 <span className="font-bold text-primary">{winner.nickname}</span> 님 입니다!
+                        </DialogDescription>
+                    )}
+                </div>
+            </DialogHeader>
+            <div className="py-4">
+                <h3 className="font-semibold mb-3">최종 점수</h3>
+                <div className="space-y-2">
+                    {players.map(p => (
+                         <div key={p.uid} className="flex justify-between items-center p-2 rounded-md bg-secondary/50">
+                            <span className="font-semibold">{p.nickname}</span>
+                            <span className="font-bold text-primary">{p.score}점</span>
+                         </div>
+                    ))}
+                </div>
+            </div>
+            <DialogFooter className="sm:justify-center">
+                 <Button asChild>
+                    <Link href="/dashboard">대시보드로 돌아가기</Link>
+                 </Button>
+            </DialogFooter>
         </DialogContent>
     </Dialog>
     </>
