@@ -168,7 +168,7 @@ export default function DashboardPage() {
 
       {selectedGameSet && (
         <Dialog open={!!selectedGameSet} onOpenChange={(isOpen) => !isOpen && setSelectedGameSet(null)}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-5xl">
             <DialogHeader>
               <DialogTitle className="font-headline text-2xl">{selectedGameSet.title}</DialogTitle>
               <DialogDescription>
