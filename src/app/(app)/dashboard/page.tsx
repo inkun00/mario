@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, orderBy } from 'firebase/firestore';
@@ -26,11 +26,10 @@ import { db } from '@/lib/firebase';
 import type { GameSet } from '@/lib/types';
 import { auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import { cn } from '@/lib/utils';
 
-interface GameSetDocument extends Omit<GameSet, 'questions'> {
+interface GameSetDocument extends GameSet {
   id: string;
-  questions: { question: string; answer: string; points: number; hasMysteryBox: boolean }[];
-  creatorNickname: string;
 }
 
 export default function DashboardPage() {
@@ -122,7 +121,7 @@ export default function DashboardPage() {
 
       {selectedGameSet && (
         <Dialog open={!!selectedGameSet} onOpenChange={(isOpen) => !isOpen && setSelectedGameSet(null)}>
-          <DialogContent className="max-w-xl">
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle className="font-headline text-2xl">{selectedGameSet.title}</DialogTitle>
               <DialogDescription>
@@ -133,8 +132,8 @@ export default function DashboardPage() {
                 <div className="space-y-4">
                     {selectedGameSet.questions.map((q, index) => (
                         <div key={index} className="p-4 rounded-md border bg-secondary/30">
-                            <div className="flex justify-between items-center">
-                                <p className="font-semibold">질문 {index + 1}</p>
+                            <div className="flex justify-between items-start">
+                                <p className="font-semibold text-base">질문 {index + 1}. {q.question}</p>
                                 <div className="flex items-center gap-2 text-sm">
                                     <span className="flex items-center gap-1 font-semibold text-primary">
                                         <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
@@ -143,7 +142,26 @@ export default function DashboardPage() {
                                     {q.hasMysteryBox && <span className="text-accent font-semibold">미스터리</span>}
                                 </div>
                             </div>
-                            <p className="mt-2 text-foreground/90">{q.question}</p>
+
+                            {q.type === 'subjective' && (
+                                <p className="mt-3 text-sm text-foreground/80 bg-background/50 rounded p-2">
+                                    <span className="font-medium">주관식 정답:</span> {q.answer}
+                                </p>
+                            )}
+
+                            {q.type === 'multipleChoice' && q.options && (
+                                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {q.options.map((option, optIndex) => {
+                                        const isCorrect = option === q.correctAnswer;
+                                        return (
+                                            <div key={optIndex} className={cn("flex items-center gap-2 text-sm p-2 rounded-md", isCorrect ? "bg-primary/20 border border-primary" : "bg-background/50")}>
+                                                {isCorrect && <CheckCircle className="w-4 h-4 text-primary shrink-0" />}
+                                                <span className={cn(isCorrect && "font-semibold")}>{option}</span>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>

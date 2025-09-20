@@ -1,6 +1,6 @@
 'use client';
 
-import { useFieldArray, useForm } from 'react-hook-form';
+import { useFieldArray, useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,7 @@ import { PlusCircle, Trash2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useState } from 'react';
 import { auth, db } from '@/lib/firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
@@ -33,9 +34,23 @@ import { useRouter } from 'next/navigation';
 
 const questionSchema = z.object({
   question: z.string().min(1, '질문을 입력해주세요.'),
-  answer: z.string().min(1, '정답을 입력해주세요.'),
   points: z.coerce.number().min(1).max(5),
   hasMysteryBox: z.boolean().default(false),
+  type: z.enum(['subjective', 'multipleChoice']),
+  answer: z.string().optional(),
+  options: z.array(z.string()).optional(),
+  correctAnswer: z.string().optional(),
+}).refine(data => {
+  if (data.type === 'multipleChoice') {
+    return data.options && data.options.length === 4 && data.options.every(opt => opt.length > 0) && data.correctAnswer;
+  }
+  if (data.type === 'subjective') {
+    return data.answer && data.answer.length > 0;
+  }
+  return true;
+}, {
+    message: '객관식 문제는 4개의 보기를 모두 입력하고 정답을 선택해야 합니다. 주관식 문제는 정답을 입력해야 합니다.',
+    path: ['correctAnswer'],
 });
 
 const gameSetSchema = z.object({
@@ -45,6 +60,16 @@ const gameSetSchema = z.object({
 });
 
 type GameSetFormValues = z.infer<typeof gameSetSchema>;
+
+const defaultQuestion: z.infer<typeof questionSchema> = {
+  question: '',
+  points: 3,
+  hasMysteryBox: false,
+  type: 'subjective',
+  answer: '',
+  options: ['', '', '', ''],
+  correctAnswer: '',
+};
 
 export default function CreateGameSetPage() {
   const [isLoading, setIsLoading] = useState(false);
@@ -56,7 +81,7 @@ export default function CreateGameSetPage() {
     defaultValues: {
       title: '',
       description: '',
-      questions: [{ question: '', answer: '', points: 3, hasMysteryBox: false }],
+      questions: [defaultQuestion],
     },
   });
 
@@ -100,10 +125,11 @@ export default function CreateGameSetPage() {
         title: '오류',
         description: '퀴즈 세트를 만드는 중 오류가 발생했습니다.',
       });
-      setIsLoading(false);
-    } 
+    } finally {
+        setIsLoading(false);
+    }
   }
-
+  
   return (
     <div className="container mx-auto py-8">
       <Card>
@@ -172,34 +198,113 @@ export default function CreateGameSetPage() {
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <FormField
-                            control={form.control}
-                            name={`questions.${index}.question`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>문제</FormLabel>
-                                <FormControl>
-                                  <Textarea placeholder="문제를 입력하세요." {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <FormField
-                            control={form.control}
-                            name={`questions.${index}.answer`}
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormLabel>정답</FormLabel>
-                                <FormControl>
-                                  <Textarea placeholder="정답을 입력하세요." {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                        </div>
+                        
+                        <FormField
+                          control={form.control}
+                          name={`questions.${index}.question`}
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>문제</FormLabel>
+                              <FormControl>
+                                <Textarea placeholder="문제를 입력하세요." {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name={`questions.${index}.type`}
+                          render={({ field }) => (
+                            <FormItem className="mt-4">
+                              <FormLabel>유형</FormLabel>
+                              <FormControl>
+                                <RadioGroup
+                                  onValueChange={field.onChange}
+                                  defaultValue={field.value}
+                                  className="flex items-center gap-4"
+                                >
+                                  <FormItem className="flex items-center space-x-2">
+                                    <FormControl>
+                                      <RadioGroupItem value="subjective" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">주관식</FormLabel>
+                                  </FormItem>
+                                  <FormItem className="flex items-center space-x-2">
+                                    <FormControl>
+                                      <RadioGroupItem value="multipleChoice" />
+                                    </FormControl>
+                                    <FormLabel className="font-normal">객관식</FormLabel>
+                                  </FormItem>
+                                </RadioGroup>
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+
+                        <Controller
+                          control={form.control}
+                          name={`questions.${index}.type`}
+                          render={({ field: { value: typeValue } }) => (
+                            <>
+                              {typeValue === 'subjective' && (
+                                <FormField
+                                  control={form.control}
+                                  name={`questions.${index}.answer`}
+                                  render={({ field }) => (
+                                    <FormItem className="mt-4">
+                                      <FormLabel>정답</FormLabel>
+                                      <FormControl>
+                                        <Input placeholder="주관식 정답을 입력하세요." {...field} />
+                                      </FormControl>
+                                      <FormMessage />
+                                    </FormItem>
+                                  )}
+                                />
+                              )}
+
+                              {typeValue === 'multipleChoice' && (
+                                <div className="mt-4 space-y-4">
+                                  <FormLabel>보기 및 정답</FormLabel>
+                                  <FormField
+                                    control={form.control}
+                                    name={`questions.${index}.correctAnswer`}
+                                    render={({ field }) => (
+                                      <FormItem>
+                                        <FormControl>
+                                          <RadioGroup
+                                            onValueChange={field.onChange}
+                                            value={field.value}
+                                            className="space-y-2"
+                                          >
+                                            {Array.from({ length: 4 }).map((_, optIndex) => (
+                                              <FormField
+                                                key={`${field.name}-option-${optIndex}`}
+                                                control={form.control}
+                                                name={`questions.${index}.options.${optIndex}`}
+                                                render={({ field: optionField }) => (
+                                                  <FormItem className="flex items-center gap-2">
+                                                    <FormControl>
+                                                      <RadioGroupItem value={optionField.value} />
+                                                    </FormControl>
+                                                    <Input placeholder={`보기 ${optIndex + 1}`} {...optionField} />
+                                                  </FormItem>
+                                                )}
+                                              />
+                                            ))}
+                                          </RadioGroup>
+                                        </FormControl>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )}
+                                  />
+                                </div>
+                              )}
+                            </>
+                          )}
+                        />
+                        
                         <div className="grid grid-cols-2 gap-4 mt-4">
                           <FormField
                             control={form.control}
@@ -240,9 +345,7 @@ export default function CreateGameSetPage() {
                     type="button"
                     variant="outline"
                     className="mt-6"
-                    onClick={() =>
-                      append({ question: '', answer: '', points: 3, hasMysteryBox: false })
-                    }
+                    onClick={() => append(defaultQuestion)}
                   >
                     <PlusCircle className="mr-2 h-4 w-4" />
                     질문 추가

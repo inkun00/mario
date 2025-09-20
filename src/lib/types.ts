@@ -8,9 +8,14 @@ export interface User {
 
 export interface Question {
   question: string;
-  answer: string;
   points: number;
   hasMysteryBox: boolean;
+  type: 'subjective' | 'multipleChoice';
+  // for subjective
+  answer?: string;
+  // for multiple choice
+  options?: string[];
+  correctAnswer?: string;
 }
 
 export interface GameSet {
