@@ -41,6 +41,8 @@ export interface Player {
   isHost?: boolean;
 }
 
+export type JoinType = 'remote' | 'local';
+
 export interface GameRoom {
   id: string;
   gameSetId: string;
@@ -51,5 +53,6 @@ export interface GameRoom {
   players: Record<string, Player>; // key is userId
   gameState: Record<string, 'available' | 'answered'>; // key is questionId
   mysteryBoxEnabled: boolean;
+  joinType: JoinType;
   createdAt: any;
 }

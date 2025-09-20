@@ -10,16 +10,27 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
 import { db, auth } from '@/lib/firebase';
-import type { GameSet, GameRoom, Player } from '@/lib/types';
+import type { GameRoom, GameSet, Player, JoinType } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { doc, getDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Lock, Users } from 'lucide-react';
+import { Device, Lock, Users } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+
+function generateRoomId() {
+  const chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
 
 export default function NewGameRoomPage() {
   const [user, loadingUser] = useAuthState(auth);
@@ -35,6 +46,7 @@ export default function NewGameRoomPage() {
   const [password, setPassword] = useState('');
   const [usePassword, setUsePassword] = useState(false);
   const [mysteryBoxEnabled, setMysteryBoxEnabled] = useState(true);
+  const [joinType, setJoinType] = useState<JoinType>('remote');
 
   useEffect(() => {
     if (!gameSetId) {
@@ -62,9 +74,32 @@ export default function NewGameRoomPage() {
   const handleCreateRoom = async () => {
     if (!user || !gameSet) return;
     
+    if (joinType === 'local') {
+      toast({
+        title: '준비 중인 기능',
+        description: '한 기기에서 여러 명이 참여하는 기능은 현재 준비 중입니다.',
+      });
+      return;
+    }
+
     setIsCreating(true);
 
     try {
+      let newRoomId;
+      let roomExists = true;
+      while (roomExists) {
+        newRoomId = generateRoomId();
+        const roomRef = doc(db, 'game-rooms', newRoomId);
+        const roomSnap = await getDoc(roomRef);
+        if (!roomSnap.exists()) {
+          roomExists = false;
+        }
+      }
+
+      if (!newRoomId) {
+        throw new Error('Failed to generate a unique room ID.');
+      }
+
       const hostPlayer: Player = {
         uid: user.uid,
         nickname: user.displayName || '호스트',
@@ -83,16 +118,18 @@ export default function NewGameRoomPage() {
         },
         gameState: {},
         mysteryBoxEnabled: mysteryBoxEnabled,
+        joinType: joinType,
         ...(usePassword && password && { password }),
       };
 
-      const docRef = await addDoc(collection(db, 'game-rooms'), {
+      await setDoc(doc(db, "game-rooms", newRoomId), {
           ...newRoom,
+          id: newRoomId,
           createdAt: serverTimestamp(),
       });
       
       toast({ title: '성공', description: '새로운 게임방을 만들었습니다!' });
-      router.push(`/game/${docRef.id}/lobby`);
+      router.push(`/game/${newRoomId}/lobby`);
 
     } catch (error) {
         console.error("Error creating game room:", error);
@@ -131,6 +168,37 @@ export default function NewGameRoomPage() {
                   onCheckedChange={setMysteryBoxEnabled}
                 />
               </div>
+
+              <div className="space-y-2">
+                <Label>참여 방식</Label>
+                 <RadioGroup
+                    value={joinType}
+                    onValueChange={(value: string) => setJoinType(value as JoinType)}
+                    className="grid grid-cols-2 gap-4"
+                  >
+                    <div>
+                      <RadioGroupItem value="remote" id="remote" className="peer sr-only" />
+                      <Label
+                        htmlFor="remote"
+                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                      >
+                        <Users className="mb-3 h-6 w-6" />
+                        여러 기기에서 참여
+                      </Label>
+                    </div>
+                    <div>
+                      <RadioGroupItem value="local" id="local" className="peer sr-only" />
+                      <Label
+                        htmlFor="local"
+                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                      >
+                        <Device className="mb-3 h-6 w-6" />
+                        한 기기에서 참여
+                      </Label>
+                    </div>
+                  </RadioGroup>
+              </div>
+
             </div>
           </div>
 
