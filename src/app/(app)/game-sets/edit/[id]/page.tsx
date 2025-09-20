@@ -104,6 +104,10 @@ export default function EditGameSetPage() {
     defaultValues: {
       title: '',
       description: '',
+      grade: '',
+      semester: '',
+      subject: '',
+      unit: '',
       questions: [],
     },
   });
@@ -122,7 +126,24 @@ export default function EditGameSetPage() {
             router.push('/dashboard');
             return;
         }
-        form.reset(gameSetData);
+        
+        // Ensure optional fields are not undefined
+        const dataWithDefaults = {
+            ...gameSetData,
+            description: gameSetData.description || '',
+            grade: gameSetData.grade || '',
+            semester: gameSetData.semester || '',
+            subject: gameSetData.subject || '',
+            unit: gameSetData.unit || '',
+            questions: gameSetData.questions.map(q => ({
+                ...q,
+                hint: q.hint || '',
+                answer: q.answer || '',
+                options: q.options || ['', '', '', ''],
+                correctAnswer: q.correctAnswer || '',
+            }))
+        };
+        form.reset(dataWithDefaults);
       } else {
         toast({ variant: 'destructive', title: '오류', description: '퀴즈 세트를 찾을 수 없습니다.' });
         router.push('/dashboard');
@@ -232,7 +253,7 @@ export default function EditGameSetPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>학년</FormLabel>
-                           <Select onValueChange={field.onChange} defaultValue={field.value}>
+                           <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="학년 선택" />
@@ -284,7 +305,7 @@ export default function EditGameSetPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>과목</FormLabel>
-                           <Select onValueChange={field.onChange} defaultValue={field.value}>
+                           <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="과목 선택" />

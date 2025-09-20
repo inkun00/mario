@@ -100,6 +100,10 @@ export default function CreateGameSetPage() {
     defaultValues: {
       title: '',
       description: '',
+      grade: '',
+      semester: '',
+      subject: '',
+      unit: '',
       questions: [defaultQuestion],
     },
   });
@@ -260,7 +264,7 @@ export default function CreateGameSetPage() {
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="과목 선택" />
-                              </SelectTrigger>
+                              </Trigger>
                             </FormControl>
                             <SelectContent>
                               {subjects.map(subject => (
