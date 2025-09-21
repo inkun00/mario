@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, CheckCircle, Pencil, Trash2, HelpCircle, Lightbulb, Lock, Globe } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
@@ -37,9 +37,8 @@ import { db } from '@/lib/firebase';
 import type { GameSet } from '@/lib/types';
 import { auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 interface GameSetDocument extends GameSet {
@@ -272,7 +271,18 @@ export default function DashboardPage() {
                                         <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
                                         {q.points === -1 ? '랜덤' : `${q.points}점`}
                                     </span>
-                                    {q.points === -1 && <HelpCircle className="w-4 h-4 text-muted-foreground" title="10-50점 사이의 랜덤 점수가 부여됩니다."/>}
+                                    {q.points === -1 && (
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>10-50점 사이의 랜덤 점수가 부여됩니다.</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    )}
                                 </div>
                             </div>
                             
