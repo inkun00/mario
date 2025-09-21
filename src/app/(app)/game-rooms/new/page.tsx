@@ -18,8 +18,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { Smartphone, Lock, Users } from 'lucide-react';
+import { useEffect, useState, Suspense } from 'react';
+import { Smartphone, Lock, Users, Loader2 } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 function generateRoomId() {
@@ -32,7 +32,7 @@ function generateRoomId() {
 }
 
 
-export default function NewGameRoomPage() {
+function NewGameRoomPageContents() {
   const [user, loadingUser] = useAuthState(auth);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -132,7 +132,12 @@ export default function NewGameRoomPage() {
   };
 
   if (isLoading || loadingUser) {
-    return <div className="container mx-auto py-8">게임 정보를 불러오는 중...</div>;
+    return (
+      <div className="container mx-auto py-8 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin" />
+        <p className="ml-2">게임 정보를 불러오는 중...</p>
+      </div>
+    );
   }
 
   if (!gameSet) {
@@ -235,4 +240,15 @@ export default function NewGameRoomPage() {
       </Card>
     </div>
   );
+}
+
+export default function NewGameRoomPage() {
+  return (
+    <Suspense fallback={<div className="container mx-auto py-8 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin" />
+        <p className="ml-2">페이지를 불러오는 중...</p>
+      </div>}>
+      <NewGameRoomPageContents />
+    </Suspense>
+  )
 }
