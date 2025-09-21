@@ -12,6 +12,7 @@ export interface Question {
   question: string;
   points: number;
   type: 'subjective' | 'multipleChoice' | 'ox';
+  imageUrl?: string;
   hint?: string;
   // for subjective
   answer?: string;

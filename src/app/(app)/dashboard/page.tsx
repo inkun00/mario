@@ -30,6 +30,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Book, PlusCircle, Users, Star, CheckCircle, Pencil, Trash2, HelpCircle, Lightbulb, Lock, Globe } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { collection, onSnapshot, query, orderBy, doc, deleteDoc, where, getDocs, QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -274,6 +275,12 @@ export default function DashboardPage() {
                                     {q.points === -1 && <HelpCircle className="w-4 h-4 text-muted-foreground" title="10-50점 사이의 랜덤 점수가 부여됩니다."/>}
                                 </div>
                             </div>
+                            
+                            {q.imageUrl && (
+                                <div className="mt-2 relative aspect-video">
+                                    <Image src={q.imageUrl} alt={`Question ${index + 1} image`} fill className="rounded-md object-contain" />
+                                </div>
+                            )}
 
                             {q.type === 'multipleChoice' && q.options && (
                                 <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">

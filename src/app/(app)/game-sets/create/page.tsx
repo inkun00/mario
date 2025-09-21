@@ -44,6 +44,7 @@ const questionSchema = z.object({
   question: z.string().min(1, '질문을 입력해주세요.'),
   points: z.coerce.number(),
   type: z.enum(['subjective', 'multipleChoice', 'ox']),
+  imageUrl: z.string().url().optional().or(z.literal('')),
   hint: z.string().optional(),
   answer: z.string().optional(),
   options: z.array(z.string()).optional(),
@@ -81,6 +82,7 @@ const defaultQuestion: z.infer<typeof questionSchema> = {
   question: '',
   points: 10,
   type: 'subjective',
+  imageUrl: '',
   hint: '',
   answer: '',
   options: ['', '', '', ''],
@@ -357,6 +359,20 @@ export default function CreateGameSetPage() {
                                 <FormLabel>문제</FormLabel>
                                 <FormControl>
                                     <Textarea placeholder="문제를 입력하세요." {...field} />
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                            />
+
+                            <FormField
+                            control={form.control}
+                            name={`questions.${index}.imageUrl`}
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>이미지 URL (선택 사항)</FormLabel>
+                                <FormControl>
+                                    <Input type="url" placeholder="https://example.com/image.png" {...field} />
                                 </FormControl>
                                 <FormMessage />
                                 </FormItem>
