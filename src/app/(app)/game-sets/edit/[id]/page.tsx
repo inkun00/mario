@@ -180,9 +180,22 @@ export default function EditGameSetPage() {
 
     try {
       const gameSetRef = doc(db, 'game-sets', gameSetId);
-      await updateDoc(gameSetRef, {
+      // Construct the update object from the form data to prevent issues.
+      const updateData = {
         ...data,
-      });
+        questions: data.questions.map(q => ({
+            question: q.question,
+            points: q.points,
+            type: q.type,
+            imageUrl: q.imageUrl || '',
+            hint: q.hint || '',
+            answer: q.answer || '',
+            options: q.options || ['', '', '', ''],
+            correctAnswer: q.correctAnswer || '',
+        }))
+      };
+
+      await updateDoc(gameSetRef, updateData);
 
       toast({
         title: '성공!',
