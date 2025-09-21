@@ -588,7 +588,7 @@ export default function GamePage() {
             <div className="py-4 space-y-6">
                 {currentQuestion?.imageUrl && (
                     <div className="relative aspect-video w-full">
-                        <Image src={currentQuestion.imageUrl} alt="Question Image" layout="fill" objectFit="contain" className="rounded-md" />
+                        <Image src={currentQuestion.imageUrl} alt="Question Image" fill className="rounded-md object-contain" />
                     </div>
                 )}
                 <p className="text-lg font-medium">{currentQuestion?.question}</p>
