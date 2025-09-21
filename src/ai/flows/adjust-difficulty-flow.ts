@@ -64,10 +64,14 @@ const adjustDifficultyFlow = ai.defineFlow(
     name: 'adjustDifficultyFlow',
     inputSchema: AdjustDifficultyInputSchema,
     outputSchema: AdjustDifficultyOutputSchema,
+    http: {
+      cors: {
+        origin: '*',
+      },
+    },
   },
   async input => {
     const {output} = await adjustDifficultyPrompt(input);
     return output!;
   }
 );
-

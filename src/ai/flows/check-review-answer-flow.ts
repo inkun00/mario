@@ -54,6 +54,11 @@ const checkReviewAnswerFlow = ai.defineFlow(
     name: 'checkReviewAnswerFlow',
     inputSchema: CheckReviewAnswerInputSchema,
     outputSchema: CheckReviewAnswerOutputSchema,
+    http: {
+      cors: {
+        origin: '*',
+      },
+    },
   },
   async (input) => {
     const { output } = await checkReviewAnswerPrompt(input);

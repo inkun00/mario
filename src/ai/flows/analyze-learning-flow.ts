@@ -10,6 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
+import type { CorrectAnswer, IncorrectAnswer } from '@/lib/types';
 
 const CorrectAnswerSchema = z.object({
   gameSetTitle: z.string(),
@@ -77,6 +78,11 @@ const analyzeLearningFlow = ai.defineFlow(
     name: 'analyzeLearningFlow',
     inputSchema: AnalyzeLearningInputSchema,
     outputSchema: AnalyzeLearningOutputSchema,
+    http: {
+      cors: {
+        origin: '*',
+      },
+    },
   },
   async (input) => {
     const { output } = await analyzeLearningPrompt(input);

@@ -39,7 +39,7 @@ const generateReviewQuestionPrompt = ai.definePrompt({
   Respond in Korean.
 
   Original Question: {{originalQuestion.question}}
-  Original Answer: {{#if originalQuestion.answer}}{{originalQuestion.answer}}{{else}}{{originalQuestion.correctAnswer}}{{/if}}
+  Original Answer: {{#if originalQuestion.answer}}{{original-question.answer}}{{else}}{{original-question.correctAnswer}}{{/if}}
   `,
 });
 
@@ -49,6 +49,11 @@ const generateReviewQuestionFlow = ai.defineFlow(
     name: 'generateReviewQuestionFlow',
     inputSchema: GenerateReviewQuestionInputSchema,
     outputSchema: GenerateReviewQuestionOutputSchema,
+    http: {
+      cors: {
+        origin: '*',
+      },
+    },
   },
   async (input) => {
     const { output } = await generateReviewQuestionPrompt(input);
