@@ -3,15 +3,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users can only read their own profile, but anyone can create a new user profile during signup.
-    // Writing (updating) is restricted to the user themselves.
+    // Any authenticated user can read other user profiles (for local game player search).
+    // However, writing/updating is restricted to the user themselves.
     match /users/{userId} {
       allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && request.auth.uid == userId;
+      allow create, update, delete: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Subcollections for user-specific data
+    // Subcollections for user-specific data (correct/incorrect answers)
     match /users/{userId}/{collection}/{docId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
