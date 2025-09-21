@@ -53,11 +53,13 @@ export function Header() {
     if (!name) return '';
     return name.substring(0, 2);
   };
+  
+  const logoHref = user ? '/dashboard' : '/';
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 items-center">
-        <AppLogo />
+        <AppLogo href={logoHref}/>
         <nav className="ml-6 flex items-center space-x-4 lg:space-x-6">
           {navItems.map((item) => (
             <Link
