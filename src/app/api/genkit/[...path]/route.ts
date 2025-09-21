@@ -1,4 +1,6 @@
-import { runFlow } from '@genkit-ai/next';
+'use server';
+
+import runFlow from '@genkit-ai/next';
 import { NextRequest, NextResponse } from 'next/server';
 
 async function handler(req: NextRequest) {
@@ -49,7 +51,7 @@ export async function OPTIONS(req: NextRequest) {
         headers: {
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-control-allow-headers': 'Content-Type, Authorization',
         }
     });
 }
