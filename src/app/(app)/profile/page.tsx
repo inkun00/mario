@@ -80,7 +80,7 @@ export default function ProfilePage() {
   }, [user]);
 
   useEffect(() => {
-    if (isLoading || correctAnswers.length === 0 && incorrectAnswers.length === 0) {
+    if (isLoading || (correctAnswers.length === 0 && incorrectAnswers.length === 0)) {
       if (!isLoading) setIsAnalysisLoading(false);
       return;
     };
@@ -88,7 +88,23 @@ export default function ProfilePage() {
     const runAnalysis = async () => {
         setIsAnalysisLoading(true);
         try {
-            const result = await analyzeLearning({ correctAnswers, incorrectAnswers });
+            const result = await analyzeLearning({ 
+              correctAnswers: correctAnswers.map(a => ({
+                  gameSetTitle: a.gameSetTitle,
+                  grade: a.grade,
+                  semester: a.semester,
+                  subject: a.subject,
+                  unit: a.unit,
+              })), 
+              incorrectAnswers: incorrectAnswers.map(a => ({
+                  gameSetTitle: a.gameSetTitle,
+                  question: {
+                      question: a.question.question,
+                      subject: a.question.subject,
+                      unit: a.question.unit,
+                  }
+              })) 
+            });
             setAnalysis(result);
         } catch (error) {
             console.error("Error analyzing learning data:", error);

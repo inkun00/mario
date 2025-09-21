@@ -10,9 +10,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import type { CorrectAnswer, IncorrectAnswer } from '@/lib/types';
 
-// We define schemas here but will pass raw arrays to the prompt
 const CorrectAnswerSchema = z.object({
   gameSetTitle: z.string(),
   grade: z.string().optional(),
@@ -20,6 +18,7 @@ const CorrectAnswerSchema = z.object({
   subject: z.string().optional(),
   unit: z.string().optional(),
 });
+
 const IncorrectAnswerSchema = z.object({
   gameSetTitle: z.string(),
   question: z.object({
@@ -44,27 +43,8 @@ const AnalyzeLearningOutputSchema = z.object({
 export type AnalyzeLearningOutput = z.infer<typeof AnalyzeLearningOutputSchema>;
 
 
-export async function analyzeLearning(input: {correctAnswers: CorrectAnswer[], incorrectAnswers: IncorrectAnswer[]}): Promise<AnalyzeLearningOutput> {
-  // Map data to fit schema for the prompt, Genkit requires this for structured input.
-  const mappedInput: AnalyzeLearningInput = {
-    correctAnswers: input.correctAnswers.map(a => ({
-        gameSetTitle: a.gameSetTitle,
-        grade: a.grade,
-        semester: a.semester,
-        subject: a.subject,
-        unit: a.unit,
-    })),
-    incorrectAnswers: input.incorrectAnswers.map(a => ({
-        gameSetTitle: a.gameSetTitle,
-        question: {
-            question: a.question.question,
-            subject: a.question.subject,
-            unit: a.question.unit
-        }
-    }))
-  };
-
-  return analyzeLearningFlow(mappedInput);
+export async function analyzeLearning(input: AnalyzeLearningInput): Promise<AnalyzeLearningOutput> {
+  return analyzeLearningFlow(input);
 }
 
 const analyzeLearningPrompt = ai.definePrompt({
