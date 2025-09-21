@@ -78,11 +78,6 @@ const analyzeLearningFlow = ai.defineFlow(
     name: 'analyzeLearningFlow',
     inputSchema: AnalyzeLearningInputSchema,
     outputSchema: AnalyzeLearningOutputSchema,
-    http: {
-      cors: {
-        origin: '*',
-      },
-    },
   },
   async (input) => {
     const { output } = await analyzeLearningPrompt(input);

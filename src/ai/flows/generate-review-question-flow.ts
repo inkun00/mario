@@ -49,11 +49,6 @@ const generateReviewQuestionFlow = ai.defineFlow(
     name: 'generateReviewQuestionFlow',
     inputSchema: GenerateReviewQuestionInputSchema,
     outputSchema: GenerateReviewQuestionOutputSchema,
-    http: {
-      cors: {
-        origin: '*',
-      },
-    },
   },
   async (input) => {
     const { output } = await generateReviewQuestionPrompt(input);
