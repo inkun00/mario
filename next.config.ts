@@ -32,7 +32,7 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'www.unpm.or.kr',
         port: '',
-        pathname: '/**',
+        pathname: '/un2022/bbs_skin/sisul/image_ko/**',
       }
     ],
   },
