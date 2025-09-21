@@ -278,7 +278,7 @@ export default function DashboardPage() {
                             
                             {q.imageUrl && (
                                 <div className="mt-2 relative aspect-video">
-                                    <Image src={encodeURI(q.imageUrl)} alt={`Question ${index + 1} image`} fill className="rounded-md object-contain" />
+                                    <Image src={encodeURI(q.imageUrl)} alt={`Question ${index + 1} image`} fill className="rounded-md object-contain" unoptimized={true} />
                                 </div>
                             )}
 
