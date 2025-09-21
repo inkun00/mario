@@ -1,12 +1,12 @@
-import { genkit } from '@/ai/genkit';
+import { ai } from '@/ai/genkit';
 import { createNextApiHandler } from '@genkit-ai/next';
 
-export const GET = createNextApiHandler(genkit);
+export const GET = createNextApiHandler(ai);
 export const POST = createNextApiHandler(
-  genkit,
+  ai,
   { cors: { origin: '*' } }
 );
 export const OPTIONS = createNextApiHandler(
-  genkit,
+  ai,
   { cors: { origin: '*' } }
 );

@@ -214,9 +214,9 @@ export default function DashboardPage() {
                             <div className="flex items-center gap-2">
                                 <CardTitle className="font-headline text-lg">{set.title}</CardTitle>
                                 {set.isPublic ? (
-                                    <Globe className="w-4 h-4 text-muted-foreground" title="공개"/>
+                                    <Globe className="w-4 h-4 text-muted-foreground"/>
                                 ) : (
-                                    <Lock className="w-4 h-4 text-muted-foreground" title="비공개"/>
+                                    <Lock className="w-4 h-4 text-muted-foreground"/>
                                 )}
                             </div>
                             <CardDescription className="mt-1">By {set.creatorNickname}</CardDescription>
