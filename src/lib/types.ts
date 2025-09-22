@@ -10,6 +10,7 @@ export interface User {
 }
 
 export interface Question {
+  id: number;
   question: string;
   points: number;
   type: 'subjective' | 'multipleChoice' | 'ox';

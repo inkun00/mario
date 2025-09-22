@@ -22,6 +22,7 @@ if (!getApps().length) {
 const db = getFirestore();
 
 const QuestionSchema = z.object({
+  id: z.number().optional(), // Adding optional id for questions
   question: z.string(),
   points: z.number(),
   type: z.enum(['subjective', 'multipleChoice', 'ox']),
@@ -82,9 +83,15 @@ const logAnswerFlow = ai.defineFlow(
       }
       const gameRoom = roomSnap.data() as GameRoom;
 
+      // The question ID is the original index from the gameSet.
+      const questionId = (answerLog.question as any).id;
+      if (questionId === undefined) {
+          throw new Error("Question ID is missing from the answer log.");
+      }
+
       const updates: Record<string, any> = {
         answerLogs: FieldValue.arrayUnion(answerLog),
-        [`gameState.${(answerLog.question as any).id}`]: 'answered',
+        [`gameState.${questionId}`]: 'answered',
       };
       
       // Calculate and set next turn if requested

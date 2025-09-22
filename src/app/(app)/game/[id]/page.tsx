@@ -27,7 +27,7 @@ import { logAnswer } from '@/ai/flows/log-answer-flow';
 interface GameBlock {
   id: number;
   type: 'question' | 'mystery';
-  question?: Question;
+  question?: Question & { id: number };
   isFlipping: boolean;
   isOpened: boolean;
 }
@@ -70,7 +70,7 @@ export default function GamePage() {
   const [blocks, setBlocks] = useState<GameBlock[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   
-  const [currentQuestionInfo, setCurrentQuestionInfo] = useState<{question: Question, blockId: number} | null>(null);
+  const [currentQuestionInfo, setCurrentQuestionInfo] = useState<{question: Question & { id: number }, blockId: number} | null>(null);
   const [currentPoints, setCurrentPoints] = useState(0);
   const [showHint, setShowHint] = useState(false);
   const [userAnswer, setUserAnswer] = useState('');
@@ -175,7 +175,7 @@ export default function GamePage() {
     const questionItems: GameBlock[] = gameSet.questions.map((q, i) => ({
         id: i,
         type: 'question',
-        question: q,
+        question: {...q, id: i},
         isFlipping: false,
         isOpened: !!gameRoom.gameState[i]
     }));
@@ -195,43 +195,32 @@ export default function GamePage() {
     const shuffledBlocks = shuffleArray(allItems);
     
     setBlocks(shuffledBlocks);
-
-    // Check if game is already over
-    const questionBlocksInBoard = shuffledBlocks.filter(b => b.type === 'question');
-    const allQuestionsOpened = questionBlocksInBoard.every(b => gameRoom.gameState[b.id] === 'answered');
-    
-    if (allQuestionsOpened && questionBlocksInBoard.length > 0 && gameRoom.status !== 'finished') {
-      finishGame();
-    }
-
-
   }, [gameSet, gameRoom, blocks.length]);
   
+  // Check for game over condition
+  useEffect(() => {
+    if (!gameRoom || !blocks.length || gameRoom.status === 'finished') return;
+
+    const questionBlockIds = blocks.filter(b => b.type === 'question').map(b => b.question!.id);
+    const allQuestionsAnswered = questionBlockIds.every(id => gameRoom.gameState[id] === 'answered');
+
+    if (allQuestionsAnswered && questionBlockIds.length > 0) {
+        finishGame();
+    }
+  }, [gameRoom, blocks]);
+
+
   const finishGame = async () => {
     if (!gameRoom || gameRoom.status === 'finished') return;
     
     try {
         await updateScores({ gameRoomId: gameRoom.id });
+        await updateDoc(doc(db, 'game-rooms', gameRoom.id), { status: 'finished' });
         // The onSnapshot will detect the status change to 'finished' which is set by the flow
     } catch (error) {
         console.error("Error finishing game: ", error);
         toast({ variant: 'destructive', title: '오류', description: '게임 종료 처리 중 오류가 발생했습니다.'});
     }
-  };
-  
-  const handleNextTurn = async () => {
-      if (!gameRoom || !gameSet) return;
-      
-      const questionBlocks = blocks.filter(b => b.type === 'question');
-      const allQuestionsAnswered = questionBlocks.every(b => gameRoom.gameState[b.id] === 'answered');
-
-      if (allQuestionsAnswered && questionBlocks.length > 0 && gameRoom.status !== 'finished') {
-          await finishGame();
-          return;
-      }
-      
-      // Turn change is now handled by the server-side logAnswer flow.
-      // No client-side updateDoc needed.
   };
   
   const handleBlockClick = (block: GameBlock) => {
@@ -243,13 +232,9 @@ export default function GamePage() {
     
     // 2. After animation, show popup and mark as opened
     setTimeout(() => {
-      if (block.type === 'question') {
-          const roomRef = doc(db, 'game-rooms', gameRoomId as string);
-          // This state update is just for the client-side UI
-          // The actual state is managed by the server
-          setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isOpened: true } : b));
-          setGameRoom(prev => prev ? ({ ...prev, gameState: { ...prev.gameState, [block.id]: 'answered' } }) : null);
-      } else {
+      // For question blocks, we just show the dialog. The 'isOpened' state is now driven by `gameRoom.gameState` from Firestore.
+      // For mystery blocks, we can manage the state locally as they can be re-opened.
+      if (block.type === 'mystery') {
         setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: false, isOpened: true } : b));
       }
 
@@ -269,7 +254,7 @@ export default function GamePage() {
         const effects = gameRoom?.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
         if (effects.length === 0) {
             toast({ title: '이런!', description: '아무 일도 일어나지 않았습니다. 설정된 미스터리 효과가 없습니다.' });
-            handleNextTurn();
+            logAnswer({ gameRoomId: gameRoomId as string, answerLog: {isCorrect: true} as AnswerLog }); // Proceed to next turn
             return;
         }
         
@@ -329,7 +314,7 @@ export default function GamePage() {
     const currentTurnUID = gameRoom.currentTurn;
 
     try {
-        const answerLog: Omit<AnswerLog, 'timestamp'> = {
+        const answerLog = {
             userId: currentTurnUID,
             gameSetId: gameSet.id,
             gameSetTitle: gameSet.title,
@@ -337,9 +322,10 @@ export default function GamePage() {
             userAnswer: userAnswer,
             isCorrect: isCorrect,
             pointsAwarded: pointsToAward,
+            timestamp: new Date(),
         };
 
-        await logAnswer({ gameRoomId, answerLog: {...answerLog, timestamp: new Date()} as AnswerLog });
+        await logAnswer({ gameRoomId, answerLog: answerLog as AnswerLog });
         
         if (isCorrect) {
             toast({
@@ -355,7 +341,6 @@ export default function GamePage() {
         }
 
         handleCloseDialogs();
-        await handleNextTurn();
 
     } catch (error: any) {
         console.error("Error submitting answer: ", error);
@@ -377,7 +362,7 @@ export default function GamePage() {
       userId: currentTurnUID,
       gameSetId: gameRoom.gameSetId,
       gameSetTitle: gameSet?.title || "미스터리 박스",
-      question: { question: mysteryBoxEffect.title, type: 'subjective', points: 0 },
+      question: { id: Date.now(), question: mysteryBoxEffect.title, type: 'subjective', points: 0 },
       isCorrect: true, // Represent effect as a "correct" event
       timestamp: new Date(),
     };
@@ -406,9 +391,9 @@ export default function GamePage() {
         const pointsDiffForTarget = currentPlayerScore - targetPlayerScore;
   
         // Log for current player
-        await logAnswer({ gameRoomId: gameRoomId, answerLog: { ...newLog, userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent } as AnswerLog });
+        await logAnswer({ gameRoomId: gameRoomId, answerLog: { ...newLog, userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent, question: {...newLog.question, id: Date.now() + 1}} as AnswerLog });
         // Log for target player
-        await logAnswer({ gameRoomId: gameRoomId, answerLog: { ...newLog, userId: playerForSwap, pointsAwarded: pointsDiffForTarget, nextTurn: false } as AnswerLog });
+        await logAnswer({ gameRoomId: gameRoomId, answerLog: { ...newLog, userId: playerForSwap, pointsAwarded: pointsDiffForTarget, question: {...newLog.question, id: Date.now() + 2} } as AnswerLog, nextTurn: false });
         
         // This case is special, so we handle turn progression and exit
         setIsSubmitting(false);
@@ -463,7 +448,8 @@ export default function GamePage() {
 
   const isClickDisabled = (block: GameBlock) => {
     const isTurnRestricted = gameRoom.joinType === 'remote' && !isMyTurn;
-    return isTurnRestricted || block.isOpened || block.isFlipping;
+    const isOpened = block.type === 'question' && gameRoom.gameState[block.question!.id] === 'answered';
+    return isTurnRestricted || isOpened || block.isFlipping;
   };
 
   const winner = finalScores.length > 0 ? finalScores[0] : null;
@@ -487,7 +473,9 @@ export default function GamePage() {
                 <p className="text-muted-foreground">점수를 얻을 질문을 선택하세요.</p>
             </div>
           <div className="grid grid-cols-5 md:grid-cols-6 lg:grid-cols-7 gap-2 sm:gap-4">
-            {blocks.map((block, index) => (
+            {blocks.map((block, index) => {
+               const isOpened = block.type === 'question' && !!block.question && gameRoom.gameState[block.question.id] === 'answered';
+               return (
                <div key={block.id} className="perspective-1000" onClick={() => handleBlockClick(block)}>
                     <div className={cn(
                         "relative aspect-square w-full transform-style-3d transition-transform duration-700",
@@ -499,7 +487,7 @@ export default function GamePage() {
                             "absolute inset-0 backface-hidden flex flex-col items-center justify-center rounded-lg shadow-md transition-all duration-300",
                             "bg-yellow-400 border-b-8 border-yellow-600",
                             "hover:scale-105 hover:shadow-xl",
-                            block.isOpened ? 'opacity-30 bg-gray-300 border-gray-400' : ''
+                            isOpened ? 'opacity-30 bg-gray-300 border-gray-400' : ''
                         )}>
                             <span className="text-4xl font-bold text-white" style={{ textShadow: '2px 2px 0px #b45309, 4px 4px 0px #854d0e' }}>
                                 {index + 1}
@@ -522,7 +510,7 @@ export default function GamePage() {
                         </div>
                     </div>
                </div>
-            ))}
+            )})}
           </div>
         </Card>
       </div>
