@@ -214,7 +214,7 @@ export default function DashboardPage() {
           
           <Card className="mb-6 p-4">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-              <div className="space-y-1 md:col-span-2">
+              <div className="md:col-span-5 lg:col-span-2 space-y-1">
                 <Label htmlFor="search-keyword">제목/설명</Label>
                 <Input 
                   id="search-keyword" 
@@ -225,12 +225,12 @@ export default function DashboardPage() {
               </div>
               <div className="space-y-1">
                 <Label htmlFor="search-grade">학년</Label>
-                <Select value={searchGrade} onValueChange={setSearchGrade}>
-                  <SelectTrigger id="search-grade">
+                <Select value={searchGrade} onValueChange={(value) => setSearchGrade(value === 'all' ? '' : value)}>
+                  <SelectTrigger id="search-grade" className="w-full">
                     <SelectValue placeholder="전체" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">전체</SelectItem>
+                    <SelectItem value="all">전체</SelectItem>
                     {Array.from({ length: 6 }, (_, i) => i + 1).map(grade => (
                       <SelectItem key={grade} value={`${grade}학년`}>{grade}학년</SelectItem>
                     ))}
@@ -239,12 +239,12 @@ export default function DashboardPage() {
               </div>
               <div className="space-y-1">
                 <Label htmlFor="search-semester">학기</Label>
-                <Select value={searchSemester} onValueChange={setSearchSemester}>
-                  <SelectTrigger id="search-semester">
+                <Select value={searchSemester} onValueChange={(value) => setSearchSemester(value === 'all' ? '' : value)}>
+                  <SelectTrigger id="search-semester" className="w-full">
                     <SelectValue placeholder="전체" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">전체</SelectItem>
+                    <SelectItem value="all">전체</SelectItem>
                     <SelectItem value="1학기">1학기</SelectItem>
                     <SelectItem value="2학기">2학기</SelectItem>
                   </SelectContent>
@@ -252,19 +252,19 @@ export default function DashboardPage() {
               </div>
               <div className="space-y-1">
                 <Label htmlFor="search-subject">과목</Label>
-                <Select value={searchSubject} onValueChange={setSearchSubject}>
-                  <SelectTrigger id="search-subject">
+                <Select value={searchSubject} onValueChange={(value) => setSearchSubject(value === 'all' ? '' : value)}>
+                  <SelectTrigger id="search-subject" className="w-full">
                     <SelectValue placeholder="전체" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">전체</SelectItem>
+                    <SelectItem value="all">전체</SelectItem>
                     {subjects.map(subject => (
                       <SelectItem key={subject} value={subject}>{subject}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex gap-2 col-start-1 md:col-start-auto md:col-span-2 lg:col-span-1">
+              <div className="flex gap-2 col-start-1 md:col-span-2 lg:col-span-1">
                 <Button onClick={handleSearch} className="w-full"><Search className="mr-2 h-4 w-4" />검색</Button>
                 <Button onClick={handleResetSearch} variant="outline" className="w-full"><RotateCcw className="mr-2 h-4 w-4" />초기화</Button>
               </div>
@@ -434,3 +434,5 @@ export default function DashboardPage() {
     </>
   );
 }
+
+    
