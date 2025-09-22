@@ -17,7 +17,7 @@ const QuestionSchema = z.object({
   correctAnswer: z.string().optional(),
 });
 
-export const ValidateQuizSetInputSchema = z.object({
+const ValidateQuizSetInputSchema = z.object({
   title: z.string(),
   description: z.string().optional(),
   grade: z.string().optional(),
@@ -28,7 +28,7 @@ export const ValidateQuizSetInputSchema = z.object({
 });
 export type ValidateQuizSetInput = z.infer<typeof ValidateQuizSetInputSchema>;
 
-export const ValidateQuizSetOutputSchema = z.object({
+const ValidateQuizSetOutputSchema = z.object({
   isValid: z.boolean().describe('Whether the quiz set is valid based on the criteria.'),
   reason: z.string().describe('The reason why the quiz set is invalid. Provide a concise, user-friendly explanation in Korean. If valid, this can be empty.'),
 });
