@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
+import { updateScores } from '@/ai/flows/update-scores-flow';
 
 
 interface GameBlock {
@@ -110,7 +111,7 @@ export default function GamePage() {
           }
         }
         
-        if (roomData.status === 'finished') {
+        if (roomData.status === 'finished' && !showGameOverPopup) {
             setShowGameOverPopup(true);
         } else if (roomData.mysteryBoxEnabled && !roomData.isMysterySettingDone && user?.uid === roomData.hostId) {
             setShowMysterySettings(true);
@@ -129,7 +130,7 @@ export default function GamePage() {
     });
 
     return () => unsubscribe();
-  }, [gameRoomId, router, toast, gameSet, user]);
+  }, [gameRoomId, router, toast, gameSet, user, showGameOverPopup]);
   
   // Update players and turn status when gameRoom or user changes
   useEffect(() => {
@@ -180,27 +181,21 @@ export default function GamePage() {
 
   const finishGame = async () => {
     if (!gameRoom || gameRoom.status === 'finished') return;
-    const roomRef = doc(db, 'game-rooms', gameRoomId as string);
     
     try {
-        const batch = writeBatch(db);
-        
-        // 1. Update game room status
-        batch.update(roomRef, { status: 'finished' });
+        // 1. Update game room status to 'finished'
+        const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+        await updateDoc(roomRef, { status: 'finished' });
 
-        // 2. Update player XPs
-        for (const player of Object.values(gameRoom.players)) {
-            if (player.uid) { // Ensure UID exists
-                const userRef = doc(db, 'users', player.uid);
-                batch.update(userRef, { 
-                    xp: increment(player.score),
-                    lastPlayed: serverTimestamp()
-                });
-            }
-        }
+        // 2. Call the Genkit flow to securely update user XPs
+        const playersToUpdate = Object.values(gameRoom.players).map(p => ({
+            uid: p.uid,
+            score: p.score
+        }));
 
-        await batch.commit();
-        setShowGameOverPopup(true);
+        await updateScores({ players: playersToUpdate });
+
+        // The onSnapshot listener will then show the game over popup.
 
     } catch (error) {
         console.error("Error finishing game: ", error);
@@ -212,9 +207,9 @@ export default function GamePage() {
       if (!gameRoom || !gameSet) return;
       
       const questionBlocks = blocks.filter(b => b.type === 'question');
-      const allQuestionsOpened = questionBlocks.every(b => gameRoom.gameState[b.id] === 'answered');
+      const allQuestionsAnswered = questionBlocks.every(b => gameRoom.gameState[b.id] === 'answered');
 
-      if (allQuestionsOpened && questionBlocks.length > 0) {
+      if (allQuestionsAnswered && questionBlocks.length > 0 && gameRoom.status !== 'finished') {
           await finishGame();
           return;
       }
