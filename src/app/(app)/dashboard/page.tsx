@@ -338,7 +338,7 @@ export default function DashboardPage() {
                 const isCreator = user ? set.creatorId === user.uid : false;
                 
                 const createRoomButton = (
-                    <Button asChild={!(isCreator ?? true)} size="sm" disabled={isCreator ?? true}>
+                    <Button asChild={!isCreator} size="sm" disabled={isCreator}>
                         {isCreator ? (
                             <span><Users className="mr-2 h-4 w-4" />방 만들기</span>
                         ) : (
@@ -484,3 +484,5 @@ export default function DashboardPage() {
     </>
   );
 }
+
+    
