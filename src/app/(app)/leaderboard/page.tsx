@@ -36,7 +36,7 @@ async function getLeaderboardData(): Promise<User[]> {
     return [];
   }
 
-  return snapshot.docs.map(doc => doc.data() as User);
+  return snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
 }
 
 
@@ -75,8 +75,8 @@ export default async function LeaderboardPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <Avatar>
-                          <AvatarImage src={`https://picsum.photos/seed/${player.uid}/100/100`} alt={displayName} />
+                        <Avatar className="flex items-center justify-center bg-secondary">
+                          <span className="text-xl">{levelInfo.icon}</span>
                           <AvatarFallback>{displayName.substring(0, 2)}</AvatarFallback>
                         </Avatar>
                         <span className="font-medium">{displayName}</span>
