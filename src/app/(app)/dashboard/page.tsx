@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2 } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, Smartphone } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
@@ -197,7 +197,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
-          <Card className="md:col-span-1">
+          <Card>
             <CardHeader>
               <CardTitle className="font-headline">게임 참여하기</CardTitle>
               <CardDescription>참여 코드를 입력하여 친구의 게임에 참여하세요.</CardDescription>
@@ -216,13 +216,26 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
-          <Card className="md:col-span-2">
+          
+          <Card>
+            <CardHeader>
+              <CardTitle className="font-headline">하나의 기기로 게임하기</CardTitle>
+              <CardDescription>하나의 기기에서 여러 명이 같이 참여합니다.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Button asChild className="w-full">
+                    <Link href="/game-rooms/new?joinType=local"><Smartphone className="mr-2 h-4 w-4"/>참여</Link>
+                </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
             <CardHeader>
               <CardTitle className="font-headline">새로운 게임 시작하기</CardTitle>
               <CardDescription>원하는 게임 세트를 선택하여 새로운 게임방을 만드세요.</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button asChild className="w-full md:w-auto">
+              <Button asChild className="w-full">
                   <Link href="/game-sets/create"><PlusCircle className="mr-2 h-4 w-4"/>새로운 퀴즈 세트 만들기</Link>
               </Button>
             </CardContent>
@@ -455,3 +468,4 @@ export default function DashboardPage() {
   );
 
     
+

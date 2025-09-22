@@ -40,6 +40,7 @@ function NewGameRoomPageContents() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const gameSetId = searchParams.get('gameSetId');
+  const initialJoinType = searchParams.get('joinType') as JoinType | null;
   const { toast } = useToast();
 
   const [gameSet, setGameSet] = useState<GameSet | null>(null);
@@ -49,7 +50,7 @@ function NewGameRoomPageContents() {
   const [password, setPassword] = useState('');
   const [usePassword, setUsePassword] = useState(false);
   const [mysteryBoxEnabled, setMysteryBoxEnabled] = useState(true);
-  const [joinType, setJoinType] = useState<JoinType>('local');
+  const [joinType, setJoinType] = useState<JoinType>(initialJoinType || 'local');
 
   useEffect(() => {
     if (!gameSetId) {
