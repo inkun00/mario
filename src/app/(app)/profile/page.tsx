@@ -375,7 +375,7 @@ export default function ProfilePage() {
                             <Tooltip key={level.level}>
                                 <TooltipTrigger asChild>
                                     <div className={cn(
-                                        "group relative aspect-square flex items-center justify-center p-1 rounded-lg transition-all duration-300",
+                                        "group relative aspect-square flex items-center justify-center p-1 rounded-full transition-all duration-300",
                                         isUnlocked ? 'bg-secondary/70' : 'bg-secondary/30'
                                     )}>
                                         <Image 
@@ -385,7 +385,7 @@ export default function ProfilePage() {
                                             height={60}
                                             data-ai-hint="badge emblem"
                                             className={cn(
-                                                "rounded-md transition-all duration-300 group-hover:scale-110",
+                                                "rounded-full transition-all duration-300 group-hover:scale-110",
                                                 !isUnlocked && "grayscale"
                                             )}
                                         />
@@ -407,3 +407,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    
