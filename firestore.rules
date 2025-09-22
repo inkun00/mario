@@ -1,33 +1,27 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users can only read and write their own data.
     match /users/{userId} {
       allow read, update: if request.auth.uid == userId;
-      allow create: if request.auth.uid != null;
 
-      // Users can manage their own answer history.
       match /correct-answers/{answerId} {
-        allow read, create, delete: if request.auth.uid == userId;
+        allow create, read, delete: if request.auth.uid == userId;
       }
       match /incorrect-answers/{answerId} {
-        allow read, create, delete: if request.auth.uid == userId;
+        allow create, read, delete: if request.auth.uid == userId;
       }
     }
 
-    // Game sets can be read by any authenticated user if public.
-    // Users can create, update, and delete their own game sets.
     match /game-sets/{gameSetId} {
-      allow read: if request.auth != null && (resource.data.isPublic == true || request.auth.uid == resource.data.creatorId);
-      allow create: if request.auth.uid != null;
+      allow read: if resource.data.isPublic == true || request.auth.uid == resource.data.creatorId;
       allow update, delete: if request.auth.uid == resource.data.creatorId;
+      allow create: if request.auth.uid != null;
     }
 
-    // Game rooms can be created and read by any authenticated user.
-    // Only players in the game can update the game state.
-    match /game-rooms/{gameRoomId} {
+    match /game-rooms/{roomId} {
       allow read, create: if request.auth.uid != null;
       allow update: if request.auth.uid in resource.data.players;
     }
