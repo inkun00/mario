@@ -38,8 +38,13 @@ const generateReviewQuestionPrompt = ai.definePrompt({
   Generate only the question text.
   Respond in Korean.
 
+  {{#if originalQuestion.imageUrl}}
+  The original question included an image, which is not available now. Therefore, create a new descriptive question based on the original question's correct answer keyword.
+  Original Question's Correct Answer: {{#if originalQuestion.answer}}{{originalQuestion.answer}}{{else}}{{originalQuestion.correctAnswer}}{{/if}}
+  {{else}}
   Original Question: {{originalQuestion.question}}
-  Original Answer: {{#if originalQuestion.answer}}{{original-question.answer}}{{else}}{{original-question.correctAnswer}}{{/if}}
+  Original Answer: {{#if originalQuestion.answer}}{{originalQuestion.answer}}{{else}}{{originalQuestion.correctAnswer}}{{/if}}
+  {{/if}}
   `,
 });
 
