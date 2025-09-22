@@ -213,7 +213,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
             <CardHeader className="text-center">
                  <p className="text-sm text-muted-foreground">{[gameSet?.grade, gameSet?.semester, gameSet?.subject].filter(Boolean).join(' / ')}</p>
                 <CardTitle className="font-headline text-3xl">{gameSet?.title || '로컬 게임 로비'}</CardTitle>
-                <CardDescription>함께 플레이할 친구들의 아이디를 입력하고 확인해주세요. 첫 번째 플레이어가 호스트가 됩니다.</CardDescription>
+                <CardDescription>함께 플레이할 친구들의 아이디를 입력하고 확인해주세요.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
                 <div className="space-y-4">
@@ -235,7 +235,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {players.map((player, index) => (
                             <div key={index} className="space-y-2 p-4 border rounded-lg">
-                                <Label htmlFor={`userId-${index}`}>플레이어 {index + 1} {index === 0 && '(호스트)'}</Label>
+                                <Label htmlFor={`userId-${index}`}>플레이어 {index + 1}</Label>
                                 {player.confirmed ? (
                                     <div className="flex items-center justify-between h-10 px-3 py-2 text-sm rounded-md border border-transparent bg-secondary">
                                         <span className="font-semibold">{player.nickname}</span>
