@@ -6,11 +6,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
-      <div className="container mx-auto">
-        <main className="flex-1 p-4 sm:p-6 md:p-8">
-          {children}
-        </main>
-      </div>
+      <main className="flex-1 p-4 sm:p-6 md:p-8">
+        {children}
+      </main>
     </div>
   );
 }

@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
@@ -39,7 +39,10 @@ import { auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
+const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '음악', '미술', '체육', '영어', '창체'];
 
 interface GameSetDocument extends GameSet {
   id: string;
@@ -47,11 +50,16 @@ interface GameSetDocument extends GameSet {
 
 export default function DashboardPage() {
   const [user, loadingUser] = useAuthState(auth);
-  const [gameSets, setGameSets] = useState<GameSetDocument[]>([]);
+  const [allGameSets, setAllGameSets] = useState<GameSetDocument[]>([]);
+  const [filteredGameSets, setFilteredGameSets] = useState<GameSetDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedGameSet, setSelectedGameSet] = useState<GameSetDocument | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<GameSetDocument | null>(null);
   const { toast } = useToast();
+
+  const [searchGrade, setSearchGrade] = useState('');
+  const [searchSemester, setSearchSemester] = useState('');
+  const [searchSubject, setSearchSubject] = useState('');
 
   useEffect(() => {
     if (loadingUser) {
@@ -77,14 +85,13 @@ export default function DashboardPage() {
           });
       }
       
-      // Sort client-side
       finalSets.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
       
-      setGameSets(finalSets);
+      setAllGameSets(finalSets);
+      setFilteredGameSets(finalSets);
       setLoading(false);
     }
 
-    // Query for public game sets
     const publicQuery = query(
       collection(db, 'game-sets'),
       where('isPublic', '==', true)
@@ -92,19 +99,13 @@ export default function DashboardPage() {
 
     const publicUnsubscribe = onSnapshot(publicQuery, (publicSnapshot) => {
       if (user) {
-        // If user is logged in, we need private sets too.
-        // We will let the combined snapshot handler do the work.
+        // Defer handling to combined handler
       } else {
-        // If user is not logged in, just show public sets.
         handleSnapshots(publicSnapshot);
       }
     }, (error) => {
       console.error("Error fetching public game sets: ", error);
-      toast({
-        variant: "destructive",
-        title: "오류",
-        description: "퀴즈 세트를 불러오는 중 오류가 발생했습니다."
-      });
+      toast({ variant: "destructive", title: "오류", description: "퀴즈 세트를 불러오는 중 오류가 발생했습니다." });
       setLoading(false);
     });
 
@@ -121,11 +122,7 @@ export default function DashboardPage() {
          handleSnapshots(publicSnapshot, privateSnapshot);
       }, (error) => {
            console.error("Error fetching private game sets: ", error);
-           toast({
-              variant: "destructive",
-              title: "오류",
-              description: "비공개 퀴즈 세트를 불러오는 중 오류가 발생했습니다."
-          });
+           toast({ variant: "destructive", title: "오류", description: "비공개 퀴즈 세트를 불러오는 중 오류가 발생했습니다." });
       });
     }
 
@@ -138,22 +135,35 @@ export default function DashboardPage() {
 
   const handleDelete = async () => {
     if (!deleteCandidate) return;
-
     try {
         await deleteDoc(doc(db, "game-sets", deleteCandidate.id));
-        toast({
-            title: "성공",
-            description: "퀴즈 세트를 삭제했습니다."
-        });
+        toast({ title: "성공", description: "퀴즈 세트를 삭제했습니다." });
         setDeleteCandidate(null);
     } catch (error) {
         console.error("Error deleting document: ", error);
-        toast({
-            variant: "destructive",
-            title: "오류",
-            description: "퀴즈 세트 삭제 중 오류가 발생했습니다."
-        });
+        toast({ variant: "destructive", title: "오류", description: "퀴즈 세트 삭제 중 오류가 발생했습니다." });
     }
+  };
+
+  const handleSearch = () => {
+    let sets = [...allGameSets];
+    if (searchGrade) {
+      sets = sets.filter(s => s.grade === searchGrade);
+    }
+    if (searchSemester) {
+      sets = sets.filter(s => s.semester === searchSemester);
+    }
+    if (searchSubject) {
+      sets = sets.filter(s => s.subject === searchSubject);
+    }
+    setFilteredGameSets(sets);
+  };
+  
+  const handleResetSearch = () => {
+    setSearchGrade('');
+    setSearchSemester('');
+    setSearchSubject('');
+    setFilteredGameSets(allGameSets);
   };
 
   return (
@@ -192,18 +202,68 @@ export default function DashboardPage() {
 
         <div>
           <h2 className="text-2xl font-bold font-headline mb-4">게임 세트 둘러보기</h2>
+          
+          <Card className="mb-6 p-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+              <div className="space-y-1">
+                <Label htmlFor="search-grade">학년</Label>
+                <Select value={searchGrade} onValueChange={setSearchGrade}>
+                  <SelectTrigger id="search-grade">
+                    <SelectValue placeholder="전체" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 6 }, (_, i) => i + 1).map(grade => (
+                      <SelectItem key={grade} value={`${grade}학년`}>{grade}학년</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="search-semester">학기</Label>
+                <Select value={searchSemester} onValueChange={setSearchSemester}>
+                  <SelectTrigger id="search-semester">
+                    <SelectValue placeholder="전체" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1학기">1학기</SelectItem>
+                    <SelectItem value="2학기">2학기</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="search-subject">과목</Label>
+                <Select value={searchSubject} onValueChange={setSearchSubject}>
+                  <SelectTrigger id="search-subject">
+                    <SelectValue placeholder="전체" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subjects.map(subject => (
+                      <SelectItem key={subject} value={subject}>{subject}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={handleSearch} className="w-full"><Search className="mr-2 h-4 w-4" />검색</Button>
+                <Button onClick={handleResetSearch} variant="outline" className="w-full"><RotateCcw className="mr-2 h-4 w-4" />초기화</Button>
+              </div>
+            </div>
+          </Card>
+
           {loading ? (
             <p>게임 세트를 불러오는 중...</p>
-          ) : gameSets.length === 0 ? (
+          ) : filteredGameSets.length === 0 ? (
               <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                  <p className="text-muted-foreground">아직 만들어진 게임 세트가 없습니다.</p>
-                  <Button asChild className="mt-4">
-                      <Link href="/game-sets/create">첫 번째 퀴즈 만들어보기</Link>
-                  </Button>
+                  <p className="text-muted-foreground">{allGameSets.length > 0 ? '검색 결과가 없습니다.' : '아직 만들어진 게임 세트가 없습니다.'}</p>
+                  {allGameSets.length === 0 && (
+                    <Button asChild className="mt-4">
+                        <Link href="/game-sets/create">첫 번째 퀴즈 만들어보기</Link>
+                    </Button>
+                  )}
               </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {gameSets.map((set) => {
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {filteredGameSets.map((set) => {
                 const isCreator = user && set.creatorId === user.uid;
                 
                 const createRoomButton = (
@@ -211,12 +271,10 @@ export default function DashboardPage() {
                         {!isCreator ? (
                             <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
                         ) : (
-                            // Render a non-link element for the disabled button
                             <span><Users className="mr-2 h-4 w-4" />방 만들기</span>
                         )}
                     </Button>
                 );
-
 
                 return (
                 <Card key={set.id} className="hover:shadow-lg transition-shadow flex flex-col">
@@ -256,7 +314,6 @@ export default function DashboardPage() {
                       {isCreator ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            {/* The span is necessary for the tooltip to work on a disabled button */}
                             <span tabIndex={0}>{createRoomButton}</span>
                           </TooltipTrigger>
                           <TooltipContent>
