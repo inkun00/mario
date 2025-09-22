@@ -31,7 +31,7 @@ export default function Home() {
           </div>
           <div className="container relative px-4 md:px-6 z-10">
             <h1 className="font-headline text-4xl font-bold tracking-tighter text-primary sm:text-5xl md:text-6xl lg:text-7xl">
-              마리오 교실 챌린지
+              마리오 게임
             </h1>
             <p className="mx-auto max-w-[700px] text-foreground/80 md:text-xl mt-4">
               학습을 게임으로, 교실을 모험으로! 나만의 퀴즈를 만들고 친구들과 함께 즐겨보세요.
@@ -103,7 +103,7 @@ export default function Home() {
       <footer className="bg-background border-t">
         <div className="container mx-auto py-6 px-4 md:px-6 flex justify-between items-center text-sm text-muted-foreground">
           <AppLogo />
-          <p>&copy; {new Date().getFullYear()} 마리오 교실 챌린지. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} 마리오 게임. All rights reserved.</p>
         </div>
       </footer>
     </div>

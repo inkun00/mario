@@ -17,7 +17,7 @@ const ptSans = PT_Sans({
 
 
 export const metadata: Metadata = {
-  title: '마리오 교실 챌린지',
+  title: '마리오 게임',
   description: '학생과 교사를 위한 재미있고 상호작용적인 학습 게임 플랫폼입니다.',
 };
 

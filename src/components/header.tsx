@@ -33,7 +33,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { getLevelInfo, LevelInfo } from '@/lib/level-system';
 
 const navItems = [
-  { href: '/dashboard', icon: LayoutDashboard, label: '대시보드' },
+  { href: '/dashboard', icon: LayoutDashboard, label: '참여하기' },
   { href: '/game-sets/create', icon: PlusSquare, label: '퀴즈 만들기' },
   { href: '/leaderboard', icon: Trophy, label: '리더보드' },
 ];
