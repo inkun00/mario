@@ -16,7 +16,7 @@ import { db, auth } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, JoinType } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
 import { Smartphone, Lock, Users, Loader2 } from 'lucide-react';
@@ -46,6 +46,7 @@ function NewGameRoomPageContents() {
   const [gameSet, setGameSet] = useState<GameSet | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [hasPlayedToday, setHasPlayedToday] = useState(false);
   
   const [password, setPassword] = useState('');
   const [usePassword, setUsePassword] = useState(false);
@@ -58,22 +59,55 @@ function NewGameRoomPageContents() {
       router.push('/dashboard');
       return;
     }
+    
+    if (loadingUser) return;
 
-    const fetchGameSet = async () => {
+    const fetchGameData = async () => {
       setIsLoading(true);
+      
       const docRef = doc(db, 'game-sets', gameSetId);
       const docSnap = await getDoc(docRef);
+
       if (docSnap.exists()) {
         setGameSet({ id: docSnap.id, ...docSnap.data() } as GameSet);
       } else {
         toast({ variant: 'destructive', title: '오류', description: '게임 세트를 찾을 수 없습니다.' });
         router.push('/dashboard');
+        setIsLoading(false);
+        return;
       }
+      
+      if (user) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const startOfToday = Timestamp.fromDate(today);
+
+        const correctQuery = query(
+          collection(db, 'users', user.uid, 'correct-answers'),
+          where('gameSetId', '==', gameSetId),
+          where('timestamp', '>=', startOfToday)
+        );
+        const incorrectQuery = query(
+          collection(db, 'users', user.uid, 'incorrect-answers'),
+          where('gameSetId', '==', gameSetId),
+          where('timestamp', '>=', startOfToday)
+        );
+
+        const [correctSnapshot, incorrectSnapshot] = await Promise.all([
+            getDocs(correctQuery),
+            getDocs(incorrectQuery),
+        ]);
+
+        if (!correctSnapshot.empty || !incorrectSnapshot.empty) {
+            setHasPlayedToday(true);
+        }
+      }
+
       setIsLoading(false);
     };
 
-    fetchGameSet();
-  }, [gameSetId, router, toast]);
+    fetchGameData();
+  }, [gameSetId, router, toast, user, loadingUser]);
 
   const handleCreateRoom = async () => {
     if (!user || !gameSet) return;
@@ -242,9 +276,12 @@ function NewGameRoomPageContents() {
             </TooltipProvider>
           </div>
           
-          <Button onClick={handleCreateRoom} disabled={isCreating || (usePassword && !password)} className="w-full font-headline" size="lg">
-            {isCreating ? '방 만드는 중...' : <><Users className="mr-2 h-5 w-5" /> 게임방 만들기</>}
+          <Button onClick={handleCreateRoom} disabled={isCreating || hasPlayedToday || (usePassword && !password)} className="w-full font-headline" size="lg">
+            {isCreating ? '방 만드는 중...' : hasPlayedToday ? '오늘 이미 플레이한 게임입니다' : <><Users className="mr-2 h-5 w-5" /> 게임방 만들기</>}
           </Button>
+          {hasPlayedToday && (
+            <p className="text-sm text-center text-muted-foreground">내일 다시 시도해주세요.</p>
+          )}
 
         </CardContent>
       </Card>
