@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, getDocs, limit, arrayUnion } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player } from '@/lib/types';
@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { checkUserId } from '@/ai/flows/check-nickname-flow';
+import { cn } from '@/lib/utils';
 
 function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
     const router = useRouter();
@@ -37,7 +38,10 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
         if (!isHost) return;
         const roomRef = doc(db, 'game-rooms', gameRoom.id as string);
         try {
-            await updateDoc(roomRef, { status: 'playing' });
+            await updateDoc(roomRef, { 
+              status: 'playing',
+              playerUIDs: Object.keys(gameRoom.players),
+            });
             // The onSnapshot listener in the main component will handle the redirection
         } catch (error) {
             console.error("Error starting game: ", error);
@@ -50,7 +54,7 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
             <CardHeader className="text-center">
                 <p className="text-sm text-muted-foreground">{[gameSet?.grade, gameSet?.semester, gameSet?.subject].filter(Boolean).join(' / ')}</p>
                 <CardTitle className="font-headline text-3xl">{gameSet?.title || '게임 로비'}</CardTitle>
-                <CardDescription>모든 플레이어가 들어오면 호스트가 게임을 시작합니다.</CardDescription>
+                <CardDescription>모든 플레이어가 들어오면 호스트가 게임을 시작합니다. 최대 6명까지 참여 가능합니다.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
                 <div className="bg-secondary/50 rounded-lg p-4 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -64,11 +68,11 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
                 <div className="space-y-4">
                     <h3 className="font-headline text-xl font-semibold flex items-center gap-2">
                         <Users className="w-6 h-6"/>
-                        <span>참여한 플레이어 ({players.length})</span>
+                        <span>참여한 플레이어 ({players.length} / 6)</span>
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                         {players.map(player => (
-                            <div key={player.uid} className="flex flex-col items-center gap-2 p-3 border rounded-lg bg-background">
+                            <div key={player.uid} className={cn("flex flex-col items-center gap-2 p-3 border rounded-lg bg-background", player.uid === user?.uid && "border-primary")}>
                                  <div className="relative">
                                     <Avatar className="w-16 h-16">
                                         <Image src={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageUrl || ''} alt={player.nickname} width={64} height={64} className="rounded-full" data-ai-hint={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageHint}/>
@@ -89,18 +93,15 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
 
                 <div className="flex flex-col items-center gap-4">
                     {isHost ? (
-                        <Button onClick={handleStartGame} size="lg" className="font-headline text-lg">
-                           <Gamepad2 className="w-5 h-5 mr-2" /> 게임 시작
+                        <Button onClick={handleStartGame} size="lg" className="font-headline text-lg" disabled={players.length < 2}>
+                           <Gamepad2 className="w-5 h-5 mr-2" /> {players.length < 2 ? "2명 이상 필요" : "게임 시작"}
                         </Button>
                     ) : (
                          <div className="text-center">
                             {isPlayer ? (
                                 <p className="text-muted-foreground">호스트가 게임을 시작하기를 기다리고 있습니다...</p>
                             ) : (
-                                // This case should ideally not happen if they are in the lobby
-                                <Button disabled>
-                                    <LogIn className="w-4 h-4 mr-2" /> 참여하여 시작
-                                </Button>
+                                <p className="text-destructive">게임방이 가득 찼거나, 알 수 없는 오류로 참여할 수 없습니다.</p>
                             )}
                          </div>
                     )}
@@ -244,7 +245,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {players.map((player, index) => (
                             <div key={index} className="space-y-2 p-4 border rounded-lg">
-                                <Label htmlFor={`userId-${index}`}>플레이어 {index + 1}</Label>
+                                <Label htmlFor={`userId-${index}`}>플레이어 {index + 1} {index === 0 && "(호스트)"}</Label>
                                 {player.confirmed ? (
                                     <div className="flex items-center justify-between h-10 px-3 py-2 text-sm rounded-md border border-transparent bg-secondary">
                                         <span className="font-semibold">{player.nickname}</span>
@@ -260,7 +261,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
                                             disabled={player.isChecking}
                                         />
                                         <Button onClick={() => handleConfirmPlayer(index)} disabled={player.isChecking || !player.userId}>
-                                            {player.isChecking ? <Loader2 className="w-4 h-4 animate-spin"/> : "참여"}
+                                            {player.isChecking ? <Loader2 className="w-4 h-4 animate-spin"/> : "확인"}
                                         </Button>
                                     </div>
                                 )}
@@ -269,7 +270,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
                     </div>
                 </div>
                  <div className="flex flex-col items-center gap-4 pt-4">
-                    <Button size="lg" className="font-headline text-lg" onClick={handleStartGame} disabled={players.some(p => !p.confirmed)}>
+                    <Button size="lg" className="font-headline text-lg" onClick={handleStartGame} disabled={players.some(p => !p.confirmed) || players.length < 2}>
                        <Gamepad2 className="w-5 h-5 mr-2" /> 게임 시작
                     </Button>
                  </div>
@@ -290,12 +291,17 @@ export default function LobbyPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!gameRoomId) return;
+    if (!gameRoomId || loadingUser) return;
 
     const roomRef = doc(db, 'game-rooms', gameRoomId as string);
     const unsubscribe = onSnapshot(roomRef, async (docSnap) => {
       if (docSnap.exists()) {
         const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
+        
+        if (roomData.joinType === 'remote' && user && !roomData.players[user.uid] && Object.keys(roomData.players).length < 6) {
+           // Auto-join logic if user is not in the room and there's space.
+        }
+
         setGameRoom(roomData);
 
         // Check if game has started and redirect if needed
@@ -325,7 +331,7 @@ export default function LobbyPage() {
     });
 
     return () => unsubscribe();
-  }, [gameRoomId, router, toast, gameSet]);
+  }, [gameRoomId, router, toast, gameSet, user, loadingUser]);
   
   if (isLoading || loadingUser) {
     return (
@@ -349,5 +355,3 @@ export default function LobbyPage() {
     </div>
   )
 }
-
-    
