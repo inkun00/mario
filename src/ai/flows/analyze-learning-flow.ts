@@ -29,9 +29,9 @@ const IncorrectAnswerSchema = z.object({
       question: z.string(),
       points: z.number().optional(),
       type: z.enum(['subjective', 'multipleChoice', 'ox']).optional(),
+      subject: z.string().optional(),
+      unit: z.string().optional(),
     }),
-    subject: z.string().optional(),
-    unit: z.string().optional(),
 });
 
 
@@ -68,12 +68,12 @@ const analyzeLearningPrompt = ai.definePrompt({
 
   Correct Answers:
   {{#each correctAnswers}}
-  - Subject: {{subject}}, Unit: {{unit}}
+  - Subject: {{this.subject}}, Unit: {{this.unit}}
   {{/each}}
 
   Incorrect Answers:
   {{#each incorrectAnswers}}
-  - Subject: {{subject}}, Unit: {{unit}}
+  - Subject: {{this.question.subject}}, Unit: {{this.question.unit}}
   {{/each}}
   `,
 });
