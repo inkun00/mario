@@ -66,8 +66,11 @@ const updateScoresFlow = ai.defineFlow(
       
       // Calculate final scores from answerLogs
       const finalScores: Record<string, number> = {};
+      players.forEach(p => {
+        finalScores[p.uid] = 0;
+      });
       answerLogs.forEach(log => {
-        if (log.isCorrect && log.pointsAwarded) {
+        if (log.userId && log.isCorrect && log.pointsAwarded) {
           finalScores[log.userId] = (finalScores[log.userId] || 0) + log.pointsAwarded;
         }
       });
@@ -113,6 +116,9 @@ const updateScoresFlow = ai.defineFlow(
             }
           }
       }
+      
+      // 3. Mark game as finished
+      batch.update(roomRef, { status: 'finished' });
 
       await batch.commit();
 
