@@ -67,8 +67,8 @@ const calculateScoresFromLogs = (room: GameRoom): Player[] => {
     }
 
     room.answerLogs?.forEach(log => {
-        if (log.isCorrect && log.pointsAwarded && log.userId) {
-            scores[log.userId] = (scores[log.userId] || 0) + log.pointsAwarded;
+        if (log.userId && log.pointsAwarded) {
+             scores[log.userId] = (scores[log.userId] || 0) + log.pointsAwarded;
         }
     });
 
@@ -197,18 +197,6 @@ export default function GamePage() {
     setBlocks(shuffledBlocks);
   }, [gameSet, gameRoom, blocks.length]);
   
-  const handleNextTurn = () => {
-    if (!gameRoom) return;
-
-    const playerUIDs = Object.keys(gameRoom.players);
-    const currentTurnIndex = playerUIDs.indexOf(gameRoom.currentTurn);
-    const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
-    const nextTurnUID = playerUIDs[nextTurnIndex];
-    
-    if (gameRoom.joinType === 'local') {
-      setGameRoom(prev => prev ? { ...prev, currentTurn: nextTurnUID } : null);
-    }
-  };
   
   // Check for game over condition
   useEffect(() => {
@@ -226,10 +214,12 @@ export default function GamePage() {
   const finishGame = async () => {
     if (!gameRoom || gameRoom.status === 'finished') return;
     
+    // Optimistically set status to finished on client
     setGameRoom(prev => prev ? { ...prev, status: 'finished' } : null);
 
     try {
         await updateScores({ gameRoomId: gameRoom.id });
+        // onSnapshot will handle the final state update from the server
     } catch (error) {
         console.error("Error finishing game: ", error);
         toast({ variant: 'destructive', title: '오류', description: `게임 종료 처리 중 오류가 발생했습니다: ${error.message}`});
@@ -238,18 +228,23 @@ export default function GamePage() {
   
   const handleBlockClick = (block: GameBlock) => {
     const isTurnRestricted = gameRoom?.joinType === 'remote' && !isMyTurn;
-    const isOpened = (block.type === 'question' && gameRoom?.gameState[block.question!.id] === 'answered') || (block.type === 'mystery' && gameRoom?.gameState[block.id] === 'answered');
+    const isOpened = gameRoom?.gameState[block.id] === 'answered';
 
     if (isTurnRestricted || isOpened || block.isFlipping) return;
 
     setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: true } : b));
     
     setTimeout(() => {
-      if (block.type === 'question' && block.question) {
         if (gameRoom?.joinType === 'local') {
-          setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: false, isOpened: true } : b));
+             setGameRoom(prev => {
+                if (!prev) return null;
+                const newGameState = { ...prev.gameState, [block.id]: 'answered' as const };
+                return { ...prev, gameState: newGameState };
+            });
+            setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: false, isOpened: true } : b));
         }
 
+      if (block.type === 'question' && block.question) {
         setCurrentQuestionInfo({question: block.question, blockId: block.id});
         
         let points = block.question.points;
@@ -261,18 +256,9 @@ export default function GamePage() {
         setUserAnswer('');
         
       } else { // Mystery Box
-        if (gameRoom?.joinType === 'local') {
-            setGameRoom(prev => {
-                if (!prev) return null;
-                const newGameState = { ...prev.gameState, [block.id]: 'answered' as const };
-                return { ...prev, gameState: newGameState };
-            });
-            setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: false, isOpened: true } : b));
-        }
         const effects = gameRoom?.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
         if (effects.length === 0) {
             toast({ title: '이런!', description: '아무 일도 일어나지 않았습니다. 설정된 미스터리 효과가 없습니다.' });
-            handleNextTurn();
             return;
         }
         
@@ -343,23 +329,26 @@ export default function GamePage() {
     };
 
     if (gameRoom.joinType === 'local') {
-        setGameRoom(prevRoom => {
-            if (!prevRoom) return null;
-            const newAnswerLogs = [...(prevRoom.answerLogs || []), answerLog];
-            const newGameState = {...prevRoom.gameState, [currentQuestion.id]: 'answered' as 'answered'};
+        const newAnswerLogs = [...(gameRoom.answerLogs || []), answerLog];
+        const newGameState = {...gameRoom.gameState, [currentQuestion.id]: 'answered' as 'answered'};
 
-            const playerUIDs = Object.keys(prevRoom.players);
-            const currentTurnIndex = playerUIDs.indexOf(prevRoom.currentTurn);
-            const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
-            const nextTurnUID = playerUIDs[nextTurnIndex];
+        const playerUIDs = Object.keys(gameRoom.players);
+        const currentTurnIndex = playerUIDs.indexOf(gameRoom.currentTurn);
+        const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
+        const nextTurnUID = playerUIDs[nextTurnIndex];
 
-            return {
-                ...prevRoom,
-                answerLogs: newAnswerLogs,
-                gameState: newGameState,
-                currentTurn: nextTurnUID,
-            };
-        });
+        const updatedRoomState: GameRoom = {
+            ...gameRoom,
+            answerLogs: newAnswerLogs,
+            gameState: newGameState,
+            currentTurn: nextTurnUID,
+        };
+
+        setGameRoom(updatedRoomState);
+
+        // Recalculate scores and update players state for UI
+        const updatedPlayers = calculateScoresFromLogs(updatedRoomState);
+        setPlayers(updatedPlayers);
         
         if (isCorrect) {
             toast({
@@ -404,6 +393,8 @@ export default function GamePage() {
         const logsToPush: AnswerLog[] = [];
         let pointsChange = 0;
         
+        const currentPlayersState = calculateScoresFromLogs(gameRoom);
+
         switch (mysteryBoxEffect.type) {
             case 'bonus':
             case 'penalty':
@@ -411,11 +402,11 @@ export default function GamePage() {
                 logsToPush.push({ ...newLog, pointsAwarded: pointsChange, userAnswer: 'effect' } as AnswerLog);
                 break;
             case 'double':
-                pointsChange = players.find(p => p.uid === currentTurnUID)?.score || 0;
+                pointsChange = currentPlayersState.find(p => p.uid === currentTurnUID)?.score || 0;
                 logsToPush.push({ ...newLog, pointsAwarded: pointsChange, userAnswer: 'effect' } as AnswerLog);
                 break;
             case 'half':
-                pointsChange = -Math.floor((players.find(p => p.uid === currentTurnUID)?.score || 0) / 2);
+                pointsChange = -Math.floor((currentPlayersState.find(p => p.uid === currentTurnUID)?.score || 0) / 2);
                 logsToPush.push({ ...newLog, pointsAwarded: pointsChange, userAnswer: 'effect' } as AnswerLog);
                 break;
             case 'swap':
@@ -424,8 +415,8 @@ export default function GamePage() {
                   setIsSubmitting(false);
                   return;
                 }
-                const currentPlayerScore = players.find(p => p.uid === currentTurnUID)?.score || 0;
-                const targetPlayerScore = players.find(p => p.uid === playerForSwap)?.score || 0;
+                const currentPlayerScore = currentPlayersState.find(p => p.uid === currentTurnUID)?.score || 0;
+                const targetPlayerScore = currentPlayersState.find(p => p.uid === playerForSwap)?.score || 0;
                 
                 const pointsDiffForCurrent = targetPlayerScore - currentPlayerScore;
                 const pointsDiffForTarget = currentPlayerScore - targetPlayerScore;
@@ -436,21 +427,20 @@ export default function GamePage() {
         }
 
         if (gameRoom.joinType === 'local') {
-             setGameRoom(prevRoom => {
-                if (!prevRoom) return null;
-                const newAnswerLogs = [...(prevRoom.answerLogs || []), ...logsToPush];
+            const playerUIDs = Object.keys(gameRoom.players);
+            const currentTurnIndex = playerUIDs.indexOf(gameRoom.currentTurn);
+            const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
+            const nextTurnUID = playerUIDs[nextTurnIndex];
 
-                const playerUIDs = Object.keys(prevRoom.players);
-                const currentTurnIndex = playerUIDs.indexOf(prevRoom.currentTurn);
-                const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
-                const nextTurnUID = playerUIDs[nextTurnIndex];
+            const updatedRoomState = {
+                ...gameRoom,
+                answerLogs: [...(gameRoom.answerLogs || []), ...logsToPush],
+                currentTurn: nextTurnUID,
+            };
 
-                return {
-                    ...prevRoom,
-                    answerLogs: newAnswerLogs,
-                    currentTurn: nextTurnUID,
-                };
-            });
+            setGameRoom(updatedRoomState);
+            const updatedPlayers = calculateScoresFromLogs(updatedRoomState);
+            setPlayers(updatedPlayers);
         } else {
              toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});
         }
@@ -498,8 +488,7 @@ export default function GamePage() {
 
   const isClickDisabled = (block: GameBlock) => {
     const isTurnRestricted = gameRoom.joinType === 'remote' && !isMyTurn;
-    const isOpened = (block.type === 'question' && gameRoom.gameState[block.question!.id] === 'answered') || (block.type === 'mystery' && gameRoom.gameState[block.id] === 'answered');
-
+    const isOpened = gameRoom?.gameState[block.id] === 'answered';
     return isTurnRestricted || isOpened || block.isFlipping;
   };
 
@@ -525,7 +514,7 @@ export default function GamePage() {
               </div>
             <div className="grid grid-cols-5 md:grid-cols-6 lg:grid-cols-7 gap-2 sm:gap-4">
               {blocks.map((block, index) => {
-                const isOpened = (block.type === 'question' && gameRoom.gameState[block.question!.id] === 'answered') || (block.type === 'mystery' && gameRoom.gameState[block.id] === 'answered');
+                const isOpened = gameRoom.gameState[block.id] === 'answered';
                 return (
                 <div key={block.id} className="perspective-1000" onClick={() => handleBlockClick(block)}>
                       <div className={cn(
