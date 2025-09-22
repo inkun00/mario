@@ -152,6 +152,7 @@ const updateScoresFlow = ai.defineFlow(
           } else {
               const incorrectAnswerRef = db.collection('users', log.userId, 'incorrect-answers').doc();
               const data = {
+                  userId: log.userId,
                   gameSetId: log.gameSetId,
                   gameSetTitle: log.gameSetTitle,
                   question: log.question,

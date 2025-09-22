@@ -2,6 +2,7 @@
 
 
 
+
 export interface User {
   uid: string;
   email: string | null;
@@ -106,6 +107,7 @@ export interface CorrectAnswer {
 
 export interface IncorrectAnswer {
     id: string;
+    userId: string;
     gameSetId: string;
     gameSetTitle: string;
     question: Question;
