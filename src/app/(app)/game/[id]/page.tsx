@@ -309,14 +309,14 @@ export default function GamePage() {
     try {
         const roomRef = doc(db, 'game-rooms', gameRoomId as string);
         
-        const answerLog: AnswerLog = {
+        const answerLog: Omit<AnswerLog, 'timestamp'> & { timestamp: Date } = {
             userId: currentTurnUID,
             gameSetId: gameSet.id,
             gameSetTitle: gameSet.title,
             question: currentQuestion,
             userAnswer: userAnswer,
             isCorrect: isCorrect,
-            timestamp: serverTimestamp(),
+            timestamp: new Date(),
         };
 
         await updateDoc(roomRef, {
