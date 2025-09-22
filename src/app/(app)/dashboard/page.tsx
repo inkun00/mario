@@ -33,7 +33,7 @@ import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe,
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, deleteDoc, where, getDocs, QuerySnapshot, DocumentData, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, deleteDoc, where, getDocs, QuerySnapshot, DocumentData, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { GameRoom, GameSet } from '@/lib/types';
 import { auth } from '@/lib/firebase';
@@ -162,7 +162,7 @@ export default function DashboardPage() {
     if (roomSnap.exists()) {
       const roomData = roomSnap.data();
       if (roomData.joinType === 'remote' && user) {
-        const playerUIDs: string[] = roomData.playerUIDs || Object.keys(roomData.players);
+        const playerUIDs = Object.keys(roomData.players);
         if (playerUIDs.length >= 6) {
            toast({ variant: 'destructive', title: '오류', description: '게임방이 가득 찼습니다.' });
            return;
