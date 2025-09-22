@@ -163,12 +163,23 @@ export default function GamePage() {
     }
     
     const allItems = [...questionItems, ...mysteryItems];
-    setBlocks(shuffleArray(allItems));
+    const shuffledBlocks = shuffleArray(allItems);
+    
+    setBlocks(shuffledBlocks);
+
+    // Check if game is already over
+    const questionBlocks = shuffledBlocks.filter(b => b.type === 'question');
+    const allQuestionsOpened = questionBlocks.every(b => gameRoom.gameState[b.id] === 'answered');
+    
+    if (allQuestionsOpened && questionBlocks.length > 0 && gameRoom.status !== 'finished') {
+      finishGame();
+    }
+
 
   }, [gameSet, gameRoom, blocks.length]);
 
   const finishGame = async () => {
-    if (!gameRoom) return;
+    if (!gameRoom || gameRoom.status === 'finished') return;
     const roomRef = doc(db, 'game-rooms', gameRoomId as string);
     
     try {
@@ -199,12 +210,11 @@ export default function GamePage() {
   
   const handleNextTurn = async () => {
       if (!gameRoom || !gameSet) return;
-
-      const updatedGameState = { ...gameRoom.gameState };
+      
       const questionBlocks = blocks.filter(b => b.type === 'question');
-      const allQuestionsOpened = questionBlocks.every(b => updatedGameState[b.id] === 'answered');
+      const allQuestionsOpened = questionBlocks.every(b => gameRoom.gameState[b.id] === 'answered');
 
-      if (allQuestionsOpened) {
+      if (allQuestionsOpened && questionBlocks.length > 0) {
           await finishGame();
           return;
       }
@@ -227,6 +237,11 @@ export default function GamePage() {
     
     // 2. After animation, show popup and mark as opened
     setTimeout(() => {
+      if (block.type === 'question') {
+          const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+          updateDoc(roomRef, { [`gameState.${block.id}`]: 'answered' });
+      }
+
       setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: false, isOpened: true } : b));
 
       if (block.type === 'question' && block.question) {
@@ -306,9 +321,9 @@ export default function GamePage() {
     try {
         const roomRef = doc(db, 'game-rooms', gameRoomId as string);
         
+        // This update is now only for score. Game state is updated on click.
         await updateDoc(roomRef, {
             [`players.${currentTurnUID}.score`]: increment(pointsToAward),
-            [`gameState.${currentQuestionInfo.blockId}`]: 'answered',
         });
         
         // Record answer
@@ -439,7 +454,7 @@ export default function GamePage() {
     return isTurnRestricted || block.isOpened || block.isFlipping;
   };
 
-  const winner = players.length > 0 ? players[0] : null;
+  const winner = players.length > 0 ? players.sort((a, b) => b.score - a.score)[0] : null;
 
   return (
     <>
@@ -683,7 +698,7 @@ export default function GamePage() {
             <div className="py-4">
                 <h3 className="font-semibold mb-3">최종 점수</h3>
                 <div className="space-y-2">
-                    {players.map(p => (
+                    {players.sort((a,b) => b.score - a.score).map(p => (
                          <div key={p.uid} className="flex justify-between items-center p-2 rounded-md bg-secondary/50">
                             <span className="font-semibold">{p.nickname}</span>
                             <span className="font-bold text-primary">{p.score}점</span>
