@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -57,6 +58,28 @@ const shuffleArray = <T,>(array: T[]): T[] => {
   return newArray;
 };
 
+const calculateScoresFromLogs = (room: GameRoom): Player[] => {
+    if (!room.players) return [];
+    
+    const scores: Record<string, number> = {};
+    for (const uid in room.players) {
+        scores[uid] = 0;
+    }
+
+    room.answerLogs?.forEach(log => {
+        if (log.isCorrect && log.pointsAwarded && log.userId) {
+            scores[log.userId] = (scores[log.userId] || 0) + log.pointsAwarded;
+        }
+    });
+
+    const updatedPlayers = Object.values(room.players).map(p => ({
+        ...p,
+        score: scores[p.uid] || 0,
+    }));
+
+    return updatedPlayers.sort((a, b) => b.score - a.score);
+}
+
 
 export default function GamePage() {
   const { id: gameRoomId } = useParams();
@@ -87,29 +110,6 @@ export default function GamePage() {
   const [selectedEffects, setSelectedEffects] = useState<MysteryEffectType[]>(allMysteryEffects.map(e => e.type));
   const [showGameOverPopup, setShowGameOverPopup] = useState(false);
   const [finalScores, setFinalScores] = useState<Player[]>([]);
-
-  const calculateScoresFromLogs = (room: GameRoom): Player[] => {
-    if (!room.players) return [];
-    
-    const scores: Record<string, number> = {};
-    for (const uid in room.players) {
-        scores[uid] = 0;
-    }
-
-    room.answerLogs?.forEach(log => {
-        if (log.pointsAwarded) {
-            scores[log.userId] = (scores[log.userId] || 0) + log.pointsAwarded;
-        }
-    });
-
-    const updatedPlayers = Object.values(room.players).map(p => ({
-        ...p,
-        score: scores[p.uid] || 0,
-    }));
-
-    return updatedPlayers.sort((a, b) => b.score - a.score);
-  }
-
 
   // Fetch GameRoom and GameSet data
   useEffect(() => {
@@ -187,7 +187,7 @@ export default function GamePage() {
             id: gameSet.questions.length + i,
             type: 'mystery',
             isFlipping: false,
-            isOpened: false // Mystery boxes can be reopened
+            isOpened: !!gameRoom.gameState[gameSet.questions.length + i] // Check if mystery box is opened
         }));
     }
     
@@ -226,13 +226,10 @@ export default function GamePage() {
   const finishGame = async () => {
     if (!gameRoom || gameRoom.status === 'finished') return;
     
-    // Set local state to prevent multiple calls
     setGameRoom(prev => prev ? { ...prev, status: 'finished' } : null);
 
     try {
         await updateScores({ gameRoomId: gameRoom.id });
-        // The onSnapshot listener will detect the status change to 'finished' which is set by the flow
-        // and show the game over popup.
     } catch (error) {
         console.error("Error finishing game: ", error);
         toast({ variant: 'destructive', title: '오류', description: `게임 종료 처리 중 오류가 발생했습니다: ${error.message}`});
@@ -241,13 +238,12 @@ export default function GamePage() {
   
   const handleBlockClick = (block: GameBlock) => {
     const isTurnRestricted = gameRoom?.joinType === 'remote' && !isMyTurn;
-    const isOpened = block.isOpened;
+    const isOpened = (block.type === 'question' && gameRoom?.gameState[block.question!.id] === 'answered') || (block.type === 'mystery' && gameRoom?.gameState[block.id] === 'answered');
+
     if (isTurnRestricted || isOpened || block.isFlipping) return;
 
-    // 1. Start flipping animation
     setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: true } : b));
     
-    // 2. After animation, show popup and mark as opened
     setTimeout(() => {
       if (block.type === 'question' && block.question) {
         if (gameRoom?.joinType === 'local') {
@@ -257,7 +253,7 @@ export default function GamePage() {
         setCurrentQuestionInfo({question: block.question, blockId: block.id});
         
         let points = block.question.points;
-        if (points === -1) { // Random points
+        if (points === -1) { 
             points = (Math.floor(Math.random() * 5) + 1) * 10;
         }
         setCurrentPoints(points);
@@ -266,12 +262,17 @@ export default function GamePage() {
         
       } else { // Mystery Box
         if (gameRoom?.joinType === 'local') {
-          setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: false, isOpened: true } : b));
+            setGameRoom(prev => {
+                if (!prev) return null;
+                const newGameState = { ...prev.gameState, [block.id]: 'answered' as const };
+                return { ...prev, gameState: newGameState };
+            });
+            setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: false, isOpened: true } : b));
         }
         const effects = gameRoom?.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
         if (effects.length === 0) {
             toast({ title: '이런!', description: '아무 일도 일어나지 않았습니다. 설정된 미스터리 효과가 없습니다.' });
-            handleNextTurn(); // Proceed to next turn
+            handleNextTurn();
             return;
         }
         
@@ -300,7 +301,7 @@ export default function GamePage() {
         setMysteryBoxEffect(effectDetails);
         setShowMysteryBoxPopup(true);
       }
-    }, 800); // Animation duration
+    }, 800);
   };
 
   const handleShowHint = () => {
@@ -330,40 +331,35 @@ export default function GamePage() {
     const pointsToAward = isCorrect ? currentPoints : 0;
     const currentTurnUID = gameRoom.currentTurn;
 
-    try {
-        const answerLog: AnswerLog = {
-            userId: currentTurnUID,
-            gameSetId: gameSet.id,
-            gameSetTitle: gameSet.title,
-            question: currentQuestion,
-            userAnswer: userAnswer,
-            isCorrect: isCorrect,
-            pointsAwarded: pointsToAward,
-            timestamp: new Date(),
-        };
+    const answerLog: AnswerLog = {
+        userId: currentTurnUID,
+        gameSetId: gameSet.id,
+        gameSetTitle: gameSet.title,
+        question: currentQuestion,
+        userAnswer: userAnswer,
+        isCorrect: isCorrect,
+        pointsAwarded: pointsToAward,
+        timestamp: new Date(),
+    };
 
-        if (gameRoom.joinType === 'local') {
-            // For local games, update state directly.
-            setGameRoom(prevRoom => {
-                if (!prevRoom) return null;
-                const newAnswerLogs = [...(prevRoom.answerLogs || []), answerLog];
-                const newGameState = {...prevRoom.gameState, [currentQuestion.id]: 'answered' as 'answered'};
+    if (gameRoom.joinType === 'local') {
+        setGameRoom(prevRoom => {
+            if (!prevRoom) return null;
+            const newAnswerLogs = [...(prevRoom.answerLogs || []), answerLog];
+            const newGameState = {...prevRoom.gameState, [currentQuestion.id]: 'answered' as 'answered'};
 
-                return {
-                    ...prevRoom,
-                    answerLogs: newAnswerLogs,
-                    gameState: newGameState,
-                };
-            });
-            // Also update players state for immediate UI feedback
-            setPlayers(calculateScoresFromLogs({ ...gameRoom, answerLogs: [...(gameRoom.answerLogs || []), answerLog]}));
-            
-            handleNextTurn();
+            const playerUIDs = Object.keys(prevRoom.players);
+            const currentTurnIndex = playerUIDs.indexOf(prevRoom.currentTurn);
+            const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
+            const nextTurnUID = playerUIDs[nextTurnIndex];
 
-        } else {
-            // Remote game logic would go here
-             toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});
-        }
+            return {
+                ...prevRoom,
+                answerLogs: newAnswerLogs,
+                gameState: newGameState,
+                currentTurn: nextTurnUID,
+            };
+        });
         
         if (isCorrect) {
             toast({
@@ -379,12 +375,12 @@ export default function GamePage() {
         }
 
         handleCloseDialogs();
-
-    } catch (error: any) {
-        console.error("Error submitting answer: ", error);
-        toast({ variant: 'destructive', title: '오류', description: `답변 제출 중 오류가 발생했습니다: ${error.message}`});
-    } finally {
         setIsSubmitting(false);
+
+    } else {
+        // Remote game logic would go here
+         toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});
+         setIsSubmitting(false);
     }
   };
 
@@ -412,15 +408,15 @@ export default function GamePage() {
             case 'bonus':
             case 'penalty':
                 pointsChange = mysteryBoxEffect.value || 0;
-                logsToPush.push({ ...newLog, pointsAwarded: pointsChange } as AnswerLog);
+                logsToPush.push({ ...newLog, pointsAwarded: pointsChange, userAnswer: 'effect' } as AnswerLog);
                 break;
             case 'double':
                 pointsChange = players.find(p => p.uid === currentTurnUID)?.score || 0;
-                logsToPush.push({ ...newLog, pointsAwarded: pointsChange } as AnswerLog);
+                logsToPush.push({ ...newLog, pointsAwarded: pointsChange, userAnswer: 'effect' } as AnswerLog);
                 break;
             case 'half':
                 pointsChange = -Math.floor((players.find(p => p.uid === currentTurnUID)?.score || 0) / 2);
-                logsToPush.push({ ...newLog, pointsAwarded: pointsChange } as AnswerLog);
+                logsToPush.push({ ...newLog, pointsAwarded: pointsChange, userAnswer: 'effect' } as AnswerLog);
                 break;
             case 'swap':
                  if (!playerForSwap) {
@@ -434,25 +430,28 @@ export default function GamePage() {
                 const pointsDiffForCurrent = targetPlayerScore - currentPlayerScore;
                 const pointsDiffForTarget = currentPlayerScore - targetPlayerScore;
         
-                // Log for current player
-                logsToPush.push({ ...newLog, userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent, question: {...newLog.question!, id: Date.now() + 1}} as AnswerLog);
-                // Log for target player
-                logsToPush.push({ ...newLog, userId: playerForSwap, pointsAwarded: pointsDiffForTarget, question: {...newLog.question!, id: Date.now() + 2} } as AnswerLog);
+                logsToPush.push({ ...newLog, userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent, userAnswer: 'effect', question: {...newLog.question!, id: Date.now() + 1}} as AnswerLog);
+                logsToPush.push({ ...newLog, userId: playerForSwap, pointsAwarded: pointsDiffForTarget, userAnswer: 'effect', question: {...newLog.question!, id: Date.now() + 2} } as AnswerLog);
                 break;
         }
 
         if (gameRoom.joinType === 'local') {
              setGameRoom(prevRoom => {
                 if (!prevRoom) return null;
+                const newAnswerLogs = [...(prevRoom.answerLogs || []), ...logsToPush];
+
+                const playerUIDs = Object.keys(prevRoom.players);
+                const currentTurnIndex = playerUIDs.indexOf(prevRoom.currentTurn);
+                const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
+                const nextTurnUID = playerUIDs[nextTurnIndex];
+
                 return {
                     ...prevRoom,
-                    answerLogs: [...(prevRoom.answerLogs || []), ...logsToPush],
+                    answerLogs: newAnswerLogs,
+                    currentTurn: nextTurnUID,
                 };
             });
-            setPlayers(calculateScoresFromLogs({ ...gameRoom, answerLogs: [...(gameRoom.answerLogs || []), ...logsToPush] }));
-            handleNextTurn();
         } else {
-            // Remote game logic would go here
              toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});
         }
 
@@ -499,7 +498,8 @@ export default function GamePage() {
 
   const isClickDisabled = (block: GameBlock) => {
     const isTurnRestricted = gameRoom.joinType === 'remote' && !isMyTurn;
-    const isOpened = block.type === 'question' && gameRoom.gameState[block.question!.id] === 'answered';
+    const isOpened = (block.type === 'question' && gameRoom.gameState[block.question!.id] === 'answered') || (block.type === 'mystery' && gameRoom.gameState[block.id] === 'answered');
+
     return isTurnRestricted || isOpened || block.isFlipping;
   };
 
@@ -525,7 +525,7 @@ export default function GamePage() {
               </div>
             <div className="grid grid-cols-5 md:grid-cols-6 lg:grid-cols-7 gap-2 sm:gap-4">
               {blocks.map((block, index) => {
-                const isOpened = block.type === 'question' && !!block.question && gameRoom.gameState[block.question.id] === 'answered';
+                const isOpened = (block.type === 'question' && gameRoom.gameState[block.question!.id] === 'answered') || (block.type === 'mystery' && gameRoom.gameState[block.id] === 'answered');
                 return (
                 <div key={block.id} className="perspective-1000" onClick={() => handleBlockClick(block)}>
                       <div className={cn(
@@ -597,7 +597,7 @@ export default function GamePage() {
       </div>
 
       {/* Mystery Box Settings Popup */}
-      <Dialog open={showMysterySettings} onOpenChange={setShowMysterySettings}>
+       <Dialog open={showMysterySettings} onOpenChange={setShowMysterySettings}>
           <DialogContent>
               <DialogHeader>
                   <DialogTitle className="font-headline text-2xl">미스터리 박스 효과 설정</DialogTitle>

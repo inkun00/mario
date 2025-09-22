@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -126,7 +127,7 @@ const updateScoresFlow = ai.defineFlow(
       console.log(message);
       return { success: true, message };
 
-    } catch (error: any) {
+    } catch (error: any) => {
       console.error("Error updating scores in updateScoresFlow:", error);
       // It's better to throw the error so the client-side can know something went wrong.
       throw new Error(`Failed to update scores: ${error.message}`);
