@@ -196,7 +196,7 @@ export default function DashboardPage() {
           <p className="text-muted-foreground mt-1">오늘도 즐거운 학습을 시작해볼까요?</p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
               <CardTitle className="font-headline">게임 참여하기</CardTitle>
@@ -219,24 +219,12 @@ export default function DashboardPage() {
           
           <Card>
             <CardHeader>
-              <CardTitle className="font-headline">하나의 기기로 게임하기</CardTitle>
-              <CardDescription>하나의 기기에서 여러 명이 같이 참여합니다.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Button asChild className="w-full">
-                    <Link href="/game-rooms/new?joinType=local"><Smartphone className="mr-2 h-4 w-4"/>참여</Link>
-                </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-headline">새로운 게임 시작하기</CardTitle>
+              <CardTitle className="font-headline">새로운 퀴즈 만들기</CardTitle>
               <CardDescription>원하는 게임 세트를 선택하여 새로운 게임방을 만드세요.</CardDescription>
             </CardHeader>
             <CardContent>
               <Button asChild className="w-full">
-                  <Link href="/game-sets/create"><PlusCircle className="mr-2 h-4 w-4"/>새로운 퀴즈 세트 만들기</Link>
+                  <Link href="/game-sets/create"><PlusCircle className="mr-2 h-4 w-4"/>만들기</Link>
               </Button>
             </CardContent>
           </Card>
@@ -468,4 +456,5 @@ export default function DashboardPage() {
   );
 
     
+
 
