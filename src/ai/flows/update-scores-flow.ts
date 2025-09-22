@@ -79,12 +79,12 @@ const updateScoresFlow = ai.defineFlow(
       const batch = db.batch();
       
       // 1. Update player XP using calculated final scores
-      for (const player of players) {
-        const finalScore = finalScores[player.uid] || 0;
-        if (player.uid && finalScore > 0) {
-          const userRef = db.collection('users').doc(player.uid);
+      for (const uid in finalScores) {
+        const score = finalScores[uid];
+        if (uid && score > 0) {
+          const userRef = db.collection('users').doc(uid);
           batch.update(userRef, {
-            xp: FieldValue.increment(finalScore),
+            xp: FieldValue.increment(score),
             lastPlayed: FieldValue.serverTimestamp(),
           });
         }
@@ -93,16 +93,17 @@ const updateScoresFlow = ai.defineFlow(
       // 2. Process answer logs and add to user subcollections
       for (const log of answerLogs) {
           if (log.userId) { // Ensure there is a userId to log against
+            const questionData = log.question as any; // Type assertion to access properties
             if (log.isCorrect) {
                 const correctAnswersRef = db.collection('users', log.userId, 'correct-answers').doc();
                 batch.set(correctAnswersRef, {
                     gameSetId: log.gameSetId,
                     gameSetTitle: log.gameSetTitle,
-                    question: log.question.question,
-                    grade: log.question.subject || '',
-                    semester: log.question.subject || '',
-                    subject: log.question.subject || '',
-                    unit: log.question.unit || '',
+                    question: questionData.question,
+                    grade: questionData.subject || '',
+                    semester: questionData.subject || '',
+                    subject: questionData.subject || '',
+                    unit: questionData.unit || '',
                     timestamp: log.timestamp,
                 });
             } else {
@@ -110,7 +111,7 @@ const updateScoresFlow = ai.defineFlow(
                 batch.set(incorrectAnswersRef, {
                     gameSetId: log.gameSetId,
                     gameSetTitle: log.gameSetTitle,
-                    question: log.question,
+                    question: questionData,
                     userAnswer: log.userAnswer,
                     timestamp: log.timestamp,
                 });
@@ -127,7 +128,7 @@ const updateScoresFlow = ai.defineFlow(
       console.log(message);
       return { success: true, message };
 
-    } catch (error: any) => {
+    } catch (error: any) {
       console.error("Error updating scores in updateScoresFlow:", error);
       // It's better to throw the error so the client-side can know something went wrong.
       throw new Error(`Failed to update scores: ${error.message}`);
