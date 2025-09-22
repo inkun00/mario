@@ -56,21 +56,22 @@ const shuffleArray = <T,>(array: T[]): T[] => {
   return newArray;
 };
 
-const calculateScoresFromLogs = (players: Record<string, Player>, answerLogs: AnswerLog[]): Player[] => {
-    if (!players) return [];
+const calculateScoresFromLogs = (gameRoom: GameRoom | null, currentPlayers: Player[]): Player[] => {
+    if (!gameRoom || gameRoom.status === 'finished') return currentPlayers;
+    if (!gameRoom.players) return [];
 
     const scores: Record<string, number> = {};
-    for (const uid in players) {
+    for (const uid in gameRoom.players) {
         scores[uid] = 0;
     }
 
-    answerLogs?.forEach(log => {
+    gameRoom.answerLogs?.forEach(log => {
         if (log.userId && log.pointsAwarded) {
              scores[log.userId] = (scores[log.userId] || 0) + log.pointsAwarded;
         }
     });
 
-    const playerList = Object.values(players);
+    const playerList = Object.values(gameRoom.players);
         
     const updatedPlayers = playerList.map(p => ({
         ...p,
@@ -120,14 +121,17 @@ export default function GamePage() {
     const handleSnapshot = async (docSnap: any) => {
         if (docSnap.exists()) {
             const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
-            
-            if (roomData.status === 'finished' && !showGameOverPopup) {
-                // If game is finished on server but popup is not shown, trigger it.
-                // This handles rejoining a finished game.
-                finishGame(players);
-            }
-            
             setGameRoom(roomData);
+
+            // Check if game has started and redirect if needed
+            if (roomData.status === 'playing') {
+                // The main component will handle rendering the game
+            } else if (roomData.status === 'finished' && !showGameOverPopup) {
+                // Game finished on server, but client popup isn't showing.
+                // This handles re-joining a finished game.
+                // The final scores would be in the players object now, if they were stored.
+                // For now, we will rely on client state for final scores.
+            }
 
             if (!gameSet && roomData.gameSetId) {
               const setRef = doc(db, 'game-sets', roomData.gameSetId);
@@ -158,22 +162,23 @@ export default function GamePage() {
       unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameRoomId, router, toast, user]);
+  }, [gameRoomId, router, toast]);
   
   // Initialize players and turn status from local gameRoom state
   useEffect(() => {
     if (!gameRoom || loadingUser) return;
-    
-    // Set initial players from DB
-    const initialPlayers = calculateScoresFromLogs(gameRoom.players, gameRoom.answerLogs || []);
-    const sortedInitialPlayers = gameRoom.playerUIDs 
-        ? gameRoom.playerUIDs.map(uid => initialPlayers.find(p => p.uid === uid)).filter(Boolean) as Player[]
-        : initialPlayers;
 
-    if (JSON.stringify(sortedInitialPlayers) !== JSON.stringify(players)) {
-        setPlayers(sortedInitialPlayers);
+    if (players.length === 0 && gameRoom.players) {
+        const initialPlayers = calculateScoresFromLogs(gameRoom, []);
+        const sortedInitialPlayers = gameRoom.playerUIDs 
+            ? gameRoom.playerUIDs.map(uid => initialPlayers.find(p => p.uid === uid)).filter(Boolean) as Player[]
+            : initialPlayers;
+        
+        if (sortedInitialPlayers.length > 0) {
+            setPlayers(sortedInitialPlayers);
+        }
     }
-
+    
     if (gameRoom.joinType === 'remote') {
         setIsMyTurn(gameRoom.currentTurn === user?.uid);
     } else {
@@ -208,17 +213,13 @@ export default function GamePage() {
   }, [gameSet, gameRoom, blocks.length]);
 
   const finishGame = (finalPlayers: Player[]) => {
-    if (!gameRoom) return;
+    if (!gameRoom || gameRoom.status === 'finished') return;
 
-    // Use the latest player scores for the final popup
     setFinalScores(finalPlayers.sort((a, b) => b.score - a.score));
     setShowGameOverPopup(true);
   
-    // In the background, send the final scores to the server to update XP.
-    // The result of this operation does not affect the UI anymore.
     updateScores({ gameRoomId: gameRoom.id as string, players: finalPlayers }).catch(error => {
       console.error("Error updating scores in background:", error);
-      // Optional: Show a subtle toast that a background sync failed, but don't block the user.
     });
   };
   
@@ -356,7 +357,7 @@ export default function GamePage() {
         
         setGameRoom(updatedRoomState);
 
-        const updatedPlayers = calculateScoresFromLogs(updatedRoomState.players, newAnswerLogs);
+        const updatedPlayers = calculateScoresFromLogs(updatedRoomState, players);
         setPlayers(updatedPlayers);
 
         if (isCorrect) {
@@ -416,7 +417,7 @@ export default function GamePage() {
         const logsToPush: AnswerLog[] = [];
         let pointsChange = 0;
         
-        const currentPlayersState = calculateScoresFromLogs(gameRoom.players, gameRoom.answerLogs || []);
+        const currentPlayersState = calculateScoresFromLogs(gameRoom, players);
 
         switch (mysteryBoxEffect.type) {
             case 'bonus':
@@ -461,7 +462,7 @@ export default function GamePage() {
 
             setGameRoom(updatedRoomState);
 
-            const updatedPlayers = calculateScoresFromLogs(updatedRoomState.players, newAnswerLogs);
+            const updatedPlayers = calculateScoresFromLogs(updatedRoomState, players);
             setPlayers(updatedPlayers);
             
             const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
