@@ -363,37 +363,31 @@ export default function ProfilePage() {
             <CardTitle className="font-headline flex items-center gap-2">
                 <Trophy className="text-primary" /> 레벨 엠블럼 컬렉션
             </CardTitle>
-            <CardDescription>학습을 통해 모든 엠블럼을 모아보세요!</CardDescription>
+            <CardDescription>지금까지 획득한 엠블럼들을 확인해보세요!</CardDescription>
         </CardHeader>
         <CardContent>
             <TooltipProvider>
                 <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-4">
-                    {levelSystem.map((level) => {
-                        const isUnlocked = userData.xp >= level.xpThreshold;
-
-                        return (
-                            <Tooltip key={level.level}>
-                                <TooltipTrigger asChild>
-                                    <div className={cn(
-                                        "group relative aspect-square flex items-center justify-center p-1 rounded-full transition-all duration-300",
-                                        isUnlocked ? 'bg-secondary/70' : 'bg-secondary/30'
+                    {levelSystem.filter(level => userData.xp >= level.xpThreshold).map((level) => (
+                        <Tooltip key={level.level}>
+                            <TooltipTrigger asChild>
+                                <div className={cn(
+                                    "group relative aspect-square flex items-center justify-center p-1 rounded-full transition-all duration-300",
+                                    'bg-secondary/70'
+                                )}>
+                                    <span className={cn(
+                                        "text-4xl transition-all duration-300 group-hover:scale-110"
                                     )}>
-                                        <span className={cn(
-                                            "text-4xl transition-all duration-300 group-hover:scale-110",
-                                            !isUnlocked && "grayscale opacity-50"
-                                        )}>
-                                            {level.icon}
-                                        </span>
-                                    </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p className="font-semibold">Lv. {level.level}: {level.title}</p>
-                                    <p className="text-sm text-muted-foreground">필요 XP: {level.xpThreshold.toLocaleString()}</p>
-                                    {!isUnlocked && <p className="text-xs text-orange-500">아직 잠겨있습니다.</p>}
-                                </TooltipContent>
-                            </Tooltip>
-                        )
-                    })}
+                                        {level.icon}
+                                    </span>
+                                </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p className="font-semibold">Lv. {level.level}: {level.title}</p>
+                                <p className="text-sm text-muted-foreground">필요 XP: {level.xpThreshold.toLocaleString()}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    ))}
                 </div>
             </TooltipProvider>
         </CardContent>
