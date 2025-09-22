@@ -87,6 +87,10 @@ const DropdownMenuItem = React.forwardRef<
       inset && "pl-8",
       className
     )}
+    onSelect={(event) => {
+      event.preventDefault()
+      props.onSelect?.(event)
+    }}
     {...props}
   />
 ))
