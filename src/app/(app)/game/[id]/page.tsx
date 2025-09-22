@@ -126,7 +126,10 @@ export default function GamePage() {
             const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
             setGameRoom(roomData);
 
-            if (!gameSet && roomData.gameSetId) {
+            if (roomData.status === 'finished') {
+                // If game is already finished, don't try to fetch gameSet again.
+                // Just show scores.
+            } else if (!gameSet && roomData.gameSetId) {
               const setRef = doc(db, 'game-sets', roomData.gameSetId);
               const setSnap = await getDoc(setRef);
               if (setSnap.exists()) {
@@ -156,7 +159,7 @@ export default function GamePage() {
     };
   }, [gameRoomId, router, toast, user, gameSet]);
   
-  // Update turn status when gameRoom or user changes
+  // Update turn status and player scores from local gameRoom state
   useEffect(() => {
     if (!gameRoom || loadingUser) return;
 
@@ -171,7 +174,7 @@ export default function GamePage() {
   }, [gameRoom, user, loadingUser]);
 
 
-  // Initialize game blocks
+  // Initialize game blocks once
   useEffect(() => {
     if (!gameSet || !gameRoom || blocks.length > 0) return;
 
@@ -202,7 +205,7 @@ export default function GamePage() {
 
   const finishGame = async () => {
     if (!gameRoom || gameRoom.status === 'finished') return;
-    
+
     try {
         const result = await updateScores({ gameRoomId: gameRoom.id });
         if(result.success && result.players) {
@@ -224,10 +227,7 @@ export default function GamePage() {
   };
   
   const handleBlockClick = (block: GameBlock) => {
-    const isTurnRestricted = gameRoom?.joinType === 'remote' && !isMyTurn;
-    const isOpened = gameRoom?.gameState[block.id] === 'answered';
-
-    if (isTurnRestricted || isOpened || block.isFlipping) return;
+    if (isClickDisabled(block)) return;
 
     setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: true } : b));
     
@@ -245,15 +245,21 @@ export default function GamePage() {
         
       } else { // Mystery Box
         if (!gameRoom) return;
-        
-        const newGameState = { ...gameRoom.gameState, [block.id]: 'answered' as const };
-        
-        setGameRoom(prev => prev ? ({ ...prev, gameState: newGameState }) : null);
 
+        const newGameState = { ...gameRoom.gameState, [block.id]: 'answered' as const };
+        const updatedRoomState: GameRoom = { ...gameRoom, gameState: newGameState };
+        setGameRoom(updatedRoomState);
+        
         const effects = gameRoom?.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
         if (effects.length === 0) {
             toast({ title: '이런!', description: '아무 일도 일어나지 않았습니다. 설정된 미스터리 효과가 없습니다.' });
-            handleNextTurn(newGameState);
+            
+            const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
+            if (allAnswered) {
+                finishGame();
+            } else {
+                handleNextTurn();
+            }
             return;
         }
         
@@ -292,15 +298,8 @@ export default function GamePage() {
     setCurrentPoints(prev => Math.floor(prev / 2));
   };
 
-  const handleNextTurn = (currentGameState: GameRoom['gameState']) => {
-    if (!gameRoom || !gameSet) return;
-    
-    // Check for game over condition
-    const allAnswered = blocks.every(b => currentGameState[b.id] === 'answered');
-    if (allAnswered && blocks.length > 0) {
-        finishGame();
-        return;
-    }
+  const handleNextTurn = () => {
+    if (!gameRoom) return;
 
     if (gameRoom.joinType === 'local') {
         const playerUIDs = gameRoom.playerUIDs || Object.keys(gameRoom.players);
@@ -358,9 +357,6 @@ export default function GamePage() {
         
         setGameRoom(updatedRoomState);
 
-        const updatedPlayers = calculateScoresFromLogs(updatedRoomState);
-        setPlayers(updatedPlayers);
-        
         if (isCorrect) {
             toast({
                 title: '정답입니다!',
@@ -376,7 +372,15 @@ export default function GamePage() {
         
         handleCloseDialogs();
         setIsSubmitting(false);
-        handleNextTurn(newGameState);
+
+        // Check for game over
+        const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
+        if (allAnswered) {
+            finishGame();
+        } else {
+            handleNextTurn();
+        }
+
     } else {
          toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});
          setIsSubmitting(false);
@@ -439,14 +443,12 @@ export default function GamePage() {
         if (gameRoom.joinType === 'local') {
             const newAnswerLogs = [...(gameRoom.answerLogs || []), ...logsToPush];
             
-            // This is where the mystery box's 'answered' state is set
-            const blockId = blocks.find(b => b.type === 'mystery' && !gameRoom.gameState[b.id])?.id;
+            const currentFlippingBlock = blocks.find(b => b.isFlipping);
+            const blockId = currentFlippingBlock?.id;
+
             const newGameState = {...gameRoom.gameState};
             if(blockId !== undefined) {
-                const currentMysteryBlock = blocks.find(b => b.isFlipping);
-                if (currentMysteryBlock) {
-                    newGameState[currentMysteryBlock.id] = 'answered';
-                }
+                 newGameState[blockId] = 'answered';
             }
 
             const updatedRoomState: GameRoom = {
@@ -456,9 +458,14 @@ export default function GamePage() {
             };
 
             setGameRoom(updatedRoomState);
-            const updatedPlayers = calculateScoresFromLogs(updatedRoomState);
-            setPlayers(updatedPlayers);
-            handleNextTurn(updatedRoomState.gameState);
+            
+            // Check for game over
+            const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
+            if (allAnswered) {
+                finishGame();
+            } else {
+                handleNextTurn();
+            }
         } else {
              toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});
         }
@@ -510,10 +517,16 @@ export default function GamePage() {
   }
 
   const isClickDisabled = (block: GameBlock) => {
-    if (gameRoom.status === 'finished') return true;
-    const isTurnRestricted = gameRoom.joinType === 'remote' && !isMyTurn;
-    const isOpened = gameRoom.gameState[block.id] === 'answered';
-    return isTurnRestricted || isOpened || block.isFlipping;
+    if (gameRoom.status === 'finished' || block.isFlipping) return true;
+    if (gameRoom.gameState[block.id] === 'answered') return true;
+    
+    // For local games, it's always "your" turn.
+    if (gameRoom.joinType === 'local') {
+      return false;
+    }
+    
+    // For remote games, check if it's the user's turn
+    return !isMyTurn;
   };
   
   const scoreboardPlayers = gameRoom.playerUIDs 
@@ -554,7 +567,7 @@ export default function GamePage() {
                           <div className={cn(
                               "absolute inset-0 backface-hidden flex flex-col items-center justify-center rounded-lg shadow-md transition-all duration-300",
                               "bg-yellow-400 border-b-8 border-yellow-600",
-                              "hover:scale-105 hover:shadow-xl",
+                              !isClickDisabled(block) && "hover:scale-105 hover:shadow-xl",
                               isOpened ? 'opacity-30 bg-gray-300 border-gray-400' : ''
                           )}>
                               <span className="text-4xl font-bold text-white" style={{ textShadow: '2px 2px 0px #b45309, 4px 4px 0px #854d0e' }}>
