@@ -15,18 +15,33 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Crown } from 'lucide-react';
+import { getFirestore } from 'firebase-admin/firestore';
+import { initializeApp, getApps, App } from 'firebase-admin/app';
+import type { User } from '@/lib/types';
+import { getLevelInfo } from '@/lib/level-system';
 
-const leaderboardData = [
-  { rank: 1, nickname: '피치공주', level: 15, xp: 15220, avatar: 'https://picsum.photos/seed/105/100/100' },
-  { rank: 2, nickname: '개발자 아빠', level: 14, xp: 14890, avatar: 'https://picsum.photos/seed/108/100/100' },
-  { rank: 3, nickname: '슈퍼마리오', level: 12, xp: 12300, avatar: 'https://picsum.photos/seed/104/100/100' },
-  { rank: 4, nickname: '요시', level: 11, xp: 11050, avatar: 'https://picsum.photos/seed/106/100/100' },
-  { rank: 5, nickname: '키노피오', level: 10, xp: 9800, avatar: 'https://picsum.photos/seed/107/100/100' },
-  { rank: 6, nickname: '역사 선생님', level: 9, xp: 8500, avatar: 'https://picsum.photos/seed/109/100/100' },
-  { rank: 7, nickname: '영어 마스터', level: 8, xp: 7600, avatar: 'https://picsum.photos/seed/110/100/100' },
-];
+// Correctly initialize Firebase Admin SDK for server-side execution.
+if (!getApps().length) {
+  initializeApp();
+}
 
-export default function LeaderboardPage() {
+const db = getFirestore();
+
+async function getLeaderboardData(): Promise<User[]> {
+  const usersRef = db.collection('users');
+  const snapshot = await usersRef.orderBy('xp', 'desc').limit(50).get();
+  
+  if (snapshot.empty) {
+    return [];
+  }
+
+  return snapshot.docs.map(doc => doc.data() as User);
+}
+
+
+export default async function LeaderboardPage() {
+  const leaderboardData = await getLeaderboardData();
+
   return (
     <div className="container mx-auto">
       <Card>
@@ -47,24 +62,29 @@ export default function LeaderboardPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {leaderboardData.map((player) => (
-                <TableRow key={player.rank} className={player.rank <= 3 ? 'bg-secondary/50' : ''}>
-                  <TableCell className="font-bold text-center text-lg">
-                    {player.rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : player.rank}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarImage src={player.avatar} alt={player.nickname} />
-                        <AvatarFallback>{player.nickname.substring(0, 2)}</AvatarFallback>
-                      </Avatar>
-                      <span className="font-medium">{player.nickname}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center font-medium">Lv. {player.level}</TableCell>
-                  <TableCell className="text-right font-bold text-primary">{player.xp.toLocaleString()}</TableCell>
-                </TableRow>
-              ))}
+              {leaderboardData.map((player, index) => {
+                const rank = index + 1;
+                const levelInfo = getLevelInfo(player.xp);
+
+                return (
+                  <TableRow key={player.uid} className={rank <= 3 ? 'bg-secondary/50' : ''}>
+                    <TableCell className="font-bold text-center text-lg">
+                      {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar>
+                          <AvatarImage src={`https://picsum.photos/seed/${player.uid}/100/100`} alt={player.nickname} />
+                          <AvatarFallback>{player.nickname.substring(0, 2)}</AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium">{player.nickname}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-center font-medium">Lv. {levelInfo.level}</TableCell>
+                    <TableCell className="text-right font-bold text-primary">{player.xp.toLocaleString()}</TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         </CardContent>
