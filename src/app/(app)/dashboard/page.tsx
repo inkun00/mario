@@ -205,6 +205,12 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {gameSets.map((set) => {
                 const isCreator = user && set.creatorId === user.uid;
+                const createRoomButton = (
+                    <Button asChild size="sm" disabled={isCreator}>
+                        <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
+                    </Button>
+                );
+
                 return (
                 <Card key={set.id} className="hover:shadow-lg transition-shadow flex flex-col">
                   <CardHeader>
@@ -238,9 +244,22 @@ export default function DashboardPage() {
                         </Button>
                       </>
                     )}
-                    <Button asChild size="sm">
-                        <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
-                    </Button>
+                    
+                    <TooltipProvider>
+                        {isCreator ? (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span tabIndex={0}>{createRoomButton}</span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>자신이 만든 퀴즈로는 게임을 시작할 수 없습니다.</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        ) : (
+                            createRoomButton
+                        )}
+                    </TooltipProvider>
+
                   </CardFooter>
                 </Card>
               )})}
