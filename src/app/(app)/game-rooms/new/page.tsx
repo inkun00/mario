@@ -21,6 +21,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
 import { Smartphone, Lock, Users, Loader2 } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
+
 
 function generateRoomId() {
   const chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789';
@@ -46,7 +49,7 @@ function NewGameRoomPageContents() {
   const [password, setPassword] = useState('');
   const [usePassword, setUsePassword] = useState(false);
   const [mysteryBoxEnabled, setMysteryBoxEnabled] = useState(true);
-  const [joinType, setJoinType] = useState<JoinType>('remote');
+  const [joinType, setJoinType] = useState<JoinType>('local');
 
   useEffect(() => {
     if (!gameSetId) {
@@ -169,21 +172,32 @@ function NewGameRoomPageContents() {
 
               <div className="space-y-2">
                 <Label>참여 방식</Label>
+                <TooltipProvider>
                  <RadioGroup
                     value={joinType}
                     onValueChange={(value: string) => setJoinType(value as JoinType)}
                     className="grid grid-cols-2 gap-4"
                   >
-                    <div>
-                      <RadioGroupItem value="remote" id="remote" className="peer sr-only" />
-                      <Label
-                        htmlFor="remote"
-                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                      >
-                        <Users className="mb-3 h-6 w-6" />
-                        여러 기기에서 참여
-                      </Label>
-                    </div>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="w-full">
+                          <RadioGroupItem value="remote" id="remote" className="peer sr-only" disabled />
+                          <Label
+                            htmlFor="remote"
+                            className={cn("flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 cursor-not-allowed opacity-50",
+                              "[&:has([data-state=checked])]:border-primary"
+                            )}
+                          >
+                            <Users className="mb-3 h-6 w-6" />
+                            여러 기기에서 참여
+                          </Label>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>아직 개발중입니다.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                    
                     <div>
                       <RadioGroupItem value="local" id="local" className="peer sr-only" />
                       <Label
@@ -195,6 +209,7 @@ function NewGameRoomPageContents() {
                       </Label>
                     </div>
                   </RadioGroup>
+                </TooltipProvider>
               </div>
 
             </div>
