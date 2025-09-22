@@ -24,8 +24,9 @@ import { analyzeLearning } from '@/ai/flows/analyze-learning-flow';
 import { generateReviewQuestion } from '@/ai/flows/generate-review-question-flow';
 import { checkReviewAnswer } from '@/ai/flows/check-review-answer-flow';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getLevelInfo, getNextLevelInfo, LevelInfo } from '@/lib/level-system';
+import { getLevelInfo, getNextLevelInfo, LevelInfo, levelSystem } from '@/lib/level-system';
 import { Progress } from '@/components/ui/progress';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface ReviewQuestion extends IncorrectAnswer {
     newQuestion: string;
@@ -358,7 +359,39 @@ export default function ProfilePage() {
             </div>
         </CardContent>
       </Card>
+      
+      <Card>
+        <CardHeader>
+            <CardTitle className="font-headline flex items-center gap-2">
+                <Trophy className="text-primary" /> 레벨 엠블럼 컬렉션
+            </CardTitle>
+            <CardDescription>학습을 통해 모든 엠블럼을 모아보세요!</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <TooltipProvider>
+                <div className="grid grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-4">
+                    {levelSystem.map((level) => {
+                        const CurrentIcon = level.icon;
+                        const isUnlocked = userData.xp >= level.xpThreshold;
+                        return (
+                            <Tooltip key={level.level}>
+                                <TooltipTrigger asChild>
+                                    <div className={`relative aspect-square flex items-center justify-center p-2 rounded-lg ${isUnlocked ? 'bg-primary/10' : 'bg-secondary/50'}`}>
+                                        <CurrentIcon className={`w-8 h-8 ${isUnlocked ? 'text-primary' : 'text-muted-foreground/50'}`} />
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p className="font-semibold">Lv. {level.level}: {level.title}</p>
+                                    <p className="text-sm text-muted-foreground">필요 XP: {level.xpThreshold.toLocaleString()}</p>
+                                    {!isUnlocked && <p className="text-xs text-orange-500">아직 잠겨있습니다.</p>}
+                                </TooltipContent>
+                            </Tooltip>
+                        )
+                    })}
+                </div>
+            </TooltipProvider>
+        </CardContent>
+      </Card>
 
     </div>
   );
-}
