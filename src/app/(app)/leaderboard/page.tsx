@@ -30,13 +30,27 @@ const db = getFirestore();
 
 async function getLeaderboardData(): Promise<User[]> {
   const usersRef = db.collection('users');
-  const snapshot = await usersRef.orderBy('xp', 'desc').limit(50).get();
+  const snapshot = await usersRef.orderBy('xp', 'desc').limit(100).get(); // Fetch more to handle duplicates
   
   if (snapshot.empty) {
     return [];
   }
 
-  return snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
+  const allUsers = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
+
+  // Filter out duplicates, keeping the one with the highest XP for each displayName
+  const uniqueUsers: { [key: string]: User } = {};
+  for (const user of allUsers) {
+    const displayName = user.displayName;
+    if (!uniqueUsers[displayName] || user.xp > uniqueUsers[displayName].xp) {
+        uniqueUsers[displayName] = user;
+    }
+  }
+
+  // Convert back to array and sort by XP again, then take top 50
+  return Object.values(uniqueUsers)
+    .sort((a, b) => b.xp - a.xp)
+    .slice(0, 50);
 }
 
 
