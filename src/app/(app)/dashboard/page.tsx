@@ -298,7 +298,7 @@ export default function DashboardPage() {
                 );
 
                 return (
-                <Card key={set.id} className="hover:shadow-lg transition-shadow flex flex-col min-w-[340px]">
+                <Card key={set.id} className="hover:shadow-lg transition-shadow flex flex-col min-w-[380px]">
                   <CardHeader>
                     <div className="flex items-start justify-between">
                         <div>
@@ -319,7 +319,7 @@ export default function DashboardPage() {
                     </div>
                   </CardHeader>
                   <CardFooter className="mt-auto flex justify-end items-center gap-2">
-                    <Button variant="ghost" onClick={() => setSelectedGameSet(set)}>미리보기</Button>
+                    <Button variant="secondary" size="sm" onClick={() => setSelectedGameSet(set)}>미리보기</Button>
                     {isCreator && (
                       <>
                         <Button variant="outline" size="sm" asChild>
