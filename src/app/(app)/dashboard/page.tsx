@@ -206,7 +206,7 @@ export default function DashboardPage() {
               {gameSets.map((set) => {
                 const isCreator = user && set.creatorId === user.uid;
                 const createRoomButton = (
-                    <Button asChild size="sm" disabled={isCreator}>
+                    <Button asChild={!isCreator} size="sm" disabled={isCreator}>
                         <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
                     </Button>
                 );
@@ -246,18 +246,19 @@ export default function DashboardPage() {
                     )}
                     
                     <TooltipProvider>
-                        {isCreator ? (
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <span tabIndex={0}>{createRoomButton}</span>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>자신이 만든 퀴즈로는 게임을 시작할 수 없습니다.</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        ) : (
-                            createRoomButton
-                        )}
+                      {isCreator ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            {/* The span is necessary for the tooltip to work on a disabled button */}
+                            <span tabIndex={0}>{createRoomButton}</span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>자신이 만든 퀴즈로는 게임을 시작할 수 없습니다.</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        createRoomButton
+                      )}
                     </TooltipProvider>
 
                   </CardFooter>
