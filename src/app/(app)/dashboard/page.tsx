@@ -307,10 +307,10 @@ export default function DashboardPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredGameSets.map((set) => {
-                const isCreator = user && set.creatorId === user.uid;
+                const isCreator = user ? set.creatorId === user.uid : false;
                 
                 const createRoomButton = (
-                    <Button asChild={!(isCreator ?? false)} size="sm" disabled={isCreator === true}>
+                    <Button asChild={!isCreator} size="sm" disabled={isCreator}>
                         {isCreator ? (
                             <span><Users className="mr-2 h-4 w-4" />방 만들기</span>
                         ) : (

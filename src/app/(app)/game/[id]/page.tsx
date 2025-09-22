@@ -221,9 +221,9 @@ export default function GamePage() {
 
   
   const handleBlockClick = (block: GameBlock) => {
-    if (isClickDisabled(block)) return;
+    if (isClickDisabled(block) || !gameRoom) return;
     
-    const newGameState = { ...gameRoom!.gameState, [block.id]: 'flipping' as const };
+    const newGameState: GameRoom['gameState'] = { ...gameRoom.gameState, [String(block.id)]: 'flipping' };
     
     const roomRef = doc(db, 'game-rooms', gameRoomId as string);
     updateDoc(roomRef, { gameState: newGameState });
@@ -253,10 +253,10 @@ export default function GamePage() {
       if (effects.length === 0) {
           toast({ title: '이런!', description: '아무 일도 일어나지 않았습니다. 설정된 미스터리 효과가 없습니다.' });
           
-          const newGameState = { ...gameRoom.gameState, [blockId]: 'answered' as const };
+          const newGameState: GameRoom['gameState'] = { ...gameRoom.gameState, [String(blockId)]: 'answered' };
           const roomRef = doc(db, 'game-rooms', gameRoomId as string);
 
-          if (blocks.every(b => newGameState[b.id] === 'answered')) {
+          if (blocks.every(b => newGameState[String(b.id)] === 'answered')) {
               updateDoc(roomRef, { gameState: newGameState, status: 'finished' });
           } else {
               updateDoc(roomRef, { gameState: newGameState });
@@ -350,8 +350,8 @@ export default function GamePage() {
     
     try {
         const roomRef = doc(db, 'game-rooms', gameRoomId as string);
-        const newGameState = {...gameRoom.gameState, [currentQuestionInfo.blockId]: 'answered' as 'answered'};
-        const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
+        const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
+        const allAnswered = blocks.every(b => newGameState[String(b.id)] === 'answered');
 
         const updatePayload: any = {
             answerLogs: arrayUnion(answerLog),
@@ -397,7 +397,7 @@ export default function GamePage() {
     
     const currentTurnUID = gameRoom.currentTurn;
     const currentFlippingBlock = Object.entries(gameRoom.gameState).find(([_, state]) => state === 'flipping');
-    const blockId = currentFlippingBlock ? Number(currentFlippingBlock[0]) : undefined;
+    const blockId = currentFlippingBlock ? currentFlippingBlock[0] : undefined;
 
     if (blockId === undefined) {
       setIsSubmitting(false);
@@ -452,8 +452,8 @@ export default function GamePage() {
         }
 
         const roomRef = doc(db, 'game-rooms', gameRoomId);
-        const newGameState = {...gameRoom.gameState, [blockId]: 'answered'};
-        const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
+        const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [blockId]: 'answered'};
+        const allAnswered = blocks.every(b => newGameState[String(b.id)] === 'answered');
 
         const updatePayload: any = {
             answerLogs: arrayUnion(...logsToPush),
@@ -506,7 +506,7 @@ export default function GamePage() {
   const isClickDisabled = (block: GameBlock) => {
     if (!gameRoom || showGameOverPopup) return true;
     
-    const blockState = gameRoom.gameState[block.id];
+    const blockState = gameRoom.gameState[String(block.id)];
     if (blockState === 'answered' || blockState === 'flipping') {
         return true;
     }
@@ -553,7 +553,7 @@ export default function GamePage() {
               </div>
             <div className="grid grid-cols-5 md:grid-cols-6 lg:grid-cols-7 gap-2 sm:gap-4">
               {blocks.map((block, index) => {
-                const blockState = gameRoom.gameState[block.id];
+                const blockState = gameRoom.gameState[String(block.id)];
                 const isOpened = blockState === 'answered';
                 const isFlipping = blockState === 'flipping';
 
