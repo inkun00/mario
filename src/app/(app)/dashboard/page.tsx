@@ -28,19 +28,20 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, orderBy, doc, deleteDoc, where, getDocs, QuerySnapshot, DocumentData } from 'firebase/firestore';
+import { collection, onSnapshot, query, orderBy, doc, deleteDoc, where, getDocs, QuerySnapshot, DocumentData, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { GameSet } from '@/lib/types';
+import type { GameRoom, GameSet } from '@/lib/types';
 import { auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { useToast } from '@/hooks/use-toast';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { useRouter } from 'next/navigation';
 
 const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '음악', '미술', '체육', '영어', '창체'];
 
@@ -50,6 +51,7 @@ interface GameSetDocument extends GameSet {
 
 export default function DashboardPage() {
   const [user, loadingUser] = useAuthState(auth);
+  const router = useRouter();
   const [allGameSets, setAllGameSets] = useState<GameSetDocument[]>([]);
   const [filteredGameSets, setFilteredGameSets] = useState<GameSetDocument[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,6 +63,9 @@ export default function DashboardPage() {
   const [searchGrade, setSearchGrade] = useState('');
   const [searchSemester, setSearchSemester] = useState('');
   const [searchSubject, setSearchSubject] = useState('');
+
+  const [joinCode, setJoinCode] = useState('');
+  const [isJoining, setIsJoining] = useState(false);
 
   useEffect(() => {
     if (loadingUser) {
@@ -146,6 +151,49 @@ export default function DashboardPage() {
     }
   };
 
+  const handleJoinGame = async () => {
+    if (!joinCode.trim()) {
+        toast({ variant: "destructive", title: "오류", description: "참여 코드를 입력해주세요." });
+        return;
+    }
+     if (!user) {
+        toast({ variant: "destructive", title: "오류", description: "게임에 참여하려면 로그인이 필요합니다." });
+        return;
+    }
+
+    setIsJoining(true);
+    try {
+        const roomRef = doc(db, 'game-rooms', joinCode.trim().toUpperCase());
+        const roomSnap = await getDoc(roomRef);
+
+        if (!roomSnap.exists()) {
+            toast({ variant: "destructive", title: "오류", description: "해당 코드를 가진 게임방을 찾을 수 없습니다." });
+            setIsJoining(false);
+            return;
+        }
+
+        const roomData = roomSnap.data() as GameRoom;
+        
+        // Check if the game set creator is the one trying to join
+        const gameSetRef = doc(db, 'game-sets', roomData.gameSetId);
+        const gameSetSnap = await getDoc(gameSetRef);
+
+        if (gameSetSnap.exists() && gameSetSnap.data().creatorId === user.uid) {
+            toast({ variant: "destructive", title: "참여 불가", description: "자신이 만든 퀴즈 게임에는 참여할 수 없습니다." });
+            setIsJoining(false);
+            return;
+        }
+
+        router.push(`/game/${roomSnap.id}/lobby`);
+
+    } catch (error) {
+        console.error("Error joining game room:", error);
+        toast({ variant: "destructive", title: "오류", description: "게임방 참여 중 오류가 발생했습니다." });
+        setIsJoining(false);
+    }
+  };
+
+
   const handleSearch = () => {
     let sets = [...allGameSets];
     if (searchKeyword) {
@@ -191,8 +239,15 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="flex gap-2">
-                <Input placeholder="참여 코드 입력" />
-                <Button>참여</Button>
+                <Input 
+                  placeholder="참여 코드 입력" 
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value)}
+                  disabled={isJoining}
+                />
+                <Button onClick={handleJoinGame} disabled={isJoining}>
+                    {isJoining ? <Loader2 className="w-4 h-4 animate-spin"/> : "참여"}
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -433,4 +488,5 @@ export default function DashboardPage() {
       </AlertDialog>
     </>
   );
-}
+
+    
