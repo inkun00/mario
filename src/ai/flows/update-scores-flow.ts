@@ -13,7 +13,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { initializeApp, getApps } from 'firebase-admin/app';
-import type { GameRoom, AnswerLog, Player } from '@/lib/types';
+import type { GameRoom, Player } from '@/lib/types';
 
 
 // Initialize Firebase Admin SDK if not already done.
@@ -42,6 +42,32 @@ const UpdateScoresOutputSchema = z.object({
 });
 export type UpdateScoresOutput = z.infer<typeof UpdateScoresOutputSchema>;
 
+
+/**
+ * Calculates the XP reward based on player's rank and the total number of players.
+ * @param rank The player's final rank (1-based index).
+ * @param totalPlayers The total number of players in the game.
+ * @returns The amount of XP to award.
+ */
+function calculateRankPoints(rank: number, totalPlayers: number): number {
+    const rankRewardTable: Record<number, number[]> = {
+        2: [30, 10],
+        3: [50, 30, 10],
+        4: [70, 50, 20, 10],
+        5: [90, 60, 40, 20, 10],
+        6: [100, 70, 50, 30, 20, 10],
+    };
+
+    const rewards = rankRewardTable[totalPlayers] || rankRewardTable[6];
+    
+    if (rank > rewards.length) {
+        return rewards[rewards.length - 1] || 10; // Default to lowest reward
+    }
+    
+    return rewards[rank - 1]; // rank is 1-based, array is 0-based
+}
+
+
 export async function updateScores(input: UpdateScoresInput): Promise<UpdateScoresOutput> {
   return updateScoresFlow(input);
 }
@@ -53,75 +79,48 @@ const updateScoresFlow = ai.defineFlow(
     outputSchema: UpdateScoresOutputSchema,
   },
   async ({ gameRoomId, players }) => {
-    if (!gameRoomId || !players) {
+    if (!gameRoomId || !players || players.length === 0) {
       throw new Error("Game room ID and final player scores are required.");
     }
 
     try {
       const roomRef = db.collection('game-rooms').doc(gameRoomId);
-      const roomSnap = await roomRef.get();
-
-      if (!roomSnap.exists) {
-        throw new Error("Game room not found.");
-      }
-      
-      const gameRoom = roomSnap.data() as GameRoom;
-      const answerLogs = gameRoom.answerLogs || [];
       const batch = db.batch();
       
-      // 1. Update player XP using the final scores passed from the client
-      for (const player of players) {
-        if (player.uid && player.score > 0) {
+      // Sort players by score to determine rank.
+      const rankedPlayers = [...players].sort((a, b) => b.score - a.score);
+      const totalPlayers = rankedPlayers.length;
+
+      // 1. Update player XP based on their rank.
+      for (let i = 0; i < rankedPlayers.length; i++) {
+        const player = rankedPlayers[i];
+        const rank = i + 1; // 1-based rank
+        
+        if (player.uid) {
+          const xpGained = calculateRankPoints(rank, totalPlayers);
+          
           const userRef = db.collection('users').doc(player.uid);
           batch.update(userRef, {
-            xp: FieldValue.increment(player.score),
+            xp: FieldValue.increment(xpGained),
             lastPlayed: FieldValue.serverTimestamp(),
           });
         }
       }
-
-      // 2. Process answer logs and add to user subcollections
-      for (const log of answerLogs) {
-          if (log.userId) { // Ensure there is a userId to log against
-            const questionData = log.question as any; // Type assertion to access properties
-            if (log.isCorrect) {
-                const correctAnswersRef = db.collection('users', log.userId, 'correct-answers').doc();
-                batch.set(correctAnswersRef, {
-                    gameSetId: log.gameSetId,
-                    gameSetTitle: log.gameSetTitle,
-                    question: questionData.question,
-                    grade: questionData.subject || '',
-                    semester: questionData.subject || '',
-                    subject: questionData.subject || '',
-                    unit: questionData.unit || '',
-                    timestamp: log.timestamp,
-                });
-            } else {
-                const incorrectAnswersRef = db.collection('users', log.userId, 'incorrect-answers').doc();
-                batch.set(incorrectAnswersRef, {
-                    gameSetId: log.gameSetId,
-                    gameSetTitle: log.gameSetTitle,
-                    question: questionData,
-                    userAnswer: log.userAnswer,
-                    timestamp: log.timestamp,
-                });
-            }
-          }
-      }
       
-      // 3. Mark game as finished
+      // 2. Mark game as finished.
       batch.update(roomRef, { status: 'finished' });
 
       await batch.commit();
 
-      const message = `Successfully updated scores and logs for ${players.length} players.`;
+      const message = `Successfully updated XP for ${players.length} players based on rank.`;
       console.log(message);
       
       return { success: true, message };
 
     } catch (error: any) {
       console.error("Error updating scores in updateScoresFlow:", error);
-      throw new Error(`Failed to update scores: ${error.message}`);
+      // It's crucial to throw an error that the client can understand.
+      throw new Error(`Failed to update scores on the server: ${error.message}`);
     }
   }
 );

@@ -123,16 +123,6 @@ export default function GamePage() {
             const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
             setGameRoom(roomData);
 
-            // Check if game has started and redirect if needed
-            if (roomData.status === 'playing') {
-                // The main component will handle rendering the game
-            } else if (roomData.status === 'finished' && !showGameOverPopup) {
-                // Game finished on server, but client popup isn't showing.
-                // This handles re-joining a finished game.
-                // The final scores would be in the players object now, if they were stored.
-                // For now, we will rely on client state for final scores.
-            }
-
             if (!gameSet && roomData.gameSetId) {
               const setRef = doc(db, 'game-sets', roomData.gameSetId);
               const setSnap = await getDoc(setRef);
@@ -168,14 +158,10 @@ export default function GamePage() {
   useEffect(() => {
     if (!gameRoom || loadingUser) return;
 
-    if (players.length === 0 && gameRoom.players) {
-        const initialPlayers = calculateScoresFromLogs(gameRoom, []);
-        const sortedInitialPlayers = gameRoom.playerUIDs 
-            ? gameRoom.playerUIDs.map(uid => initialPlayers.find(p => p.uid === uid)).filter(Boolean) as Player[]
-            : initialPlayers;
-        
-        if (sortedInitialPlayers.length > 0) {
-            setPlayers(sortedInitialPlayers);
+    if (gameRoom.status !== 'finished') {
+        const calculatedPlayers = calculateScoresFromLogs(gameRoom, players);
+        if (JSON.stringify(calculatedPlayers) !== JSON.stringify(players)) {
+            setPlayers(calculatedPlayers);
         }
     }
     
@@ -213,15 +199,15 @@ export default function GamePage() {
   }, [gameSet, gameRoom, blocks.length]);
 
   const finishGame = (finalPlayers: Player[]) => {
-    if (!gameRoom || gameRoom.status === 'finished') return;
+      if (!gameRoom || gameRoom.status === 'finished') return;
 
-    setFinalScores(finalPlayers.sort((a, b) => b.score - a.score));
-    setShowGameOverPopup(true);
-  
-    updateScores({ gameRoomId: gameRoom.id as string, players: finalPlayers }).catch(error => {
-      console.error("Error updating scores in background:", error);
-    });
-  };
+      setFinalScores(finalPlayers.sort((a, b) => b.score - a.score));
+      setShowGameOverPopup(true);
+    
+      updateScores({ gameRoomId: gameRoom.id as string, players: finalPlayers }).catch(error => {
+        console.error("Error updating scores in background:", error);
+      });
+    };
   
   const handleBlockClick = (block: GameBlock) => {
     if (isClickDisabled(block)) return;
