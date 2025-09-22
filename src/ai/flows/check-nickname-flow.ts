@@ -54,21 +54,21 @@ const checkUserIdFlow = ai.defineFlow(
         if (!snapshot.empty) {
             const userDoc = snapshot.docs[0];
             const userData = userDoc.data();
-            // Return the displayName from the users collection.
-            return { exists: true, nickname: userData.displayName || userId, uid: userDoc.id };
+            
+            const uid = userDoc.id;
+            const nickname = userData.displayName || userId;
+
+            return { exists: true, nickname: nickname, uid: uid };
         }
     } catch(e: any) {
         console.error("Error checking user ID in checkUserIdFlow:", e);
-        // If the Firestore query fails (e.g., index issue), rethrow the error
-        // so the client can display a more specific message.
-        // A common error is "The query requires an index...".
         if (e.code === 'FAILED_PRECONDITION' && e.message.includes('index')) {
              throw new Error('Firestore index is missing. Please create a single-field index on the "email" field in the "users" collection.');
         }
         throw e;
     }
 
-    // If no user is found in the database.
+    // Explicitly return a non-existent user state if no document was found.
     return { exists: false, nickname: '', uid: '' };
   }
 );
