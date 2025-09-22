@@ -75,6 +75,15 @@ function calculateTotalXp(rank: number, totalPlayers: number, totalQuestions: nu
     return rankPoints + questionBonus;
 }
 
+// Helper to remove undefined properties from an object
+const removeUndefined = (obj: any) => {
+    Object.keys(obj).forEach(key => obj[key] === undefined && delete obj[key]);
+    if (obj.question) {
+        Object.keys(obj.question).forEach(key => obj.question[key] === undefined && delete obj.question[key]);
+    }
+    return obj;
+};
+
 
 export async function updateScores(input: UpdateScoresInput): Promise<UpdateScoresOutput> {
   return updateScoresFlow(input);
@@ -128,7 +137,7 @@ const updateScoresFlow = ai.defineFlow(
 
           if (log.isCorrect) {
               const correctAnswerRef = db.collection('users', log.userId, 'correct-answers').doc();
-              batch.set(correctAnswerRef, {
+              const data = {
                   gameSetId: log.gameSetId,
                   gameSetTitle: log.gameSetTitle,
                   question: log.question.question,
@@ -137,16 +146,18 @@ const updateScoresFlow = ai.defineFlow(
                   subject: log.question.subject,
                   unit: log.question.unit,
                   timestamp: log.timestamp || FieldValue.serverTimestamp()
-              });
+              };
+              batch.set(correctAnswerRef, removeUndefined(data));
           } else {
               const incorrectAnswerRef = db.collection('users', log.userId, 'incorrect-answers').doc();
-              batch.set(incorrectAnswerRef, {
+              const data = {
                   gameSetId: log.gameSetId,
                   gameSetTitle: log.gameSetTitle,
                   question: log.question,
                   userAnswer: log.userAnswer,
                   timestamp: log.timestamp || FieldValue.serverTimestamp()
-              });
+              };
+              batch.set(incorrectAnswerRef, removeUndefined(data));
           }
       }
       
