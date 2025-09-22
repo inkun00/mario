@@ -139,9 +139,7 @@ export default function GamePage() {
         }
         
         if (roomData.status === 'finished' && !showGameOverPopup) {
-            const finalPlayers = calculateScoresFromLogs(roomData);
-            setFinalScores(finalPlayers);
-            setShowGameOverPopup(true);
+            // The finishGame function will now handle setting final scores and showing the popup
         } else if (roomData.mysteryBoxEnabled && !roomData.isMysterySettingDone && user?.uid === roomData.hostId) {
             setShowMysterySettings(true);
         }
@@ -159,7 +157,7 @@ export default function GamePage() {
     });
 
     return () => unsubscribe();
-  }, [gameRoomId, router, toast, user, showGameOverPopup]);
+  }, [gameRoomId, router, toast, user, showGameOverPopup, gameSet]);
   
   // Update turn status when gameRoom or user changes
   useEffect(() => {
@@ -202,10 +200,9 @@ export default function GamePage() {
   useEffect(() => {
     if (!gameRoom || !blocks.length || gameRoom.status === 'finished') return;
 
-    const questionBlockIds = blocks.filter(b => b.type === 'question').map(b => b.question!.id);
-    const allQuestionsAnswered = questionBlockIds.every(id => gameRoom.gameState[id] === 'answered');
+    const allBlocksAnswered = blocks.every(block => gameRoom.gameState[block.id] === 'answered');
 
-    if (allQuestionsAnswered && questionBlockIds.length > 0) {
+    if (allBlocksAnswered && blocks.length > 0) {
         finishGame();
     }
   }, [gameRoom, blocks]);
@@ -214,13 +211,18 @@ export default function GamePage() {
   const finishGame = async () => {
     if (!gameRoom || gameRoom.status === 'finished') return;
     
-    // Optimistically set status to finished on client
+    // Prevent multiple calls
     setGameRoom(prev => prev ? { ...prev, status: 'finished' } : null);
 
     try {
-        await updateScores({ gameRoomId: gameRoom.id });
-        // onSnapshot will handle the final state update from the server
-    } catch (error) {
+        const result = await updateScores({ gameRoomId: gameRoom.id });
+        if(result.success) {
+            setFinalScores(result.players);
+            setShowGameOverPopup(true);
+        } else {
+            toast({ variant: 'destructive', title: '오류', description: `게임 종료 처리 중 오류가 발생했습니다: ${result.message}`});
+        }
+    } catch (error: any) {
         console.error("Error finishing game: ", error);
         toast({ variant: 'destructive', title: '오류', description: `게임 종료 처리 중 오류가 발생했습니다: ${error.message}`});
     }
@@ -330,7 +332,7 @@ export default function GamePage() {
 
     if (gameRoom.joinType === 'local') {
         const newAnswerLogs = [...(gameRoom.answerLogs || []), answerLog];
-        const newGameState = {...gameRoom.gameState, [currentQuestion.id]: 'answered' as 'answered'};
+        const newGameState = {...gameRoom.gameState, [currentQuestionInfo.blockId]: 'answered' as 'answered'};
 
         const playerUIDs = Object.keys(gameRoom.players);
         const currentTurnIndex = playerUIDs.indexOf(gameRoom.currentTurn);
@@ -346,7 +348,6 @@ export default function GamePage() {
 
         setGameRoom(updatedRoomState);
 
-        // Recalculate scores and update players state for UI
         const updatedPlayers = calculateScoresFromLogs(updatedRoomState);
         setPlayers(updatedPlayers);
         
@@ -367,9 +368,9 @@ export default function GamePage() {
         setIsSubmitting(false);
 
     } else {
-        // Remote game logic would go here
          toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});
          setIsSubmitting(false);
+         // Remote game logic would go here, calling a server flow
     }
   };
 

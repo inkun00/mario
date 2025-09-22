@@ -13,7 +13,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { initializeApp, getApps } from 'firebase-admin/app';
-import type { GameRoom, AnswerLog } from '@/lib/types';
+import type { GameRoom, AnswerLog, Player } from '@/lib/types';
 
 
 // Initialize Firebase Admin SDK if not already done.
@@ -28,9 +28,18 @@ const UpdateScoresInputSchema = z.object({
 });
 export type UpdateScoresInput = z.infer<typeof UpdateScoresInputSchema>;
 
+const PlayerScoreSchema = z.object({
+  uid: z.string(),
+  nickname: z.string(),
+  score: z.number(),
+  avatarId: z.string(),
+  isHost: z.boolean().optional(),
+});
+
 const UpdateScoresOutputSchema = z.object({
   success: z.boolean().describe("Whether the score update was successful."),
   message: z.string().describe("A summary of the operation."),
+  players: z.array(PlayerScoreSchema).describe("The final list of players with their calculated scores."),
 });
 export type UpdateScoresOutput = z.infer<typeof UpdateScoresOutputSchema>;
 
@@ -46,7 +55,7 @@ const updateScoresFlow = ai.defineFlow(
   },
   async ({ gameRoomId }) => {
     if (!gameRoomId) {
-      return { success: false, message: "Game room ID is required." };
+      throw new Error("Game room ID is required.");
     }
 
     try {
@@ -54,7 +63,7 @@ const updateScoresFlow = ai.defineFlow(
       const roomSnap = await roomRef.get();
 
       if (!roomSnap.exists) {
-        return { success: false, message: "Game room not found." };
+        throw new Error("Game room not found.");
       }
 
       const gameRoom = roomSnap.data() as GameRoom;
@@ -62,7 +71,7 @@ const updateScoresFlow = ai.defineFlow(
       const answerLogs = gameRoom.answerLogs || [];
       
       if (!players || players.length === 0) {
-        return { success: false, message: "No players found in the game room." };
+         return { success: false, message: "No players found in the game room.", players: [] };
       }
       
       // Calculate final scores from answerLogs
@@ -75,7 +84,7 @@ const updateScoresFlow = ai.defineFlow(
           finalScores[log.userId] = (finalScores[log.userId] || 0) + log.pointsAwarded;
         }
       });
-
+      
       const batch = db.batch();
       
       // 1. Update player XP using calculated final scores
@@ -126,11 +135,17 @@ const updateScoresFlow = ai.defineFlow(
 
       const message = `Successfully updated scores and logs for ${players.length} players.`;
       console.log(message);
-      return { success: true, message };
+      
+      // 4. Prepare final player list with scores for output
+      const finalPlayers = players.map(p => ({
+        ...p,
+        score: finalScores[p.uid] || 0,
+      })).sort((a,b) => b.score - a.score);
+
+      return { success: true, message, players: finalPlayers };
 
     } catch (error: any) {
       console.error("Error updating scores in updateScoresFlow:", error);
-      // It's better to throw the error so the client-side can know something went wrong.
       throw new Error(`Failed to update scores: ${error.message}`);
     }
   }
