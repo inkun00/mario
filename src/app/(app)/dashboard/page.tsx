@@ -264,7 +264,7 @@ export default function DashboardPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex gap-2 col-start-1 md:col-span-2 lg:col-span-1">
+              <div className="flex gap-2 col-start-1 md:col-start-auto md:col-span-2 lg:col-span-1">
                 <Button onClick={handleSearch} className="w-full"><Search className="mr-2 h-4 w-4" />검색</Button>
                 <Button onClick={handleResetSearch} variant="outline" className="w-full"><RotateCcw className="mr-2 h-4 w-4" />초기화</Button>
               </div>
@@ -289,16 +289,16 @@ export default function DashboardPage() {
                 
                 const createRoomButton = (
                     <Button asChild={!isCreator} size="sm" disabled={isCreator}>
-                        {!isCreator ? (
-                            <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
-                        ) : (
+                        {isCreator ? (
                             <span><Users className="mr-2 h-4 w-4" />방 만들기</span>
+                        ) : (
+                            <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
                         )}
                     </Button>
                 );
 
                 return (
-                <Card key={set.id} className="hover:shadow-lg transition-shadow flex flex-col">
+                <Card key={set.id} className="hover:shadow-lg transition-shadow flex flex-col min-w-[340px]">
                   <CardHeader>
                     <div className="flex items-start justify-between">
                         <div>
