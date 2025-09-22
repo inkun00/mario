@@ -73,7 +73,7 @@ const gameSetSchema = z.object({
   subject: z.string().optional(),
   unit: z.string().optional(),
   isPublic: z.boolean(),
-  questions: z.array(questionSchema).min(1, '최소 1개 이상의 질문이 필요합니다.'),
+  questions: z.array(questionSchema).min(5, '최소 5개 이상의 질문이 필요합니다.'),
 });
 
 type GameSetFormValues = z.infer<typeof gameSetSchema>;
