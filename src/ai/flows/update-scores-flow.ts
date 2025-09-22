@@ -33,6 +33,7 @@ const PlayerSchema = z.object({
 const UpdateScoresInputSchema = z.object({
   gameRoomId: z.string().describe("The ID of the game room to process."),
   players: z.array(PlayerSchema).describe("The final list of players with their scores."),
+  totalQuestions: z.number().describe("The total number of questions in the game set."),
 });
 export type UpdateScoresInput = z.infer<typeof UpdateScoresInputSchema>;
 
@@ -44,12 +45,13 @@ export type UpdateScoresOutput = z.infer<typeof UpdateScoresOutputSchema>;
 
 
 /**
- * Calculates the XP reward based on player's rank and the total number of players.
+ * Calculates the XP reward based on player's rank, total players, and question count.
  * @param rank The player's final rank (1-based index).
  * @param totalPlayers The total number of players in the game.
+ * @param totalQuestions The total number of questions in the game set.
  * @returns The amount of XP to award.
  */
-function calculateRankPoints(rank: number, totalPlayers: number): number {
+function calculateTotalXp(rank: number, totalPlayers: number, totalQuestions: number): number {
     const rankRewardTable: Record<number, number[]> = {
         2: [30, 10],
         3: [50, 30, 10],
@@ -60,11 +62,17 @@ function calculateRankPoints(rank: number, totalPlayers: number): number {
 
     const rewards = rankRewardTable[totalPlayers] || rankRewardTable[6];
     
+    let rankPoints;
     if (rank > rewards.length) {
-        return rewards[rewards.length - 1] || 10; // Default to lowest reward
+        rankPoints = rewards[rewards.length - 1] || 10; // Default to lowest reward
+    } else {
+        rankPoints = rewards[rank - 1]; // rank is 1-based, array is 0-based
     }
     
-    return rewards[rank - 1]; // rank is 1-based, array is 0-based
+    // Add bonus XP based on the number of questions (e.g., 1 XP per question)
+    const questionBonus = totalQuestions;
+    
+    return rankPoints + questionBonus;
 }
 
 
@@ -78,7 +86,7 @@ const updateScoresFlow = ai.defineFlow(
     inputSchema: UpdateScoresInputSchema,
     outputSchema: UpdateScoresOutputSchema,
   },
-  async ({ gameRoomId, players }) => {
+  async ({ gameRoomId, players, totalQuestions }) => {
     if (!gameRoomId || !players || players.length === 0) {
       throw new Error("Game room ID and final player scores are required.");
     }
@@ -91,13 +99,13 @@ const updateScoresFlow = ai.defineFlow(
       const rankedPlayers = [...players].sort((a, b) => b.score - a.score);
       const totalPlayers = rankedPlayers.length;
 
-      // 1. Update player XP based on their rank.
+      // 1. Update player XP based on their rank and total questions.
       for (let i = 0; i < rankedPlayers.length; i++) {
         const player = rankedPlayers[i];
         const rank = i + 1; // 1-based rank
         
         if (player.uid) {
-          const xpGained = calculateRankPoints(rank, totalPlayers);
+          const xpGained = calculateTotalXp(rank, totalPlayers, totalQuestions);
           
           const userRef = db.collection('users').doc(player.uid);
           batch.update(userRef, {
@@ -112,7 +120,7 @@ const updateScoresFlow = ai.defineFlow(
 
       await batch.commit();
 
-      const message = `Successfully updated XP for ${players.length} players based on rank.`;
+      const message = `Successfully updated XP for ${players.length} players based on rank and question count.`;
       console.log(message);
       
       return { success: true, message };

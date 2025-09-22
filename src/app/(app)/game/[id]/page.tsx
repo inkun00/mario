@@ -199,12 +199,16 @@ export default function GamePage() {
   }, [gameSet, gameRoom, blocks.length]);
 
   const finishGame = (finalPlayers: Player[]) => {
-      if (!gameRoom || gameRoom.status === 'finished') return;
+      if (!gameRoom || gameRoom.status === 'finished' || !gameSet) return;
 
       setFinalScores(finalPlayers.sort((a, b) => b.score - a.score));
       setShowGameOverPopup(true);
     
-      updateScores({ gameRoomId: gameRoom.id as string, players: finalPlayers }).catch(error => {
+      updateScores({ 
+        gameRoomId: gameRoom.id as string, 
+        players: finalPlayers,
+        totalQuestions: gameSet.questions.length
+      }).catch(error => {
         console.error("Error updating scores in background:", error);
       });
     };
