@@ -162,9 +162,6 @@ const updateScoresFlow = ai.defineFlow(
           }
       }
       
-      // 3. Mark game as finished.
-      batch.update(roomRef, { status: 'finished' });
-
       await batch.commit();
 
       const message = `Successfully updated XP and answer logs for ${players.length} players.`;

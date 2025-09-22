@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, onSnapshot, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
@@ -56,9 +56,8 @@ const shuffleArray = <T,>(array: T[]): T[] => {
   return newArray;
 };
 
-const calculateScoresFromLogs = (gameRoom: GameRoom | null, currentPlayers: Player[]): Player[] => {
-    if (!gameRoom || gameRoom.status === 'finished') return currentPlayers;
-    if (!gameRoom.players) return [];
+const calculateScoresFromLogs = (gameRoom: GameRoom | null): Player[] => {
+    if (!gameRoom || !gameRoom.players) return [];
 
     const scores: Record<string, number> = {};
     for (const uid in gameRoom.players) {
@@ -111,6 +110,24 @@ export default function GamePage() {
   const [selectedEffects, setSelectedEffects] = useState<MysteryEffectType[]>(allMysteryEffects.map(e => e.type));
   const [showGameOverPopup, setShowGameOverPopup] = useState(false);
   const [finalScores, setFinalScores] = useState<Player[]>([]);
+  
+  const finishGame = useCallback(async (room: GameRoom) => {
+    if (!gameSet || finalScores.length > 0) return;
+
+    const finalPlayers = calculateScoresFromLogs(room);
+    setFinalScores(finalPlayers.sort((a, b) => b.score - a.score));
+    setShowGameOverPopup(true);
+    
+    // updateScores is a fire-and-forget operation in the background
+    updateScores({ 
+      gameRoomId: room.id as string, 
+      players: finalPlayers,
+      totalQuestions: gameSet.questions.length
+    }).catch(error => {
+      console.error("Error updating scores in background:", error);
+      // Optionally notify user of background failure
+    });
+  }, [gameSet, finalScores.length]);
 
   // Fetch GameRoom and GameSet data
   useEffect(() => {
@@ -158,11 +175,9 @@ export default function GamePage() {
   useEffect(() => {
     if (!gameRoom || loadingUser) return;
 
-    if (gameRoom.status !== 'finished') {
-        const calculatedPlayers = calculateScoresFromLogs(gameRoom, players);
-        if (JSON.stringify(calculatedPlayers) !== JSON.stringify(players)) {
-            setPlayers(calculatedPlayers);
-        }
+    const calculatedPlayers = calculateScoresFromLogs(gameRoom);
+    if (JSON.stringify(calculatedPlayers) !== JSON.stringify(players)) {
+        setPlayers(calculatedPlayers);
     }
     
     if (gameRoom.joinType === 'remote') {
@@ -170,7 +185,13 @@ export default function GamePage() {
     } else {
         setIsMyTurn(true);
     }
-  }, [gameRoom, user, loadingUser, players]);
+    
+    // New logic to handle game finish
+    if (gameRoom.status === 'finished' && finalScores.length === 0) {
+      finishGame(gameRoom);
+    }
+
+  }, [gameRoom, user, loadingUser, players, finishGame, finalScores.length]);
 
 
   // Initialize game blocks once
@@ -198,20 +219,6 @@ export default function GamePage() {
     setBlocks(shuffledBlocks);
   }, [gameSet, gameRoom, blocks.length]);
 
-  const finishGame = (finalPlayers: Player[]) => {
-      if (!gameRoom || gameRoom.status === 'finished' || !gameSet) return;
-
-      setFinalScores(finalPlayers.sort((a, b) => b.score - a.score));
-      setShowGameOverPopup(true);
-    
-      updateScores({ 
-        gameRoomId: gameRoom.id as string, 
-        players: finalPlayers,
-        totalQuestions: gameSet.questions.length
-      }).catch(error => {
-        console.error("Error updating scores in background:", error);
-      });
-    };
   
   const handleBlockClick = (block: GameBlock) => {
     if (isClickDisabled(block)) return;
@@ -247,15 +254,13 @@ export default function GamePage() {
           toast({ title: '이런!', description: '아무 일도 일어나지 않았습니다. 설정된 미스터리 효과가 없습니다.' });
           
           const newGameState = { ...gameRoom.gameState, [blockId]: 'answered' as const };
-          const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
-
           const roomRef = doc(db, 'game-rooms', gameRoomId as string);
-          updateDoc(roomRef, { gameState: newGameState });
 
-          if (allAnswered) {
-              finishGame(players);
+          if (blocks.every(b => newGameState[b.id] === 'answered')) {
+              updateDoc(roomRef, { gameState: newGameState, status: 'finished' });
           } else {
-              handleNextTurn(newGameState);
+              updateDoc(roomRef, { gameState: newGameState });
+              handleNextTurn();
           }
           return;
       }
@@ -293,7 +298,7 @@ export default function GamePage() {
     setCurrentPoints(prev => Math.floor(prev / 2));
   };
 
-  const handleNextTurn = (currentGameState: GameRoom['gameState']) => {
+  const handleNextTurn = () => {
     if (!gameRoom) return;
 
     if (gameRoom.joinType === 'local') {
@@ -305,8 +310,7 @@ export default function GamePage() {
         
         const roomRef = doc(db, 'game-rooms', gameRoomId as string);
         updateDoc(roomRef, {
-            currentTurn: nextTurnUID,
-            gameState: currentGameState
+            currentTurn: nextTurnUID
         });
     }
   }
@@ -347,13 +351,19 @@ export default function GamePage() {
     try {
         const roomRef = doc(db, 'game-rooms', gameRoomId as string);
         const newGameState = {...gameRoom.gameState, [currentQuestionInfo.blockId]: 'answered' as 'answered'};
+        const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
 
-        await updateDoc(roomRef, {
+        const updatePayload: any = {
             answerLogs: arrayUnion(answerLog),
-            gameState: newGameState
-        });
+            gameState: newGameState,
+        };
 
-        // The onSnapshot will update the local gameRoom, triggering re-calculation of scores
+        if (allAnswered) {
+          updatePayload.status = 'finished';
+        }
+
+        await updateDoc(roomRef, updatePayload);
+
         if (isCorrect) {
             toast({
                 title: '정답입니다!',
@@ -370,12 +380,8 @@ export default function GamePage() {
         handleCloseDialogs();
         setIsSubmitting(false);
 
-        const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
-        if (allAnswered) {
-            const finalPlayers = calculateScoresFromLogs(gameRoom, players);
-            finishGame(finalPlayers);
-        } else {
-            handleNextTurn(newGameState);
+        if (!allAnswered) {
+            handleNextTurn();
         }
 
     } catch(error) {
@@ -412,7 +418,7 @@ export default function GamePage() {
         const logsToPush: AnswerLog[] = [];
         let pointsChange = 0;
         
-        const currentPlayersState = calculateScoresFromLogs(gameRoom, players);
+        const currentPlayersState = calculateScoresFromLogs(gameRoom);
 
         switch (mysteryBoxEffect.type) {
             case 'bonus':
@@ -447,19 +453,21 @@ export default function GamePage() {
 
         const roomRef = doc(db, 'game-rooms', gameRoomId);
         const newGameState = {...gameRoom.gameState, [blockId]: 'answered'};
-        
-        // Use arrayUnion to push multiple logs
-        await updateDoc(roomRef, {
-            answerLogs: arrayUnion(...logsToPush),
-            gameState: newGameState
-        });
-
         const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
+
+        const updatePayload: any = {
+            answerLogs: arrayUnion(...logsToPush),
+            gameState: newGameState,
+        };
+
         if (allAnswered) {
-             const finalPlayers = calculateScoresFromLogs(gameRoom, players);
-             finishGame(finalPlayers);
-        } else {
-            handleNextTurn(newGameState);
+          updatePayload.status = 'finished';
+        }
+        
+        await updateDoc(roomRef, updatePayload);
+
+        if (!allAnswered) {
+            handleNextTurn();
         }
 
     } catch (error: any) {
