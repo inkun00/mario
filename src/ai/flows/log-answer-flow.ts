@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview An AI agent that securely logs a player's answer during a game.
+ * @fileOverview An AI agent that securely logs a player's answer and manages game turn progression.
  *
  * - logAnswer - A function that logs an answer and updates the game state.
  * - LogAnswerInput - The input type for the logAnswer function.
@@ -12,7 +12,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { initializeApp, getApps } from 'firebase-admin/app';
-import type { AnswerLog, Question } from '@/lib/types';
+import type { AnswerLog, GameRoom, Question } from '@/lib/types';
 
 
 // Initialize Firebase Admin SDK if not already done.
@@ -47,7 +47,8 @@ const AnswerLogSchema = z.object({
 
 const LogAnswerInputSchema = z.object({
   gameRoomId: z.string().describe("The ID of the game room."),
-  answerLog: AnswerLogSchema.describe("The answer log to be added.")
+  answerLog: AnswerLogSchema.describe("The answer log to be added."),
+  nextTurn: z.boolean().optional().default(true).describe("Whether to advance to the next turn after logging."),
 });
 export type LogAnswerInput = z.infer<typeof LogAnswerInputSchema>;
 
@@ -66,7 +67,7 @@ const logAnswerFlow = ai.defineFlow(
     inputSchema: LogAnswerInputSchema,
     outputSchema: LogAnswerOutputSchema,
   },
-  async ({ gameRoomId, answerLog }) => {
+  async ({ gameRoomId, answerLog, nextTurn }) => {
     if (!gameRoomId || !answerLog) {
       throw new Error("Game room ID and answer log are required.");
     }
@@ -74,9 +75,27 @@ const logAnswerFlow = ai.defineFlow(
     try {
       const roomRef = db.collection('game-rooms').doc(gameRoomId);
 
-      await roomRef.update({
-        answerLogs: FieldValue.arrayUnion(answerLog)
-      });
+      // We need the current room state to determine the next turn
+      const roomSnap = await roomRef.get();
+      if (!roomSnap.exists) {
+          throw new Error("Game room not found.");
+      }
+      const gameRoom = roomSnap.data() as GameRoom;
+
+      const updates: Record<string, any> = {
+        answerLogs: FieldValue.arrayUnion(answerLog),
+        [`gameState.${(answerLog.question as any).id}`]: 'answered',
+      };
+      
+      // Calculate and set next turn if requested
+      if (nextTurn) {
+        const playerUIDs = Object.keys(gameRoom.players);
+        const currentTurnIndex = playerUIDs.indexOf(gameRoom.currentTurn);
+        const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
+        updates.currentTurn = playerUIDs[nextTurnIndex];
+      }
+      
+      await roomRef.update(updates);
       
       return { success: true };
 

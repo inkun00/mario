@@ -3,31 +3,32 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users: Can only read/write their own data. Cannot list other users.
+    // Users: Can only read/write their own document.
+    // Cannot list all users for security.
     match /users/{userId} {
       allow read, update, delete: if request.auth.uid == userId;
       allow create: if request.auth.uid != null;
-    }
 
-    // User Subcollections: Can only manage their own answer history.
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth.uid == userId;
+      // User Subcollections: Can only manage their own answer history.
+      match /{document=**} {
+        allow read, write: if request.auth.uid == userId;
+      }
     }
 
     // Game-sets:
-    // read: Anyone authenticated can read.
-    // write: Only the creator can create, update, or delete their own sets.
+    // read: Any authenticated user can read.
+    // write: Only the creator of the set can create, update, or delete it.
     match /game-sets/{gameSetId} {
       allow read: if request.auth.uid != null;
-      allow write: if request.auth.uid != null && request.resource.data.creatorId == request.auth.uid;
+      allow create, update, delete: if request.auth.uid != null && request.resource.data.creatorId == request.auth.uid;
     }
 
     // Game-rooms:
-    // read/create: Anyone authenticated can read or create a room.
-    // update: Only the host or a player in the game can update the room.
+    // read, create: Any authenticated user can read or create a room.
+    // update: Block all client-side updates. All game state changes must go through server-side flows.
     match /game-rooms/{roomId} {
       allow read, create: if request.auth.uid != null;
-      allow update: if request.auth.uid != null && (request.auth.uid == resource.data.hostId || request.auth.uid in resource.data.players);
+      allow update: if false; 
     }
   }
 }

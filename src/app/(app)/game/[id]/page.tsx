@@ -211,10 +211,8 @@ export default function GamePage() {
     if (!gameRoom || gameRoom.status === 'finished') return;
     
     try {
-        const roomRef = doc(db, 'game-rooms', gameRoomId as string);
-        await updateDoc(roomRef, { status: 'finished' });
         await updateScores({ gameRoomId: gameRoom.id });
-
+        // The onSnapshot will detect the status change to 'finished' which is set by the flow
     } catch (error) {
         console.error("Error finishing game: ", error);
         toast({ variant: 'destructive', title: '오류', description: '게임 종료 처리 중 오류가 발생했습니다.'});
@@ -231,14 +229,9 @@ export default function GamePage() {
           await finishGame();
           return;
       }
-
-      const roomRef = doc(db, 'game-rooms', gameRoomId as string);
-      const playerUIDs = Object.keys(gameRoom.players);
-      const currentTurnIndex = playerUIDs.indexOf(gameRoom.currentTurn);
-      const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
-      const nextTurnUID = playerUIDs[nextTurnIndex];
-
-      await updateDoc(roomRef, { currentTurn: nextTurnUID });
+      
+      // Turn change is now handled by the server-side logAnswer flow.
+      // No client-side updateDoc needed.
   };
   
   const handleBlockClick = (block: GameBlock) => {
@@ -252,10 +245,14 @@ export default function GamePage() {
     setTimeout(() => {
       if (block.type === 'question') {
           const roomRef = doc(db, 'game-rooms', gameRoomId as string);
-          updateDoc(roomRef, { [`gameState.${block.id}`]: 'answered' });
+          // This state update is just for the client-side UI
+          // The actual state is managed by the server
+          setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isOpened: true } : b));
+          setGameRoom(prev => prev ? ({ ...prev, gameState: { ...prev.gameState, [block.id]: 'answered' } }) : null);
+      } else {
+        setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: false, isOpened: true } : b));
       }
 
-      setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: false, isOpened: true } : b));
 
       if (block.type === 'question' && block.question) {
         setCurrentQuestionInfo({question: block.question, blockId: block.id});
@@ -340,10 +337,9 @@ export default function GamePage() {
             userAnswer: userAnswer,
             isCorrect: isCorrect,
             pointsAwarded: pointsToAward,
-            timestamp: new Date(),
         };
 
-        await logAnswer({ gameRoomId, answerLog: answerLog as AnswerLog });
+        await logAnswer({ gameRoomId, answerLog: {...answerLog, timestamp: new Date()} as AnswerLog });
         
         if (isCorrect) {
             toast({
@@ -361,9 +357,9 @@ export default function GamePage() {
         handleCloseDialogs();
         await handleNextTurn();
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error submitting answer: ", error);
-        toast({ variant: 'destructive', title: '오류', description: '답변 제출 중 오류가 발생했습니다.'});
+        toast({ variant: 'destructive', title: '오류', description: `답변 제출 중 오류가 발생했습니다: ${error.message}`});
     } finally {
         setIsSubmitting(false);
     }
@@ -412,10 +408,9 @@ export default function GamePage() {
         // Log for current player
         await logAnswer({ gameRoomId: gameRoomId, answerLog: { ...newLog, userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent } as AnswerLog });
         // Log for target player
-        await logAnswer({ gameRoomId: gameRoomId, answerLog: { ...newLog, userId: playerForSwap, pointsAwarded: pointsDiffForTarget } as AnswerLog });
+        await logAnswer({ gameRoomId: gameRoomId, answerLog: { ...newLog, userId: playerForSwap, pointsAwarded: pointsDiffForTarget, nextTurn: false } as AnswerLog });
         
         // This case is special, so we handle turn progression and exit
-        await handleNextTurn();
         setIsSubmitting(false);
         handleCloseDialogs();
         return;
@@ -425,8 +420,7 @@ export default function GamePage() {
   
     try {
       await logAnswer({ gameRoomId: gameRoomId, answerLog: newLog as AnswerLog });
-      await handleNextTurn();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error applying mystery effect:", error);
       toast({ variant: 'destructive', title: '오류', description: '미스터리 효과 적용 중 오류가 발생했습니다.'});
     } finally {
