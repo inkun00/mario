@@ -49,7 +49,7 @@ const checkUserIdFlow = ai.defineFlow(
     
     try {
         const usersRef = db.collection('users');
-        const snapshot = await usersRef.where('email', '==', userId).limit(1).get();
+        const snapshot = await usersRef.where('email', '==', userId).get();
 
         if (!snapshot.empty) {
             const userDoc = snapshot.docs[0];

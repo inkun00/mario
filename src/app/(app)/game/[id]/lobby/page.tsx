@@ -146,10 +146,6 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
         try {
             const result = await checkUserId({ userId });
             
-            // DEBUG: Log the UIDs for comparison
-            console.log("Game Set Creator UID:", gameSet?.creatorId);
-            console.log("Joining Player UID:", result.uid);
-
             if (result.exists) {
                 // Check if the confirmed user is the creator of the game set.
                 if (gameSet && gameSet.creatorId === result.uid) {
