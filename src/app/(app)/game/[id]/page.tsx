@@ -121,22 +121,21 @@ export default function GamePage() {
         if (docSnap.exists()) {
             const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
             
-            if (gameRoom && roomData.joinType === 'local' && roomData.status !== 'finished') return;
-
-            setGameRoom(roomData);
-
             if (roomData.status === 'finished') {
                 if (!showGameOverPopup) {
-                    // Fetch final scores if game is finished
-                    const result = await updateScores({ gameRoomId: roomData.id });
-                    if (result.success && result.players) {
-                        setFinalScores(result.players);
-                        setShowGameOverPopup(true);
+                     // Game is already finished, show popup if not already shown.
+                    // The scores should have been processed by the flow that finished the game.
+                    // We can try to fetch them if they are not in the local state.
+                    if (finalScores.length === 0) {
+                        const playersWithScores = calculateScoresFromLogs(roomData);
+                        setFinalScores(playersWithScores);
                     }
+                    setShowGameOverPopup(true);
                 }
                 return;
             }
 
+            setGameRoom(roomData);
 
             if (!gameSet && roomData.gameSetId) {
               const setRef = doc(db, 'game-sets', roomData.gameSetId);
@@ -170,19 +169,11 @@ export default function GamePage() {
     return () => {
       unsubscribe();
     };
-  }, [gameRoomId, router, toast, user]);
+  }, [gameRoomId, router, toast, user, gameSet, showGameOverPopup, finalScores.length]);
   
   // Update turn status when gameRoom or user changes
   useEffect(() => {
     if (!gameRoom || loadingUser) return;
-
-    if (gameRoom.status === 'finished') {
-        if (!showGameOverPopup) {
-            setFinalScores(calculateScoresFromLogs(gameRoom));
-            setShowGameOverPopup(true);
-        }
-        return;
-    }
 
     if (gameRoom.joinType === 'remote') {
         setIsMyTurn(gameRoom.currentTurn === user?.uid);
@@ -192,7 +183,7 @@ export default function GamePage() {
 
     setPlayers(calculateScoresFromLogs(gameRoom));
 
-  }, [gameRoom, user, loadingUser, showGameOverPopup]);
+  }, [gameRoom, user, loadingUser]);
 
 
   // Initialize game blocks
@@ -227,6 +218,7 @@ export default function GamePage() {
   const finishGame = async () => {
     if (!gameRoom || gameRoom.status === 'finished') return;
     
+    // Optimistically set room status to avoid re-triggering
     setGameRoom(prev => prev ? { ...prev, status: 'finished' } : null);
 
     try {
@@ -264,18 +256,17 @@ export default function GamePage() {
         setUserAnswer('');
         
       } else { // Mystery Box
-        const newGameState = { ...gameRoom!.gameState, [block.id]: 'answered' as 'answered'};
+        if (!gameRoom) return;
 
-        if (gameRoom?.joinType === 'local' && gameRoom) {
-            const updatedRoom = { ...gameRoom, gameState: newGameState };
-            setGameRoom(updatedRoom);
-        }
+        const newGameState = { ...gameRoom.gameState, [block.id]: 'answered' as const };
+
+        const updatedRoom = { ...gameRoom, gameState: newGameState };
+        setGameRoom(updatedRoom);
+        
         const effects = gameRoom?.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
         if (effects.length === 0) {
             toast({ title: '이런!', description: '아무 일도 일어나지 않았습니다. 설정된 미스터리 효과가 없습니다.' });
-            if (gameRoom?.joinType === 'local') {
-                handleNextTurn(newGameState);
-            }
+            handleNextTurn(newGameState);
             return;
         }
         
@@ -317,15 +308,16 @@ export default function GamePage() {
   const handleNextTurn = (currentGameState: GameRoom['gameState']) => {
     if (!gameRoom || !gameSet) return;
     
+    // Check for game over condition
+    const allAnswered = blocks.every(b => currentGameState[b.id] === 'answered');
+    if (allAnswered && blocks.length > 0) {
+        finishGame();
+        return;
+    }
+
     if (gameRoom.joinType === 'local') {
-        const allAnswered = blocks.every(b => currentGameState[b.id] === 'answered');
-
-        if (allAnswered && blocks.length > 0) {
-            finishGame();
-            return;
-        }
-
         const playerUIDs = Object.keys(gameRoom.players);
+        if (playerUIDs.length === 0) return;
         const currentTurnIndex = playerUIDs.indexOf(gameRoom.currentTurn);
         const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
         const nextTurnUID = playerUIDs[nextTurnIndex];
@@ -458,9 +450,10 @@ export default function GamePage() {
         }
 
         if (gameRoom.joinType === 'local') {
+            const newAnswerLogs = [...(gameRoom.answerLogs || []), ...logsToPush];
             const updatedRoomState: GameRoom = {
                 ...gameRoom,
-                answerLogs: [...(gameRoom.answerLogs || []), ...logsToPush],
+                answerLogs: newAnswerLogs,
             };
 
             setGameRoom(updatedRoomState);
@@ -788,5 +781,3 @@ export default function GamePage() {
     </>
   );
 }
-
-    
