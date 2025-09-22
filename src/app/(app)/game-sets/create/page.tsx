@@ -47,21 +47,19 @@ const questionSchema = z.object({
   imageUrl: z.string().url().optional().or(z.literal('')),
   hint: z.string().optional(),
   answer: z.string().optional(),
-  options: z.array(z.string()).optional(),
+  options: z.array(z.string().min(1, '보기를 입력해주세요.')).optional(),
   correctAnswer: z.string().optional(),
-}).refine(data => {
-  if (data.type === 'multipleChoice') {
-    return data.options && data.options.length === 4 && data.options.every(opt => opt.length > 0) && data.correctAnswer;
-  }
-  if (data.type === 'subjective') {
-    return data.answer && data.answer.length > 0;
-  }
-  if (data.type === 'ox') {
-    return data.correctAnswer === 'O' || data.correctAnswer === 'X';
-  }
-  return true;
-}, {
-    message: '객관식 문제는 4개의 보기를 모두 입력하고 정답을 선택해야 합니다. 주관식 문제는 정답을 입력해야 합니다. O/X 문제는 O 또는 X를 정답으로 선택해야 합니다.',
+}).refine(data => data.type !== 'subjective' || (data.answer && data.answer.length > 0), {
+    message: '주관식 정답을 입력해주세요.',
+    path: ['answer'],
+}).refine(data => data.type !== 'multipleChoice' || (data.options && data.options.length === 4 && data.options.every(opt => opt && opt.length > 0)), {
+    message: '객관식 문제는 4개의 보기를 모두 입력해야 합니다.',
+    path: ['options'],
+}).refine(data => data.type !== 'multipleChoice' || (data.correctAnswer && data.correctAnswer.length > 0), {
+    message: '객관식 문제의 정답을 선택해주세요.',
+    path: ['correctAnswer'],
+}).refine(data => data.type !== 'ox' || (data.correctAnswer === 'O' || data.correctAnswer === 'X'), {
+    message: 'O/X 문제의 정답을 선택해주세요.',
     path: ['correctAnswer'],
 });
 
