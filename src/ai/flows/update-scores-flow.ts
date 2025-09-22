@@ -77,10 +77,11 @@ function calculateTotalXp(rank: number, totalPlayers: number, totalQuestions: nu
 
 // Helper to remove undefined properties from an object
 const removeUndefined = (obj: any) => {
-    Object.keys(obj).forEach(key => obj[key] === undefined && delete obj[key]);
-    if (obj.question) {
-        Object.keys(obj.question).forEach(key => obj.question[key] === undefined && delete obj.question[key]);
-    }
+    Object.keys(obj).forEach(key => {
+        if (obj[key] === undefined) {
+            delete obj[key];
+        }
+    });
     return obj;
 };
 
