@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, getDoc, updateDoc, increment, collection, addDoc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc, increment, collection, addDoc, writeBatch, serverTimestamp, arrayUnion } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import type { GameRoom, GameSet, Player, Question, MysteryEffectType } from '@/lib/types';
+import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -183,19 +183,12 @@ export default function GamePage() {
     if (!gameRoom || gameRoom.status === 'finished') return;
     
     try {
-        // 1. Update game room status to 'finished'
         const roomRef = doc(db, 'game-rooms', gameRoomId as string);
         await updateDoc(roomRef, { status: 'finished' });
 
-        // 2. Call the Genkit flow to securely update user XPs
-        const playersToUpdate = Object.values(gameRoom.players).map(p => ({
-            uid: p.uid,
-            score: p.score
-        }));
-
-        await updateScores({ players: playersToUpdate });
-
-        // The onSnapshot listener will then show the game over popup.
+        await updateScores({ 
+            gameRoomId: gameRoom.id,
+         });
 
     } catch (error) {
         console.error("Error finishing game: ", error);
@@ -316,45 +309,32 @@ export default function GamePage() {
     try {
         const roomRef = doc(db, 'game-rooms', gameRoomId as string);
         
-        // This update is now only for score. Game state is updated on click.
+        const answerLog: AnswerLog = {
+            userId: currentTurnUID,
+            gameSetId: gameSet.id,
+            gameSetTitle: gameSet.title,
+            question: currentQuestion,
+            userAnswer: userAnswer,
+            isCorrect: isCorrect,
+            timestamp: serverTimestamp(),
+        };
+
         await updateDoc(roomRef, {
             [`players.${currentTurnUID}.score`]: increment(pointsToAward),
+            answerLogs: arrayUnion(answerLog),
         });
         
-        // Record answer
-        if (currentTurnUID) {
-            if (isCorrect) {
-                 const correctAnswersRef = collection(db, 'users', currentTurnUID, 'correct-answers');
-                 await addDoc(correctAnswersRef, {
-                    gameSetId: gameSet.id,
-                    gameSetTitle: gameSet.title,
-                    question: currentQuestion.question,
-                    grade: gameSet.grade || '',
-                    semester: gameSet.semester || '',
-                    subject: gameSet.subject || '',
-                    unit: gameSet.unit || '',
-                    timestamp: serverTimestamp(),
-                 });
-                 toast({
-                    title: '정답입니다!',
-                    description: `${pointsToAward}점을 획득했습니다!`,
-                });
-
-            } else {
-                const incorrectAnswersRef = collection(db, 'users', currentTurnUID, 'incorrect-answers');
-                await addDoc(incorrectAnswersRef, {
-                    gameSetId: gameSet.id,
-                    gameSetTitle: gameSet.title,
-                    question: currentQuestion,
-                    userAnswer: userAnswer,
-                    timestamp: serverTimestamp(),
-                });
-                toast({
-                    variant: 'destructive',
-                    title: '오답입니다...',
-                    description: `정답은 "${currentQuestion.answer || currentQuestion.correctAnswer}" 입니다.`,
-                });
-            }
+        if (isCorrect) {
+            toast({
+                title: '정답입니다!',
+                description: `${pointsToAward}점을 획득했습니다!`,
+            });
+        } else {
+            toast({
+                variant: 'destructive',
+                title: '오답입니다...',
+                description: `정답은 "${currentQuestion.answer || currentQuestion.correctAnswer}" 입니다.`,
+            });
         }
 
         handleCloseDialogs();

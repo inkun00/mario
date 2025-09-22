@@ -1,4 +1,5 @@
 
+
 export interface User {
   uid: string;
   email: string | null;
@@ -55,6 +56,17 @@ export interface LocalPlayer {
 
 export type MysteryEffectType = 'bonus' | 'double' | 'penalty' | 'half' | 'swap';
 
+export interface AnswerLog {
+    userId: string;
+    gameSetId: string;
+    gameSetTitle: string;
+    question: Question;
+    userAnswer?: string;
+    isCorrect: boolean;
+    timestamp: any;
+}
+
+
 export interface GameRoom {
   id: string;
   gameSetId: string;
@@ -70,6 +82,7 @@ export interface GameRoom {
   joinType: JoinType;
   createdAt: any;
   localPlayers?: LocalPlayer[];
+  answerLogs?: AnswerLog[];
 }
 
 export interface CorrectAnswer {

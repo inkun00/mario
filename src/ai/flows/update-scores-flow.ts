@@ -12,6 +12,8 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { initializeApp, getApps } from 'firebase-admin/app';
+import type { GameRoom, AnswerLog } from '@/lib/types';
+
 
 // Initialize Firebase Admin SDK if not already done.
 if (!getApps().length) {
@@ -20,13 +22,8 @@ if (!getApps().length) {
 const db = getFirestore();
 
 
-const PlayerScoreSchema = z.object({
-  uid: z.string().describe("The player's unique ID."),
-  score: z.number().describe("The final score achieved by the player in the game."),
-});
-
 const UpdateScoresInputSchema = z.object({
-  players: z.array(PlayerScoreSchema).describe("A list of all players and their final scores."),
+  gameRoomId: z.string().describe("The ID of the game room to process."),
 });
 export type UpdateScoresInput = z.infer<typeof UpdateScoresInputSchema>;
 
@@ -46,18 +43,33 @@ const updateScoresFlow = ai.defineFlow(
     inputSchema: UpdateScoresInputSchema,
     outputSchema: UpdateScoresOutputSchema,
   },
-  async ({ players }) => {
-    if (!players || players.length === 0) {
-      return { success: false, message: "No players provided to update." };
+  async ({ gameRoomId }) => {
+    if (!gameRoomId) {
+      return { success: false, message: "Game room ID is required." };
     }
 
     try {
+      const roomRef = db.collection('game-rooms').doc(gameRoomId);
+      const roomSnap = await roomRef.get();
+
+      if (!roomSnap.exists) {
+        return { success: false, message: "Game room not found." };
+      }
+
+      const gameRoom = roomSnap.data() as GameRoom;
+      const players = Object.values(gameRoom.players);
+      const answerLogs = gameRoom.answerLogs || [];
+
+      if (!players || players.length === 0) {
+        return { success: false, message: "No players found in the game room." };
+      }
+      
       const batch = db.batch();
       
+      // 1. Update player XP and lastPlayed timestamp
       for (const player of players) {
         if (player.uid && player.score > 0) {
           const userRef = db.collection('users').doc(player.uid);
-          // Use FieldValue.increment to avoid race conditions.
           batch.update(userRef, {
             xp: FieldValue.increment(player.score),
             lastPlayed: FieldValue.serverTimestamp(),
@@ -65,9 +77,35 @@ const updateScoresFlow = ai.defineFlow(
         }
       }
 
+      // 2. Process answer logs and add to user subcollections
+      for (const log of answerLogs) {
+          if (log.isCorrect) {
+              const correctAnswersRef = db.collection('users', log.userId, 'correct-answers').doc();
+              batch.set(correctAnswersRef, {
+                  gameSetId: log.gameSetId,
+                  gameSetTitle: log.gameSetTitle,
+                  question: log.question.question,
+                  grade: log.question.subject || '',
+                  semester: log.question.subject || '',
+                  subject: log.question.subject || '',
+                  unit: log.question.unit || '',
+                  timestamp: log.timestamp,
+              });
+          } else {
+              const incorrectAnswersRef = db.collection('users', log.userId, 'incorrect-answers').doc();
+              batch.set(incorrectAnswersRef, {
+                  gameSetId: log.gameSetId,
+                  gameSetTitle: log.gameSetTitle,
+                  question: log.question,
+                  userAnswer: log.userAnswer,
+                  timestamp: log.timestamp,
+              });
+          }
+      }
+
       await batch.commit();
 
-      const message = `Successfully updated scores for ${players.length} players.`;
+      const message = `Successfully updated scores and logs for ${players.length} players.`;
       console.log(message);
       return { success: true, message };
 
