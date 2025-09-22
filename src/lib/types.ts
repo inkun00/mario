@@ -64,7 +64,7 @@ export interface AnswerLog {
     userAnswer?: string;
     isCorrect: boolean;
     pointsAwarded: number;
-    timestamp: any;
+    timestamp?: any;
 }
 
 

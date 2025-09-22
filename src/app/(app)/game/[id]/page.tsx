@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, getDoc, updateDoc, increment, collection, addDoc, writeBatch, serverTimestamp, arrayUnion } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog } from '@/lib/types';
@@ -21,6 +21,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import { updateScores } from '@/ai/flows/update-scores-flow';
+import { logAnswer } from '@/ai/flows/log-answer-flow';
 
 
 interface GameBlock {
@@ -88,6 +89,26 @@ export default function GamePage() {
   const [showGameOverPopup, setShowGameOverPopup] = useState(false);
   const [finalScores, setFinalScores] = useState<Player[]>([]);
 
+  const calculateScoresFromLogs = (room: GameRoom): Player[] => {
+    const scores: Record<string, number> = {};
+    for (const uid in room.players) {
+        scores[uid] = 0;
+    }
+
+    room.answerLogs?.forEach(log => {
+        if (log.pointsAwarded) {
+            scores[log.userId] = (scores[log.userId] || 0) + log.pointsAwarded;
+        }
+    });
+
+    const updatedPlayers = Object.values(room.players).map(p => ({
+        ...p,
+        score: scores[p.uid] || 0,
+    }));
+
+    return updatedPlayers.sort((a, b) => b.score - a.score);
+  }
+
 
   // Fetch GameRoom and GameSet data
   useEffect(() => {
@@ -98,6 +119,9 @@ export default function GamePage() {
       if (docSnap.exists()) {
         const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
         setGameRoom(roomData);
+        
+        const liveScores = calculateScoresFromLogs(roomData);
+        setPlayers(liveScores);
 
         // Fetch GameSet if not already fetched
         if (!gameSet && roomData.gameSetId) {
@@ -113,7 +137,7 @@ export default function GamePage() {
         }
         
         if (roomData.status === 'finished' && !showGameOverPopup) {
-            const finalPlayers = calculateFinalScores(roomData);
+            const finalPlayers = calculateScoresFromLogs(roomData);
             setFinalScores(finalPlayers);
             setShowGameOverPopup(true);
         } else if (roomData.mysteryBoxEnabled && !roomData.isMysterySettingDone && user?.uid === roomData.hostId) {
@@ -135,10 +159,9 @@ export default function GamePage() {
     return () => unsubscribe();
   }, [gameRoomId, router, toast, gameSet, user, showGameOverPopup]);
   
-  // Update players and turn status when gameRoom or user changes
+  // Update turn status when gameRoom or user changes
   useEffect(() => {
     if (!gameRoom || !user) return;
-    setPlayers(Object.values(gameRoom.players).sort((a, b) => b.score - a.score));
     setIsMyTurn(gameRoom.currentTurn === user.uid);
   }, [gameRoom, user]);
 
@@ -182,26 +205,6 @@ export default function GamePage() {
 
   }, [gameSet, gameRoom, blocks.length]);
   
-    const calculateFinalScores = (room: GameRoom): Player[] => {
-        const scores: Record<string, number> = {};
-        for (const uid in room.players) {
-            scores[uid] = 0;
-        }
-
-        room.answerLogs?.forEach(log => {
-            if (log.isCorrect && log.pointsAwarded) {
-                scores[log.userId] = (scores[log.userId] || 0) + log.pointsAwarded;
-            }
-        });
-        
-        const finalPlayers = Object.values(room.players).map(p => ({
-            ...p,
-            score: scores[p.uid] || 0,
-        }));
-
-        return finalPlayers.sort((a, b) => b.score - a.score);
-    }
-
   const finishGame = async () => {
     if (!gameRoom || gameRoom.status === 'finished') return;
     
@@ -314,7 +317,7 @@ export default function GamePage() {
   }
 
   const handleSubmitAnswer = async () => {
-    if (!currentQuestionInfo || !gameRoom || !userAnswer || !gameSet) {
+    if (!currentQuestionInfo || !gameRoom || !userAnswer || !gameSet || !gameRoomId) {
       toast({ variant: 'destructive', title: '오류', description: '답변을 선택하거나 입력해주세요.'});
       return;
     }
@@ -329,9 +332,7 @@ export default function GamePage() {
     const currentTurnUID = gameRoom.currentTurn;
 
     try {
-        const roomRef = doc(db, 'game-rooms', gameRoomId as string);
-        
-        const answerLog: Omit<AnswerLog, 'timestamp'> & { timestamp: Date } = {
+        const answerLog: Omit<AnswerLog, 'timestamp'> = {
             userId: currentTurnUID,
             gameSetId: gameSet.id,
             gameSetTitle: gameSet.title,
@@ -339,12 +340,10 @@ export default function GamePage() {
             userAnswer: userAnswer,
             isCorrect: isCorrect,
             pointsAwarded: pointsToAward,
-            timestamp: new Date(),
         };
 
-        await updateDoc(roomRef, {
-            answerLogs: arrayUnion(answerLog),
-        });
+        // Use the server-side flow to log the answer
+        await logAnswer({ gameRoomId, answerLog });
         
         if (isCorrect) {
             toast({
@@ -372,45 +371,68 @@ export default function GamePage() {
 
   const handleMysteryEffect = async () => {
     if (!mysteryBoxEffect || !gameRoom) return;
-
+  
     setIsSubmitting(true);
     const roomRef = doc(db, 'game-rooms', gameRoomId as string);
     const currentTurnUID = gameRoom.currentTurn;
-    const currentPlayer = gameRoom.players[currentTurnUID];
-    let updates: any = {};
-
+  
+    // For mystery effects, we still need to calculate the point changes
+    // and log them as if they were a special answer log.
+    let pointsChange = 0;
+    let newLog: Partial<AnswerLog> = {
+      userId: currentTurnUID,
+      gameSetId: gameRoom.gameSetId,
+      gameSetTitle: gameSet?.title || "미스터리 박스",
+      question: { question: mysteryBoxEffect.title, type: 'subjective', points: 0 },
+      isCorrect: true, // Represent effect as a "correct" event
+    };
+  
     switch (mysteryBoxEffect.type) {
-        case 'bonus':
-        case 'penalty':
-            updates[`players.${currentTurnUID}.score`] = increment(mysteryBoxEffect.value || 0);
-            break;
-        case 'double':
-            updates[`players.${currentTurnUID}.score`] = currentPlayer.score * 2;
-            break;
-        case 'half':
-            updates[`players.${currentTurnUID}.score`] = Math.floor(currentPlayer.score / 2);
-            break;
-        case 'swap':
-            if (!playerForSwap) {
-                toast({ variant: 'destructive', title: '오류', description: '점수를 바꿀 플레이어를 선택해주세요.'});
-                setIsSubmitting(false);
-                return;
-            }
-            const targetPlayer = gameRoom.players[playerForSwap];
-            updates[`players.${currentTurnUID}.score`] = targetPlayer.score;
-            updates[`players.${playerForSwap}.score`] = currentPlayer.score;
-            break;
-    }
-    
-    try {
-        await updateDoc(roomRef, updates);
+      case 'bonus':
+      case 'penalty':
+        pointsChange = mysteryBoxEffect.value || 0;
+        break;
+      case 'double':
+        pointsChange = players.find(p => p.uid === currentTurnUID)?.score || 0;
+        break;
+      case 'half':
+        pointsChange = -Math.floor((players.find(p => p.uid === currentTurnUID)?.score || 0) / 2);
+        break;
+      case 'swap':
+        if (!playerForSwap) {
+          toast({ variant: 'destructive', title: '오류', description: '점수를 바꿀 플레이어를 선택해주세요.'});
+          setIsSubmitting(false);
+          return;
+        }
+        const currentPlayerScore = players.find(p => p.uid === currentTurnUID)?.score || 0;
+        const targetPlayerScore = players.find(p => p.uid === playerForSwap)?.score || 0;
+        
+        const pointsDiffForCurrent = targetPlayerScore - currentPlayerScore;
+        const pointsDiffForTarget = currentPlayerScore - targetPlayerScore;
+  
+        // Log for current player
+        await logAnswer({ gameRoomId: gameRoomId as string, answerLog: { ...newLog, userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent } as AnswerLog });
+        // Log for target player
+        await logAnswer({ gameRoomId: gameRoomId as string, answerLog: { ...newLog, userId: playerForSwap, pointsAwarded: pointsDiffForTarget } as AnswerLog });
+        
+        // This case is special, so we handle turn progression and exit
         await handleNextTurn();
-    } catch (error) {
-        console.error("Error applying mystery effect:", error);
-        toast({ variant: 'destructive', title: '오류', description: '미스터리 효과 적용 중 오류가 발생했습니다.'});
-    } finally {
         setIsSubmitting(false);
         handleCloseDialogs();
+        return;
+    }
+  
+    newLog.pointsAwarded = pointsChange;
+  
+    try {
+      await logAnswer({ gameRoomId: gameRoomId as string, answerLog: newLog as AnswerLog });
+      await handleNextTurn();
+    } catch (error) {
+      console.error("Error applying mystery effect:", error);
+      toast({ variant: 'destructive', title: '오류', description: '미스터리 효과 적용 중 오류가 발생했습니다.'});
+    } finally {
+      setIsSubmitting(false);
+      handleCloseDialogs();
     }
   };
 
@@ -533,7 +555,7 @@ export default function GamePage() {
                                 <p className="font-semibold">{player.nickname}</p>
                                 <Progress value={(player.score / 500) * 100} className="h-2 mt-1" />
                             </div>
-                            {/* <div className="font-bold text-primary text-lg w-12 text-right">{player.score}</div> */}
+                            <div className="font-bold text-primary text-lg w-12 text-right">{player.score}</div>
                        </div>
                     </div>
                 ))}
@@ -705,7 +727,7 @@ export default function GamePage() {
             </div>
             <DialogFooter className="sm:justify-center">
                  <Button asChild>
-                    <Link href="/dashboard">대시보드로 돌아가기</Link>
+                    <Link href="/dashboard">대시보드로 돌아가기</Link>                 
                  </Button>
             </DialogFooter>
         </DialogContent>
