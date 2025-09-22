@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -102,14 +101,13 @@ export default function ProfilePage() {
     const runAnalysis = async () => {
         setIsAnalysisLoading(true);
         try {
-            // Convert Firestore Timestamps to strings before sending to the server action
             const plainCorrectAnswers = correctAnswers.map(a => {
                 const { id, ...rest } = a;
                 return { ...rest, timestamp: a.timestamp instanceof Timestamp ? a.timestamp.toDate().toISOString() : a.timestamp };
             });
             const plainIncorrectAnswers = incorrectAnswers.map(a => {
-                const { id, userId, ...rest } = a;
-                return { ...rest, timestamp: a.timestamp instanceof Timestamp ? a.timestamp.toDate().toISOString() : a.timestamp, question: {...a.question, id: a.question.id || 0} };
+                const { id, ...rest } = a;
+                 return { ...rest, timestamp: a.timestamp instanceof Timestamp ? a.timestamp.toDate().toISOString() : a.timestamp };
             });
 
             const result = await analyzeLearning({ 
