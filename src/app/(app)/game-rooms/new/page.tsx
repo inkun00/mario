@@ -195,7 +195,7 @@ function NewGameRoomPageContents() {
                         </div>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>아직 개발중입니다.</p>
+                        <p>아직 개발 전입니다.</p>
                       </TooltipContent>
                     </Tooltip>
                     
@@ -218,34 +218,28 @@ function NewGameRoomPageContents() {
 
            <div className="space-y-2">
             <h3 className="font-semibold">보안 설정</h3>
-            <div className="p-4 border rounded-lg space-y-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="use-password" className="flex flex-col gap-1">
-                    <span>비밀번호 사용</span>
-                     <span className="text-xs text-muted-foreground">비밀번호를 아는 사람만 입장할 수 있습니다.</span>
-                </Label>
-                <Switch
-                  id="use-password"
-                  checked={usePassword}
-                  onCheckedChange={(checked) => {
-                    setUsePassword(checked);
-                    if (!checked) setPassword('');
-                  }}
-                />
-              </div>
-              {usePassword && (
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    placeholder="비밀번호 입력"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-9"
-                  />
-                </div>
-              )}
-            </div>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="p-4 border rounded-lg space-y-4 opacity-50 cursor-not-allowed">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="use-password" className="flex flex-col gap-1 cursor-not-allowed">
+                          <span>비밀번호 사용</span>
+                           <span className="text-xs text-muted-foreground">비밀번호를 아는 사람만 입장할 수 있습니다.</span>
+                      </Label>
+                      <Switch
+                        id="use-password"
+                        checked={usePassword}
+                        disabled
+                      />
+                    </div>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>아직 개발 전입니다.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
           
           <Button onClick={handleCreateRoom} disabled={isCreating || (usePassword && !password)} className="w-full font-headline" size="lg">
