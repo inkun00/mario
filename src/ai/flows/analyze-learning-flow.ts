@@ -15,6 +15,7 @@ import type { CorrectAnswer, IncorrectAnswer } from '@/lib/types';
 
 const CorrectAnswerSchema = z.object({
   gameSetTitle: z.string(),
+  question: z.string(),
   grade: z.string().optional(),
   semester: z.string().optional(),
   subject: z.string().optional(),
@@ -22,15 +23,15 @@ const CorrectAnswerSchema = z.object({
 });
 
 const IncorrectAnswerSchema = z.object({
-  gameSetTitle: z.string(),
-  question: z.object({
-    id: z.number().optional(),
-    question: z.string(),
+    gameSetTitle: z.string(),
+    question: z.object({
+      id: z.number().optional(),
+      question: z.string(),
+      points: z.number().optional(),
+      type: z.enum(['subjective', 'multipleChoice', 'ox']).optional(),
+    }),
     subject: z.string().optional(),
     unit: z.string().optional(),
-    points: z.number().optional(),
-    type: z.enum(['subjective', 'multipleChoice', 'ox']).optional(),
-  }),
 });
 
 
@@ -72,7 +73,7 @@ const analyzeLearningPrompt = ai.definePrompt({
 
   Incorrect Answers:
   {{#each incorrectAnswers}}
-  - Subject: {{question.subject}}, Unit: {{question.unit}}
+  - Subject: {{subject}}, Unit: {{unit}}
   {{/each}}
   `,
 });

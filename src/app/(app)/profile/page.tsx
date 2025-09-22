@@ -103,8 +103,14 @@ export default function ProfilePage() {
         setIsAnalysisLoading(true);
         try {
             // Convert Firestore Timestamps to strings before sending to the server action
-            const plainCorrectAnswers = correctAnswers.map(a => ({...a, timestamp: a.timestamp instanceof Timestamp ? a.timestamp.toDate().toISOString() : a.timestamp }));
-            const plainIncorrectAnswers = incorrectAnswers.map(a => ({...a, timestamp: a.timestamp instanceof Timestamp ? a.timestamp.toDate().toISOString() : a.timestamp, question: {...a.question, id: a.question.id || 0} }));
+            const plainCorrectAnswers = correctAnswers.map(a => {
+                const { id, ...rest } = a;
+                return { ...rest, timestamp: a.timestamp instanceof Timestamp ? a.timestamp.toDate().toISOString() : a.timestamp };
+            });
+            const plainIncorrectAnswers = incorrectAnswers.map(a => {
+                const { id, userId, ...rest } = a;
+                return { ...rest, timestamp: a.timestamp instanceof Timestamp ? a.timestamp.toDate().toISOString() : a.timestamp, question: {...a.question, id: a.question.id || 0} };
+            });
 
             const result = await analyzeLearning({ 
               correctAnswers: plainCorrectAnswers, 
