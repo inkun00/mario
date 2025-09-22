@@ -189,6 +189,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
             await updateDoc(roomRef, { 
                 status: 'playing',
                 players: playerObjects,
+                playerUIDs: playerUIDs, // Add the ordered list of UIDs
                 currentTurn: playerUIDs[0], // First player's turn
                 hostId: playerUIDs[0]
             });

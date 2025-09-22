@@ -77,6 +77,7 @@ export interface GameRoom {
   hostId: string;
   currentTurn: string; // userId or nickname for local
   players: Record<string, Player>; // key is userId for remote, or nickname for local
+  playerUIDs?: string[]; // ordered list of player UIDs for turn sequence
   gameState: Record<string, 'available' | 'answered'>; // key is questionId
   mysteryBoxEnabled: boolean;
   isMysterySettingDone?: boolean;

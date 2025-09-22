@@ -72,7 +72,11 @@ const calculateScoresFromLogs = (room: GameRoom): Player[] => {
         }
     });
 
-    const updatedPlayers = Object.values(room.players).map(p => ({
+    const playerList = room.playerUIDs 
+        ? room.playerUIDs.map(uid => room.players[uid]) 
+        : Object.values(room.players);
+        
+    const updatedPlayers = playerList.map(p => ({
         ...p,
         score: scores[p.uid] || 0,
     }));
@@ -120,21 +124,6 @@ export default function GamePage() {
     const handleSnapshot = async (docSnap: any) => {
         if (docSnap.exists()) {
             const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
-            
-            if (roomData.status === 'finished') {
-                if (!showGameOverPopup) {
-                     // Game is already finished, show popup if not already shown.
-                    // The scores should have been processed by the flow that finished the game.
-                    // We can try to fetch them if they are not in the local state.
-                    if (finalScores.length === 0) {
-                        const playersWithScores = calculateScoresFromLogs(roomData);
-                        setFinalScores(playersWithScores);
-                    }
-                    setShowGameOverPopup(true);
-                }
-                return;
-            }
-
             setGameRoom(roomData);
 
             if (!gameSet && roomData.gameSetId) {
@@ -147,10 +136,6 @@ export default function GamePage() {
                  toast({ variant: 'destructive', title: '오류', description: '게임 세트를 찾을 수 없습니다.' });
                  router.push('/dashboard');
               }
-            }
-
-            if (roomData.mysteryBoxEnabled && !roomData.isMysterySettingDone && user?.uid === roomData.hostId && roomData.joinType === 'remote') {
-                setShowMysterySettings(true);
             }
         } else {
             toast({ variant: 'destructive', title: '오류', description: '게임방을 찾을 수 없습니다.' });
@@ -169,7 +154,7 @@ export default function GamePage() {
     return () => {
       unsubscribe();
     };
-  }, [gameRoomId, router, toast, user, gameSet, showGameOverPopup, finalScores.length]);
+  }, [gameRoomId, router, toast, user, gameSet]);
   
   // Update turn status when gameRoom or user changes
   useEffect(() => {
@@ -218,19 +203,22 @@ export default function GamePage() {
   const finishGame = async () => {
     if (!gameRoom || gameRoom.status === 'finished') return;
     
-    // Optimistically set room status to avoid re-triggering
-    setGameRoom(prev => prev ? { ...prev, status: 'finished' } : null);
-
     try {
         const result = await updateScores({ gameRoomId: gameRoom.id });
         if(result.success && result.players) {
             setFinalScores(result.players);
-            setShowGameOverPopup(true);
         } else {
+             // Fallback to client-side calculation on error
+            setFinalScores(calculateScoresFromLogs(gameRoom));
             toast({ variant: 'destructive', title: '오류', description: `게임 종료 처리 중 오류가 발생했습니다: ${result.message}`});
         }
+        setShowGameOverPopup(true);
+
     } catch (error: any) {
         console.error("Error finishing game: ", error);
+        // Fallback to client-side calculation on error
+        setFinalScores(calculateScoresFromLogs(gameRoom));
+        setShowGameOverPopup(true);
         toast({ variant: 'destructive', title: '오류', description: `게임 종료 처리 중 오류가 발생했습니다: ${error.message}`});
     }
   };
@@ -257,12 +245,11 @@ export default function GamePage() {
         
       } else { // Mystery Box
         if (!gameRoom) return;
-
-        const newGameState = { ...gameRoom.gameState, [block.id]: 'answered' as const };
-
-        const updatedRoom = { ...gameRoom, gameState: newGameState };
-        setGameRoom(updatedRoom);
         
+        const newGameState = { ...gameRoom.gameState, [block.id]: 'answered' as const };
+        
+        setGameRoom(prev => prev ? ({ ...prev, gameState: newGameState }) : null);
+
         const effects = gameRoom?.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
         if (effects.length === 0) {
             toast({ title: '이런!', description: '아무 일도 일어나지 않았습니다. 설정된 미스터리 효과가 없습니다.' });
@@ -316,7 +303,7 @@ export default function GamePage() {
     }
 
     if (gameRoom.joinType === 'local') {
-        const playerUIDs = Object.keys(gameRoom.players);
+        const playerUIDs = gameRoom.playerUIDs || Object.keys(gameRoom.players);
         if (playerUIDs.length === 0) return;
         const currentTurnIndex = playerUIDs.indexOf(gameRoom.currentTurn);
         const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
@@ -368,7 +355,7 @@ export default function GamePage() {
             answerLogs: newAnswerLogs,
             gameState: newGameState,
         };
-
+        
         setGameRoom(updatedRoomState);
 
         const updatedPlayers = calculateScoresFromLogs(updatedRoomState);
@@ -451,9 +438,21 @@ export default function GamePage() {
 
         if (gameRoom.joinType === 'local') {
             const newAnswerLogs = [...(gameRoom.answerLogs || []), ...logsToPush];
+            
+            // This is where the mystery box's 'answered' state is set
+            const blockId = blocks.find(b => b.type === 'mystery' && !gameRoom.gameState[b.id])?.id;
+            const newGameState = {...gameRoom.gameState};
+            if(blockId !== undefined) {
+                const currentMysteryBlock = blocks.find(b => b.isFlipping);
+                if (currentMysteryBlock) {
+                    newGameState[currentMysteryBlock.id] = 'answered';
+                }
+            }
+
             const updatedRoomState: GameRoom = {
                 ...gameRoom,
                 answerLogs: newAnswerLogs,
+                gameState: newGameState
             };
 
             setGameRoom(updatedRoomState);
@@ -516,6 +515,10 @@ export default function GamePage() {
     const isOpened = gameRoom.gameState[block.id] === 'answered';
     return isTurnRestricted || isOpened || block.isFlipping;
   };
+  
+  const scoreboardPlayers = gameRoom.playerUIDs 
+    ? gameRoom.playerUIDs.map(uid => players.find(p => p.uid === uid)).filter((p): p is Player => !!p)
+    : players;
 
   const winner = finalScores.length > 0 ? finalScores[0] : null;
 
@@ -587,14 +590,14 @@ export default function GamePage() {
                   <h2 className="font-headline text-xl font-bold text-center">스코어보드</h2>
               </div>
               <div className="flex-grow p-4 space-y-4 overflow-y-auto">
-                  {players.map((player, index) => (
+                  {scoreboardPlayers.map((player, index) => (
                       <div key={player.uid} className={cn(
                           "p-3 rounded-lg border-2 transition-all", 
                           player.uid === gameRoom?.currentTurn ? 'border-primary shadow-lg bg-primary/10' : 'border-transparent'
                       )}>
                         <div className="flex items-center gap-3">
                               <div className="font-bold text-lg w-6 text-center text-muted-foreground">
-                                  {index === 0 ? <Crown className="w-5 h-5 mx-auto text-yellow-500 fill-yellow-400" /> : index + 1}
+                                  {index === 0 && player.score > 0 ? <Crown className="w-5 h-5 mx-auto text-yellow-500 fill-yellow-400" /> : index + 1}
                               </div>
                               <Image src={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageUrl || ''} alt={player.nickname} width={40} height={40} className="rounded-full" data-ai-hint={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageHint} />
                               <div className="flex-grow">
