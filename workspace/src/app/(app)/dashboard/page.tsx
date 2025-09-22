@@ -152,11 +152,18 @@ export default function DashboardPage() {
   };
 
   const handleJoinGame = async () => {
-    toast({
-      variant: 'destructive',
-      title: '알림',
-      description: '아직 개발 중입니다.',
-    });
+    if (!joinCode) {
+      toast({ variant: 'destructive', title: '오류', description: '참여 코드를 입력해주세요.' });
+      return;
+    }
+    const roomRef = doc(db, 'game-rooms', joinCode.toUpperCase());
+    const roomSnap = await getDoc(roomRef);
+
+    if (roomSnap.exists()) {
+      router.push(`/game/${joinCode.toUpperCase()}/lobby`);
+    } else {
+      toast({ variant: 'destructive', title: '오류', description: '존재하지 않는 게임방입니다.' });
+    }
   };
 
 
@@ -209,9 +216,8 @@ export default function DashboardPage() {
                   placeholder="참여 코드 입력" 
                   value={joinCode}
                   onChange={(e) => setJoinCode(e.target.value)}
-                  disabled
                 />
-                <Button onClick={handleJoinGame} disabled>
+                <Button onClick={handleJoinGame}>
                   참여
                 </Button>
               </div>
@@ -294,7 +300,10 @@ export default function DashboardPage() {
           </Card>
 
           {loading ? (
-            <p>게임 세트를 불러오는 중...</p>
+            <div className="text-center py-12">
+              <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+              <p className="mt-2 text-muted-foreground">게임 세트를 불러오는 중...</p>
+            </div>
           ) : filteredGameSets.length === 0 ? (
               <div className="text-center py-12 border-2 border-dashed rounded-lg">
                   <p className="text-muted-foreground">{allGameSets.length > 0 ? '검색 결과가 없습니다.' : '아직 만들어진 게임 세트가 없습니다.'}</p>
@@ -307,10 +316,10 @@ export default function DashboardPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredGameSets.map((set) => {
-                const isCreator = user && set.creatorId === user.uid;
+                const isCreator = user ? set.creatorId === user.uid : false;
                 
                 const createRoomButton = (
-                    <Button asChild={!(isCreator === true)} size="sm" disabled={isCreator === true}>
+                    <Button asChild={!isCreator} size="sm" disabled={isCreator}>
                         {isCreator ? (
                             <span><Users className="mr-2 h-4 w-4" />방 만들기</span>
                         ) : (

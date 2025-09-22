@@ -140,6 +140,10 @@ export default function GamePage() {
             const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
             setGameRoom(roomData);
 
+            if (roomData.status === 'playing' && roomData.mysteryBoxEnabled && !roomData.isMysterySettingDone && roomData.hostId === user?.uid) {
+                setShowMysterySettings(true);
+            }
+
             if (!gameSet && roomData.gameSetId) {
               const setRef = doc(db, 'game-sets', roomData.gameSetId);
               const setSnap = await getDoc(setRef);
@@ -169,7 +173,7 @@ export default function GamePage() {
       unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameRoomId, router, toast]);
+  }, [gameRoomId, router, toast, user]);
   
   // Initialize players and turn status from local gameRoom state
   useEffect(() => {
@@ -351,6 +355,7 @@ export default function GamePage() {
     try {
         const roomRef = doc(db, 'game-rooms', gameRoomId as string);
         const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
+        
         const allAnswered = blocks.every(b => newGameState[String(b.id)] === 'answered');
 
         const updatePayload: any = {
@@ -453,6 +458,7 @@ export default function GamePage() {
 
         const roomRef = doc(db, 'game-rooms', gameRoomId);
         const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [blockId]: 'answered'};
+
         const allAnswered = blocks.every(b => newGameState[String(b.id)] === 'answered');
 
         const updatePayload: any = {
