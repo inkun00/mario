@@ -77,7 +77,6 @@ export default async function LeaderboardPage() {
                       <div className="flex items-center gap-3">
                         <Avatar className="flex items-center justify-center bg-secondary">
                           <span className="text-xl">{levelInfo.icon}</span>
-                          <AvatarFallback>{displayName.substring(0, 2)}</AvatarFallback>
                         </Avatar>
                         <span className="font-medium">{displayName}</span>
                       </div>
