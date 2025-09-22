@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog } from '@/lib/types';
@@ -217,7 +217,9 @@ export default function GamePage() {
     if (isClickDisabled(block)) return;
     
     const newGameState = { ...gameRoom!.gameState, [block.id]: 'flipping' as const };
-    setGameRoom(prev => prev ? ({ ...prev, gameState: newGameState }) : null);
+    
+    const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+    updateDoc(roomRef, { gameState: newGameState });
 
     setTimeout(() => {
       if (block.type === 'question' && block.question) {
@@ -246,6 +248,9 @@ export default function GamePage() {
           
           const newGameState = { ...gameRoom.gameState, [blockId]: 'answered' as const };
           const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
+
+          const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+          updateDoc(roomRef, { gameState: newGameState });
 
           if (allAnswered) {
               finishGame(players);
@@ -298,7 +303,11 @@ export default function GamePage() {
         const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
         const nextTurnUID = playerUIDs[nextTurnIndex];
         
-        setGameRoom(prev => prev ? ({ ...prev, currentTurn: nextTurnUID, gameState: currentGameState }) : null);
+        const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+        updateDoc(roomRef, {
+            currentTurn: nextTurnUID,
+            gameState: currentGameState
+        });
     }
   }
 
@@ -334,22 +343,17 @@ export default function GamePage() {
         pointsAwarded: pointsToAward,
         timestamp: new Date(),
     };
-
-    if (gameRoom.joinType === 'local') {
-        const newAnswerLogs = [...(gameRoom.answerLogs || []), answerLog];
+    
+    try {
+        const roomRef = doc(db, 'game-rooms', gameRoomId as string);
         const newGameState = {...gameRoom.gameState, [currentQuestionInfo.blockId]: 'answered' as 'answered'};
 
-        const updatedRoomState: GameRoom = {
-            ...gameRoom,
-            answerLogs: newAnswerLogs,
-            gameState: newGameState,
-        };
-        
-        setGameRoom(updatedRoomState);
+        await updateDoc(roomRef, {
+            answerLogs: arrayUnion(answerLog),
+            gameState: newGameState
+        });
 
-        const updatedPlayers = calculateScoresFromLogs(updatedRoomState, players);
-        setPlayers(updatedPlayers);
-
+        // The onSnapshot will update the local gameRoom, triggering re-calculation of scores
         if (isCorrect) {
             toast({
                 title: '정답입니다!',
@@ -368,13 +372,14 @@ export default function GamePage() {
 
         const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
         if (allAnswered) {
-            finishGame(updatedPlayers);
+            const finalPlayers = calculateScoresFromLogs(gameRoom, players);
+            finishGame(finalPlayers);
         } else {
             handleNextTurn(newGameState);
         }
 
-    } else {
-         toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});
+    } catch(error) {
+         toast({variant: 'destructive', title: '오류', description: '답변 제출 중 오류가 발생했습니다.'});
          setIsSubmitting(false);
     }
   };
@@ -440,29 +445,21 @@ export default function GamePage() {
                 break;
         }
 
-        if (gameRoom.joinType === 'local') {
-            const newAnswerLogs = [...(gameRoom.answerLogs || []), ...logsToPush];
-            const newGameState = {...gameRoom.gameState, [blockId]: 'answered'};
+        const roomRef = doc(db, 'game-rooms', gameRoomId);
+        const newGameState = {...gameRoom.gameState, [blockId]: 'answered'};
+        
+        // Use arrayUnion to push multiple logs
+        await updateDoc(roomRef, {
+            answerLogs: arrayUnion(...logsToPush),
+            gameState: newGameState
+        });
 
-            const updatedRoomState: GameRoom = {
-                ...gameRoom,
-                answerLogs: newAnswerLogs,
-                gameState: newGameState
-            };
-
-            setGameRoom(updatedRoomState);
-
-            const updatedPlayers = calculateScoresFromLogs(updatedRoomState, players);
-            setPlayers(updatedPlayers);
-            
-            const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
-            if (allAnswered) {
-                finishGame(updatedPlayers);
-            } else {
-                handleNextTurn(newGameState);
-            }
+        const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
+        if (allAnswered) {
+             const finalPlayers = calculateScoresFromLogs(gameRoom, players);
+             finishGame(finalPlayers);
         } else {
-             toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});
+            handleNextTurn(newGameState);
         }
 
     } catch (error: any) {
@@ -478,18 +475,14 @@ export default function GamePage() {
       if (!gameRoomId || !gameRoom) return;
       setIsSubmitting(true);
       try {
-          if (gameRoom.joinType === 'local') {
-              setGameRoom(prev => prev ? ({
-                  ...prev,
-                  enabledMysteryEffects: selectedEffects,
-                  isMysterySettingDone: true,
-              }) : null);
-          } else {
-             // Remote game logic - not fully implemented
-             toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});
-          }
-          setShowMysterySettings(false);
-          toast({ title: '성공', description: '미스터리 박스 설정이 저장되었습니다.'});
+        const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+        await updateDoc(roomRef, {
+            enabledMysteryEffects: selectedEffects,
+            isMysterySettingDone: true
+        });
+
+        setShowMysterySettings(false);
+        toast({ title: '성공', description: '미스터리 박스 설정이 저장되었습니다.'});
       } catch (error) {
           console.error("Error saving mystery settings:", error);
           toast({ variant: 'destructive', title: '오류', description: '설정 저장 중 오류가 발생했습니다.'});
@@ -512,11 +505,11 @@ export default function GamePage() {
     
     // For local games, it's always "your turn".
     if (gameRoom.joinType === 'local') {
-        return false;
+        return !!currentQuestionInfo || !!showMysteryBoxPopup;
     }
     
     // For remote games, check turn.
-    return !isMyTurn;
+    return !isMyTurn || !!currentQuestionInfo || !!showMysteryBoxPopup;
   };
   
   if (isLoading || loadingUser || !gameRoom || !gameSet || blocks.length === 0) {
