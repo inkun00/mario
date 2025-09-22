@@ -30,7 +30,6 @@ import {
   Quote,
   MessageSquare,
   Users,
-albert_einstein,
   ClipboardList,
   CheckCircle,
   TrendingUp,
@@ -65,14 +64,14 @@ const levels: Omit<LevelInfo, 'level' | 'xpThreshold'>[] = [
   { title: '배움의 길잡이', icon: Map },
   { title: '성실한 기록가', icon: ClipboardList },
   { title: '지식의 탐험가', icon: Compass },
-im{ title: '노력의 별', icon: Star },
+  { title: '노력의 별', icon: Star },
   { title: '열정의 불꽃', icon: Flame },
   { title: '성장의 로켓', icon: Rocket },
   { title: '집중하는 학생', icon: Target },
   { title: '문제 해결사', icon: Puzzle },
   { title: '실험하는 과학자', icon: FlaskConical },
   { title: '논리의 탐구자', icon: Brain },
-  { title's_wizards_of_knowledge': '지식의 마법사', icon: Sparkles },
+  { title: '지식의 마법사', icon: Sparkles },
   { title: '데이터 분석가', icon: BarChart },
   { title: '구조 설계자', icon: Atom },
   { title: '정보 수집가', icon: Library },
@@ -110,7 +109,7 @@ im{ title: '노력의 별', icon: Star },
   { title: '지식의 수호자', icon: Key },
   { title: '깨달음의 순간', icon: Lightbulb },
   { title: '논리의 마스터', icon: BrainCircuit },
-};
+];
 
 // Fill up to 100 levels
 const baseLevelCount = levels.length;
