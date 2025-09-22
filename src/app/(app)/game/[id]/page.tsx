@@ -58,23 +58,21 @@ const shuffleArray = <T,>(array: T[]): T[] => {
   return newArray;
 };
 
-const calculateScoresFromLogs = (room: GameRoom): Player[] => {
-    if (!room.players) return [];
-    
+const calculateScoresFromLogs = (players: Record<string, Player>, answerLogs: AnswerLog[]): Player[] => {
+    if (!players) return [];
+
     const scores: Record<string, number> = {};
-    for (const uid in room.players) {
+    for (const uid in players) {
         scores[uid] = 0;
     }
 
-    room.answerLogs?.forEach(log => {
+    answerLogs?.forEach(log => {
         if (log.userId && log.pointsAwarded) {
              scores[log.userId] = (scores[log.userId] || 0) + log.pointsAwarded;
         }
     });
 
-    const playerList = room.playerUIDs 
-        ? room.playerUIDs.map(uid => room.players[uid]).filter(Boolean) as Player[]
-        : Object.values(room.players);
+    const playerList = Object.values(players);
         
     const updatedPlayers = playerList.map(p => ({
         ...p,
@@ -101,7 +99,7 @@ export default function GamePage() {
   const [showHint, setShowHint] = useState(false);
   const [userAnswer, setUserAnswer] = useState('');
   
-  const [isMyTurn, setIsMyTurn] = useState(false);
+  const [isMyTurn, setIsMyTurn] = useState(true);
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -164,6 +162,7 @@ export default function GamePage() {
   useEffect(() => {
     if (!gameRoom || loadingUser) return;
     
+    // Set initial players only once
     if (players.length === 0 && gameRoom.players) {
         const initialPlayers = gameRoom.playerUIDs 
             ? gameRoom.playerUIDs.map(uid => gameRoom.players[uid]).filter(Boolean) as Player[]
@@ -211,20 +210,17 @@ export default function GamePage() {
   const finishGame = () => {
     if (!gameRoom || gameRoom.status === 'finished') return;
   
-    // Immediately set final scores from the current client state
+    // 1. Set final scores from the current client state
     setFinalScores(players);
+    
+    // 2. Show the game over popup immediately
     setShowGameOverPopup(true);
   
-    // In the background, send the final scores to the server to update XP.
+    // 3. In the background, send the final scores to the server to update XP.
     // The result of this operation does not affect the UI anymore.
     updateScores({ gameRoomId: gameRoom.id as string }).catch(error => {
       console.error("Error updating scores in background:", error);
       // Optional: Show a subtle toast that a background sync failed, but don't block the user.
-      toast({
-        variant: "destructive",
-        title: "백그라운드 동기화 실패",
-        description: "점수 기록 중 오류가 발생했지만, 게임은 정상적으로 종료되었습니다."
-      });
     });
   };
   
@@ -260,8 +256,7 @@ export default function GamePage() {
           
           const newGameState = { ...gameRoom.gameState, [blockId]: 'answered' as const };
 
-          const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
-          if (allAnswered) {
+          if (blocks.every(b => newGameState[b.id] === 'answered')) {
               finishGame();
           } else {
               handleNextTurn(newGameState);
@@ -361,7 +356,7 @@ export default function GamePage() {
         
         setGameRoom(updatedRoomState);
 
-        const updatedPlayers = calculateScoresFromLogs(updatedRoomState);
+        const updatedPlayers = calculateScoresFromLogs(updatedRoomState.players, newAnswerLogs);
         setPlayers(updatedPlayers);
 
         if (isCorrect) {
@@ -421,7 +416,7 @@ export default function GamePage() {
         const logsToPush: AnswerLog[] = [];
         let pointsChange = 0;
         
-        const currentPlayersState = calculateScoresFromLogs(gameRoom);
+        const currentPlayersState = calculateScoresFromLogs(gameRoom.players, gameRoom.answerLogs || []);
 
         switch (mysteryBoxEffect.type) {
             case 'bonus':
@@ -466,7 +461,7 @@ export default function GamePage() {
 
             setGameRoom(updatedRoomState);
 
-            const updatedPlayers = calculateScoresFromLogs(updatedRoomState);
+            const updatedPlayers = calculateScoresFromLogs(updatedRoomState.players, newAnswerLogs);
             setPlayers(updatedPlayers);
             
             const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
@@ -497,7 +492,7 @@ export default function GamePage() {
                   ...prev,
                   enabledMysteryEffects: selectedEffects,
                   isMysterySettingDone: true,
-              } : null));
+              }) : null);
           } else {
              // Remote game logic - not fully implemented
              toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});
@@ -517,17 +512,18 @@ export default function GamePage() {
   const currentQuestion = currentQuestionInfo?.question;
   
   const isClickDisabled = (block: GameBlock) => {
-      if (!gameRoom) return true;
-      if (gameRoom.status === 'finished' || block.isFlipping || gameRoom.gameState[block.id] === 'answered') {
-          return true;
-      }
-      
-      if (gameRoom.joinType === 'local') {
-          return false;
-      }
-      
-      // For remote games
-      return !isMyTurn;
+    if (!gameRoom) return true;
+    if (gameRoom.status === 'finished' || block.isFlipping || gameRoom.gameState[block.id] === 'answered') {
+        return true;
+    }
+    
+    // For local games, it's always "your turn".
+    if (gameRoom.joinType === 'local') {
+        return false;
+    }
+    
+    // For remote games, check turn.
+    return !isMyTurn;
   };
   
   if (isLoading || loadingUser || !gameRoom || !gameSet || blocks.length === 0) {
