@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -108,6 +109,7 @@ export function Header() {
                     {levelInfo ? (
                         <span className="text-2xl">{levelInfo.icon}</span>
                     ) : (
+                      <>
                         <AvatarImage
                         src={
                             user.photoURL ||
@@ -115,10 +117,11 @@ export function Header() {
                         }
                         alt={user.displayName || 'User'}
                         />
+                        <AvatarFallback>
+                          {getInitials(user.displayName)}
+                        </AvatarFallback>
+                      </>
                     )}
-                    <AvatarFallback>
-                      {getInitials(user.displayName)}
-                    </AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
