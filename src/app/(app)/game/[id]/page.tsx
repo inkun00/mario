@@ -176,8 +176,7 @@ export default function GamePage() {
     } else {
         setIsMyTurn(true);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameRoom, user, loadingUser]);
+  }, [gameRoom, user, loadingUser, players]);
 
 
   // Initialize game blocks once
@@ -209,26 +208,24 @@ export default function GamePage() {
     setBlocks(shuffledBlocks);
   }, [gameSet, gameRoom, blocks.length]);
 
-  const finishGame = async () => {
+  const finishGame = () => {
     if (!gameRoom || gameRoom.status === 'finished') return;
-
-    try {
-        const result = await updateScores({ gameRoomId: gameRoom.id });
-        if(result.success && result.players) {
-            setFinalScores(result.players);
-        } else {
-            // Fallback to client-side calculation if server flow fails
-            setFinalScores(calculateScoresFromLogs(gameRoom));
-            toast({ variant: 'destructive', title: '오류', description: `게임 종료 처리 중 오류가 발생했습니다: ${result.message}`});
-        }
-        setShowGameOverPopup(true);
-
-    } catch (error: any) {
-        console.error("Error finishing game: ", error);
-        setFinalScores(calculateScoresFromLogs(gameRoom)); // Fallback
-        setShowGameOverPopup(true);
-        toast({ variant: 'destructive', title: '오류', description: `게임 종료 처리 중 오류가 발생했습니다: ${error.message}`});
-    }
+  
+    // Immediately set final scores from the current client state
+    setFinalScores(players);
+    setShowGameOverPopup(true);
+  
+    // In the background, send the final scores to the server to update XP.
+    // The result of this operation does not affect the UI anymore.
+    updateScores({ gameRoomId: gameRoom.id as string }).catch(error => {
+      console.error("Error updating scores in background:", error);
+      // Optional: Show a subtle toast that a background sync failed, but don't block the user.
+      toast({
+        variant: "destructive",
+        title: "백그라운드 동기화 실패",
+        description: "점수 기록 중 오류가 발생했지만, 게임은 정상적으로 종료되었습니다."
+      });
+    });
   };
   
   const handleBlockClick = (block: GameBlock) => {
@@ -262,6 +259,7 @@ export default function GamePage() {
           toast({ title: '이런!', description: '아무 일도 일어나지 않았습니다. 설정된 미스터리 효과가 없습니다.' });
           
           const newGameState = { ...gameRoom.gameState, [blockId]: 'answered' as const };
+
           const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
           if (allAnswered) {
               finishGame();
@@ -495,11 +493,11 @@ export default function GamePage() {
       setIsSubmitting(true);
       try {
           if (gameRoom.joinType === 'local') {
-              setGameRoom(prev => prev ? {
+              setGameRoom(prev => prev ? ({
                   ...prev,
                   enabledMysteryEffects: selectedEffects,
                   isMysterySettingDone: true,
-              } : null);
+              } : null));
           } else {
              // Remote game logic - not fully implemented
              toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});

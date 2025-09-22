@@ -28,18 +28,9 @@ const UpdateScoresInputSchema = z.object({
 });
 export type UpdateScoresInput = z.infer<typeof UpdateScoresInputSchema>;
 
-const PlayerScoreSchema = z.object({
-  uid: z.string(),
-  nickname: z.string(),
-  score: z.number(),
-  avatarId: z.string(),
-  isHost: z.boolean().optional(),
-});
-
 const UpdateScoresOutputSchema = z.object({
   success: z.boolean().describe("Whether the score update was successful."),
   message: z.string().describe("A summary of the operation."),
-  players: z.array(PlayerScoreSchema).describe("The final list of players with their calculated scores."),
 });
 export type UpdateScoresOutput = z.infer<typeof UpdateScoresOutputSchema>;
 
@@ -71,7 +62,7 @@ const updateScoresFlow = ai.defineFlow(
       const answerLogs = gameRoom.answerLogs || [];
       
       if (!players || players.length === 0) {
-         return { success: false, message: "No players found in the game room.", players: [] };
+         return { success: false, message: "No players found in the game room." };
       }
       
       // Calculate final scores from answerLogs
@@ -136,13 +127,7 @@ const updateScoresFlow = ai.defineFlow(
       const message = `Successfully updated scores and logs for ${players.length} players.`;
       console.log(message);
       
-      // 4. Prepare final player list with scores for output
-      const finalPlayers = players.map(p => ({
-        ...p,
-        score: finalScores[p.uid] || 0,
-      })).sort((a,b) => b.score - a.score);
-
-      return { success: true, message, players: finalPlayers };
+      return { success: true, message };
 
     } catch (error: any) {
       console.error("Error updating scores in updateScoresFlow:", error);
