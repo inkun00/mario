@@ -145,26 +145,17 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
 
         try {
             const result = await checkUserId({ userId });
-            
-            if (result.exists && result.uid) {
-                // Client-side verification: Cross-check if the UID from the flow actually exists in Firestore.
-                const userRef = doc(db, 'users', result.uid);
-                const userSnap = await getDoc(userRef);
+            console.log("Game Creator UID:", gameSet?.creatorId);
+            console.log("Participant Check Result:", result);
 
-                if (!userSnap.exists()) {
-                    // This is the "ghost UID" case. The flow returned a UID that doesn't exist in our users collection.
-                    console.warn(`Verification failed: Flow returned UID ${result.uid} for ${userId}, but it does not exist in Firestore.`);
-                    toast({ variant: 'destructive', title: '오류', description: `"${userId}" 님을 찾을 수 없습니다.`});
+            if (result.exists && result.uid) {
+                if (gameSet && gameSet.creatorId === result.uid) {
+                    toast({ variant: 'destructive', title: '참여 불가', description: `제작자(${result.nickname})는 자신이 만든 퀴즈에 참여할 수 없습니다.`});
                 } else {
-                    // UID is verified. Now, check if it's the game creator.
-                    if (gameSet && gameSet.creatorId === result.uid) {
-                        toast({ variant: 'destructive', title: '참여 불가', description: `제작자(${result.nickname})는 자신이 만든 퀴즈에 참여할 수 없습니다.`});
-                    } else {
-                        newPlayers[index].confirmed = true;
-                        newPlayers[index].nickname = result.nickname;
-                        newPlayers[index].uid = result.uid;
-                        toast({ title: '성공', description: `"${result.nickname}" 님이 확인되었습니다.`});
-                    }
+                    newPlayers[index].confirmed = true;
+                    newPlayers[index].nickname = result.nickname;
+                    newPlayers[index].uid = result.uid;
+                    toast({ title: '성공', description: `"${result.nickname}" 님이 확인되었습니다.`});
                 }
             } else {
                 toast({ variant: 'destructive', title: '오류', description: `"${userId}" 님을 찾을 수 없습니다.`});
@@ -349,5 +340,3 @@ export default function LobbyPage() {
     </div>
   )
 }
-
-    
