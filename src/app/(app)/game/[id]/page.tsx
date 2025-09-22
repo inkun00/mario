@@ -121,11 +121,22 @@ export default function GamePage() {
         if (docSnap.exists()) {
             const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
             
-            // For local play, we only set the initial state.
-            // Further updates are handled client-side.
-            if (gameRoom && roomData.joinType === 'local') return;
+            if (gameRoom && roomData.joinType === 'local' && roomData.status !== 'finished') return;
 
             setGameRoom(roomData);
+
+            if (roomData.status === 'finished') {
+                if (!showGameOverPopup) {
+                    // Fetch final scores if game is finished
+                    const result = await updateScores({ gameRoomId: roomData.id });
+                    if (result.success && result.players) {
+                        setFinalScores(result.players);
+                        setShowGameOverPopup(true);
+                    }
+                }
+                return;
+            }
+
 
             if (!gameSet && roomData.gameSetId) {
               const setRef = doc(db, 'game-sets', roomData.gameSetId);
@@ -159,11 +170,19 @@ export default function GamePage() {
     return () => {
       unsubscribe();
     };
-  }, [gameRoomId, router, toast, user, gameSet, gameRoom]);
+  }, [gameRoomId, router, toast, user]);
   
   // Update turn status when gameRoom or user changes
   useEffect(() => {
     if (!gameRoom || loadingUser) return;
+
+    if (gameRoom.status === 'finished') {
+        if (!showGameOverPopup) {
+            setFinalScores(calculateScoresFromLogs(gameRoom));
+            setShowGameOverPopup(true);
+        }
+        return;
+    }
 
     if (gameRoom.joinType === 'remote') {
         setIsMyTurn(gameRoom.currentTurn === user?.uid);
@@ -171,10 +190,9 @@ export default function GamePage() {
         setIsMyTurn(true); // Always the user's turn in local mode
     }
 
-    // This will calculate and set player scores on every gameRoom update
     setPlayers(calculateScoresFromLogs(gameRoom));
 
-  }, [gameRoom, user, loadingUser]);
+  }, [gameRoom, user, loadingUser, showGameOverPopup]);
 
 
   // Initialize game blocks
@@ -209,7 +227,6 @@ export default function GamePage() {
   const finishGame = async () => {
     if (!gameRoom || gameRoom.status === 'finished') return;
     
-    // Prevent multiple calls by updating local status first
     setGameRoom(prev => prev ? { ...prev, status: 'finished' } : null);
 
     try {
@@ -247,8 +264,9 @@ export default function GamePage() {
         setUserAnswer('');
         
       } else { // Mystery Box
+        const newGameState = { ...gameRoom!.gameState, [block.id]: 'answered' as 'answered'};
+
         if (gameRoom?.joinType === 'local' && gameRoom) {
-            const newGameState = { ...gameRoom.gameState, [block.id]: 'answered' as 'answered'};
             const updatedRoom = { ...gameRoom, gameState: newGameState };
             setGameRoom(updatedRoom);
         }
@@ -256,7 +274,7 @@ export default function GamePage() {
         if (effects.length === 0) {
             toast({ title: '이런!', description: '아무 일도 일어나지 않았습니다. 설정된 미스터리 효과가 없습니다.' });
             if (gameRoom?.joinType === 'local') {
-                handleNextTurn(gameRoom.gameState);
+                handleNextTurn(newGameState);
             }
             return;
         }
@@ -300,12 +318,9 @@ export default function GamePage() {
     if (!gameRoom || !gameSet) return;
     
     if (gameRoom.joinType === 'local') {
-        const totalQuestions = gameSet.questions.length;
-        const totalMysteries = gameRoom.mysteryBoxEnabled ? Math.round(totalQuestions * 0.3) : 0;
-        const totalBlocks = totalQuestions + totalMysteries;
-        const answeredCount = Object.values(currentGameState).filter(v => v === 'answered').length;
+        const allAnswered = blocks.every(b => currentGameState[b.id] === 'answered');
 
-        if (answeredCount >= totalBlocks && totalBlocks > 0) {
+        if (allAnswered && blocks.length > 0) {
             finishGame();
             return;
         }
@@ -356,7 +371,7 @@ export default function GamePage() {
         const newAnswerLogs = [...(gameRoom.answerLogs || []), answerLog];
         const newGameState = {...gameRoom.gameState, [currentQuestionInfo.blockId]: 'answered' as 'answered'};
 
-        const updatedRoomState = {
+        const updatedRoomState: GameRoom = {
             ...gameRoom,
             answerLogs: newAnswerLogs,
             gameState: newGameState,
@@ -386,7 +401,6 @@ export default function GamePage() {
     } else {
          toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});
          setIsSubmitting(false);
-         // Here you would call a server flow to log the answer and advance the turn
     }
   };
 
@@ -444,7 +458,7 @@ export default function GamePage() {
         }
 
         if (gameRoom.joinType === 'local') {
-            const updatedRoomState = {
+            const updatedRoomState: GameRoom = {
                 ...gameRoom,
                 answerLogs: [...(gameRoom.answerLogs || []), ...logsToPush],
             };
@@ -741,13 +755,13 @@ export default function GamePage() {
 
       {/* Game Over Popup */}
       <Dialog open={showGameOverPopup}>
-          <DialogContent className="max-w-md text-center">
+          <DialogContent className="max-w-md text-center" aria-describedby="game-over-description">
               <DialogHeader>
                   <div className="flex flex-col items-center gap-2">
                       <Crown className="w-20 h-20 text-yellow-400 fill-yellow-300" />
                       <DialogTitle className="font-headline text-3xl">게임 종료!</DialogTitle>
                       {winner && (
-                          <DialogDescription className="text-base">
+                          <DialogDescription id="game-over-description" className="text-base">
                             우승자는 <span className="font-bold text-primary">{winner.nickname}</span> 님 입니다!
                           </DialogDescription>
                       )}
@@ -774,3 +788,5 @@ export default function GamePage() {
     </>
   );
 }
+
+    
