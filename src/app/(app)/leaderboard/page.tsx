@@ -1,3 +1,4 @@
+
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Card,
@@ -65,6 +66,7 @@ export default async function LeaderboardPage() {
               {leaderboardData.map((player, index) => {
                 const rank = index + 1;
                 const levelInfo = getLevelInfo(player.xp);
+                const nickname = player.nickname || '이름없음';
 
                 return (
                   <TableRow key={player.uid} className={rank <= 3 ? 'bg-secondary/50' : ''}>
@@ -74,10 +76,10 @@ export default async function LeaderboardPage() {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar>
-                          <AvatarImage src={`https://picsum.photos/seed/${player.uid}/100/100`} alt={player.nickname} />
-                          <AvatarFallback>{player.nickname.substring(0, 2)}</AvatarFallback>
+                          <AvatarImage src={`https://picsum.photos/seed/${player.uid}/100/100`} alt={nickname} />
+                          <AvatarFallback>{nickname.substring(0, 2)}</AvatarFallback>
                         </Avatar>
-                        <span className="font-medium">{player.nickname}</span>
+                        <span className="font-medium">{nickname}</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-center font-medium">Lv. {levelInfo.level}</TableCell>
