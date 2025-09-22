@@ -62,7 +62,7 @@ const checkUserIdFlow = ai.defineFlow(
         // If the Firestore query fails (e.g., index issue), rethrow the error
         // so the client can display a more specific message.
         // A common error is "The query requires an index...".
-        if (e.message.includes('requires an index')) {
+        if (e.code === 'FAILED_PRECONDITION' && e.message.includes('index')) {
              throw new Error('Firestore index is missing. Please create a single-field index on the "email" field in the "users" collection.');
         }
         throw e;
