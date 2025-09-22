@@ -114,33 +114,17 @@ export default function GamePage() {
   // Fetch GameRoom and GameSet data
   useEffect(() => {
     if (!gameRoomId) return;
-    if (gameRoom) return; // Only run once to get initial data for local mode
 
     const roomRef = doc(db, 'game-rooms', gameRoomId as string);
-    
-    // For 'remote' mode, we listen for real-time updates.
-    // For 'local' mode, we might just fetch once and then manage state locally.
-    const setupListener = async () => {
-        const docSnap = await getDoc(roomRef);
-        if (docSnap.exists()) {
-            const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
-             
-            if (roomData.joinType === 'remote') {
-                 const unsubscribe = onSnapshot(roomRef, handleSnapshot);
-                 return unsubscribe;
-            } else { // Local game, fetch once
-                handleSnapshot(docSnap);
-            }
-        } else {
-            toast({ variant: 'destructive', title: '오류', description: '게임방을 찾을 수 없습니다.' });
-            router.push('/dashboard');
-        }
-        setIsLoading(false);
-    }
 
     const handleSnapshot = async (docSnap: any) => {
         if (docSnap.exists()) {
             const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
+            
+            // For local play, we only set the initial state.
+            // Further updates are handled client-side.
+            if (gameRoom && roomData.joinType === 'local') return;
+
             setGameRoom(roomData);
 
             if (!gameSet && roomData.gameSetId) {
@@ -155,27 +139,42 @@ export default function GamePage() {
               }
             }
 
-            if (roomData.mysteryBoxEnabled && !roomData.isMysterySettingDone && user?.uid === roomData.hostId) {
+            if (roomData.mysteryBoxEnabled && !roomData.isMysterySettingDone && user?.uid === roomData.hostId && roomData.joinType === 'remote') {
                 setShowMysterySettings(true);
             }
+        } else {
+            toast({ variant: 'destructive', title: '오류', description: '게임방을 찾을 수 없습니다.' });
+            router.push('/dashboard');
         }
+        setIsLoading(false);
     }
-
-    const unsubscribePromise = setupListener();
+    
+    const unsubscribe = onSnapshot(roomRef, handleSnapshot, (error) => {
+        console.error("Error fetching game room: ", error);
+        toast({ variant: 'destructive', title: '오류', description: '게임방 정보를 불러오는 중 오류가 발생했습니다.' });
+        setIsLoading(false);
+        router.push('/dashboard');
+    });
 
     return () => {
-      unsubscribePromise.then(unsub => {
-          if (unsub) unsub();
-      })
+      unsubscribe();
     };
-  }, [gameRoomId, router, toast, user, gameRoom, gameSet]);
+  }, [gameRoomId, router, toast, user, gameSet, gameRoom]);
   
   // Update turn status when gameRoom or user changes
   useEffect(() => {
-    if (!gameRoom || !user) return;
-    setIsMyTurn(gameRoom.currentTurn === user.uid);
+    if (!gameRoom || loadingUser) return;
+
+    if (gameRoom.joinType === 'remote') {
+        setIsMyTurn(gameRoom.currentTurn === user?.uid);
+    } else {
+        setIsMyTurn(true); // Always the user's turn in local mode
+    }
+
+    // This will calculate and set player scores on every gameRoom update
     setPlayers(calculateScoresFromLogs(gameRoom));
-  }, [gameRoom, user]);
+
+  }, [gameRoom, user, loadingUser]);
 
 
   // Initialize game blocks
@@ -197,7 +196,7 @@ export default function GamePage() {
             id: gameSet.questions.length + i,
             type: 'mystery',
             isFlipping: false,
-            isOpened: !!gameRoom.gameState[gameSet.questions.length + i] // Check if mystery box is opened
+            isOpened: !!gameRoom.gameState[gameSet.questions.length + i]
         }));
     }
     
@@ -210,7 +209,7 @@ export default function GamePage() {
   const finishGame = async () => {
     if (!gameRoom || gameRoom.status === 'finished') return;
     
-    // Prevent multiple calls
+    // Prevent multiple calls by updating local status first
     setGameRoom(prev => prev ? { ...prev, status: 'finished' } : null);
 
     try {
@@ -248,7 +247,7 @@ export default function GamePage() {
         setUserAnswer('');
         
       } else { // Mystery Box
-        if (gameRoom) {
+        if (gameRoom?.joinType === 'local' && gameRoom) {
             const newGameState = { ...gameRoom.gameState, [block.id]: 'answered' as 'answered'};
             const updatedRoom = { ...gameRoom, gameState: newGameState };
             setGameRoom(updatedRoom);
@@ -256,16 +255,20 @@ export default function GamePage() {
         const effects = gameRoom?.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
         if (effects.length === 0) {
             toast({ title: '이런!', description: '아무 일도 일어나지 않았습니다. 설정된 미스터리 효과가 없습니다.' });
-            handleNextTurn();
+            if (gameRoom?.joinType === 'local') {
+                handleNextTurn(gameRoom.gameState);
+            }
             return;
         }
         
-        const randomEffect = effects[Math.floor(Math.random() * effects.length)];
-        let effectDetails: MysteryEffect;
+        const randomEffectType = effects[Math.floor(Math.random() * effects.length)];
+        const originalEffect = allMysteryEffects.find(e => e.type === randomEffectType);
+        if (!originalEffect) return;
 
+        let effectDetails: MysteryEffect;
         const randomPoints = (Math.floor(Math.random() * 5) + 1) * 10;
 
-        switch (randomEffect) {
+        switch (randomEffectType) {
             case 'bonus':
                 effectDetails = { type: 'bonus', title: '점수 보너스!', description: `축하합니다! ${randomPoints}점을 추가로 획득합니다.`, icon: <Star className="w-16 h-16 text-yellow-400"/>, value: randomPoints };
                 break;
@@ -293,25 +296,27 @@ export default function GamePage() {
     setCurrentPoints(prev => Math.floor(prev / 2));
   };
 
-  const handleNextTurn = () => {
+  const handleNextTurn = (currentGameState: GameRoom['gameState']) => {
     if (!gameRoom || !gameSet) return;
     
-    const totalQuestions = gameSet.questions.length;
-    const totalMysteries = gameRoom.mysteryBoxEnabled ? Math.round(totalQuestions * 0.3) : 0;
-    const totalBlocks = totalQuestions + totalMysteries;
-    const answeredCount = Object.values(gameRoom.gameState).filter(v => v === 'answered').length;
+    if (gameRoom.joinType === 'local') {
+        const totalQuestions = gameSet.questions.length;
+        const totalMysteries = gameRoom.mysteryBoxEnabled ? Math.round(totalQuestions * 0.3) : 0;
+        const totalBlocks = totalQuestions + totalMysteries;
+        const answeredCount = Object.values(currentGameState).filter(v => v === 'answered').length;
 
-    if (answeredCount >= totalBlocks && totalBlocks > 0) {
-        finishGame();
-        return;
+        if (answeredCount >= totalBlocks && totalBlocks > 0) {
+            finishGame();
+            return;
+        }
+
+        const playerUIDs = Object.keys(gameRoom.players);
+        const currentTurnIndex = playerUIDs.indexOf(gameRoom.currentTurn);
+        const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
+        const nextTurnUID = playerUIDs[nextTurnIndex];
+        
+        setGameRoom(prev => prev ? ({ ...prev, currentTurn: nextTurnUID }) : null);
     }
-
-    const playerUIDs = Object.keys(gameRoom.players);
-    const currentTurnIndex = playerUIDs.indexOf(gameRoom.currentTurn);
-    const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
-    const nextTurnUID = playerUIDs[nextTurnIndex];
-    
-    setGameRoom(prev => prev ? ({ ...prev, currentTurn: nextTurnUID }) : null);
   }
 
   const handleCloseDialogs = () => {
@@ -377,10 +382,11 @@ export default function GamePage() {
         
         handleCloseDialogs();
         setIsSubmitting(false);
-        handleNextTurn();
+        handleNextTurn(newGameState);
     } else {
          toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});
          setIsSubmitting(false);
+         // Here you would call a server flow to log the answer and advance the turn
     }
   };
 
@@ -396,7 +402,7 @@ export default function GamePage() {
       gameSetId: gameRoom.gameSetId,
       gameSetTitle: gameSet?.title || "미스터리 박스",
       question: { id: Date.now(), question: mysteryBoxEffect.title, type: 'subjective', points: 0 },
-      isCorrect: true, // Represent effect as a "correct" event
+      isCorrect: true, 
       timestamp: new Date(),
     };
   
@@ -446,7 +452,7 @@ export default function GamePage() {
             setGameRoom(updatedRoomState);
             const updatedPlayers = calculateScoresFromLogs(updatedRoomState);
             setPlayers(updatedPlayers);
-            handleNextTurn();
+            handleNextTurn(updatedRoomState.gameState);
         } else {
              toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});
         }
@@ -461,26 +467,18 @@ export default function GamePage() {
   };
 
   const handleSaveMysterySettings = async () => {
-      if (!gameRoomId) return;
+      if (!gameRoomId || !gameRoom) return;
       setIsSubmitting(true);
       try {
-          const roomRef = doc(db, 'game-rooms', gameRoomId as string);
-          // For local game, we just update the local state
-          if (gameRoom?.joinType === 'local') {
+          if (gameRoom.joinType === 'local') {
               setGameRoom(prev => prev ? {
                   ...prev,
                   enabledMysteryEffects: selectedEffects,
                   isMysterySettingDone: true,
               } : null);
           } else {
-            // For remote game, update firestore
-            // This part is commented out as remote is not fully implemented
-            /*
-            await updateDoc(roomRef, {
-                enabledMysteryEffects: selectedEffects,
-                isMysterySettingDone: true,
-            });
-            */
+             // Remote game logic - not fully implemented
+             toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});
           }
           setShowMysterySettings(false);
           toast({ title: '성공', description: '미스터리 박스 설정이 저장되었습니다.'});
@@ -496,7 +494,7 @@ export default function GamePage() {
   const currentTurnPlayer = players.find(p => p.uid === gameRoom?.currentTurn);
   const currentQuestion = currentQuestionInfo?.question;
   
-  if (isLoading || loadingUser || !gameRoom || blocks.length === 0) {
+  if (isLoading || loadingUser || !gameRoom || !gameSet || blocks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
@@ -506,8 +504,9 @@ export default function GamePage() {
   }
 
   const isClickDisabled = (block: GameBlock) => {
+    if (gameRoom.status === 'finished') return true;
     const isTurnRestricted = gameRoom.joinType === 'remote' && !isMyTurn;
-    const isOpened = gameRoom?.gameState[block.id] === 'answered';
+    const isOpened = gameRoom.gameState[block.id] === 'answered';
     return isTurnRestricted || isOpened || block.isFlipping;
   };
 
@@ -538,7 +537,7 @@ export default function GamePage() {
                 <div key={block.id} className="perspective-1000" onClick={() => handleBlockClick(block)}>
                       <div className={cn(
                           "relative aspect-square w-full transform-style-3d transition-transform duration-700",
-                          block.isFlipping ? "rotate-y-180" : "",
+                          block.isFlipping || isOpened ? "rotate-y-180" : "",
                           isClickDisabled(block) ? 'cursor-not-allowed' : 'cursor-pointer'
                       )}>
                           {/* Front of the card */}
