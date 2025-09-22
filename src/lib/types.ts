@@ -1,5 +1,6 @@
 
 
+
 export interface User {
   uid: string;
   email: string | null;
@@ -21,6 +22,8 @@ export interface Question {
   // for multiple choice or ox
   options?: string[];
   correctAnswer?: string;
+  grade?: string;
+  semester?: string;
   subject?: string;
   unit?: string;
 }
@@ -78,7 +81,7 @@ export interface GameRoom {
   currentTurn: string; // userId or nickname for local
   players: Record<string, Player>; // key is userId for remote, or nickname for local
   playerUIDs?: string[]; // ordered list of player UIDs for turn sequence
-  gameState: Record<string, 'available' | 'answered'>; // key is questionId
+  gameState: Record<string, 'available' | 'flipping' | 'answered'>; // key is questionId
   mysteryBoxEnabled: boolean;
   isMysterySettingDone?: boolean;
   enabledMysteryEffects?: MysteryEffectType[];

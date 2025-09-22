@@ -6,14 +6,14 @@
  *
  * - updateScores - A function that processes the final scores and updates user documents.
  * - UpdateScoresInput - The input type for the updateScores function.
- * - UpdateScoresOutput - The return type for the updateScores function.
+ * - UpdateScoresOutput - The return type for the updateScoresOutput function.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { initializeApp, getApps } from 'firebase-admin/app';
-import type { GameRoom, Player } from '@/lib/types';
+import type { GameRoom, Player, AnswerLog } from '@/lib/types';
 
 
 // Initialize Firebase Admin SDK if not already done.
@@ -93,6 +93,13 @@ const updateScoresFlow = ai.defineFlow(
 
     try {
       const roomRef = db.collection('game-rooms').doc(gameRoomId);
+      const roomSnap = await roomRef.get();
+      if (!roomSnap.exists) {
+        throw new Error(`Game room with ID ${gameRoomId} not found.`);
+      }
+      const gameRoomData = roomSnap.data() as GameRoom;
+      const answerLogs = gameRoomData.answerLogs || [];
+
       const batch = db.batch();
       
       // Sort players by score to determine rank.
@@ -114,13 +121,41 @@ const updateScoresFlow = ai.defineFlow(
           });
         }
       }
+
+      // 2. Process answer logs
+      for (const log of answerLogs) {
+          if (!log.userId || !log.question) continue;
+
+          if (log.isCorrect) {
+              const correctAnswerRef = db.collection('users', log.userId, 'correct-answers').doc();
+              batch.set(correctAnswerRef, {
+                  gameSetId: log.gameSetId,
+                  gameSetTitle: log.gameSetTitle,
+                  question: log.question.question,
+                  grade: log.question.grade,
+                  semester: log.question.semester,
+                  subject: log.question.subject,
+                  unit: log.question.unit,
+                  timestamp: log.timestamp || FieldValue.serverTimestamp()
+              });
+          } else {
+              const incorrectAnswerRef = db.collection('users', log.userId, 'incorrect-answers').doc();
+              batch.set(incorrectAnswerRef, {
+                  gameSetId: log.gameSetId,
+                  gameSetTitle: log.gameSetTitle,
+                  question: log.question,
+                  userAnswer: log.userAnswer,
+                  timestamp: log.timestamp || FieldValue.serverTimestamp()
+              });
+          }
+      }
       
-      // 2. Mark game as finished.
+      // 3. Mark game as finished.
       batch.update(roomRef, { status: 'finished' });
 
       await batch.commit();
 
-      const message = `Successfully updated XP for ${players.length} players based on rank and question count.`;
+      const message = `Successfully updated XP and answer logs for ${players.length} players.`;
       console.log(message);
       
       return { success: true, message };
