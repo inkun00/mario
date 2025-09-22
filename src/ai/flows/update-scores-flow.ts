@@ -137,7 +137,7 @@ const updateScoresFlow = ai.defineFlow(
           if (!log.userId || !log.question) continue;
 
           if (log.isCorrect) {
-              const correctAnswerRef = db.collection('users', log.userId, 'correct-answers').doc();
+              const correctAnswerRef = db.collection('users').doc(log.userId).collection('correct-answers').doc();
               const data = {
                   gameSetId: log.gameSetId,
                   gameSetTitle: log.gameSetTitle,
@@ -150,7 +150,7 @@ const updateScoresFlow = ai.defineFlow(
               };
               batch.set(correctAnswerRef, removeUndefined(data));
           } else {
-              const incorrectAnswerRef = db.collection('users', log.userId, 'incorrect-answers').doc();
+              const incorrectAnswerRef = db.collection('users').doc(log.userId).collection('incorrect-answers').doc();
               const data = {
                   userId: log.userId,
                   gameSetId: log.gameSetId,
