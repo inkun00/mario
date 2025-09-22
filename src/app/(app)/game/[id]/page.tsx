@@ -28,8 +28,6 @@ interface GameBlock {
   id: number;
   type: 'question' | 'mystery';
   question?: Question & { id: number };
-  isFlipping: boolean;
-  isOpened: boolean;
 }
 
 interface MysteryEffect {
@@ -123,9 +121,13 @@ export default function GamePage() {
         if (docSnap.exists()) {
             const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
             
-            if (gameRoom?.status !== 'finished') {
-                setGameRoom(roomData);
+            if (roomData.status === 'finished' && !showGameOverPopup) {
+                // If game is finished on server but popup is not shown, trigger it.
+                // This handles rejoining a finished game.
+                finishGame(players);
             }
+            
+            setGameRoom(roomData);
 
             if (!gameSet && roomData.gameSetId) {
               const setRef = doc(db, 'game-sets', roomData.gameSetId);
@@ -162,12 +164,14 @@ export default function GamePage() {
   useEffect(() => {
     if (!gameRoom || loadingUser) return;
     
-    // Set initial players only once
-    if (players.length === 0 && gameRoom.players) {
-        const initialPlayers = gameRoom.playerUIDs 
-            ? gameRoom.playerUIDs.map(uid => gameRoom.players[uid]).filter(Boolean) as Player[]
-            : Object.values(gameRoom.players);
-        setPlayers(initialPlayers);
+    // Set initial players from DB
+    const initialPlayers = calculateScoresFromLogs(gameRoom.players, gameRoom.answerLogs || []);
+    const sortedInitialPlayers = gameRoom.playerUIDs 
+        ? gameRoom.playerUIDs.map(uid => initialPlayers.find(p => p.uid === uid)).filter(Boolean) as Player[]
+        : initialPlayers;
+
+    if (JSON.stringify(sortedInitialPlayers) !== JSON.stringify(players)) {
+        setPlayers(sortedInitialPlayers);
     }
 
     if (gameRoom.joinType === 'remote') {
@@ -186,8 +190,6 @@ export default function GamePage() {
         id: i,
         type: 'question',
         question: {...q, id: i},
-        isFlipping: false,
-        isOpened: !!gameRoom.gameState[i]
     }));
 
     let mysteryItems: GameBlock[] = [];
@@ -196,8 +198,6 @@ export default function GamePage() {
         mysteryItems = Array.from({ length: mysteryCount }, (_, i) => ({
             id: gameSet.questions.length + i,
             type: 'mystery',
-            isFlipping: false,
-            isOpened: !!gameRoom.gameState[gameSet.questions.length + i]
         }));
     }
     
@@ -207,18 +207,16 @@ export default function GamePage() {
     setBlocks(shuffledBlocks);
   }, [gameSet, gameRoom, blocks.length]);
 
-  const finishGame = () => {
-    if (!gameRoom || gameRoom.status === 'finished') return;
-  
-    // 1. Set final scores from the current client state
-    setFinalScores(players);
-    
-    // 2. Show the game over popup immediately
+  const finishGame = (finalPlayers: Player[]) => {
+    if (!gameRoom) return;
+
+    // Use the latest player scores for the final popup
+    setFinalScores(finalPlayers.sort((a, b) => b.score - a.score));
     setShowGameOverPopup(true);
   
-    // 3. In the background, send the final scores to the server to update XP.
+    // In the background, send the final scores to the server to update XP.
     // The result of this operation does not affect the UI anymore.
-    updateScores({ gameRoomId: gameRoom.id as string }).catch(error => {
+    updateScores({ gameRoomId: gameRoom.id as string, players: finalPlayers }).catch(error => {
       console.error("Error updating scores in background:", error);
       // Optional: Show a subtle toast that a background sync failed, but don't block the user.
     });
@@ -226,9 +224,10 @@ export default function GamePage() {
   
   const handleBlockClick = (block: GameBlock) => {
     if (isClickDisabled(block)) return;
-
-    setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: true } : b));
     
+    const newGameState = { ...gameRoom!.gameState, [block.id]: 'flipping' as const };
+    setGameRoom(prev => prev ? ({ ...prev, gameState: newGameState }) : null);
+
     setTimeout(() => {
       if (block.type === 'question' && block.question) {
         setCurrentQuestionInfo({question: block.question, blockId: block.id});
@@ -255,9 +254,10 @@ export default function GamePage() {
           toast({ title: '이런!', description: '아무 일도 일어나지 않았습니다. 설정된 미스터리 효과가 없습니다.' });
           
           const newGameState = { ...gameRoom.gameState, [blockId]: 'answered' as const };
+          const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
 
-          if (blocks.every(b => newGameState[b.id] === 'answered')) {
-              finishGame();
+          if (allAnswered) {
+              finishGame(players);
           } else {
               handleNextTurn(newGameState);
           }
@@ -377,7 +377,7 @@ export default function GamePage() {
 
         const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
         if (allAnswered) {
-            finishGame();
+            finishGame(updatedPlayers);
         } else {
             handleNextTurn(newGameState);
         }
@@ -394,8 +394,8 @@ export default function GamePage() {
     setIsSubmitting(true);
     
     const currentTurnUID = gameRoom.currentTurn;
-    const currentFlippingBlock = blocks.find(b => b.isFlipping);
-    const blockId = currentFlippingBlock?.id;
+    const currentFlippingBlock = Object.entries(gameRoom.gameState).find(([_, state]) => state === 'flipping');
+    const blockId = currentFlippingBlock ? Number(currentFlippingBlock[0]) : undefined;
 
     if (blockId === undefined) {
       setIsSubmitting(false);
@@ -466,7 +466,7 @@ export default function GamePage() {
             
             const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
             if (allAnswered) {
-                finishGame();
+                finishGame(updatedPlayers);
             } else {
                 handleNextTurn(newGameState);
             }
@@ -512,8 +512,10 @@ export default function GamePage() {
   const currentQuestion = currentQuestionInfo?.question;
   
   const isClickDisabled = (block: GameBlock) => {
-    if (!gameRoom) return true;
-    if (gameRoom.status === 'finished' || block.isFlipping || gameRoom.gameState[block.id] === 'answered') {
+    if (!gameRoom || showGameOverPopup) return true;
+    
+    const blockState = gameRoom.gameState[block.id];
+    if (blockState === 'answered' || blockState === 'flipping') {
         return true;
     }
     
@@ -535,9 +537,7 @@ export default function GamePage() {
     );
   }
 
-  const scoreboardPlayers = gameRoom.playerUIDs 
-    ? gameRoom.playerUIDs.map(uid => players.find(p => p.uid === uid)).filter((p): p is Player => !!p)
-    : players;
+  const scoreboardPlayers = players;
 
   const winner = finalScores.length > 0 ? finalScores[0] : null;
 
@@ -561,12 +561,15 @@ export default function GamePage() {
               </div>
             <div className="grid grid-cols-5 md:grid-cols-6 lg:grid-cols-7 gap-2 sm:gap-4">
               {blocks.map((block, index) => {
-                const isOpened = gameRoom.gameState[block.id] === 'answered';
+                const blockState = gameRoom.gameState[block.id];
+                const isOpened = blockState === 'answered';
+                const isFlipping = blockState === 'flipping';
+
                 return (
                 <div key={block.id} className="perspective-1000" onClick={() => handleBlockClick(block)}>
                       <div className={cn(
                           "relative aspect-square w-full transform-style-3d transition-transform duration-700",
-                          block.isFlipping || isOpened ? "rotate-y-180" : "",
+                          isFlipping || isOpened ? "rotate-y-180" : "",
                           isClickDisabled(block) ? 'cursor-not-allowed' : 'cursor-pointer'
                       )}>
                           {/* Front of the card */}

@@ -22,9 +22,17 @@ if (!getApps().length) {
 }
 const db = getFirestore();
 
+const PlayerSchema = z.object({
+    uid: z.string(),
+    nickname: z.string(),
+    score: z.number(),
+    avatarId: z.string(),
+    isHost: z.boolean().optional(),
+});
 
 const UpdateScoresInputSchema = z.object({
   gameRoomId: z.string().describe("The ID of the game room to process."),
+  players: z.array(PlayerSchema).describe("The final list of players with their scores."),
 });
 export type UpdateScoresInput = z.infer<typeof UpdateScoresInputSchema>;
 
@@ -44,9 +52,9 @@ const updateScoresFlow = ai.defineFlow(
     inputSchema: UpdateScoresInputSchema,
     outputSchema: UpdateScoresOutputSchema,
   },
-  async ({ gameRoomId }) => {
-    if (!gameRoomId) {
-      throw new Error("Game room ID is required.");
+  async ({ gameRoomId, players }) => {
+    if (!gameRoomId || !players) {
+      throw new Error("Game room ID and final player scores are required.");
     }
 
     try {
@@ -56,35 +64,17 @@ const updateScoresFlow = ai.defineFlow(
       if (!roomSnap.exists) {
         throw new Error("Game room not found.");
       }
-
+      
       const gameRoom = roomSnap.data() as GameRoom;
-      const players = Object.values(gameRoom.players);
       const answerLogs = gameRoom.answerLogs || [];
-      
-      if (!players || players.length === 0) {
-         return { success: false, message: "No players found in the game room." };
-      }
-      
-      // Calculate final scores from answerLogs
-      const finalScores: Record<string, number> = {};
-      players.forEach(p => {
-        finalScores[p.uid] = 0;
-      });
-      answerLogs.forEach(log => {
-        if (log.userId && log.isCorrect && log.pointsAwarded) {
-          finalScores[log.userId] = (finalScores[log.userId] || 0) + log.pointsAwarded;
-        }
-      });
-      
       const batch = db.batch();
       
-      // 1. Update player XP using calculated final scores
-      for (const uid in finalScores) {
-        const score = finalScores[uid];
-        if (uid && score > 0) {
-          const userRef = db.collection('users').doc(uid);
+      // 1. Update player XP using the final scores passed from the client
+      for (const player of players) {
+        if (player.uid && player.score > 0) {
+          const userRef = db.collection('users').doc(player.uid);
           batch.update(userRef, {
-            xp: FieldValue.increment(score),
+            xp: FieldValue.increment(player.score),
             lastPlayed: FieldValue.serverTimestamp(),
           });
         }
