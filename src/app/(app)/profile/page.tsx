@@ -27,6 +27,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { getLevelInfo, getNextLevelInfo, LevelInfo, levelSystem } from '@/lib/level-system';
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 interface ReviewQuestion extends IncorrectAnswer {
     newQuestion: string;
@@ -35,6 +36,19 @@ interface ReviewQuestion extends IncorrectAnswer {
     isChecking?: boolean;
     isCorrect?: boolean;
 }
+
+const colorCycle = [
+    'text-primary',
+    'text-green-500',
+    'text-yellow-500',
+    'text-orange-500',
+    'text-red-500',
+    'text-purple-500',
+    'text-pink-500',
+    'text-teal-500',
+    'text-indigo-500',
+    'text-cyan-500'
+];
 
 export default function ProfilePage() {
   const [user] = useAuthState(auth);
@@ -369,15 +383,23 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent>
             <TooltipProvider>
-                <div className="grid grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-4">
+                <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-4">
                     {levelSystem.map((level) => {
                         const CurrentIcon = level.icon;
                         const isUnlocked = userData.xp >= level.xpThreshold;
+                        const colorClass = colorCycle[Math.floor((level.level -1) / 10) % colorCycle.length];
+
                         return (
                             <Tooltip key={level.level}>
                                 <TooltipTrigger asChild>
-                                    <div className={`relative aspect-square flex items-center justify-center p-2 rounded-lg ${isUnlocked ? 'bg-primary/10' : 'bg-secondary/50'}`}>
-                                        <CurrentIcon className={`w-8 h-8 ${isUnlocked ? 'text-primary' : 'text-muted-foreground/50'}`} />
+                                    <div className={cn(
+                                        "group relative aspect-square flex items-center justify-center p-2 rounded-lg transition-all duration-300",
+                                        isUnlocked ? 'bg-secondary/70' : 'bg-secondary/30'
+                                    )}>
+                                        <CurrentIcon className={cn(
+                                            "w-8 h-8 transition-transform group-hover:scale-125",
+                                            isUnlocked ? colorClass : 'text-muted-foreground/30'
+                                        )} />
                                     </div>
                                 </TooltipTrigger>
                                 <TooltipContent>
