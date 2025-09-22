@@ -139,7 +139,7 @@ export default function GamePage() {
         }
         
         if (roomData.status === 'finished' && !showGameOverPopup) {
-            // The finishGame function will now handle setting final scores and showing the popup
+            finishGame();
         } else if (roomData.mysteryBoxEnabled && !roomData.isMysterySettingDone && user?.uid === roomData.hostId) {
             setShowMysterySettings(true);
         }
@@ -198,20 +198,23 @@ export default function GamePage() {
   
   // Check for game over condition
   useEffect(() => {
-    if (!gameRoom || !blocks.length || gameRoom.status === 'finished') return;
+    if (!gameRoom || !gameSet || gameRoom.status === 'finished') return;
 
-    const allBlocksAnswered = blocks.every(block => gameRoom.gameState[block.id] === 'answered');
+    const totalQuestions = gameSet.questions.length;
+    const totalMysteries = gameRoom.mysteryBoxEnabled ? Math.round(totalQuestions * 0.3) : 0;
+    const totalBlocks = totalQuestions + totalMysteries;
+    
+    const answeredCount = Object.values(gameRoom.gameState).filter(v => v === 'answered').length;
 
-    if (allBlocksAnswered && blocks.length > 0) {
+    if (answeredCount >= totalBlocks && totalBlocks > 0) {
         finishGame();
     }
-  }, [gameRoom, blocks]);
+  }, [gameRoom, gameSet]);
 
 
   const finishGame = async () => {
     if (!gameRoom || gameRoom.status === 'finished') return;
     
-    // Prevent multiple calls
     setGameRoom(prev => prev ? { ...prev, status: 'finished' } : null);
 
     try {
@@ -370,7 +373,6 @@ export default function GamePage() {
     } else {
          toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});
          setIsSubmitting(false);
-         // Remote game logic would go here, calling a server flow
     }
   };
 
