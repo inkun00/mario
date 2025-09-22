@@ -3,7 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 export interface LevelInfo {
   level: number;
   title: string;
-  icon: string; // Changed from LucideIcon to string for image URL
+  icon: string; // Emoji character string
   xpThreshold: number;
 }
 
@@ -25,12 +25,26 @@ const levelTitles: string[] = [
     '논리의 마스터', '지식의 나무', '달콤한 지식', '지혜의 왕관', '학사모'
 ];
 
+const levelEmojis: string[] = [
+  '🌱', '😊', '📝', '🤔', '🧐', '💡', '💪', '🌰', '✅', '🗺️',
+  '✒️', '⭐', '🔥', '🚀', '🎯', '🛠️', '🧪', '🧠', '🧙', '📊',
+  '🏗️', '🔍', '🗿', ' eureka ', '🕊️', '💬', '🗣️', '🔑', '💎', '🔗',
+  '🤖', '💻', '📈', '👀', '🏛️', '📚', '🧩', '🔬', '🧭', '♟️',
+  '🌌', '📜', '🏆', '💧', '🌀', '⚗️', '🚩', '💍', '🌋', '👑',
+  '🦉', '🌠', '👑', '🛡️', '✨', '🎓', '🌳', '🍯', '👑', '🎓',
+];
+
 // Fill up to 100 levels
 const extendedLevelTitles = [...levelTitles];
+const extendedLevelEmojis = [...levelEmojis];
 const baseLevelCount = levelTitles.length;
+
 for (let i = baseLevelCount; i < 100; i++) {
-  const baseIndex = i % baseLevelCount;
-  extendedLevelTitles.push(`${levelTitles[baseIndex]} +${Math.floor(i / baseLevelCount)}`);
+  const baseTitleIndex = i % baseLevelCount;
+  extendedLevelTitles.push(`${levelTitles[baseTitleIndex]} +${Math.floor(i / baseLevelCount)}`);
+  
+  const baseEmojiIndex = i % levelEmojis.length;
+  extendedLevelEmojis.push(levelEmojis[baseEmojiIndex]);
 }
 
 export const levelSystem: LevelInfo[] = extendedLevelTitles.map((title, i) => {
@@ -39,7 +53,7 @@ export const levelSystem: LevelInfo[] = extendedLevelTitles.map((title, i) => {
     title,
     level: i + 1,
     xpThreshold,
-    icon: `https://picsum.photos/seed/level-${i + 1}/100/100`, // Unique image for each level
+    icon: extendedLevelEmojis[i],
   };
 });
 

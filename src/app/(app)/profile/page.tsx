@@ -248,8 +248,8 @@ export default function ProfilePage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-4">
-            <div className="relative h-20 w-20">
-                <Image src={levelInfo.icon} alt={levelInfo.title} width={80} height={80} className="rounded-full" data-ai-hint="badge emblem" />
+            <div className="relative h-20 w-20 flex items-center justify-center rounded-full bg-secondary">
+                <span className="text-5xl">{levelInfo.icon}</span>
             </div>
             <div>
               <CardTitle className="font-headline text-3xl">{userData.displayName}</CardTitle>
@@ -378,17 +378,12 @@ export default function ProfilePage() {
                                         "group relative aspect-square flex items-center justify-center p-1 rounded-full transition-all duration-300",
                                         isUnlocked ? 'bg-secondary/70' : 'bg-secondary/30'
                                     )}>
-                                        <Image 
-                                            src={level.icon}
-                                            alt={level.title}
-                                            width={60}
-                                            height={60}
-                                            data-ai-hint="badge emblem"
-                                            className={cn(
-                                                "rounded-full transition-all duration-300 group-hover:scale-110",
-                                                !isUnlocked && "grayscale"
-                                            )}
-                                        />
+                                        <span className={cn(
+                                            "text-4xl transition-all duration-300 group-hover:scale-110",
+                                            !isUnlocked && "grayscale opacity-50"
+                                        )}>
+                                            {level.icon}
+                                        </span>
                                     </div>
                                 </TooltipTrigger>
                                 <TooltipContent>
