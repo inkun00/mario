@@ -16,13 +16,15 @@ import { auth, db } from '@/lib/firebase';
 import { useEffect, useState } from 'react';
 import type { User, CorrectAnswer, IncorrectAnswer } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc } from 'firebase/firestore';
-import { BrainCircuit, Activity, FileWarning, Sparkles, Loader2, Lightbulb, CheckCircle } from 'lucide-react';
+import { BrainCircuit, Activity, FileWarning, Sparkles, Loader2, Lightbulb, CheckCircle, Trophy } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { analyzeLearning } from '@/ai/flows/analyze-learning-flow';
 import { generateReviewQuestion } from '@/ai/flows/generate-review-question-flow';
 import { checkReviewAnswer } from '@/ai/flows/check-review-answer-flow';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getLevelInfo, getNextLevelInfo, LevelInfo } from '@/lib/level-system';
+import { Progress } from '@/components/ui/progress';
 
 interface ReviewQuestion extends IncorrectAnswer {
     newQuestion: string;
@@ -43,6 +45,9 @@ export default function ProfilePage() {
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(true);
   const { toast } = useToast();
 
+  const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
+  const [nextLevelInfo, setNextLevelInfo] = useState<LevelInfo | null>(null);
+
   useEffect(() => {
     if (!user) return;
 
@@ -53,7 +58,12 @@ export default function ProfilePage() {
       const userRef = doc(db, 'users', user.uid);
       const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
-        setUserData(userSnap.data() as User);
+        const fetchedUserData = userSnap.data() as User;
+        setUserData(fetchedUserData);
+        
+        const currentLevel = getLevelInfo(fetchedUserData.xp);
+        setLevelInfo(currentLevel);
+        setNextLevelInfo(getNextLevelInfo(currentLevel.level));
       }
 
       // Fetch correct and incorrect answers
@@ -182,6 +192,10 @@ export default function ProfilePage() {
 
   const totalQuestions = correctAnswers.length + incorrectAnswers.length;
   const correctRate = totalQuestions > 0 ? (correctAnswers.length / totalQuestions * 100).toFixed(1) : 0;
+  
+  const xpForNextLevel = nextLevelInfo ? nextLevelInfo.xpThreshold - (levelInfo?.xpThreshold || 0) : 0;
+  const currentXpProgress = userData ? userData.xp - (levelInfo?.xpThreshold || 0) : 0;
+  const progressPercentage = xpForNextLevel > 0 ? (currentXpProgress / xpForNextLevel) * 100 : 100;
 
   if (isLoading) {
     return (
@@ -221,29 +235,46 @@ export default function ProfilePage() {
     )
   }
   
-  if (!user || !userData) {
+  if (!user || !userData || !levelInfo) {
       return <div>사용자 정보를 불러올 수 없습니다.</div>
   }
+
+  const IconComponent = levelInfo.icon;
 
   return (
     <div className="container mx-auto flex flex-col gap-8">
       <Card>
         <CardHeader>
           <div className="flex items-center gap-4">
-            <Avatar className="h-20 w-20 border-2 border-primary">
-              <AvatarImage src={user.photoURL || `https://picsum.photos/seed/${user.uid}/100/100`} />
-              <AvatarFallback>{userData?.nickname?.substring(0, 2) || user.displayName?.substring(0,2) || ''}</AvatarFallback>
-            </Avatar>
+            <div className="relative h-20 w-20">
+              <div className="absolute inset-0 bg-primary/10 rounded-full flex items-center justify-center">
+                <IconComponent className="h-10 w-10 text-primary" />
+              </div>
+            </div>
             <div>
-              <CardTitle className="font-headline text-3xl">{userData?.nickname}</CardTitle>
-              <CardDescription>학습을 즐기는 탐험가</CardDescription>
+              <CardTitle className="font-headline text-3xl">{userData.nickname}</CardTitle>
+              <CardDescription>{levelInfo.title}</CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
+          <div>
+            <div className="flex justify-between items-end mb-1">
+              <span className="text-sm font-medium">Lv. {levelInfo.level}</span>
+              <span className="text-sm text-muted-foreground">
+                {nextLevelInfo ? `${userData.xp.toLocaleString()} / ${nextLevelInfo.xpThreshold.toLocaleString()} XP` : '최고 레벨'}
+              </span>
+            </div>
+            <Progress value={progressPercentage} className="h-3" />
+             {nextLevelInfo && (
+                <p className="text-xs text-right text-muted-foreground mt-1">
+                    다음 레벨까지 {nextLevelInfo.xpThreshold - userData.xp} XP 남음
+                </p>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-4 text-center">
             <div>
-              <p className="text-2xl font-bold">{userData?.xp?.toLocaleString()}</p>
+              <p className="text-2xl font-bold">{userData.xp.toLocaleString()}</p>
               <p className="text-sm text-muted-foreground">누적 포인트</p>
             </div>
             <div>
