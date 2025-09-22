@@ -57,6 +57,7 @@ export default function DashboardPage() {
   const [deleteCandidate, setDeleteCandidate] = useState<GameSetDocument | null>(null);
   const { toast } = useToast();
 
+  const [searchKeyword, setSearchKeyword] = useState('');
   const [searchGrade, setSearchGrade] = useState('');
   const [searchSemester, setSearchSemester] = useState('');
   const [searchSubject, setSearchSubject] = useState('');
@@ -147,6 +148,13 @@ export default function DashboardPage() {
 
   const handleSearch = () => {
     let sets = [...allGameSets];
+    if (searchKeyword) {
+      const keyword = searchKeyword.toLowerCase();
+      sets = sets.filter(s => 
+        s.title.toLowerCase().includes(keyword) || 
+        s.description.toLowerCase().includes(keyword)
+      );
+    }
     if (searchGrade) {
       sets = sets.filter(s => s.grade === searchGrade);
     }
@@ -160,6 +168,7 @@ export default function DashboardPage() {
   };
   
   const handleResetSearch = () => {
+    setSearchKeyword('');
     setSearchGrade('');
     setSearchSemester('');
     setSearchSubject('');
@@ -204,7 +213,16 @@ export default function DashboardPage() {
           <h2 className="text-2xl font-bold font-headline mb-4">게임 세트 둘러보기</h2>
           
           <Card className="mb-6 p-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+              <div className="space-y-1 md:col-span-2">
+                <Label htmlFor="search-keyword">제목/설명</Label>
+                <Input 
+                  id="search-keyword" 
+                  placeholder="키워드 입력..." 
+                  value={searchKeyword}
+                  onChange={(e) => setSearchKeyword(e.target.value)}
+                />
+              </div>
               <div className="space-y-1">
                 <Label htmlFor="search-grade">학년</Label>
                 <Select value={searchGrade} onValueChange={setSearchGrade}>
@@ -212,6 +230,7 @@ export default function DashboardPage() {
                     <SelectValue placeholder="전체" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="">전체</SelectItem>
                     {Array.from({ length: 6 }, (_, i) => i + 1).map(grade => (
                       <SelectItem key={grade} value={`${grade}학년`}>{grade}학년</SelectItem>
                     ))}
@@ -225,6 +244,7 @@ export default function DashboardPage() {
                     <SelectValue placeholder="전체" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="">전체</SelectItem>
                     <SelectItem value="1학기">1학기</SelectItem>
                     <SelectItem value="2학기">2학기</SelectItem>
                   </SelectContent>
@@ -237,13 +257,14 @@ export default function DashboardPage() {
                     <SelectValue placeholder="전체" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="">전체</SelectItem>
                     {subjects.map(subject => (
                       <SelectItem key={subject} value={subject}>{subject}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 col-start-1 md:col-start-auto md:col-span-2 lg:col-span-1">
                 <Button onClick={handleSearch} className="w-full"><Search className="mr-2 h-4 w-4" />검색</Button>
                 <Button onClick={handleResetSearch} variant="outline" className="w-full"><RotateCcw className="mr-2 h-4 w-4" />초기화</Button>
               </div>
