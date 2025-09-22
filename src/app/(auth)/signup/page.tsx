@@ -50,14 +50,14 @@ export default function SignupPage() {
   });
 
   // Function to create user document in Firestore
-  const createUserDocument = async (user: User) => {
+  const createUserDocument = async (user: User, customDisplayName?: string) => {
     const userRef = doc(db, 'users', user.uid);
     const docSnap = await getDoc(userRef);
     if (!docSnap.exists()) {
         await setDoc(userRef, {
             uid: user.uid,
             email: user.email,
-            displayName: user.displayName,
+            displayName: customDisplayName || user.displayName,
             createdAt: serverTimestamp(),
             xp: 0,
             level: 1,
@@ -74,7 +74,7 @@ export default function SignupPage() {
         displayName: values.nickname
       });
       // Create user document in firestore
-      await createUserDocument({ ...user, displayName: values.nickname });
+      await createUserDocument(user, values.nickname);
 
       toast({
         title: "회원가입 성공",
