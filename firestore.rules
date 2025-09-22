@@ -3,39 +3,31 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users: Can only read/write their own data.
+    // Users: Can only read/write their own data. Cannot list other users.
     match /users/{userId} {
-      allow read, update, delete: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null;
-
-      // Users can manage their own answer records.
-      match /correct-answers/{answerId} {
-        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
-      }
-      match /incorrect-answers/{answerId} {
-        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
-      }
+      allow read, update, delete: if request.auth.uid == userId;
+      allow create: if request.auth.uid != null;
     }
 
-    // Game Sets: Logged-in users can read all. Only creators can write/delete.
+    // User Subcollections: Can only manage their own answer history.
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth.uid == userId;
+    }
+
+    // Game-sets:
+    // read: Anyone authenticated can read.
+    // write: Only the creator can create, update, or delete their own sets.
     match /game-sets/{gameSetId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null && request.resource.data.creatorId == request.auth.uid;
-      allow update, delete: if request.auth != null && resource.data.creatorId == request.auth.uid;
+      allow read: if request.auth.uid != null;
+      allow write: if request.auth.uid != null && request.resource.data.creatorId == request.auth.uid;
     }
 
-    // Game Rooms: Logged-in users can create/read. Only participants can update.
+    // Game-rooms:
+    // read/create: Anyone authenticated can read or create a room.
+    // update: Only the host or a player in the game can update the room.
     match /game-rooms/{roomId} {
-      allow read, create: if request.auth != null;
-      
-      // Allow update if the user is the host OR is one of the players in the new state.
-      // This covers joining a room and in-game actions.
-      allow update: if request.auth != null && (
-        request.auth.uid == resource.data.hostId || 
-        request.auth.uid in request.resource.data.players
-      );
-      
-      allow delete: if request.auth != null && request.auth.uid == resource.data.hostId;
+      allow read, create: if request.auth.uid != null;
+      allow update: if request.auth.uid != null && (request.auth.uid == resource.data.hostId || request.auth.uid in resource.data.players);
     }
   }
 }
