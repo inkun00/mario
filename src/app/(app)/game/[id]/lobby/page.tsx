@@ -146,10 +146,15 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
             const result = await checkUserId({ userId });
 
             if (result.exists) {
-                newPlayers[index].confirmed = true;
-                newPlayers[index].nickname = result.nickname;
-                newPlayers[index].uid = result.uid;
-                toast({ title: '성공', description: `"${result.nickname}" 님이 확인되었습니다.`});
+                // Check if the confirmed user is the creator of the game set.
+                if (gameSet && gameSet.creatorId === result.uid) {
+                    toast({ variant: 'destructive', title: '참여 불가', description: `제작자(${result.nickname})는 자신이 만든 퀴즈에 참여할 수 없습니다.`});
+                } else {
+                    newPlayers[index].confirmed = true;
+                    newPlayers[index].nickname = result.nickname;
+                    newPlayers[index].uid = result.uid;
+                    toast({ title: '성공', description: `"${result.nickname}" 님이 확인되었습니다.`});
+                }
             } else {
                 toast({ variant: 'destructive', title: '오류', description: `"${userId}" 님을 찾을 수 없습니다.`});
             }

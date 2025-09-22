@@ -23,10 +23,14 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { Skeleton } from './ui/skeleton';
+import { useEffect, useState } from 'react';
+import type { User } from '@/lib/types';
+import { doc, getDoc } from 'firebase/firestore';
+import { getLevelInfo, LevelInfo } from '@/lib/level-system';
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: '대시보드' },
@@ -39,6 +43,20 @@ export function Header() {
   const [user, loading] = useAuthState(auth);
   const router = useRouter();
   const { toast } = useToast();
+  const [userData, setUserData] = useState<User | null>(null);
+  const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    const userRef = doc(db, 'users', user.uid);
+    getDoc(userRef).then(userSnap => {
+      if (userSnap.exists()) {
+        const fetchedUserData = userSnap.data() as User;
+        setUserData(fetchedUserData);
+        setLevelInfo(getLevelInfo(fetchedUserData.xp));
+      }
+    });
+  }, [user]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -86,14 +104,18 @@ export function Header() {
                   variant="ghost"
                   className="relative h-8 w-8 rounded-full"
                 >
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage
-                      src={
-                        user.photoURL ||
-                        `https://picsum.photos/seed/${user.uid}/100/100`
-                      }
-                      alt={user.displayName || 'User'}
-                    />
+                  <Avatar className="h-9 w-9 flex items-center justify-center bg-secondary">
+                    {levelInfo ? (
+                        <span className="text-2xl">{levelInfo.icon}</span>
+                    ) : (
+                        <AvatarImage
+                        src={
+                            user.photoURL ||
+                            `https://picsum.photos/seed/${user.uid}/100/100`
+                        }
+                        alt={user.displayName || 'User'}
+                        />
+                    )}
                     <AvatarFallback>
                       {getInitials(user.displayName)}
                     </AvatarFallback>
