@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, getDoc, updateDoc, increment, arrayUnion } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc, increment, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog } from '@/lib/types';
@@ -120,15 +120,6 @@ export default function GamePage() {
       if (docSnap.exists()) {
         const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
         
-        // For local games, we manage state client-side after initial load.
-        if (roomData.joinType === 'local' && gameRoom) {
-            // Keep local state unless it's a finish event
-             if (roomData.status === 'finished' && gameRoom.status !== 'finished') {
-                setGameRoom(roomData); // Sync finished state from server
-             }
-             return;
-        }
-
         setGameRoom(roomData);
         
         const liveScores = calculateScoresFromLogs(roomData);
@@ -168,7 +159,7 @@ export default function GamePage() {
     });
 
     return () => unsubscribe();
-  }, [gameRoomId, router, toast, user]);
+  }, [gameRoomId, router, toast, user, showGameOverPopup]);
   
   // Update turn status when gameRoom or user changes
   useEffect(() => {
@@ -213,8 +204,10 @@ export default function GamePage() {
     const currentTurnIndex = playerUIDs.indexOf(gameRoom.currentTurn);
     const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
     const nextTurnUID = playerUIDs[nextTurnIndex];
-
-    setGameRoom(prev => prev ? { ...prev, currentTurn: nextTurnUID } : null);
+    
+    if (gameRoom.joinType === 'local') {
+      setGameRoom(prev => prev ? { ...prev, currentTurn: nextTurnUID } : null);
+    }
   };
   
   // Check for game over condition
@@ -248,18 +241,19 @@ export default function GamePage() {
   
   const handleBlockClick = (block: GameBlock) => {
     const isTurnRestricted = gameRoom?.joinType === 'remote' && !isMyTurn;
-    if (isTurnRestricted || block.isOpened || block.isFlipping) return;
+    const isOpened = block.isOpened;
+    if (isTurnRestricted || isOpened || block.isFlipping) return;
 
     // 1. Start flipping animation
     setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: true } : b));
     
     // 2. After animation, show popup and mark as opened
     setTimeout(() => {
-      // For local play, we optimistically update the UI. For remote, we wait for server confirmation.
-      // For mystery blocks, they can be re-opened, so we can manage state locally
-       setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: false, isOpened: true } : b));
-
       if (block.type === 'question' && block.question) {
+        if (gameRoom?.joinType === 'local') {
+          setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: false, isOpened: true } : b));
+        }
+
         setCurrentQuestionInfo({question: block.question, blockId: block.id});
         
         let points = block.question.points;
@@ -271,6 +265,9 @@ export default function GamePage() {
         setUserAnswer('');
         
       } else { // Mystery Box
+        if (gameRoom?.joinType === 'local') {
+          setBlocks(prev => prev.map(b => b.id === block.id ? { ...b, isFlipping: false, isOpened: true } : b));
+        }
         const effects = gameRoom?.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
         if (effects.length === 0) {
             toast({ title: '이런!', description: '아무 일도 일어나지 않았습니다. 설정된 미스터리 효과가 없습니다.' });
@@ -334,7 +331,7 @@ export default function GamePage() {
     const currentTurnUID = gameRoom.currentTurn;
 
     try {
-        const answerLog = {
+        const answerLog: AnswerLog = {
             userId: currentTurnUID,
             gameSetId: gameSet.id,
             gameSetTitle: gameSet.title,
@@ -349,8 +346,7 @@ export default function GamePage() {
             // For local games, update state directly.
             setGameRoom(prevRoom => {
                 if (!prevRoom) return null;
-                const newLog = answerLog as AnswerLog;
-                const newAnswerLogs = [...(prevRoom.answerLogs || []), newLog];
+                const newAnswerLogs = [...(prevRoom.answerLogs || []), answerLog];
                 const newGameState = {...prevRoom.gameState, [currentQuestion.id]: 'answered' as 'answered'};
 
                 return {
@@ -360,22 +356,13 @@ export default function GamePage() {
                 };
             });
             // Also update players state for immediate UI feedback
-            setPlayers(prevPlayers => {
-                const newPlayers = prevPlayers.map(p => {
-                    if (p.uid === currentTurnUID) {
-                        return { ...p, score: p.score + pointsToAward };
-                    }
-                    return p;
-                });
-                return newPlayers.sort((a, b) => b.score - a.score);
-            });
-
+            setPlayers(calculateScoresFromLogs({ ...gameRoom, answerLogs: [...(gameRoom.answerLogs || []), answerLog]}));
+            
             handleNextTurn();
 
         } else {
-            // This part is for remote games and needs a proper server flow.
-            // await logAnswer({ gameRoomId, answerLog: answerLog as AnswerLog });
-            toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});
+            // Remote game logic would go here
+             toast({variant: 'destructive', title: '알림', description: '온라인 플레이는 현재 개발 중입니다.'});
         }
         
         if (isCorrect) {
@@ -408,7 +395,6 @@ export default function GamePage() {
     
     const currentTurnUID = gameRoom.currentTurn;
   
-    let pointsChange = 0;
     let newLog: Partial<AnswerLog> = {
       userId: currentTurnUID,
       gameSetId: gameRoom.gameSetId,
@@ -420,6 +406,8 @@ export default function GamePage() {
   
     try {
         const logsToPush: AnswerLog[] = [];
+        let pointsChange = 0;
+        
         switch (mysteryBoxEffect.type) {
             case 'bonus':
             case 'penalty':
@@ -519,263 +507,263 @@ export default function GamePage() {
 
   return (
     <>
-    <div className="container mx-auto flex h-full max-h-[calc(100vh-4rem)] flex-col lg:flex-row gap-6">
-      {/* Game Board */}
-      <div className="flex-grow flex flex-col items-center justify-center p-6 bg-blue-100/50 dark:bg-blue-900/20 rounded-xl shadow-inner">
-        <Card className="w-full max-w-4xl p-4 sm:p-6 bg-background/70 backdrop-blur-sm">
-           <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold font-headline">
-                    {gameRoom.joinType === 'local' ? (
-                        <span><span className="text-primary">{currentTurnPlayer?.nickname || ''}</span>님, 박스를 선택하여 문제를 풀어보세요!</span>
-                    ) : isMyTurn ? (
-                        <span className="text-primary">내 차례입니다!</span>
-                    ) : (
-                        <span><span className="text-primary">{currentTurnPlayer?.nickname || ''}</span>님의 차례입니다!</span>
-                    )}
-                </h2>
-                <p className="text-muted-foreground">점수를 얻을 질문을 선택하세요.</p>
+      <div className="container mx-auto flex h-full max-h-[calc(100vh-4rem)] flex-col lg:flex-row gap-6">
+        {/* Game Board */}
+        <div className="flex-grow flex flex-col items-center justify-center p-6 bg-blue-100/50 dark:bg-blue-900/20 rounded-xl shadow-inner">
+          <Card className="w-full max-w-4xl p-4 sm:p-6 bg-background/70 backdrop-blur-sm">
+            <div className="text-center mb-6">
+                  <h2 className="text-2xl font-bold font-headline">
+                      {gameRoom.joinType === 'local' ? (
+                          <span><span className="text-primary">{currentTurnPlayer?.nickname || ''}</span>님, 박스를 선택하여 문제를 풀어보세요!</span>
+                      ) : isMyTurn ? (
+                          <span className="text-primary">내 차례입니다!</span>
+                      ) : (
+                          <span><span className="text-primary">{currentTurnPlayer?.nickname || ''}</span>님의 차례입니다!</span>
+                      )}
+                  </h2>
+                  <p className="text-muted-foreground">점수를 얻을 질문을 선택하세요.</p>
+              </div>
+            <div className="grid grid-cols-5 md:grid-cols-6 lg:grid-cols-7 gap-2 sm:gap-4">
+              {blocks.map((block, index) => {
+                const isOpened = block.type === 'question' && !!block.question && gameRoom.gameState[block.question.id] === 'answered';
+                return (
+                <div key={block.id} className="perspective-1000" onClick={() => handleBlockClick(block)}>
+                      <div className={cn(
+                          "relative aspect-square w-full transform-style-3d transition-transform duration-700",
+                          block.isFlipping ? "rotate-y-180" : "",
+                          isClickDisabled(block) ? 'cursor-not-allowed' : 'cursor-pointer'
+                      )}>
+                          {/* Front of the card */}
+                          <div className={cn(
+                              "absolute inset-0 backface-hidden flex flex-col items-center justify-center rounded-lg shadow-md transition-all duration-300",
+                              "bg-yellow-400 border-b-8 border-yellow-600",
+                              "hover:scale-105 hover:shadow-xl",
+                              isOpened ? 'opacity-30 bg-gray-300 border-gray-400' : ''
+                          )}>
+                              <span className="text-4xl font-bold text-white" style={{ textShadow: '2px 2px 0px #b45309, 4px 4px 0px #854d0e' }}>
+                                  {index + 1}
+                              </span>
+                          </div>
+                          
+                          {/* Back of the card */}
+                          <div className="absolute inset-0 backface-hidden rotate-y-180 flex items-center justify-center bg-secondary rounded-lg">
+                            {block.type === 'question' ? (
+                              <div className="flex flex-col items-center text-primary font-bold text-center p-1">
+                                  <Star className="w-1/2 h-1/2 text-yellow-400 fill-yellow-400" />
+                                  <span className="text-sm">{block.question?.points === -1 ? '랜덤' : `${block.question?.points}점`}</span>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col items-center text-accent font-bold text-center p-1">
+                                  <Gift className="w-1/2 h-1/2" />
+                                  <span className="text-sm">미스터리</span>
+                              </div>
+                            )}
+                          </div>
+                      </div>
+                </div>
+              )})}
             </div>
-          <div className="grid grid-cols-5 md:grid-cols-6 lg:grid-cols-7 gap-2 sm:gap-4">
-            {blocks.map((block, index) => {
-               const isOpened = block.type === 'question' && !!block.question && gameRoom.gameState[block.question.id] === 'answered';
-               return (
-               <div key={block.id} className="perspective-1000" onClick={() => handleBlockClick(block)}>
-                    <div className={cn(
-                        "relative aspect-square w-full transform-style-3d transition-transform duration-700",
-                        block.isFlipping ? "rotate-y-180" : "",
-                        isClickDisabled(block) ? 'cursor-not-allowed' : 'cursor-pointer'
-                    )}>
-                        {/* Front of the card */}
-                        <div className={cn(
-                            "absolute inset-0 backface-hidden flex flex-col items-center justify-center rounded-lg shadow-md transition-all duration-300",
-                            "bg-yellow-400 border-b-8 border-yellow-600",
-                            "hover:scale-105 hover:shadow-xl",
-                            isOpened ? 'opacity-30 bg-gray-300 border-gray-400' : ''
-                        )}>
-                            <span className="text-4xl font-bold text-white" style={{ textShadow: '2px 2px 0px #b45309, 4px 4px 0px #854d0e' }}>
-                                {index + 1}
-                            </span>
+          </Card>
+        </div>
+
+        {/* Scoreboard & Info */}
+        <aside className="w-full lg:w-80 xl:w-96 flex-shrink-0">
+          <Card className="h-full flex flex-col">
+              <div className="p-4 border-b">
+                  <h2 className="font-headline text-xl font-bold text-center">스코어보드</h2>
+              </div>
+              <div className="flex-grow p-4 space-y-4 overflow-y-auto">
+                  {players.map((player, index) => (
+                      <div key={player.uid} className={cn(
+                          "p-3 rounded-lg border-2 transition-all", 
+                          player.uid === gameRoom?.currentTurn ? 'border-primary shadow-lg bg-primary/10' : 'border-transparent'
+                      )}>
+                        <div className="flex items-center gap-3">
+                              <div className="font-bold text-lg w-6 text-center text-muted-foreground">
+                                  {index === 0 ? <Crown className="w-5 h-5 mx-auto text-yellow-500 fill-yellow-400" /> : index + 1}
+                              </div>
+                              <Image src={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageUrl || ''} alt={player.nickname} width={40} height={40} className="rounded-full" data-ai-hint={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageHint} />
+                              <div className="flex-grow">
+                                  <p className="font-semibold">{player.nickname}</p>
+                                  <Progress value={(player.score / 500) * 100} className="h-2 mt-1" />
+                              </div>
+                              <div className="font-bold text-primary text-lg w-12 text-right">{player.score}</div>
                         </div>
-                        
-                        {/* Back of the card */}
-                        <div className="absolute inset-0 backface-hidden rotate-y-180 flex items-center justify-center bg-secondary rounded-lg">
-                           {block.type === 'question' ? (
-                             <div className="flex flex-col items-center text-primary font-bold text-center p-1">
-                                <Star className="w-1/2 h-1/2 text-yellow-400 fill-yellow-400" />
-                                <span className="text-sm">{block.question?.points === -1 ? '랜덤' : `${block.question?.points}점`}</span>
-                             </div>
-                           ) : (
-                             <div className="flex flex-col items-center text-accent font-bold text-center p-1">
-                                <Gift className="w-1/2 h-1/2" />
-                                <span className="text-sm">미스터리</span>
-                             </div>
-                           )}
-                        </div>
-                    </div>
-               </div>
-            )})}
-          </div>
-        </Card>
+                      </div>
+                  ))}
+              </div>
+          </Card>
+        </aside>
       </div>
 
-      {/* Scoreboard & Info */}
-      <aside className="w-full lg:w-80 xl:w-96 flex-shrink-0">
-        <Card className="h-full flex flex-col">
-            <div className="p-4 border-b">
-                <h2 className="font-headline text-xl font-bold text-center">스코어보드</h2>
-            </div>
-            <div className="flex-grow p-4 space-y-4 overflow-y-auto">
-                {players.map((player, index) => (
-                    <div key={player.uid} className={cn(
-                        "p-3 rounded-lg border-2 transition-all", 
-                        player.uid === gameRoom?.currentTurn ? 'border-primary shadow-lg bg-primary/10' : 'border-transparent'
-                    )}>
-                       <div className="flex items-center gap-3">
-                            <div className="font-bold text-lg w-6 text-center text-muted-foreground">
-                                {index === 0 ? <Crown className="w-5 h-5 mx-auto text-yellow-500 fill-yellow-400" /> : index + 1}
-                            </div>
-                            <Image src={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageUrl || ''} alt={player.nickname} width={40} height={40} className="rounded-full" data-ai-hint={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageHint} />
-                            <div className="flex-grow">
-                                <p className="font-semibold">{player.nickname}</p>
-                                <Progress value={(player.score / 500) * 100} className="h-2 mt-1" />
-                            </div>
-                            <div className="font-bold text-primary text-lg w-12 text-right">{player.score}</div>
-                       </div>
-                    </div>
-                ))}
-            </div>
-        </Card>
-      </aside>
-    </div>
+      {/* Mystery Box Settings Popup */}
+      <Dialog open={showMysterySettings} onOpenChange={setShowMysterySettings}>
+          <DialogContent>
+              <DialogHeader>
+                  <DialogTitle className="font-headline text-2xl">미스터리 박스 효과 설정</DialogTitle>
+                  <DialogDescription>게임에 적용할 미스터리 박스 효과를 선택하세요. (호스트만 설정 가능)</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                  {allMysteryEffects.map((effect) => (
+                      <div key={effect.type} className="flex items-center space-x-2">
+                          <Checkbox
+                              id={effect.type}
+                              checked={selectedEffects.includes(effect.type)}
+                              onCheckedChange={(checked) => {
+                                  return checked
+                                      ? setSelectedEffects([...selectedEffects, effect.type])
+                                      : setSelectedEffects(selectedEffects.filter(e => e !== effect.type));
+                              }}
+                          />
+                          <Label htmlFor={effect.type} className="flex flex-col gap-0.5">
+                              <span>{effect.title}</span>
+                              <span className="text-xs text-muted-foreground">{effect.description}</span>
+                          </Label>
+                      </div>
+                  ))}
+              </div>
+              <Button onClick={handleSaveMysterySettings} disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "설정 완료하고 게임 시작"}
+              </Button>
+          </DialogContent>
+      </Dialog>
 
-    {/* Mystery Box Settings Popup */}
-     <Dialog open={showMysterySettings} onOpenChange={setShowMysterySettings}>
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle className="font-headline text-2xl">미스터리 박스 효과 설정</DialogTitle>
-                <DialogDescription>게임에 적용할 미스터리 박스 효과를 선택하세요. (호스트만 설정 가능)</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-                {allMysteryEffects.map((effect) => (
-                    <div key={effect.type} className="flex items-center space-x-2">
-                        <Checkbox
-                            id={effect.type}
-                            checked={selectedEffects.includes(effect.type)}
-                            onCheckedChange={(checked) => {
-                                return checked
-                                    ? setSelectedEffects([...selectedEffects, effect.type])
-                                    : setSelectedEffects(selectedEffects.filter(e => e !== effect.type));
-                            }}
-                        />
-                        <Label htmlFor={effect.type} className="flex flex-col gap-0.5">
-                            <span>{effect.title}</span>
-                            <span className="text-xs text-muted-foreground">{effect.description}</span>
-                        </Label>
-                    </div>
-                ))}
-            </div>
-            <Button onClick={handleSaveMysterySettings} disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "설정 완료하고 게임 시작"}
-            </Button>
-        </DialogContent>
-    </Dialog>
-
-    {/* Question Popup */}
-    <Dialog open={!!currentQuestion} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
-        <DialogContent className="max-w-2xl">
-            <DialogHeader>
-                 <div className="flex justify-between items-center">
-                    <DialogTitle className="font-headline text-2xl flex items-center gap-2">
-                        질문
-                        <span className="flex items-center gap-1 font-semibold text-primary text-base">
-                            <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
-                            {currentPoints}점
-                        </span>
-                    </DialogTitle>
-                    {currentQuestion?.hint && !showHint && (
-                        <Button variant="outline" size="sm" onClick={handleShowHint} disabled={isSubmitting}>
-                            <Lightbulb className="w-4 h-4 mr-2" />
-                            힌트 보기 (점수 절반)
-                        </Button>
-                    )}
-                 </div>
-                 {currentQuestion?.hint && showHint && (
-                    <DialogDescription>힌트: {currentQuestion.hint}</DialogDescription>
-                 )}
-            </DialogHeader>
-            <div className="py-4 space-y-6">
-                {currentQuestion?.imageUrl && (
-                    <div className="relative aspect-video w-full">
-                        <Image src={encodeURI(currentQuestion.imageUrl)} alt="Question Image" fill className="rounded-md object-contain" />
-                    </div>
-                )}
-                <p className="text-lg font-medium">{currentQuestion?.question}</p>
-
-                <div>
-                    {currentQuestion?.type === 'subjective' && (
-                        <Input 
-                            placeholder="정답을 입력하세요" 
-                            value={userAnswer}
-                            onChange={(e) => setUserAnswer(e.target.value)}
-                            disabled={isSubmitting}
-                        />
-                    )}
-                    {currentQuestion?.type === 'multipleChoice' && currentQuestion.options && (
-                        <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="space-y-2" disabled={isSubmitting}>
-                            {currentQuestion.options.map((option, index) => (
-                                <div key={index} className="flex items-center space-x-2">
-                                    <RadioGroupItem value={option} id={`option-${index}`} />
-                                    <Label htmlFor={`option-${index}`} className="flex-1 p-3 rounded-md border hover:border-primary cursor-pointer">{option}</Label>
-                                </div>
-                            ))}
-                        </RadioGroup>
-                    )}
-                    {currentQuestion?.type === 'ox' && (
-                        <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="grid grid-cols-2 gap-4" disabled={isSubmitting}>
-                            <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'O' && 'border-primary bg-primary/10')}>
-                                <RadioGroupItem value="O" id="option-o" className="sr-only"/>
-                                O
-                            </Label>
-                            <Label htmlFor="option-x" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'X' && 'border-primary bg-primary/10')}>
-                                <RadioGroupItem value="X" id="option-x" className="sr-only"/>
-                                X
-                            </Label>
-                        </RadioGroup>
-                    )}
-                </div>
-            </div>
-            
-            <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting}>
-                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
-            </Button>
-        </DialogContent>
-    </Dialog>
-
-    {/* Mystery Box Popup */}
-    <Dialog open={showMysteryBoxPopup} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
-        <DialogContent className="max-w-md text-center">
-            <DialogHeader>
-                 <div className="flex flex-col items-center gap-4">
-                    {mysteryBoxEffect?.icon}
-                    <DialogTitle className="font-headline text-3xl">{mysteryBoxEffect?.title}</DialogTitle>
-                    <DialogDescription className="text-base">{mysteryBoxEffect?.description}</DialogDescription>
-                 </div>
-            </DialogHeader>
-            <div className="py-4">
-                {mysteryBoxEffect?.type === 'swap' && (
-                  <div className="text-left space-y-2">
-                    <Label className="font-semibold">바꿀 플레이어 선택:</Label>
-                     <RadioGroup value={playerForSwap || ''} onValueChange={setPlayerForSwap} className="space-y-2" disabled={isSubmitting}>
-                        {players.filter(p => p.uid !== gameRoom?.currentTurn).map((player) => (
-                           <Label key={player.uid} htmlFor={`swap-${player.uid}`} className="flex items-center gap-3 p-3 rounded-md border hover:border-primary cursor-pointer">
-                                <RadioGroupItem value={player.uid} id={`swap-${player.uid}`} />
-                                <Image src={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageUrl || ''} alt={player.nickname} width={32} height={32} className="rounded-full" data-ai-hint={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageHint}/>
-                                <span className="font-semibold">{player.nickname}</span>
-                                <span className="ml-auto text-primary font-bold">{player.score}점</span>
-                           </Label>
-                        ))}
-                    </RadioGroup>
+      {/* Question Popup */}
+      <Dialog open={!!currentQuestion} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
+          <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                  <div className="flex justify-between items-center">
+                      <DialogTitle className="font-headline text-2xl flex items-center gap-2">
+                          질문
+                          <span className="flex items-center gap-1 font-semibold text-primary text-base">
+                              <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
+                              {currentPoints}점
+                          </span>
+                      </DialogTitle>
+                      {currentQuestion?.hint && !showHint && (
+                          <Button variant="outline" size="sm" onClick={handleShowHint} disabled={isSubmitting}>
+                              <Lightbulb className="w-4 h-4 mr-2" />
+                              힌트 보기 (점수 절반)
+                          </Button>
+                      )}
                   </div>
-                )}
-            </div>
-            <Button className="w-full" onClick={handleMysteryEffect} disabled={isSubmitting || (mysteryBoxEffect?.type === 'swap' && !playerForSwap)}>
-                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "효과 적용"}
-            </Button>
-        </DialogContent>
-    </Dialog>
+                  {currentQuestion?.hint && showHint && (
+                      <DialogDescription>힌트: {currentQuestion.hint}</DialogDescription>
+                  )}
+              </DialogHeader>
+              <div className="py-4 space-y-6">
+                  {currentQuestion?.imageUrl && (
+                      <div className="relative aspect-video w-full">
+                          <Image src={encodeURI(currentQuestion.imageUrl)} alt="Question Image" fill className="rounded-md object-contain" />
+                      </div>
+                  )}
+                  <p className="text-lg font-medium">{currentQuestion?.question}</p>
 
-    {/* Game Over Popup */}
-    <Dialog open={showGameOverPopup}>
-        <DialogContent className="max-w-md text-center">
-            <DialogHeader>
-                <div className="flex flex-col items-center gap-2">
-                    <Crown className="w-20 h-20 text-yellow-400 fill-yellow-300" />
-                    <DialogTitle className="font-headline text-3xl">게임 종료!</DialogTitle>
-                    {winner && (
-                        <DialogDescription className="text-base">
-                           우승자는 <span className="font-bold text-primary">{winner.nickname}</span> 님 입니다!
-                        </DialogDescription>
-                    )}
-                </div>
-            </Header>
-            <div className="py-4">
-                <h3 className="font-semibold mb-3">최종 점수</h3>
-                <div className="space-y-2">
-                    {finalScores.map(p => (
-                         <div key={p.uid} className="flex justify-between items-center p-2 rounded-md bg-secondary/50">
-                            <span className="font-semibold">{p.nickname}</span>
-                            <span className="font-bold text-primary">{p.score}점</span>
-                         </div>
-                    ))}
-                </div>
-            </div>
-            <DialogFooter className="sm:justify-center">
-                 <Button asChild>
-                    <Link href="/dashboard">대시보드로 돌아가기</Link>                 
-                 </Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
+                  <div>
+                      {currentQuestion?.type === 'subjective' && (
+                          <Input 
+                              placeholder="정답을 입력하세요" 
+                              value={userAnswer}
+                              onChange={(e) => setUserAnswer(e.target.value)}
+                              disabled={isSubmitting}
+                          />
+                      )}
+                      {currentQuestion?.type === 'multipleChoice' && currentQuestion.options && (
+                          <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="space-y-2" disabled={isSubmitting}>
+                              {currentQuestion.options.map((option, index) => (
+                                  <div key={index} className="flex items-center space-x-2">
+                                      <RadioGroupItem value={option} id={`option-${index}`} />
+                                      <Label htmlFor={`option-${index}`} className="flex-1 p-3 rounded-md border hover:border-primary cursor-pointer">{option}</Label>
+                                  </div>
+                              ))}
+                          </RadioGroup>
+                      )}
+                      {currentQuestion?.type === 'ox' && (
+                          <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="grid grid-cols-2 gap-4" disabled={isSubmitting}>
+                              <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'O' && 'border-primary bg-primary/10')}>
+                                  <RadioGroupItem value="O" id="option-o" className="sr-only"/>
+                                  O
+                              </Label>
+                              <Label htmlFor="option-x" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'X' && 'border-primary bg-primary/10')}>
+                                  <RadioGroupItem value="X" id="option-x" className="sr-only"/>
+                                  X
+                              </Label>
+                          </RadioGroup>
+                      )}
+                  </div>
+              </div>
+              
+              <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
+              </Button>
+          </DialogContent>
+      </Dialog>
+
+      {/* Mystery Box Popup */}
+      <Dialog open={showMysteryBoxPopup} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
+          <DialogContent className="max-w-md text-center">
+              <DialogHeader>
+                  <div className="flex flex-col items-center gap-4">
+                      {mysteryBoxEffect?.icon}
+                      <DialogTitle className="font-headline text-3xl">{mysteryBoxEffect?.title}</DialogTitle>
+                      <DialogDescription className="text-base">{mysteryBoxEffect?.description}</DialogDescription>
+                  </div>
+              </DialogHeader>
+              <div className="py-4">
+                  {mysteryBoxEffect?.type === 'swap' && (
+                    <div className="text-left space-y-2">
+                      <Label className="font-semibold">바꿀 플레이어 선택:</Label>
+                      <RadioGroup value={playerForSwap || ''} onValueChange={setPlayerForSwap} className="space-y-2" disabled={isSubmitting}>
+                          {players.filter(p => p.uid !== gameRoom?.currentTurn).map((player) => (
+                            <Label key={player.uid} htmlFor={`swap-${player.uid}`} className="flex items-center gap-3 p-3 rounded-md border hover:border-primary cursor-pointer">
+                                  <RadioGroupItem value={player.uid} id={`swap-${player.uid}`} />
+                                  <Image src={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageUrl || ''} alt={player.nickname} width={32} height={32} className="rounded-full" data-ai-hint={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageHint}/>
+                                  <span className="font-semibold">{player.nickname}</span>
+                                  <span className="ml-auto text-primary font-bold">{player.score}점</span>
+                            </Label>
+                          ))}
+                      </RadioGroup>
+                    </div>
+                  )}
+              </div>
+              <Button className="w-full" onClick={handleMysteryEffect} disabled={isSubmitting || (mysteryBoxEffect?.type === 'swap' && !playerForSwap)}>
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "효과 적용"}
+              </Button>
+          </DialogContent>
+      </Dialog>
+
+      {/* Game Over Popup */}
+      <Dialog open={showGameOverPopup}>
+          <DialogContent className="max-w-md text-center">
+              <DialogHeader>
+                  <div className="flex flex-col items-center gap-2">
+                      <Crown className="w-20 h-20 text-yellow-400 fill-yellow-300" />
+                      <DialogTitle className="font-headline text-3xl">게임 종료!</DialogTitle>
+                      {winner && (
+                          <DialogDescription className="text-base">
+                            우승자는 <span className="font-bold text-primary">{winner.nickname}</span> 님 입니다!
+                          </DialogDescription>
+                      )}
+                  </div>
+              </DialogHeader>
+              <div className="py-4">
+                  <h3 className="font-semibold mb-3">최종 점수</h3>
+                  <div className="space-y-2">
+                      {finalScores.map(p => (
+                          <div key={p.uid} className="flex justify-between items-center p-2 rounded-md bg-secondary/50">
+                              <span className="font-semibold">{p.nickname}</span>
+                              <span className="font-bold text-primary">{p.score}점</span>
+                          </div>
+                      ))}
+                  </div>
+              </div>
+              <DialogFooter className="sm:justify-center">
+                  <Button asChild>
+                      <Link href="/dashboard">대시보드로 돌아가기</Link>                 
+                  </Button>
+              </DialogFooter>
+          </DialogContent>
+      </Dialog>
     </>
   );
 }
