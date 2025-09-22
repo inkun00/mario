@@ -158,7 +158,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-8 max-w-7xl mx-auto">
         <div>
           <h1 className="text-3xl font-bold font-headline">안녕하세요, {user?.displayName || '게스트'}님!</h1>
           <p className="text-muted-foreground mt-1">오늘도 즐거운 학습을 시작해볼까요?</p>
@@ -205,11 +205,18 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {gameSets.map((set) => {
                 const isCreator = user && set.creatorId === user.uid;
+                
                 const createRoomButton = (
                     <Button asChild={!isCreator} size="sm" disabled={isCreator}>
-                        <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
+                        {!isCreator ? (
+                            <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
+                        ) : (
+                            // Render a non-link element for the disabled button
+                            <span><Users className="mr-2 h-4 w-4" />방 만들기</span>
+                        )}
                     </Button>
                 );
+
 
                 return (
                 <Card key={set.id} className="hover:shadow-lg transition-shadow flex flex-col">
