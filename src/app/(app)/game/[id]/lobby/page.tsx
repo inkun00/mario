@@ -190,14 +190,15 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
         const playerUIDs: string[] = [];
 
         players.forEach((p, index) => {
+            if (!p.uid) return; // Should not happen if confirmed
             const newPlayer: Player = {
-                uid: p.uid,
+                uid: p.uid, // Use the confirmed UID from Firestore
                 nickname: p.nickname,
                 score: 0,
                 avatarId: `player-avatar-${(index % 4) + 1}`,
-                isHost: index === 0, // First confirmed player is host
+                isHost: index === 0,
             };
-            playerObjects[p.uid] = newPlayer;
+            playerObjects[p.uid] = newPlayer; // Key by UID
             playerUIDs.push(p.uid);
         });
 
@@ -205,11 +206,10 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
             await updateDoc(roomRef, { 
                 status: 'playing',
                 players: playerObjects,
-                playerUIDs: playerUIDs, // Add the ordered list of UIDs
-                currentTurn: playerUIDs[0], // First player's turn
+                playerUIDs: playerUIDs,
+                currentTurn: playerUIDs[0],
                 hostId: playerUIDs[0]
             });
-            // The onSnapshot listener will handle redirection.
         } catch (error) {
             console.error("Error starting local game:", error);
             toast({ variant: 'destructive', title: '오류', description: '게임 시작 중 오류가 발생했습니다.'});
@@ -259,7 +259,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
                                             onChange={(e) => handleUserIdChange(index, e.target.value)}
                                             disabled={player.isChecking}
                                         />
-                                        <Button onClick={() => handleConfirmPlayer(index)} disabled={player.isChecking}>
+                                        <Button onClick={() => handleConfirmPlayer(index)} disabled={player.isChecking || !player.userId}>
                                             {player.isChecking ? <Loader2 className="w-4 h-4 animate-spin"/> : "참여"}
                                         </Button>
                                     </div>
@@ -349,3 +349,5 @@ export default function LobbyPage() {
     </div>
   )
 }
+
+    
