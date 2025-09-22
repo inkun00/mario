@@ -29,11 +29,11 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, Smartphone } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, doc, deleteDoc, where, getDocs, QuerySnapshot, DocumentData, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, deleteDoc, where, getDocs, QuerySnapshot, DocumentData, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { GameRoom, GameSet } from '@/lib/types';
 import { auth } from '@/lib/firebase';
@@ -43,6 +43,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
+import { joinGame } from '@/ai/flows/join-game-flow';
 
 const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '음악', '미술', '체육', '영어', '창체'];
 
@@ -59,6 +60,7 @@ export default function DashboardPage() {
   const [selectedGameSet, setSelectedGameSet] = useState<GameSetDocument | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<GameSetDocument | null>(null);
   const { toast } = useToast();
+  const [isJoining, setIsJoining] = useState(false);
 
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchGrade, setSearchGrade] = useState('');
@@ -156,32 +158,36 @@ export default function DashboardPage() {
       toast({ variant: 'destructive', title: '오류', description: '참여 코드를 입력해주세요.' });
       return;
     }
-    const roomRef = doc(db, 'game-rooms', joinCode.toUpperCase());
-    const roomSnap = await getDoc(roomRef);
+    if (!user) {
+      toast({ variant: 'destructive', title: '오류', description: '로그인이 필요합니다.' });
+      return;
+    }
 
-    if (roomSnap.exists()) {
-      const roomData = roomSnap.data();
-      if (roomData.joinType === 'remote' && user) {
-        const playerUIDs = Object.keys(roomData.players);
-        if (playerUIDs.length >= 6) {
-           toast({ variant: 'destructive', title: '오류', description: '게임방이 가득 찼습니다.' });
-           return;
+    setIsJoining(true);
+
+    try {
+      const result = await joinGame({
+        gameRoomId: joinCode.toUpperCase(),
+        player: {
+          uid: user.uid,
+          nickname: user.displayName || '참가자',
+          score: 0,
+          avatarId: `player-avatar-${(Math.floor(Math.random() * 4)) + 1}`,
+          isHost: false,
         }
-
-        const newPlayer = {
-            uid: user.uid,
-            nickname: user.displayName || '참가자',
-            score: 0,
-            avatarId: `player-avatar-${(playerUIDs.length % 4) + 1}`,
-            isHost: false,
-        };
-        await updateDoc(roomRef, {
-            [`players.${user.uid}`]: newPlayer,
-        });
+      });
+      
+      if (result.success) {
+        router.push(`/game/${joinCode.toUpperCase()}/lobby`);
+      } else {
+        toast({ variant: 'destructive', title: '오류', description: result.message });
       }
-      router.push(`/game/${joinCode.toUpperCase()}/lobby`);
-    } else {
-      toast({ variant: 'destructive', title: '오류', description: '존재하지 않는 게임방입니다.' });
+
+    } catch (error: any) {
+      console.error("Error joining game:", error);
+      toast({ variant: 'destructive', title: '오류', description: error.message || '게임 참가 중 오류가 발생했습니다.'});
+    } finally {
+      setIsJoining(false);
     }
   };
 
@@ -235,9 +241,10 @@ export default function DashboardPage() {
                   placeholder="참여 코드 입력" 
                   value={joinCode}
                   onChange={(e) => setJoinCode(e.target.value)}
+                  disabled={isJoining}
                 />
-                <Button onClick={handleJoinGame}>
-                  참여
+                <Button onClick={handleJoinGame} disabled={isJoining}>
+                  {isJoining ? <Loader2 className="animate-spin" /> : '참여'}
                 </Button>
               </div>
             </CardContent>
@@ -338,7 +345,7 @@ export default function DashboardPage() {
                 const isCreator = user ? set.creatorId === user.uid : false;
                 
                 const createRoomButton = (
-                    <Button asChild={!isCreator} size="sm" disabled={isCreator}>
+                    <Button asChild={!(isCreator ?? true)} size="sm" disabled={isCreator ?? true}>
                         {isCreator ? (
                             <span><Users className="mr-2 h-4 w-4" />방 만들기</span>
                         ) : (
