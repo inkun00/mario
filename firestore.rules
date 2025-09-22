@@ -1,32 +1,35 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users can only read and write to their own document.
+    // Users can only read and write their own data.
     match /users/{userId} {
-      allow read, update, delete: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null;
-    }
+      allow read, update: if request.auth.uid == userId;
+      allow create: if request.auth.uid != null;
 
-    // Users can read/write their own answer history.
-    match /users/{userId}/{collection}/{docId} {
-        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      // Users can manage their own answer history.
+      match /correct-answers/{answerId} {
+        allow read, create, delete: if request.auth.uid == userId;
+      }
+      match /incorrect-answers/{answerId} {
+        allow read, create, delete: if request.auth.uid == userId;
+      }
     }
 
     // Game sets can be read by any authenticated user if public.
-    // Users can create game sets.
-    // Users can only update/delete game sets they created.
+    // Users can create, update, and delete their own game sets.
     match /game-sets/{gameSetId} {
-      allow read: if request.auth != null && (resource.data.isPublic == true || resource.data.creatorId == request.auth.uid);
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && resource.data.creatorId == request.auth.uid;
+      allow read: if request.auth != null && (resource.data.isPublic == true || request.auth.uid == resource.data.creatorId);
+      allow create: if request.auth.uid != null;
+      allow update, delete: if request.auth.uid == resource.data.creatorId;
     }
 
-    // Game rooms can be read and written to by any authenticated user.
-    // This allows for real-time updates during gameplay.
-    // Consider adding more granular rules for production (e.g., only players in the game).
+    // Game rooms can be created and read by any authenticated user.
+    // Only players in the game can update the game state.
     match /game-rooms/{gameRoomId} {
-        allow read, write: if request.auth != null;
+      allow read, create: if request.auth.uid != null;
+      allow update: if request.auth.uid in resource.data.players;
     }
   }
 }
