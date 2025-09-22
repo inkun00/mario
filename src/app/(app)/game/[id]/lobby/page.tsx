@@ -145,6 +145,14 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
 
         try {
             const result = await checkUserId({ userId });
+
+            // --- START: ADD CONSOLE LOGS FOR DEBUGGING ---
+            console.log('--- Player Confirmation Debug ---');
+            console.log('Input User ID (Email):', userId);
+            console.log('Game Set Creator UID:', gameSet?.creatorId);
+            console.log('Checked User Info from Flow:', result);
+            console.log('--- End Debug ---');
+            // --- END: ADD CONSOLE LOGS FOR DEBUGGING ---
             
             if (result.exists) {
                 // Check if the confirmed user is the creator of the game set.
