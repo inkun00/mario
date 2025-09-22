@@ -3,7 +3,7 @@
 export interface User {
   uid: string;
   email: string | null;
-  nickname: string;
+  displayName: string;
   xp: number;
   level: number;
   lastPlayed?: any;

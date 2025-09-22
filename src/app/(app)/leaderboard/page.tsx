@@ -49,7 +49,7 @@ export default async function LeaderboardPage() {
         <CardHeader className="text-center">
           <CardTitle className="font-headline text-3xl">리더보드</CardTitle>
           <CardDescription>
-            경험치(XP)를 기준으로 상위 플레이어들을 확인하세요.
+            경험치(XP)를 기준으로 상위 50명의 플레이어를 확인하세요.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -66,7 +66,7 @@ export default async function LeaderboardPage() {
               {leaderboardData.map((player, index) => {
                 const rank = index + 1;
                 const levelInfo = getLevelInfo(player.xp);
-                const nickname = player.nickname || '이름없음';
+                const displayName = player.displayName || '이름없음';
 
                 return (
                   <TableRow key={player.uid} className={rank <= 3 ? 'bg-secondary/50' : ''}>
@@ -76,10 +76,10 @@ export default async function LeaderboardPage() {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar>
-                          <AvatarImage src={`https://picsum.photos/seed/${player.uid}/100/100`} alt={nickname} />
-                          <AvatarFallback>{nickname.substring(0, 2)}</AvatarFallback>
+                          <AvatarImage src={`https://picsum.photos/seed/${player.uid}/100/100`} alt={displayName} />
+                          <AvatarFallback>{displayName.substring(0, 2)}</AvatarFallback>
                         </Avatar>
-                        <span className="font-medium">{nickname}</span>
+                        <span className="font-medium">{displayName}</span>
                       </div>
                     </TableCell>
                     <TableCell className="text-center font-medium">Lv. {levelInfo.level}</TableCell>

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -252,7 +253,7 @@ export default function ProfilePage() {
               </div>
             </div>
             <div>
-              <CardTitle className="font-headline text-3xl">{userData.nickname}</CardTitle>
+              <CardTitle className="font-headline text-3xl">{userData.displayName}</CardTitle>
               <CardDescription>{levelInfo.title}</CardDescription>
             </div>
           </div>
