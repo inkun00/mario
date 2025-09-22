@@ -42,6 +42,7 @@ const AnswerLogSchema = z.object({
     userAnswer: z.string().optional(),
     isCorrect: z.boolean(),
     pointsAwarded: z.number(),
+    timestamp: z.any(),
 });
 
 const LogAnswerInputSchema = z.object({
@@ -72,14 +73,9 @@ const logAnswerFlow = ai.defineFlow(
 
     try {
       const roomRef = db.collection('game-rooms').doc(gameRoomId);
-      
-      const logWithTimestamp = {
-        ...answerLog,
-        timestamp: FieldValue.serverTimestamp(),
-      };
 
       await roomRef.update({
-        answerLogs: FieldValue.arrayUnion(logWithTimestamp)
+        answerLogs: FieldValue.arrayUnion(answerLog)
       });
       
       return { success: true };

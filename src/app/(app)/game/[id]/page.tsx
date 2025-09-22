@@ -90,6 +90,8 @@ export default function GamePage() {
   const [finalScores, setFinalScores] = useState<Player[]>([]);
 
   const calculateScoresFromLogs = (room: GameRoom): Player[] => {
+    if (!room.players) return [];
+    
     const scores: Record<string, number> = {};
     for (const uid in room.players) {
         scores[uid] = 0;
@@ -211,8 +213,6 @@ export default function GamePage() {
     try {
         const roomRef = doc(db, 'game-rooms', gameRoomId as string);
         await updateDoc(roomRef, { status: 'finished' });
-
-        // The server-side flow will handle score calculation and updates.
         await updateScores({ gameRoomId: gameRoom.id });
 
     } catch (error) {
@@ -340,10 +340,10 @@ export default function GamePage() {
             userAnswer: userAnswer,
             isCorrect: isCorrect,
             pointsAwarded: pointsToAward,
+            timestamp: new Date(),
         };
 
-        // Use the server-side flow to log the answer
-        await logAnswer({ gameRoomId, answerLog });
+        await logAnswer({ gameRoomId, answerLog: answerLog as AnswerLog });
         
         if (isCorrect) {
             toast({
@@ -370,14 +370,12 @@ export default function GamePage() {
   };
 
   const handleMysteryEffect = async () => {
-    if (!mysteryBoxEffect || !gameRoom) return;
+    if (!mysteryBoxEffect || !gameRoom || !gameRoomId || !gameSet) return;
   
     setIsSubmitting(true);
-    const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+    
     const currentTurnUID = gameRoom.currentTurn;
   
-    // For mystery effects, we still need to calculate the point changes
-    // and log them as if they were a special answer log.
     let pointsChange = 0;
     let newLog: Partial<AnswerLog> = {
       userId: currentTurnUID,
@@ -385,6 +383,7 @@ export default function GamePage() {
       gameSetTitle: gameSet?.title || "미스터리 박스",
       question: { question: mysteryBoxEffect.title, type: 'subjective', points: 0 },
       isCorrect: true, // Represent effect as a "correct" event
+      timestamp: new Date(),
     };
   
     switch (mysteryBoxEffect.type) {
@@ -411,9 +410,9 @@ export default function GamePage() {
         const pointsDiffForTarget = currentPlayerScore - targetPlayerScore;
   
         // Log for current player
-        await logAnswer({ gameRoomId: gameRoomId as string, answerLog: { ...newLog, userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent } as AnswerLog });
+        await logAnswer({ gameRoomId: gameRoomId, answerLog: { ...newLog, userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent } as AnswerLog });
         // Log for target player
-        await logAnswer({ gameRoomId: gameRoomId as string, answerLog: { ...newLog, userId: playerForSwap, pointsAwarded: pointsDiffForTarget } as AnswerLog });
+        await logAnswer({ gameRoomId: gameRoomId, answerLog: { ...newLog, userId: playerForSwap, pointsAwarded: pointsDiffForTarget } as AnswerLog });
         
         // This case is special, so we handle turn progression and exit
         await handleNextTurn();
@@ -425,7 +424,7 @@ export default function GamePage() {
     newLog.pointsAwarded = pointsChange;
   
     try {
-      await logAnswer({ gameRoomId: gameRoomId as string, answerLog: newLog as AnswerLog });
+      await logAnswer({ gameRoomId: gameRoomId, answerLog: newLog as AnswerLog });
       await handleNextTurn();
     } catch (error) {
       console.error("Error applying mystery effect:", error);
