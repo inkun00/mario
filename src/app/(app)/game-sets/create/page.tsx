@@ -29,7 +29,7 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { PlusCircle, Trash2 } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
@@ -39,6 +39,7 @@ import { auth, db } from '@/lib/firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { validateQuizSet } from '@/ai/flows/validate-quiz-set-flow';
 
 const questionSchema = z.object({
   question: z.string().min(1, '질문을 입력해주세요.'),
@@ -130,6 +131,19 @@ export default function CreateGameSetPage() {
     }
 
     try {
+      // Step 1: Validate with Genkit AI
+      const validationResult = await validateQuizSet(data);
+      if (!validationResult.isValid) {
+        toast({
+          variant: 'destructive',
+          title: '퀴즈 세트 저장 실패',
+          description: validationResult.reason || 'AI 검증에 실패했습니다. 내용을 다시 확인해주세요.',
+        });
+        setIsLoading(false);
+        return;
+      }
+
+      // Step 2: Save to Firestore if valid
       await addDoc(collection(db, 'game-sets'), {
         ...data,
         creatorId: user.uid,
@@ -570,9 +584,12 @@ export default function CreateGameSetPage() {
                   </Button>
                 </div>
 
-                <div className="flex justify-end">
-                  <Button type="submit" size="lg" className="font-headline" disabled={isLoading}>
-                    {isLoading ? '저장 중...' : '퀴즈 세트 저장'}
+                <div className="flex flex-col sm:flex-row justify-end items-center gap-4">
+                  <p className="text-xs text-destructive-foreground bg-destructive/80 p-2 rounded-md">
+                    주의: 부정한 방법으로 점수를 올리기 위해 퀴즈를 생성하는 경우 계정이 삭제될 수 있습니다.
+                  </p>
+                  <Button type="submit" size="lg" className="font-headline w-full sm:w-auto" disabled={isLoading}>
+                    {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> AI 검증 및 저장 중...</> : '퀴즈 세트 저장'}
                   </Button>
                 </div>
               </fieldset>
