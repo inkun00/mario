@@ -73,7 +73,7 @@ const calculateScoresFromLogs = (room: GameRoom): Player[] => {
     });
 
     const playerList = room.playerUIDs 
-        ? room.playerUIDs.map(uid => room.players[uid]) 
+        ? room.playerUIDs.map(uid => room.players[uid]).filter(Boolean) as Player[]
         : Object.values(room.players);
         
     const updatedPlayers = playerList.map(p => ({
@@ -157,15 +157,18 @@ export default function GamePage() {
     return () => {
       unsubscribe();
     };
-  }, [gameRoomId, router, toast, user, gameSet, gameRoom?.status]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameRoomId, router, toast, user]);
   
-  // Update turn status and player scores from local gameRoom state
+  // Initialize players and turn status from local gameRoom state
   useEffect(() => {
     if (!gameRoom || loadingUser) return;
     
-    const calculatedPlayers = calculateScoresFromLogs(gameRoom);
-    if (JSON.stringify(calculatedPlayers) !== JSON.stringify(players)) {
-        setPlayers(calculatedPlayers);
+    if (players.length === 0 && gameRoom.players) {
+        const initialPlayers = gameRoom.playerUIDs 
+            ? gameRoom.playerUIDs.map(uid => gameRoom.players[uid]).filter(Boolean) as Player[]
+            : Object.values(gameRoom.players);
+        setPlayers(initialPlayers);
     }
 
     if (gameRoom.joinType === 'remote') {
@@ -173,7 +176,8 @@ export default function GamePage() {
     } else {
         setIsMyTurn(true);
     }
-  }, [gameRoom, user, loadingUser, players]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameRoom, user, loadingUser]);
 
 
   // Initialize game blocks once
@@ -213,6 +217,7 @@ export default function GamePage() {
         if(result.success && result.players) {
             setFinalScores(result.players);
         } else {
+            // Fallback to client-side calculation if server flow fails
             setFinalScores(calculateScoresFromLogs(gameRoom));
             toast({ variant: 'destructive', title: '오류', description: `게임 종료 처리 중 오류가 발생했습니다: ${result.message}`});
         }
@@ -220,7 +225,7 @@ export default function GamePage() {
 
     } catch (error: any) {
         console.error("Error finishing game: ", error);
-        setFinalScores(calculateScoresFromLogs(gameRoom));
+        setFinalScores(calculateScoresFromLogs(gameRoom)); // Fallback
         setShowGameOverPopup(true);
         toast({ variant: 'destructive', title: '오류', description: `게임 종료 처리 중 오류가 발생했습니다: ${error.message}`});
     }
@@ -244,55 +249,55 @@ export default function GamePage() {
         setUserAnswer('');
         
       } else { // Mystery Box
-        if (!gameRoom) return;
-        
-        const newGameState = { ...gameRoom.gameState, [block.id]: 'answered' as const };
-
-        const updatedRoomState: GameRoom = { ...gameRoom, gameState: newGameState };
-        setGameRoom(updatedRoomState);
-
-        const effects = gameRoom?.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
-        if (effects.length === 0) {
-            toast({ title: '이런!', description: '아무 일도 일어나지 않았습니다. 설정된 미스터리 효과가 없습니다.' });
-            
-            const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
-            if (allAnswered) {
-                finishGame();
-            } else {
-                handleNextTurn(newGameState);
-            }
-            return;
-        }
-        
-        const randomEffectType = effects[Math.floor(Math.random() * effects.length)];
-        const originalEffect = allMysteryEffects.find(e => e.type === randomEffectType);
-        if (!originalEffect) return;
-
-        let effectDetails: MysteryEffect;
-        const randomPoints = (Math.floor(Math.random() * 5) + 1) * 10;
-
-        switch (randomEffectType) {
-            case 'bonus':
-                effectDetails = { type: 'bonus', title: '점수 보너스!', description: `축하합니다! ${randomPoints}점을 추가로 획득합니다.`, icon: <Star className="w-16 h-16 text-yellow-400"/>, value: randomPoints };
-                break;
-            case 'double':
-                effectDetails = { type: 'double', title: '점수 2배!', description: '행운의 주인공! 현재까지 누적된 모든 점수가 2배가 됩니다.', icon: <ChevronsRight className="w-16 h-16 text-green-500"/> };
-                break;
-            case 'penalty':
-                effectDetails = { type: 'penalty', title: '점수 감점...', description: `이런! ${randomPoints}점이 감점됩니다.`, icon: <Bomb className="w-16 h-16 text-destructive"/>, value: -randomPoints };
-                break;
-            case 'half':
-                effectDetails = { type: 'half', title: '점수 반감', description: '치명적인 실수! 현재까지 누적된 모든 점수가 절반으로 줄어듭니다.', icon: <TrendingDown className="w-16 h-16 text-orange-500"/> };
-                break;
-            case 'swap':
-                effectDetails = { type: 'swap', title: '점수 바꾸기!', description: '전략적 선택! 다른 플레이어와 점수를 바꿀 수 있습니다.', icon: <Repeat className="w-16 h-16 text-blue-500"/> };
-                break;
-        }
-        setMysteryBoxEffect(effectDetails);
-        setShowMysteryBoxPopup(true);
+        handleMysteryBoxOpen(block.id);
       }
     }, 800);
   };
+  
+  const handleMysteryBoxOpen = (blockId: number) => {
+      if (!gameRoom) return;
+
+      const effects = gameRoom?.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
+      if (effects.length === 0) {
+          toast({ title: '이런!', description: '아무 일도 일어나지 않았습니다. 설정된 미스터리 효과가 없습니다.' });
+          
+          const newGameState = { ...gameRoom.gameState, [blockId]: 'answered' as const };
+          const allAnswered = blocks.every(b => newGameState[b.id] === 'answered');
+          if (allAnswered) {
+              finishGame();
+          } else {
+              handleNextTurn(newGameState);
+          }
+          return;
+      }
+      
+      const randomEffectType = effects[Math.floor(Math.random() * effects.length)];
+      const originalEffect = allMysteryEffects.find(e => e.type === randomEffectType);
+      if (!originalEffect) return;
+
+      let effectDetails: MysteryEffect;
+      const randomPoints = (Math.floor(Math.random() * 5) + 1) * 10;
+
+      switch (randomEffectType) {
+          case 'bonus':
+              effectDetails = { type: 'bonus', title: '점수 보너스!', description: `축하합니다! ${randomPoints}점을 추가로 획득합니다.`, icon: <Star className="w-16 h-16 text-yellow-400"/>, value: randomPoints };
+              break;
+          case 'double':
+              effectDetails = { type: 'double', title: '점수 2배!', description: '행운의 주인공! 현재까지 누적된 모든 점수가 2배가 됩니다.', icon: <ChevronsRight className="w-16 h-16 text-green-500"/> };
+              break;
+          case 'penalty':
+              effectDetails = { type: 'penalty', title: '점수 감점...', description: `이런! ${randomPoints}점이 감점됩니다.`, icon: <Bomb className="w-16 h-16 text-destructive"/>, value: -randomPoints };
+              break;
+          case 'half':
+              effectDetails = { type: 'half', title: '점수 반감', description: '치명적인 실수! 현재까지 누적된 모든 점수가 절반으로 줄어듭니다.', icon: <TrendingDown className="w-16 h-16 text-orange-500"/> };
+              break;
+          case 'swap':
+              effectDetails = { type: 'swap', title: '점수 바꾸기!', description: '전략적 선택! 다른 플레이어와 점수를 바꿀 수 있습니다.', icon: <Repeat className="w-16 h-16 text-blue-500"/> };
+              break;
+      }
+      setMysteryBoxEffect(effectDetails);
+      setShowMysteryBoxPopup(true);
+  }
 
   const handleShowHint = () => {
     setShowHint(true);
@@ -360,7 +365,6 @@ export default function GamePage() {
 
         const updatedPlayers = calculateScoresFromLogs(updatedRoomState);
         setPlayers(updatedPlayers);
-
 
         if (isCorrect) {
             toast({
@@ -515,17 +519,17 @@ export default function GamePage() {
   const currentQuestion = currentQuestionInfo?.question;
   
   const isClickDisabled = (block: GameBlock) => {
-      if (gameRoom?.status === 'finished' || block.isFlipping || gameRoom?.gameState[block.id] === 'answered') {
+      if (!gameRoom) return true;
+      if (gameRoom.status === 'finished' || block.isFlipping || gameRoom.gameState[block.id] === 'answered') {
           return true;
       }
       
-      const isTurnRestricted = gameRoom?.joinType === 'remote' && !isMyTurn;
-      
-      if (gameRoom?.joinType === 'local') {
+      if (gameRoom.joinType === 'local') {
           return false;
       }
       
-      return isTurnRestricted;
+      // For remote games
+      return !isMyTurn;
   };
   
   if (isLoading || loadingUser || !gameRoom || !gameSet || blocks.length === 0) {
