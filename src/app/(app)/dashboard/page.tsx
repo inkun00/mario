@@ -65,7 +65,6 @@ export default function DashboardPage() {
   const [searchSubject, setSearchSubject] = useState('');
 
   const [joinCode, setJoinCode] = useState('');
-  const [isJoining, setIsJoining] = useState(false);
 
   useEffect(() => {
     if (loadingUser) {
@@ -152,45 +151,11 @@ export default function DashboardPage() {
   };
 
   const handleJoinGame = async () => {
-    if (!joinCode.trim()) {
-        toast({ variant: "destructive", title: "오류", description: "참여 코드를 입력해주세요." });
-        return;
-    }
-     if (!user) {
-        toast({ variant: "destructive", title: "오류", description: "게임에 참여하려면 로그인이 필요합니다." });
-        return;
-    }
-
-    setIsJoining(true);
-    try {
-        const roomRef = doc(db, 'game-rooms', joinCode.trim().toUpperCase());
-        const roomSnap = await getDoc(roomRef);
-
-        if (!roomSnap.exists()) {
-            toast({ variant: "destructive", title: "오류", description: "해당 코드를 가진 게임방을 찾을 수 없습니다." });
-            setIsJoining(false);
-            return;
-        }
-
-        const roomData = roomSnap.data() as GameRoom;
-        
-        // Check if the game set creator is the one trying to join
-        const gameSetRef = doc(db, 'game-sets', roomData.gameSetId);
-        const gameSetSnap = await getDoc(gameSetRef);
-
-        if (gameSetSnap.exists() && gameSetSnap.data().creatorId === user.uid) {
-            toast({ variant: "destructive", title: "참여 불가", description: "자신이 만든 퀴즈 게임에는 참여할 수 없습니다." });
-            setIsJoining(false);
-            return;
-        }
-
-        router.push(`/game/${roomSnap.id}/lobby`);
-
-    } catch (error) {
-        console.error("Error joining game room:", error);
-        toast({ variant: "destructive", title: "오류", description: "게임방 참여 중 오류가 발생했습니다." });
-        setIsJoining(false);
-    }
+    toast({
+      variant: 'destructive',
+      title: '알림',
+      description: '아직 개발 중입니다.',
+    });
   };
 
 
@@ -243,10 +208,10 @@ export default function DashboardPage() {
                   placeholder="참여 코드 입력" 
                   value={joinCode}
                   onChange={(e) => setJoinCode(e.target.value)}
-                  disabled={isJoining}
+                  disabled
                 />
-                <Button onClick={handleJoinGame} disabled={isJoining}>
-                    {isJoining ? <Loader2 className="w-4 h-4 animate-spin"/> : "참여"}
+                <Button onClick={handleJoinGame} disabled>
+                  참여
                 </Button>
               </div>
             </CardContent>
