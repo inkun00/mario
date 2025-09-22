@@ -16,6 +16,7 @@ import Image from 'next/image';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
+import { checkUserId } from '@/ai/flows/check-nickname-flow';
 
 function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
     const router = useRouter();
@@ -142,18 +143,13 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
         }
 
         try {
-            const q = query(collection(db, "users"), where("email", "==", userId), limit(1));
-            const querySnapshot = await getDocs(q);
+            const result = await checkUserId({ userId });
 
-            if (!querySnapshot.empty) {
-                const userDoc = querySnapshot.docs[0];
-                const userData = userDoc.data();
-                const nickname = userData.displayName || userId;
-                
+            if (result.exists) {
                 newPlayers[index].confirmed = true;
-                newPlayers[index].nickname = nickname;
-                newPlayers[index].uid = userData.uid;
-                toast({ title: '성공', description: `"${nickname}" 님이 확인되었습니다.`});
+                newPlayers[index].nickname = result.nickname;
+                newPlayers[index].uid = result.uid;
+                toast({ title: '성공', description: `"${result.nickname}" 님이 확인되었습니다.`});
             } else {
                 toast({ variant: 'destructive', title: '오류', description: `"${userId}" 님을 찾을 수 없습니다.`});
             }
