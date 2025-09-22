@@ -86,6 +86,7 @@ export default function GamePage() {
   const [showMysterySettings, setShowMysterySettings] = useState(false);
   const [selectedEffects, setSelectedEffects] = useState<MysteryEffectType[]>(allMysteryEffects.map(e => e.type));
   const [showGameOverPopup, setShowGameOverPopup] = useState(false);
+  const [finalScores, setFinalScores] = useState<Player[]>([]);
 
 
   // Fetch GameRoom and GameSet data
@@ -112,6 +113,8 @@ export default function GamePage() {
         }
         
         if (roomData.status === 'finished' && !showGameOverPopup) {
+            const finalPlayers = calculateFinalScores(roomData);
+            setFinalScores(finalPlayers);
             setShowGameOverPopup(true);
         } else if (roomData.mysteryBoxEnabled && !roomData.isMysterySettingDone && user?.uid === roomData.hostId) {
             setShowMysterySettings(true);
@@ -169,15 +172,35 @@ export default function GamePage() {
     setBlocks(shuffledBlocks);
 
     // Check if game is already over
-    const questionBlocks = shuffledBlocks.filter(b => b.type === 'question');
-    const allQuestionsOpened = questionBlocks.every(b => gameRoom.gameState[b.id] === 'answered');
+    const questionBlocksInBoard = shuffledBlocks.filter(b => b.type === 'question');
+    const allQuestionsOpened = questionBlocksInBoard.every(b => gameRoom.gameState[b.id] === 'answered');
     
-    if (allQuestionsOpened && questionBlocks.length > 0 && gameRoom.status !== 'finished') {
+    if (allQuestionsOpened && questionBlocksInBoard.length > 0 && gameRoom.status !== 'finished') {
       finishGame();
     }
 
 
   }, [gameSet, gameRoom, blocks.length]);
+  
+    const calculateFinalScores = (room: GameRoom): Player[] => {
+        const scores: Record<string, number> = {};
+        for (const uid in room.players) {
+            scores[uid] = 0;
+        }
+
+        room.answerLogs?.forEach(log => {
+            if (log.isCorrect && log.pointsAwarded) {
+                scores[log.userId] = (scores[log.userId] || 0) + log.pointsAwarded;
+            }
+        });
+        
+        const finalPlayers = Object.values(room.players).map(p => ({
+            ...p,
+            score: scores[p.uid] || 0,
+        }));
+
+        return finalPlayers.sort((a, b) => b.score - a.score);
+    }
 
   const finishGame = async () => {
     if (!gameRoom || gameRoom.status === 'finished') return;
@@ -186,9 +209,8 @@ export default function GamePage() {
         const roomRef = doc(db, 'game-rooms', gameRoomId as string);
         await updateDoc(roomRef, { status: 'finished' });
 
-        await updateScores({ 
-            gameRoomId: gameRoom.id,
-         });
+        // The server-side flow will handle score calculation and updates.
+        await updateScores({ gameRoomId: gameRoom.id });
 
     } catch (error) {
         console.error("Error finishing game: ", error);
@@ -316,11 +338,11 @@ export default function GamePage() {
             question: currentQuestion,
             userAnswer: userAnswer,
             isCorrect: isCorrect,
+            pointsAwarded: pointsToAward,
             timestamp: new Date(),
         };
 
         await updateDoc(roomRef, {
-            [`players.${currentTurnUID}.score`]: increment(pointsToAward),
             answerLogs: arrayUnion(answerLog),
         });
         
@@ -385,7 +407,7 @@ export default function GamePage() {
         await handleNextTurn();
     } catch (error) {
         console.error("Error applying mystery effect:", error);
-        toast({ variant: 'destructive', title: '오류', description: '미스터리 효과 적용 중 오류 발생'});
+        toast({ variant: 'destructive', title: '오류', description: '미스터리 효과 적용 중 오류가 발생했습니다.'});
     } finally {
         setIsSubmitting(false);
         handleCloseDialogs();
@@ -429,7 +451,7 @@ export default function GamePage() {
     return isTurnRestricted || block.isOpened || block.isFlipping;
   };
 
-  const winner = players.length > 0 ? players.sort((a, b) => b.score - a.score)[0] : null;
+  const winner = finalScores.length > 0 ? finalScores[0] : null;
 
   return (
     <>
@@ -511,7 +533,7 @@ export default function GamePage() {
                                 <p className="font-semibold">{player.nickname}</p>
                                 <Progress value={(player.score / 500) * 100} className="h-2 mt-1" />
                             </div>
-                            <div className="font-bold text-primary text-lg w-12 text-right">{player.score}</div>
+                            {/* <div className="font-bold text-primary text-lg w-12 text-right">{player.score}</div> */}
                        </div>
                     </div>
                 ))}
@@ -673,7 +695,7 @@ export default function GamePage() {
             <div className="py-4">
                 <h3 className="font-semibold mb-3">최종 점수</h3>
                 <div className="space-y-2">
-                    {players.sort((a,b) => b.score - a.score).map(p => (
+                    {finalScores.map(p => (
                          <div key={p.uid} className="flex justify-between items-center p-2 rounded-md bg-secondary/50">
                             <span className="font-semibold">{p.nickname}</span>
                             <span className="font-bold text-primary">{p.score}점</span>

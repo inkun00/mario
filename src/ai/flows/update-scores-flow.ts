@@ -59,19 +59,28 @@ const updateScoresFlow = ai.defineFlow(
       const gameRoom = roomSnap.data() as GameRoom;
       const players = Object.values(gameRoom.players);
       const answerLogs = gameRoom.answerLogs || [];
-
+      
       if (!players || players.length === 0) {
         return { success: false, message: "No players found in the game room." };
       }
       
+      // Calculate final scores from answerLogs
+      const finalScores: Record<string, number> = {};
+      answerLogs.forEach(log => {
+        if (log.isCorrect && log.pointsAwarded) {
+          finalScores[log.userId] = (finalScores[log.userId] || 0) + log.pointsAwarded;
+        }
+      });
+
       const batch = db.batch();
       
-      // 1. Update player XP and lastPlayed timestamp
+      // 1. Update player XP using calculated final scores
       for (const player of players) {
-        if (player.uid && player.score > 0) {
+        const finalScore = finalScores[player.uid] || 0;
+        if (player.uid && finalScore > 0) {
           const userRef = db.collection('users').doc(player.uid);
           batch.update(userRef, {
-            xp: FieldValue.increment(player.score),
+            xp: FieldValue.increment(finalScore),
             lastPlayed: FieldValue.serverTimestamp(),
           });
         }
@@ -79,27 +88,29 @@ const updateScoresFlow = ai.defineFlow(
 
       // 2. Process answer logs and add to user subcollections
       for (const log of answerLogs) {
-          if (log.isCorrect) {
-              const correctAnswersRef = db.collection('users', log.userId, 'correct-answers').doc();
-              batch.set(correctAnswersRef, {
-                  gameSetId: log.gameSetId,
-                  gameSetTitle: log.gameSetTitle,
-                  question: log.question.question,
-                  grade: log.question.subject || '',
-                  semester: log.question.subject || '',
-                  subject: log.question.subject || '',
-                  unit: log.question.unit || '',
-                  timestamp: log.timestamp,
-              });
-          } else {
-              const incorrectAnswersRef = db.collection('users', log.userId, 'incorrect-answers').doc();
-              batch.set(incorrectAnswersRef, {
-                  gameSetId: log.gameSetId,
-                  gameSetTitle: log.gameSetTitle,
-                  question: log.question,
-                  userAnswer: log.userAnswer,
-                  timestamp: log.timestamp,
-              });
+          if (log.userId) { // Ensure there is a userId to log against
+            if (log.isCorrect) {
+                const correctAnswersRef = db.collection('users', log.userId, 'correct-answers').doc();
+                batch.set(correctAnswersRef, {
+                    gameSetId: log.gameSetId,
+                    gameSetTitle: log.gameSetTitle,
+                    question: log.question.question,
+                    grade: log.question.subject || '',
+                    semester: log.question.subject || '',
+                    subject: log.question.subject || '',
+                    unit: log.question.unit || '',
+                    timestamp: log.timestamp,
+                });
+            } else {
+                const incorrectAnswersRef = db.collection('users', log.userId, 'incorrect-answers').doc();
+                batch.set(incorrectAnswersRef, {
+                    gameSetId: log.gameSetId,
+                    gameSetTitle: log.gameSetTitle,
+                    question: log.question,
+                    userAnswer: log.userAnswer,
+                    timestamp: log.timestamp,
+                });
+            }
           }
       }
 
