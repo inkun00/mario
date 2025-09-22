@@ -33,6 +33,12 @@ const nextConfig: NextConfig = {
         hostname: 'www.unpm.or.kr',
         port: '',
         pathname: '/un2022/bbs_skin/sisul/image_ko/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'kormedi.com',
+        port: '',
+        pathname: '/**',
       }
     ],
   },
