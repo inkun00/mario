@@ -28,6 +28,7 @@ import { getLevelInfo, getNextLevelInfo, LevelInfo, levelSystem } from '@/lib/le
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import Image from 'next/image';
 
 interface ReviewQuestion extends IncorrectAnswer {
     newQuestion: string;
@@ -36,19 +37,6 @@ interface ReviewQuestion extends IncorrectAnswer {
     isChecking?: boolean;
     isCorrect?: boolean;
 }
-
-const colorCycle = [
-    'text-primary',
-    'text-green-500',
-    'text-yellow-500',
-    'text-orange-500',
-    'text-red-500',
-    'text-purple-500',
-    'text-pink-500',
-    'text-teal-500',
-    'text-indigo-500',
-    'text-cyan-500'
-];
 
 export default function ProfilePage() {
   const [user] = useAuthState(auth);
@@ -255,17 +243,13 @@ export default function ProfilePage() {
       return <div>사용자 정보를 불러올 수 없습니다.</div>
   }
 
-  const IconComponent = levelInfo.icon;
-
   return (
     <div className="container mx-auto flex flex-col gap-8">
       <Card>
         <CardHeader>
           <div className="flex items-center gap-4">
             <div className="relative h-20 w-20">
-              <div className="absolute inset-0 bg-primary/10 rounded-full flex items-center justify-center">
-                <IconComponent className="h-10 w-10 text-primary" />
-              </div>
+                <Image src={levelInfo.icon} alt={levelInfo.title} width={80} height={80} className="rounded-full" data-ai-hint="badge emblem" />
             </div>
             <div>
               <CardTitle className="font-headline text-3xl">{userData.displayName}</CardTitle>
@@ -385,21 +369,26 @@ export default function ProfilePage() {
             <TooltipProvider>
                 <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-4">
                     {levelSystem.map((level) => {
-                        const CurrentIcon = level.icon;
                         const isUnlocked = userData.xp >= level.xpThreshold;
-                        const colorClass = colorCycle[Math.floor((level.level -1) / 10) % colorCycle.length];
 
                         return (
                             <Tooltip key={level.level}>
                                 <TooltipTrigger asChild>
                                     <div className={cn(
-                                        "group relative aspect-square flex items-center justify-center p-2 rounded-lg transition-all duration-300",
+                                        "group relative aspect-square flex items-center justify-center p-1 rounded-lg transition-all duration-300",
                                         isUnlocked ? 'bg-secondary/70' : 'bg-secondary/30'
                                     )}>
-                                        <CurrentIcon className={cn(
-                                            "w-8 h-8 transition-transform group-hover:scale-125",
-                                            isUnlocked ? colorClass : 'text-muted-foreground/30'
-                                        )} />
+                                        <Image 
+                                            src={level.icon}
+                                            alt={level.title}
+                                            width={60}
+                                            height={60}
+                                            data-ai-hint="badge emblem"
+                                            className={cn(
+                                                "rounded-md transition-all duration-300 group-hover:scale-110",
+                                                !isUnlocked && "grayscale"
+                                            )}
+                                        />
                                     </div>
                                 </TooltipTrigger>
                                 <TooltipContent>
@@ -417,3 +406,4 @@ export default function ProfilePage() {
 
     </div>
   );
+}
