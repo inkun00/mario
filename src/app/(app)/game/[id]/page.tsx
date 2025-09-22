@@ -782,7 +782,7 @@ export default function GamePage() {
               </div>
               <DialogFooter className="sm:justify-center">
                   <Button asChild>
-                      <Link href="/dashboard">대시보드로 돌아가기</Link>                 
+                      <Link href="/dashboard">돌아가기</Link>                 
                   </Button>
               </DialogFooter>
           </DialogContent>

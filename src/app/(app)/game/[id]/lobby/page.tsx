@@ -149,6 +149,15 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
             console.log("Participant Check Result:", result);
 
             if (result.exists && result.uid) {
+                const isDuplicate = players.some(p => p.uid === result.uid);
+                if (isDuplicate) {
+                    toast({ variant: 'destructive', title: '중복 참여', description: `"${result.nickname}" 님은 이미 참여 중입니다.`});
+                    newPlayers[index].userId = '';
+                    newPlayers[index].isChecking = false;
+                    setPlayers(newPlayers);
+                    return;
+                }
+
                 if (gameSet && gameSet.creatorId === result.uid) {
                     toast({ variant: 'destructive', title: '참여 불가', description: `제작자(${result.nickname})는 자신이 만든 퀴즈에 참여할 수 없습니다.`});
                 } else {

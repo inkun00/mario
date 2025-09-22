@@ -103,21 +103,8 @@ export default function ProfilePage() {
         setIsAnalysisLoading(true);
         try {
             const result = await analyzeLearning({ 
-              correctAnswers: correctAnswers.map(a => ({
-                  gameSetTitle: a.gameSetTitle,
-                  grade: a.grade,
-                  semester: a.semester,
-                  subject: a.subject,
-                  unit: a.unit,
-              })), 
-              incorrectAnswers: incorrectAnswers.map(a => ({
-                  gameSetTitle: a.gameSetTitle,
-                  question: {
-                      question: a.question.question,
-                      subject: a.question.subject,
-                      unit: a.question.unit,
-                  }
-              })) 
+              correctAnswers: correctAnswers, 
+              incorrectAnswers: incorrectAnswers 
             });
             setAnalysis(result);
         } catch (error) {
