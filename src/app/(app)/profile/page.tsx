@@ -16,7 +16,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState } from 'react';
 import type { User, CorrectAnswer, IncorrectAnswer } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, Timestamp } from 'firebase/firestore';
 import { BrainCircuit, Activity, FileWarning, Sparkles, Loader2, Lightbulb, CheckCircle, Trophy } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -102,9 +102,13 @@ export default function ProfilePage() {
     const runAnalysis = async () => {
         setIsAnalysisLoading(true);
         try {
+            // Convert Firestore Timestamps to strings before sending to the server action
+            const plainCorrectAnswers = correctAnswers.map(a => ({...a, timestamp: a.timestamp instanceof Timestamp ? a.timestamp.toDate().toISOString() : a.timestamp }));
+            const plainIncorrectAnswers = incorrectAnswers.map(a => ({...a, timestamp: a.timestamp instanceof Timestamp ? a.timestamp.toDate().toISOString() : a.timestamp, question: {...a.question, id: a.question.id || 0} }));
+
             const result = await analyzeLearning({ 
-              correctAnswers: correctAnswers, 
-              incorrectAnswers: incorrectAnswers 
+              correctAnswers: plainCorrectAnswers, 
+              incorrectAnswers: plainIncorrectAnswers
             });
             setAnalysis(result);
         } catch (error) {

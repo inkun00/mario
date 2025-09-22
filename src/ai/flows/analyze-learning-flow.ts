@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -23,9 +24,12 @@ const CorrectAnswerSchema = z.object({
 const IncorrectAnswerSchema = z.object({
   gameSetTitle: z.string(),
   question: z.object({
+    id: z.number().optional(),
     question: z.string(),
     subject: z.string().optional(),
     unit: z.string().optional(),
+    points: z.number().optional(),
+    type: z.enum(['subjective', 'multipleChoice', 'ox']).optional(),
   }),
 });
 
