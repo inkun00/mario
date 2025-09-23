@@ -129,7 +129,7 @@ const updateScoresFlow = ai.defineFlow(
           const userRef = db.collection('users').doc(player.uid);
           batch.update(userRef, {
             xp: FieldValue.increment(xpGained),
-            lastPlayed: FieldValue.serverTimestamp(),
+            lastPlayed: Timestamp.now(),
           });
         }
       }
@@ -141,7 +141,7 @@ const updateScoresFlow = ai.defineFlow(
           // Convert JS Date back to Firestore Timestamp if it's not already one
           const timestamp = (log.timestamp && !(log.timestamp instanceof Timestamp)) 
             ? Timestamp.fromDate(new Date(log.timestamp as any)) 
-            : log.timestamp || FieldValue.serverTimestamp();
+            : log.timestamp || Timestamp.now();
 
           if (log.isCorrect) {
               const correctAnswerRef = db.collection('users').doc(log.userId).collection('correct-answers').doc();

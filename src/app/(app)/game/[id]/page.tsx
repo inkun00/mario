@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, getDoc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog } from '@/lib/types';
@@ -130,9 +130,9 @@ export default function GamePage() {
 
   // Fetch GameRoom and GameSet data
   useEffect(() => {
-    if (!gameRoomId) return;
+    if (!gameRoomId || typeof gameRoomId !== 'string') return;
 
-    const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+    const roomRef = doc(db, 'game-rooms', gameRoomId);
 
     const handleSnapshot = async (docSnap: any) => {
         if (docSnap.exists()) {
@@ -224,11 +224,11 @@ export default function GamePage() {
 
   
   const handleBlockClick = (block: GameBlock) => {
-    if (isClickDisabled(block) || !gameRoom) return;
+    if (isClickDisabled(block) || !gameRoom || typeof gameRoomId !== 'string') return;
     
     const newGameState: GameRoom['gameState'] = { ...gameRoom.gameState, [String(block.id)]: 'flipping' };
     
-    const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+    const roomRef = doc(db, 'game-rooms', gameRoomId);
     updateDoc(roomRef, { gameState: newGameState });
 
     setTimeout(() => {
@@ -250,14 +250,14 @@ export default function GamePage() {
   };
   
   const handleMysteryBoxOpen = (blockId: number) => {
-      if (!gameRoom) return;
+      if (!gameRoom || typeof gameRoomId !== 'string') return;
 
       const effects = gameRoom?.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
       if (effects.length === 0) {
           toast({ title: '이런!', description: '아무 일도 일어나지 않았습니다. 설정된 미스터리 효과가 없습니다.' });
           
           const newGameState: GameRoom['gameState'] = { ...gameRoom.gameState, [String(blockId)]: 'answered' };
-          const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+          const roomRef = doc(db, 'game-rooms', gameRoomId);
           
           const nextTurnUID = getNextTurnUID();
           const allAnswered = blocks.every(b => newGameState[String(b.id)] === 'answered');
@@ -323,7 +323,7 @@ export default function GamePage() {
   }
 
   const handleSubmitAnswer = async () => {
-    if (!currentQuestionInfo || !gameRoom || !userAnswer || !gameSet || !gameRoomId) {
+    if (!currentQuestionInfo || !gameRoom || !userAnswer || !gameSet || typeof gameRoomId !== 'string') {
       toast({ variant: 'destructive', title: '오류', description: '답변을 선택하거나 입력해주세요.'});
       return;
     }
@@ -349,7 +349,7 @@ export default function GamePage() {
     };
     
     try {
-        const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+        const roomRef = doc(db, 'game-rooms', gameRoomId);
         
         const newAnswerLogs = [...(gameRoom.answerLogs || []), answerLog];
         const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
@@ -385,7 +385,7 @@ export default function GamePage() {
   };
 
   const handleMysteryEffect = async () => {
-    if (!mysteryBoxEffect || !gameRoom || !gameRoomId || !gameSet) return;
+    if (!mysteryBoxEffect || !gameRoom || typeof gameRoomId !== 'string' || !gameSet) return;
   
     setIsSubmitting(true);
     
@@ -445,7 +445,7 @@ export default function GamePage() {
                 break;
         }
 
-        const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+        const roomRef = doc(db, 'game-rooms', gameRoomId);
         
         const newAnswerLogs = [...(gameRoom.answerLogs || []), ...logsToPush];
         const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [blockId]: 'answered'};
@@ -469,10 +469,10 @@ export default function GamePage() {
   };
 
   const handleSaveMysterySettings = async () => {
-      if (!gameRoomId || !gameRoom) return;
+      if (!gameRoomId || typeof gameRoomId !== 'string' || !gameRoom) return;
       setIsSubmitting(true);
       try {
-        const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+        const roomRef = doc(db, 'game-rooms', gameRoomId);
         await updateDoc(roomRef, {
             enabledMysteryEffects: selectedEffects,
             isMysterySettingDone: true
