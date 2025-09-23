@@ -85,10 +85,7 @@ const gameSetSchema = z.object({
   subject: z.string().optional(),
   unit: z.string().optional(),
   isPublic: z.boolean(),
-  questions: z.array(questionSchema),
-}).refine(data => data.questions.length >= 5, {
-    message: '최소 5개 이상의 질문이 필요합니다.',
-    path: ['questions'], // Assign error to the 'questions' field array
+  questions: z.array(questionSchema).min(5, '최소 5개 이상의 질문이 필요합니다.'),
 });
 
 
@@ -363,12 +360,11 @@ export default function CreateGameSetPage() {
                 <div>
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold">질문 카드</h3>
-                        {/* This FormMessage will now display the array-level error */}
                         <FormField
                             control={form.control}
                             name="questions"
-                            render={() => (
-                                <FormMessage />
+                            render={({ fieldState }) => (
+                                <FormMessage>{fieldState.error?.message}</FormMessage>
                             )}
                         />
                     </div>
