@@ -583,7 +583,7 @@ export default function EditGameSetPage() {
                                                     <RadioGroupItem value="X" />
                                                 </FormControl>
                                                 <FormLabel className="font-normal">X</FormLabel>
-                                                </Item>
+                                                </FormItem>
                                             </RadioGroup>
                                             </FormControl>
                                             <FormMessage />
