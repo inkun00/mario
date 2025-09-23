@@ -76,11 +76,11 @@ const gameSetSchema = z.object({
 
 type GameSetFormValues = z.infer<typeof gameSetSchema>;
 
-async function callApi(flow: string, input: any) {
-  const response = await fetch('/api/genkit', {
+async function callApi(action: string, data: any) {
+  const response = await fetch('/api/ai', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ flow, input }),
+    body: JSON.stringify({ action, data }),
   });
   if (!response.ok) {
     const error = await response.json();
@@ -143,7 +143,7 @@ export default function CreateGameSetPage() {
     }
 
     try {
-      // Step 1: Validate with Genkit AI
+      // Step 1: Validate with AI
       const validationResult = await callApi('validateQuizSet', data);
       if (!validationResult.isValid) {
         toast({
