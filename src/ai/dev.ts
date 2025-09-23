@@ -3,11 +3,22 @@
 import { config } from 'dotenv';
 config();
 
-import '@/ai/flows/adjust-difficulty-flow.ts';
-import '@/ai/flows/analyze-learning-flow.ts';
-import '@/ai/flows/check-nickname-flow.ts';
-import '@/ai/flows/check-review-answer-flow.ts';
-import '@/ai/flows/generate-review-question-flow.ts';
-import '@/ai/flows/join-game-flow.ts';
-import '@/ai/flows/update-scores-flow.ts';
-import '@/ai/flows/validate-quiz-set-flow.ts';
+import { genkit } from 'genkit';
+import { googleAI } from '@genkit-ai/googleai';
+
+// Genkit 초기화
+genkit({
+  plugins: [googleAI()],
+  logLevel: 'debug',
+  enableTracingAndMetrics: true,
+});
+
+// 모든 플로우 파일 import
+import '@/ai/flows/adjust-difficulty-flow';
+import '@/ai/flows/analyze-learning-flow';
+import '@/ai/flows/check-nickname-flow';
+import '@/ai/flows/check-review-answer-flow';
+import '@/ai/flows/generate-review-question-flow';
+import '@/ai/flows/join-game-flow';
+import '@/ai/flows/update-scores-flow';
+import '@/ai/flows/validate-quiz-set-flow';
