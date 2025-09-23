@@ -11,7 +11,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { getFirestore, updateDoc, doc, getDoc } from 'firebase-admin/firestore';
+import { getFirestore, doc, getDoc } from 'firebase-admin/firestore';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import type { Player, GameRoom } from '@/lib/types';
 
@@ -82,7 +82,7 @@ const joinGameFlow = ai.defineFlow(
          return { success: false, message: '게임방이 가득 찼습니다.' };
       }
 
-      await updateDoc(roomRef, {
+      await roomRef.update({
         [`players.${player.uid}`]: player,
       });
 
@@ -94,5 +94,3 @@ const joinGameFlow = ai.defineFlow(
     }
   }
 );
-
-    
