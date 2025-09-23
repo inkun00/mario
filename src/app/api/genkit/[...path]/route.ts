@@ -1,7 +1,6 @@
-
 'use server';
 
-import { genkit } from 'genkit';
+import { createApiHandler } from '@genkit-ai/next';
 import '@/ai/dev';
 
-export const { GET, POST, OPTIONS } = genkit();
+export const { GET, POST, OPTIONS } = createApiHandler();
