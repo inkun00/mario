@@ -61,29 +61,50 @@ const questionSchema = z.object({
   imageUrl: z.string().url().optional().or(z.literal('')),
   hint: z.string().optional(),
   answer: z.string().optional(),
-  options: z.array(z.string().min(1, '보기를 입력해주세요.')).optional(),
+  options: z.array(z.string()).optional(),
   correctAnswer: z.string().optional(),
-}).refine(data => data.type !== 'subjective' || (data.answer && data.answer.length > 0), {
+}).refine(data => {
+    if (data.type === 'subjective') {
+        return data.answer && data.answer.length > 0;
+    }
+    return true;
+}, {
     message: '주관식 정답을 입력해주세요.',
     path: ['answer'],
-}).refine(data => data.type !== 'multipleChoice' || (data.options && data.options.length === 4 && data.options.every(opt => opt && opt.length > 0)), {
+}).refine(data => {
+    if (data.type === 'multipleChoice') {
+        return data.options && data.options.length === 4 && data.options.every(opt => opt && opt.length > 0);
+    }
+    return true;
+}, {
     message: '객관식 문제는 4개의 보기를 모두 입력해야 합니다.',
     path: ['options'],
-}).refine(data => data.type !== 'multipleChoice' || (data.correctAnswer && data.correctAnswer.length > 0), {
+}).refine(data => {
+    if (data.type === 'multipleChoice') {
+        return data.correctAnswer && data.correctAnswer.length > 0;
+    }
+    return true;
+}, {
     message: '객관식 문제의 정답을 선택해주세요.',
     path: ['correctAnswer'],
-}).refine(data => data.type !== 'ox' || (data.correctAnswer === 'O' || data.correctAnswer === 'X'), {
+}).refine(data => {
+    if (data.type === 'ox') {
+        return data.correctAnswer === 'O' || data.correctAnswer === 'X';
+    }
+    return true;
+}, {
     message: 'O/X 문제의 정답을 선택해주세요.',
     path: ['correctAnswer'],
 });
 
+
 const gameSetSchema = z.object({
   title: z.string().min(1, '제목을 입력해주세요.'),
   description: z.string().optional(),
-  grade: z.string().optional(),
+  grade: z.string().min(1, '학년을 선택해주세요.'),
   semester: z.string().optional(),
-  subject: z.string().optional(),
-  unit: z.string().optional(),
+  subject: z.string().min(1, '과목을 선택해주세요.'),
+  unit: z.string().min(1, '단원을 입력해주세요.'),
   isPublic: z.boolean(),
   questions: z.array(questionSchema).min(5, '최소 5개 이상의 질문이 필요합니다.'),
 });
@@ -121,8 +142,15 @@ export default function CreateGameSetPage() {
       subject: '',
       unit: '',
       isPublic: true,
-      questions: [defaultQuestion],
+      questions: [
+        { ...defaultQuestion },
+        { ...defaultQuestion },
+        { ...defaultQuestion },
+        { ...defaultQuestion },
+        { ...defaultQuestion },
+      ],
     },
+     mode: "onChange",
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -360,7 +388,7 @@ export default function CreateGameSetPage() {
                 <div>
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold">질문 카드</h3>
-                        <FormField
+                         <FormField
                             control={form.control}
                             name="questions"
                             render={({ fieldState }) => (
@@ -623,5 +651,3 @@ export default function CreateGameSetPage() {
     </div>
   );
 }
-
-    
