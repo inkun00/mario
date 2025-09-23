@@ -4,6 +4,7 @@
 
 
 
+
 export interface User {
   uid: string;
   email: string | null;
@@ -47,6 +48,7 @@ export interface GameSet {
   isPublic: boolean;
   questions: Question[];
   createdAt: any;
+  playCount?: number;
 }
 
 export interface Player {

@@ -17,7 +17,7 @@ import { db, auth } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, JoinType } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, Timestamp, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, Timestamp, updateDoc, increment } from 'firebase/firestore';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
 import { Smartphone, Lock, Users, Loader2 } from 'lucide-react';
@@ -157,6 +157,12 @@ function NewGameRoomPageContents() {
           ...newRoom,
           id: newRoomId,
           createdAt: serverTimestamp(),
+      });
+
+      // Increment play count for the game set
+      const gameSetRef = doc(db, 'game-sets', gameSet.id);
+      await updateDoc(gameSetRef, {
+        playCount: increment(1)
       });
       
       toast({ title: '성공', description: '새로운 게임방을 만들었습니다!' });

@@ -377,7 +377,7 @@ export default function ProfilePage() {
             <CardDescription>지금까지 획득한 엠블럼들을 확인해보세요!</CardDescription>
         </CardHeader>
         <CardContent>
-            <TooltipProvider>
+            <TooltipProvider delayDuration={0}>
                 <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-4">
                     {levelSystem.filter(level => userData.xp >= level.xpThreshold).map((level) => (
                         <Tooltip key={level.level}>
@@ -407,5 +407,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    

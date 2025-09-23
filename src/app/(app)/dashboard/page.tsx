@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2 } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
@@ -43,6 +43,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
 import { ADMIN_EMAILS } from '@/lib/admins';
+import { cn } from '@/lib/utils';
 
 const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '음악', '미술', '체육', '영어', '창체'];
 
@@ -107,7 +108,7 @@ export default function DashboardPage() {
           });
       }
       
-      finalSets.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+      finalSets.sort((a, b) => (b.playCount || 0) - (a.playCount || 0) || (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
       
       setAllGameSets(finalSets);
       setFilteredGameSets(finalSets);
@@ -364,8 +365,9 @@ export default function DashboardPage() {
               </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredGameSets.map((set) => {
+              {filteredGameSets.map((set, index) => {
                 const isCreator = user ? set.creatorId === user.uid : false;
+                const isTop5 = index < 5;
                 
                 let createRoomButton;
                 if (isCreator && !isAdmin) {
@@ -396,7 +398,7 @@ export default function DashboardPage() {
                 }
 
                 return (
-                <Card key={set.id} className="hover:shadow-lg transition-shadow flex flex-col min-w-[380px]">
+                <Card key={set.id} className={cn("hover:shadow-lg transition-shadow flex flex-col min-w-[380px]", isTop5 && "border-yellow-400 border-2 shadow-lg shadow-yellow-400/50")}>
                   <CardHeader>
                     <div className="flex items-start justify-between">
                         <div>
@@ -410,9 +412,15 @@ export default function DashboardPage() {
                             </div>
                             <CardDescription className="mt-1">By {set.creatorNickname}</CardDescription>
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Book className="h-4 w-4" />
-                            <span>{set.questions.length} 문제</span>
+                        <div className="flex flex-col items-end gap-2 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <Book className="h-4 w-4" />
+                              <span>{set.questions.length} 문제</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-primary font-semibold">
+                              <BarChart3 className="h-4 w-4" />
+                              <span>활용 {set.playCount || 0}회</span>
+                            </div>
                         </div>
                     </div>
                   </CardHeader>
