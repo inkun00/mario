@@ -41,6 +41,19 @@ import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 
+async function callApi(action: string, data: any) {
+  const response = await fetch('/api/ai', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, data }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'API call failed');
+  }
+  return response.json();
+}
+
 const questionSchema = z.object({
   question: z.string().min(1, '질문을 입력해주세요.'),
   points: z.coerce.number(),
@@ -72,23 +85,14 @@ const gameSetSchema = z.object({
   subject: z.string().optional(),
   unit: z.string().optional(),
   isPublic: z.boolean(),
-  questions: z.array(questionSchema).min(5, '최소 5개 이상의 질문이 필요합니다.'),
+  questions: z.array(questionSchema),
+}).refine(data => data.questions.length >= 5, {
+    message: '최소 5개 이상의 질문이 필요합니다.',
+    path: ['questions'], // Assign error to the 'questions' field array
 });
 
-type GameSetFormValues = z.infer<typeof gameSetSchema>;
 
-async function callApi(action: string, data: any) {
-  const response = await fetch('/api/ai', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, data }),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'API call failed');
-  }
-  return response.json();
-}
+type GameSetFormValues = z.infer<typeof gameSetSchema>;
 
 const defaultQuestion: z.infer<typeof questionSchema> = {
   question: '',
@@ -357,7 +361,17 @@ export default function CreateGameSetPage() {
                 <Separator />
 
                 <div>
-                  <h3 className="text-lg font-semibold mb-4">질문 카드</h3>
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold">질문 카드</h3>
+                        {/* This FormMessage will now display the array-level error */}
+                        <FormField
+                            control={form.control}
+                            name="questions"
+                            render={() => (
+                                <FormMessage />
+                            )}
+                        />
+                    </div>
                   <div className="space-y-6">
                     {fields.map((field, index) => (
                       <Card key={field.id} className="p-4 bg-secondary/30">
@@ -613,3 +627,5 @@ export default function CreateGameSetPage() {
     </div>
   );
 }
+
+    
