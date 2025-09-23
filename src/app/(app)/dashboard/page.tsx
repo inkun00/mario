@@ -244,26 +244,35 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-headline">게임 참여하기</CardTitle>
-              <CardDescription>참여 코드를 입력하여 친구의 게임에 참여하세요.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-2">
-                <Input 
-                  placeholder="참여 코드 입력" 
-                  value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value)}
-                  disabled={isJoining}
-                />
-                <Button onClick={handleJoinGame} disabled={isJoining}>
-                  {isJoining ? <Loader2 className="animate-spin" /> : '참여'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-          
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-not-allowed">
+                  <Card className="opacity-50 pointer-events-none">
+                    <CardHeader>
+                      <CardTitle className="font-headline">게임 참여하기</CardTitle>
+                      <CardDescription>참여 코드를 입력하여 친구의 게임에 참여하세요.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex gap-2">
+                        <Input 
+                          placeholder="참여 코드 입력" 
+                          disabled
+                        />
+                        <Button disabled>
+                          참여
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>아직 개발 전입니다.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
           <Card>
             <CardHeader>
               <CardTitle className="font-headline">새로운 퀴즈 만들기</CardTitle>

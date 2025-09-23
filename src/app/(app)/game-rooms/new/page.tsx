@@ -51,7 +51,7 @@ function NewGameRoomPageContents() {
   const [password, setPassword] = useState('');
   const [usePassword, setUsePassword] = useState(false);
   const [mysteryBoxEnabled, setMysteryBoxEnabled] = useState(true);
-  const [joinType, setJoinType] = useState<JoinType>('remote');
+  const [joinType, setJoinType] = useState<JoinType>('local');
 
   useEffect(() => {
     if (!gameSetId) {
@@ -212,16 +212,26 @@ function NewGameRoomPageContents() {
                     onValueChange={(value: string) => setJoinType(value as JoinType)}
                     className="grid grid-cols-2 gap-4"
                   >
-                    <div>
-                      <RadioGroupItem value="remote" id="remote" className="peer sr-only" />
-                      <Label
-                        htmlFor="remote"
-                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                      >
-                        <Users className="mb-3 h-6 w-6" />
-                        여러 기기에서 참여
-                      </Label>
-                    </div>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                           <div className="cursor-not-allowed">
+                              <RadioGroupItem value="remote" id="remote" className="peer sr-only" disabled />
+                              <Label
+                                htmlFor="remote"
+                                className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 opacity-50 peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                              >
+                                <Users className="mb-3 h-6 w-6" />
+                                여러 기기에서 참여
+                              </Label>
+                           </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>아직 개발 전입니다.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
                     <div>
                       <RadioGroupItem value="local" id="local" className="peer sr-only" />
                       <Label
@@ -237,34 +247,35 @@ function NewGameRoomPageContents() {
 
             </div>
           </div>
-
-           <div className="space-y-2">
-            <h3 className="font-semibold">보안 설정</h3>
-              <div className="p-4 border rounded-lg space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="use-password" className="flex flex-col gap-1">
-                      <span>비밀번호 사용</span>
-                       <span className="text-xs text-muted-foreground">비밀번호를 아는 사람만 입장할 수 있습니다.</span>
-                  </Label>
-                  <Switch
-                    id="use-password"
-                    checked={usePassword}
-                    onCheckedChange={setUsePassword}
-                  />
-                </div>
-                {usePassword && (
-                    <Input 
-                        type="password"
-                        placeholder="비밀번호 입력"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        maxLength={20}
-                    />
-                )}
-              </div>
-          </div>
           
-          <Button onClick={handleCreateRoom} disabled={isCreating || hasPlayedToday || (usePassword && !password)} className="w-full font-headline" size="lg">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-not-allowed">
+                  <div className="space-y-2 opacity-50 pointer-events-none">
+                    <h3 className="font-semibold">보안 설정</h3>
+                      <div className="p-4 border rounded-lg space-y-4">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="use-password" className="flex flex-col gap-1">
+                              <span>비밀번호 사용</span>
+                               <span className="text-xs text-muted-foreground">비밀번호를 아는 사람만 입장할 수 있습니다.</span>
+                          </Label>
+                          <Switch
+                            id="use-password"
+                            disabled
+                          />
+                        </div>
+                      </div>
+                  </div>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                  <p>아직 개발 전입니다.</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <Button onClick={handleCreateRoom} disabled={isCreating || hasPlayedToday} className="w-full font-headline" size="lg">
             {isCreating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>방 만드는 중...</> : hasPlayedToday ? '오늘 이미 플레이한 게임입니다' : <><Users className="mr-2 h-5 w-5" /> 게임방 만들기</>}
           </Button>
           {hasPlayedToday && (
