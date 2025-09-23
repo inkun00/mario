@@ -9,6 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'zod';
 import type { CorrectAnswer, IncorrectAnswer } from '@/lib/types';
 
@@ -54,6 +55,7 @@ export async function analyzeLearning(input: AnalyzeLearningInput): Promise<Anal
 
 const analyzeLearningPrompt = ai.definePrompt({
   name: 'analyzeLearningPrompt',
+  model: googleAI.model('gemini-1.5-flash'),
   input: { schema: AnalyzeLearningInputSchema },
   output: { schema: AnalyzeLearningOutputSchema },
   prompt: `You are an expert learning analyst AI. Your task is to analyze a student's performance based on their correct and incorrect answers. Identify patterns to determine their strong and weak areas.

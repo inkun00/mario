@@ -9,6 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'zod';
 
 const QuestionSchema = z.object({
@@ -42,6 +43,7 @@ export async function validateQuizSet(input: ValidateQuizSetInput): Promise<Vali
 
 const validateQuizSetPrompt = ai.definePrompt({
   name: 'validateQuizSetPrompt',
+  model: googleAI.model('gemini-1.5-flash'),
   input: { schema: ValidateQuizSetInputSchema },
   output: { schema: ValidateQuizSetOutputSchema },
   prompt: `You are an expert AI content moderator for an educational platform. Your task is to review a user-submitted quiz set to ensure it is appropriate and high-quality.

@@ -9,6 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'zod';
 import type { Question } from '@/lib/types';
 
@@ -30,6 +31,7 @@ export async function generateReviewQuestion(input: { originalQuestion: Question
 
 const generateReviewQuestionPrompt = ai.definePrompt({
   name: 'generateReviewQuestionPrompt',
+  model: googleAI.model('gemini-1.5-flash'),
   input: { schema: GenerateReviewQuestionInputSchema },
   output: { schema: GenerateReviewQuestionOutputSchema },
   prompt: `You are an AI tutor. Your task is to create a review question based on a question a student previously answered incorrectly.
