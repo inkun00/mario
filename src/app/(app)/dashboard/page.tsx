@@ -425,7 +425,7 @@ export default function DashboardPage() {
                         </div>
                     </div>
                   </CardHeader>
-                  <CardFooter className="mt-auto flex justify-end items-center gap-2">
+                  <CardFooter className="mt-auto flex justify-end items-center gap-2 p-4 pt-0">
                     <Button variant="secondary" size="sm" onClick={() => setSelectedGameSet(set)}>미리보기</Button>
                     {(isCreator || isAdmin) && (
                       <>
