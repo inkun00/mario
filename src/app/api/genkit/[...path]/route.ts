@@ -1,6 +1,6 @@
 'use server';
 
-import { createApiHandler } from '@genkit-ai/next';
+import { getGafHandler } from 'genkit/gaf';
 import '@/ai/dev';
 
-export const { GET, POST, OPTIONS } = createApiHandler();
+export const { GET, POST, OPTIONS } = getGafHandler();
