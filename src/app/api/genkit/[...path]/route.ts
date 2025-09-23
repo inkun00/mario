@@ -1,6 +1,14 @@
 'use server';
 
-import { nextJsHandler } from '@genkit-ai/nextjs/app';
+import { startFlowsServer } from 'genkit/flow';
 import '@/ai/dev';
 
-export const { GET, POST, OPTIONS } = nextJsHandler();
+const flowsServer = startFlowsServer();
+
+export async function GET(request: Request) {
+  return flowsServer.handleRequest(request);
+}
+
+export async function POST(request: Request) {
+  return flowsServer.handleRequest(request);
+}
