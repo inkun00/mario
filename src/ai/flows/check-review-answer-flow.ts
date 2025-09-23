@@ -1,5 +1,3 @@
-'use server';
-
 /**
  * @fileOverview An AI agent that checks a user's answer to a review question for semantic correctness.
  *

@@ -4,8 +4,8 @@
  * @fileOverview Genkit initialization and plugin configuration.
  *
  * This file is the central point for configuring Genkit in the application.
- * It initializes the Genkit core with necessary plugins. The exported `ai`
- * object is used by all flows to define prompts, flows, and other Genkit assets.
+ * It initializes the Genkit core with necessary plugins. The `ai`
+ * object created here is used by all flows that import this module.
  */
 
 import { genkit } from 'genkit';

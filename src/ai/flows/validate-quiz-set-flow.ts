@@ -1,5 +1,3 @@
-'use server';
-
 /**
  * @fileOverview An AI agent that validates a user-created quiz set for educational appropriateness.
  *
