@@ -398,7 +398,7 @@ export default function DashboardPage() {
                   </CardHeader>
                   <CardFooter className="mt-auto flex justify-end items-center gap-2">
                     <Button variant="secondary" size="sm" onClick={() => setSelectedGameSet(set)}>미리보기</Button>
-                    {isCreator && (
+                    {(isCreator || isAdmin) && (
                       <>
                         <Button variant="outline" size="sm" asChild>
                           <Link href={`/game-sets/edit/${set.id}`}><Pencil className="mr-2 h-4 w-4" /> 수정</Link>
