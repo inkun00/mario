@@ -14,6 +14,5 @@ import { googleAI } from '@genkit-ai/googleai';
 // This configuration will be used by all flows.
 export const ai = genkit({
   plugins: [googleAI()],
-  logLevel: 'debug',
   enableTracingAndMetrics: false,
 });
