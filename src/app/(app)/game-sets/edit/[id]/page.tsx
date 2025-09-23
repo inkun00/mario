@@ -49,7 +49,7 @@ const questionSchema = z.object({
   imageUrl: z.string().url().optional().or(z.literal('')),
   hint: z.string().optional(),
   answer: z.string().optional(),
-  options: z.array(z.string().min(1, '보기를 입력해주세요.')).optional(),
+  options: z.array(z.string()).optional(),
   correctAnswer: z.string().optional(),
 }).refine(data => data.type !== 'subjective' || (data.answer && data.answer.length > 0), {
     message: '주관식 정답을 입력해주세요.',
@@ -583,7 +583,7 @@ export default function EditGameSetPage() {
                                                     <RadioGroupItem value="X" />
                                                 </FormControl>
                                                 <FormLabel className="font-normal">X</FormLabel>
-                                                </FormItem>
+                                                </Item>
                                             </RadioGroup>
                                             </FormControl>
                                             <FormMessage />
