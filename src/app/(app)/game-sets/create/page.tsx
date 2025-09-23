@@ -388,9 +388,15 @@ export default function CreateGameSetPage() {
                 <div>
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold">질문 카드</h3>
-                         <FormMessage>
-                            {form.formState.errors.questions?.message}
-                         </FormMessage>
+                        <FormField
+                            control={form.control}
+                            name="questions"
+                            render={() => (
+                                <FormItem>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
                     </div>
                   <div className="space-y-6">
                     {fields.map((field, index) => (
@@ -647,5 +653,3 @@ export default function CreateGameSetPage() {
     </div>
   );
 }
-
-    
