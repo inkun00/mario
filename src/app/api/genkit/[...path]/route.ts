@@ -1,6 +1,6 @@
 'use server';
 
-import { startFlowsServer } from 'genkit/flow';
+import { startFlowsServer } from '@genkit-ai/next';
 import '@/ai/dev';
 
 const flowsServer = startFlowsServer();
