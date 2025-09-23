@@ -1,5 +1,3 @@
-'use server';
-
 // All Genkit related initialization and flow imports are handled in this file.
 import '@/ai/genkit';
 import '@/ai/flows/adjust-difficulty-flow';
