@@ -55,16 +55,11 @@ export default function Home() {
                 학습과 재미를 동시에 잡는 강력한 기능들을 만나보세요.
               </p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               <FeatureCard
                 icon={<Lightbulb className="w-8 h-8 text-primary" />}
                 title="퀴즈 제작"
                 description="나만의 학습 퀴즈 세트를 쉽게 만들고 공유할 수 있습니다."
-              />
-              <FeatureCard
-                icon={<Users className="w-8 h-8 text-primary" />}
-                title="실시간 멀티플레이"
-                description="최대 6명의 친구들과 함께 실시간으로 퀴즈 대결을 펼치세요."
               />
               <FeatureCard
                 icon={<Gamepad2 className="w-8 h-8 text-primary" />}
@@ -73,8 +68,8 @@ export default function Home() {
               />
               <FeatureCard
                 icon={<CheckCircle2 className="w-8 h-8 text-primary" />}
-                title="AI 난이도 조절"
-                description="AI가 실력에 맞춰 문제 난이도와 보상을 동적으로 조절합니다."
+                title="AI오답문제 풀이"
+                description="틀린 문제는 AI가 만들어준 유사 문제로 복습할 수 있습니다."
               />
             </div>
           </div>
@@ -89,11 +84,6 @@ export default function Home() {
               <p className="mx-auto max-w-[600px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
                 간단한 회원가입 후 바로 당신만의 학습 게임을 시작할 수 있습니다.
               </p>
-            </div>
-            <div className="mx-auto w-full max-w-sm space-y-2">
-              <Button asChild size="lg" className="w-full font-headline">
-                <Link href="/signup">무료로 시작하기</Link>
-              </Button>
             </div>
           </div>
         </section>
