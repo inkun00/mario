@@ -1,5 +1,3 @@
-'use server';
-
 /**
  * @fileOverview An AI agent that generates a new review question from a previously incorrect one.
  *

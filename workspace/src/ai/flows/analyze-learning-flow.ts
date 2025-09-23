@@ -1,5 +1,3 @@
-'use server';
-
 /**
  * @fileOverview An AI agent that analyzes a student's learning patterns.
  *

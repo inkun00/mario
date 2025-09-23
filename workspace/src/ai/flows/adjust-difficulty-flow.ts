@@ -1,5 +1,3 @@
-'use server';
-
 /**
  * @fileOverview An AI agent that dynamically adjusts the game difficulty based on student performance.
  *
