@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -152,16 +153,14 @@ export default function ProfilePage() {
 
       if (isCorrect) {
         toast({ title: '정답입니다!', description: '복습을 완료했습니다. 10 XP를 획득했습니다!' });
-        // Award XP and remove from list
+        
         if (user) {
             const userRef = doc(db, 'users', user.uid);
             await updateDoc(userRef, { xp: increment(10) });
+            await deleteDoc(doc(db, 'users', user.uid, 'incorrect-answers', updatedQuestions[index].id));
+            if(userData) setUserData({...userData, xp: userData.xp + 10});
         }
-        await deleteDoc(doc(db, 'users', user.uid, 'incorrect-answers', updatedQuestions[index].id));
-
-        // Optimistically update user data
-        if(userData) setUserData({...userData, xp: userData.xp + 10});
-
+        
         setTimeout(() => {
           setReviewQuestions(prev => prev.filter((_, i) => i !== index));
         }, 1500);
@@ -408,3 +407,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    
