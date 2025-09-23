@@ -1,3 +1,4 @@
+'use server';
 /**
  * @fileOverview Server-only module for all Genkit flows.
  * This file dynamically imports Genkit and its plugins to ensure
