@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -398,7 +399,7 @@ export default function DashboardPage() {
                 }
 
                 return (
-                <Card key={set.id} className={cn("hover:shadow-lg transition-shadow flex flex-col min-w-[380px]", isTop5 && "border-yellow-400 border-2 shadow-lg shadow-yellow-400/50")}>
+                <Card key={set.id} className={cn("hover:shadow-lg transition-shadow flex flex-col", isTop5 && "border-yellow-400 border-2 shadow-lg shadow-yellow-400/50")}>
                   <CardHeader>
                     <div className="flex items-start justify-between">
                         <div>
