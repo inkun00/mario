@@ -27,7 +27,6 @@ async function getAi() {
 
   _ai = genkit({
     plugins: [googleAI()],
-    enableTracingAndMetrics: false,
   });
 
   return _ai;
