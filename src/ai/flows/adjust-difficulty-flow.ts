@@ -8,8 +8,8 @@
  * - AdjustDifficultyOutput - The return type for the adjustDifficulty function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'zod';
+import { ai } from '@/ai/genkit';
+import { z } from 'zod';
 
 const AdjustDifficultyInputSchema = z.object({
   studentId: z.string().describe('The unique identifier of the student.'),
