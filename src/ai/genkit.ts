@@ -1,5 +1,3 @@
-'use server';
-
 /**
  * @fileOverview Genkit initialization and plugin configuration.
  *
