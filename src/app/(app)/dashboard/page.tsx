@@ -42,13 +42,25 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
-import { joinGame } from '@/ai/flows/join-game-flow';
 import { ADMIN_EMAILS } from '@/lib/admins';
 
 const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '음악', '미술', '체육', '영어', '창체'];
 
 interface GameSetDocument extends GameSet {
   id: string;
+}
+
+async function callApi(flow: string, input: any) {
+  const response = await fetch('/api/genkit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ flow, input }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'API call failed');
+  }
+  return response.json();
 }
 
 export default function DashboardPage() {
@@ -168,7 +180,7 @@ export default function DashboardPage() {
     setIsJoining(true);
 
     try {
-      const result = await joinGame({
+      const result = await callApi('joinGame', {
         gameRoomId: joinCode.toUpperCase(),
         player: {
           uid: user.uid,

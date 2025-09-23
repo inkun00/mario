@@ -16,9 +16,21 @@ import Image from 'next/image';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
-import { checkUserId } from '@/ai/flows/check-nickname-flow';
 import { cn } from '@/lib/utils';
 import { ADMIN_EMAILS } from '@/lib/admins';
+
+async function callApi(flow: string, input: any) {
+  const response = await fetch('/api/genkit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ flow, input }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'API call failed');
+  }
+  return response.json();
+}
 
 function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
     const router = useRouter();
@@ -147,7 +159,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
         }
 
         try {
-            const result = await checkUserId({ userId });
+            const result = await callApi('checkUserId', { userId });
 
             if (result.exists && result.uid) {
                 const isDuplicate = players.some(p => p.uid === result.uid);

@@ -39,7 +39,6 @@ import { auth, db } from '@/lib/firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
-import { validateQuizSet } from '@/ai/flows/validate-quiz-set-flow';
 
 const questionSchema = z.object({
   question: z.string().min(1, '질문을 입력해주세요.'),
@@ -76,6 +75,19 @@ const gameSetSchema = z.object({
 });
 
 type GameSetFormValues = z.infer<typeof gameSetSchema>;
+
+async function callApi(flow: string, input: any) {
+  const response = await fetch('/api/genkit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ flow, input }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'API call failed');
+  }
+  return response.json();
+}
 
 const defaultQuestion: z.infer<typeof questionSchema> = {
   question: '',
@@ -132,7 +144,7 @@ export default function CreateGameSetPage() {
 
     try {
       // Step 1: Validate with Genkit AI
-      const validationResult = await validateQuizSet(data);
+      const validationResult = await callApi('validateQuizSet', data);
       if (!validationResult.isValid) {
         toast({
           variant: 'destructive',

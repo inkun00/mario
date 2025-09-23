@@ -19,9 +19,6 @@ import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, Time
 import { BrainCircuit, Activity, FileWarning, Sparkles, Loader2, Lightbulb, CheckCircle, Trophy, School } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { analyzeLearning } from '@/ai/flows/analyze-learning-flow';
-import { generateReviewQuestion } from '@/ai/flows/generate-review-question-flow';
-import { checkReviewAnswer } from '@/ai/flows/check-review-answer-flow';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getLevelInfo, getNextLevelInfo, LevelInfo, levelSystem } from '@/lib/level-system';
 import { Progress } from '@/components/ui/progress';
@@ -35,6 +32,19 @@ interface ReviewQuestion extends IncorrectAnswer {
     userReviewAnswer?: string;
     isChecking?: boolean;
     isCorrect?: boolean;
+}
+
+async function callApi(flow: string, input: any) {
+  const response = await fetch('/api/genkit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ flow, input }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'API call failed');
+  }
+  return response.json();
 }
 
 export default function ProfilePage() {
@@ -110,7 +120,7 @@ export default function ProfilePage() {
                  return { ...rest, timestamp: a.timestamp instanceof Timestamp ? a.timestamp.toDate().toISOString() : a.timestamp };
             });
 
-            const result = await analyzeLearning({ 
+            const result = await callApi('analyzeLearning', { 
               correctAnswers: plainCorrectAnswers, 
               incorrectAnswers: plainIncorrectAnswers
             });
@@ -132,7 +142,7 @@ export default function ProfilePage() {
         reviewQuestions.forEach(async (q) => {
             if(q.isGenerating) {
                 try {
-                    const result = await generateReviewQuestion({ originalQuestion: q.question });
+                    const result = await callApi('generateReviewQuestion', { originalQuestion: q.question });
                     setReviewQuestions(prev => prev.map(rq => 
                         rq.id === q.id ? {...rq, newQuestion: result.newQuestion, isGenerating: false} : rq
                     ));
@@ -161,7 +171,7 @@ export default function ProfilePage() {
       setReviewQuestions(prev => prev.map(rq => rq.id === id ? {...rq, isChecking: true} : rq));
 
       try {
-          const result = await checkReviewAnswer({
+          const result = await callApi('checkReviewAnswer', {
               originalQuestion: questionToCheck.question,
               reviewQuestion: questionToCheck.newQuestion,
               userAnswer: questionToCheck.userReviewAnswer

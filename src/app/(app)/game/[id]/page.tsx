@@ -20,8 +20,6 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
-import { updateScores } from '@/ai/flows/update-scores-flow';
-
 
 interface GameBlock {
   id: number;
@@ -35,6 +33,19 @@ interface MysteryEffect {
     description: string;
     icon: React.ReactNode;
     value?: number;
+}
+
+async function callApi(flow: string, input: any) {
+  const response = await fetch('/api/genkit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ flow, input }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'API call failed');
+  }
+  return response.json();
 }
 
 const allMysteryEffects: {type: MysteryEffectType, title: string, description: string}[] = [
@@ -118,7 +129,7 @@ export default function GamePage() {
     setShowGameOverPopup(true);
     
     // updateScores is a fire-and-forget operation in the background
-    updateScores({ 
+    callApi('updateScores', { 
       gameRoomId: room.id as string, 
       players: finalPlayers,
       totalQuestions: gameSet.questions.length
