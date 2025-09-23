@@ -430,10 +430,10 @@ export default function DashboardPage() {
                     {(isCreator || isAdmin) && (
                       <>
                         <Button variant="outline" size="sm" asChild>
-                          <Link href={`/game-sets/edit/${set.id}`}><Pencil className="mr-2 h-4 w-4" /> 수정</Link>
+                          <Link href={`/game-sets/edit/${set.id}`}><Pencil className="h-4 w-4" /> 수정</Link>
                         </Button>
                         <Button variant="destructive" size="sm" onClick={() => setDeleteCandidate(set)}>
-                          <Trash2 className="mr-2 h-4 w-4" /> 삭제
+                          <Trash2 className="h-4 w-4" /> 삭제
                         </Button>
                       </>
                     )}
