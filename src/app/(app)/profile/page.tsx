@@ -34,28 +34,12 @@ interface ReviewQuestion extends IncorrectAnswer {
     isCorrect?: boolean;
 }
 
-async function callApi(flow: string, input: any) {
-  const response = await fetch('/api/genkit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ flow, input }),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'API call failed');
-  }
-  return response.json();
-}
-
 export default function ProfilePage() {
   const [user] = useAuthState(auth);
   const [userData, setUserData] = useState<User | null>(null);
   const [correctAnswers, setCorrectAnswers] = useState<CorrectAnswer[]>([]);
   const [incorrectAnswers, setIncorrectAnswers] = useState<IncorrectAnswer[]>([]);
-  const [reviewQuestions, setReviewQuestions] = useState<ReviewQuestion[]>([]);
-  const [analysis, setAnalysis] = useState<{strongAreas: string, weakAreas: string} | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAnalysisLoading, setIsAnalysisLoading] = useState(true);
   const { toast } = useToast();
 
   const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
@@ -93,110 +77,11 @@ export default function ProfilePage() {
 
       setCorrectAnswers(correctData);
       setIncorrectAnswers(incorrectData);
-
-      setReviewQuestions(incorrectData.map(q => ({...q, newQuestion: '', isGenerating: true})));
-
       setIsLoading(false);
     };
 
     fetchData();
   }, [user]);
-
-  useEffect(() => {
-    if (isLoading || (correctAnswers.length === 0 && incorrectAnswers.length === 0)) {
-      if (!isLoading) setIsAnalysisLoading(false);
-      return;
-    };
-    
-    const runAnalysis = async () => {
-        setIsAnalysisLoading(true);
-        try {
-            const plainCorrectAnswers = correctAnswers.map(a => {
-                const { id, ...rest } = a;
-                return { ...rest, timestamp: a.timestamp instanceof Timestamp ? a.timestamp.toDate().toISOString() : a.timestamp };
-            });
-            const plainIncorrectAnswers = incorrectAnswers.map(a => {
-                const { id, ...rest } = a;
-                 return { ...rest, timestamp: a.timestamp instanceof Timestamp ? a.timestamp.toDate().toISOString() : a.timestamp };
-            });
-
-            const result = await callApi('analyzeLearning', { 
-              correctAnswers: plainCorrectAnswers, 
-              incorrectAnswers: plainIncorrectAnswers
-            });
-            setAnalysis(result);
-        } catch (error) {
-            console.error("Error analyzing learning data:", error);
-            toast({ variant: 'destructive', title: '오류', description: '학습 데이터 분석 중 오류가 발생했습니다.'});
-        } finally {
-            setIsAnalysisLoading(false);
-        }
-    };
-
-    runAnalysis();
-
-  }, [isLoading, correctAnswers, incorrectAnswers, toast]);
-  
-  useEffect(() => {
-    if (reviewQuestions.length > 0 && reviewQuestions.some(q => q.isGenerating)) {
-        reviewQuestions.forEach(async (q) => {
-            if(q.isGenerating) {
-                try {
-                    const result = await callApi('generateReviewQuestion', { originalQuestion: q.question });
-                    setReviewQuestions(prev => prev.map(rq => 
-                        rq.id === q.id ? {...rq, newQuestion: result.newQuestion, isGenerating: false} : rq
-                    ));
-                } catch (error) {
-                    console.error("Error generating review question:", error);
-                     setReviewQuestions(prev => prev.map(rq => 
-                        rq.id === q.id ? {...rq, newQuestion: '문제 생성 실패', isGenerating: false} : rq
-                    ));
-                }
-            }
-        });
-    }
-  }, [reviewQuestions]);
-
-  const handleReviewAnswerChange = (id: string, value: string) => {
-      setReviewQuestions(prev => prev.map(rq => rq.id === id ? {...rq, userReviewAnswer: value} : rq));
-  };
-
-  const handleCheckAnswer = async (id: string) => {
-      const questionToCheck = reviewQuestions.find(rq => rq.id === id);
-      if (!questionToCheck || !questionToCheck.userReviewAnswer) {
-          toast({ variant: 'destructive', title: '오류', description: '답을 입력해주세요.'});
-          return;
-      }
-
-      setReviewQuestions(prev => prev.map(rq => rq.id === id ? {...rq, isChecking: true} : rq));
-
-      try {
-          const result = await callApi('checkReviewAnswer', {
-              originalQuestion: questionToCheck.question,
-              reviewQuestion: questionToCheck.newQuestion,
-              userAnswer: questionToCheck.userReviewAnswer
-          });
-
-          if (result.isCorrect) {
-              toast({ title: '정답입니다!', description: '10 보너스 포인트를 획득했습니다!'});
-              if(user) {
-                  const userRef = doc(db, 'users', user.uid);
-                  await updateDoc(userRef, { xp: increment(10) });
-                  const answerRef = doc(db, 'users', user.uid, 'incorrect-answers', id);
-                  await deleteDoc(answerRef);
-                  setReviewQuestions(prev => prev.filter(rq => rq.id !== id));
-                  setUserData(prev => prev ? ({...prev, xp: prev.xp + 10}) : null); // Optimistic update
-              }
-          } else {
-              toast({ variant: 'destructive', title: '오답입니다.', description: '다시 한번 생각해보세요!'});
-              setReviewQuestions(prev => prev.map(rq => rq.id === id ? {...rq, isChecking: false} : rq));
-          }
-      } catch (error) {
-          console.error("Error checking review answer:", error);
-          toast({ variant: 'destructive', title: '오류', description: '정답 확인 중 오류가 발생했습니다.'});
-          setReviewQuestions(prev => prev.map(rq => rq.id === id ? {...rq, isChecking: false} : rq));
-      }
-  };
 
 
   const totalQuestions = correctAnswers.length + incorrectAnswers.length;
@@ -233,10 +118,6 @@ export default function ProfilePage() {
                         </div>
                     </div>
                 </CardContent>
-            </Card>
-            <Card>
-                <CardHeader><Skeleton className="h-8 w-52" /></CardHeader>
-                <CardContent><Skeleton className="h-20 w-full" /></CardContent>
             </Card>
             <Card>
                 <CardHeader><Skeleton className="h-8 w-32" /></CardHeader>
@@ -298,79 +179,6 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-headline flex items-center gap-2">
-            <Activity className="text-primary"/> 학습 성취도 분석
-          </CardTitle>
-          <CardDescription>Gemini AI가 나의 학습 기록을 바탕으로 강점과 약점을 분석해줍니다.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid md:grid-cols-2 gap-6">
-          <div className="p-4 rounded-lg bg-secondary/50">
-             <h3 className="font-semibold text-lg flex items-center gap-2 text-green-600 dark:text-green-500">
-                <BrainCircuit /> 우수한 영역
-             </h3>
-             {isAnalysisLoading ? <Skeleton className="h-16 mt-2 w-full"/> : (
-                <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap">{analysis?.strongAreas || "아직 분석할 데이터가 충분하지 않아요."}</p>
-             )}
-          </div>
-          <div className="p-4 rounded-lg bg-secondary/50">
-             <h3 className="font-semibold text-lg flex items-center gap-2 text-orange-600 dark:text-orange-500">
-                <FileWarning /> 부족한 영역
-             </h3>
-             {isAnalysisLoading ? <Skeleton className="h-16 mt-2 w-full"/> : (
-                <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap">{analysis?.weakAreas || "아직 분석할 데이터가 충분하지 않아요."}</p>
-             )}
-          </div>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-headline flex items-center gap-2">
-            <Sparkles className="text-primary"/> AI 오답 노트
-            </CardTitle>
-          <CardDescription>틀렸던 문제들을 AI가 새롭게 변형해 출제합니다. 맞춰서 약점을 극복해보세요!</CardDescription>
-        </CardHeader>
-        <CardContent>
-            <div className="space-y-6">
-                {reviewQuestions.length === 0 && !isLoading && (
-                    <p className="text-center text-muted-foreground py-8">틀린 문제가 없습니다! 완벽해요!</p>
-                )}
-                {reviewQuestions.map((item, index) => (
-                    <div key={item.id}>
-                        <div className="space-y-3">
-                           <div>
-                                <p className="font-semibold text-base flex items-center gap-2">
-                                  <Lightbulb className="w-5 h-5 text-yellow-400"/> 
-                                  문제 {index + 1}
-                                </p>
-                                {item.isGenerating ? (
-                                    <Skeleton className="h-6 w-full mt-1"/>
-                                ) : (
-                                    <p className="mt-1 text-muted-foreground">{item.newQuestion}</p>
-                                )}
-                           </div>
-                           <div className="flex gap-2">
-                               <Input 
-                                 placeholder="정답을 서술형으로 입력해보세요."
-                                 value={item.userReviewAnswer || ''}
-                                 onChange={(e) => handleReviewAnswerChange(item.id, e.target.value)}
-                                 disabled={item.isChecking}
-                               />
-                               <Button onClick={() => handleCheckAnswer(item.id)} disabled={item.isChecking || item.isGenerating}>
-                                   {item.isChecking ? <Loader2 className="w-4 h-4 animate-spin"/> : <CheckCircle className="w-4 h-4 mr-2"/>}
-                                   {item.isChecking ? '' : '정답 확인'}
-                                </Button>
-                           </div>
-                        </div>
-                        {index < reviewQuestions.length -1 && <Separator className="mt-6" />}
-                    </div>
-                ))}
-            </div>
-        </CardContent>
-      </Card>
-      
       <Card>
         <CardHeader>
             <CardTitle className="font-headline flex items-center gap-2">
