@@ -144,10 +144,6 @@ export default function CreateGameSetPage() {
       isPublic: true,
       questions: [
         { ...defaultQuestion },
-        { ...defaultQuestion },
-        { ...defaultQuestion },
-        { ...defaultQuestion },
-        { ...defaultQuestion },
       ],
     },
      mode: "onChange",
@@ -173,7 +169,6 @@ export default function CreateGameSetPage() {
     }
 
     try {
-      // Step 1: Validate with AI
       const validationResult = await callApi('validateQuizSet', data);
       if (!validationResult.isValid) {
         toast({
@@ -185,7 +180,6 @@ export default function CreateGameSetPage() {
         return;
       }
 
-      // Step 2: Save to Firestore if valid
       await addDoc(collection(db, 'game-sets'), {
         ...data,
         creatorId: user.uid,
@@ -388,15 +382,6 @@ export default function CreateGameSetPage() {
                 <div>
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold">질문 카드</h3>
-                        <FormField
-                            control={form.control}
-                            name="questions"
-                            render={() => (
-                                <FormItem>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
                     </div>
                   <div className="space-y-6">
                     {fields.map((field, index) => (
@@ -641,9 +626,20 @@ export default function CreateGameSetPage() {
                   <p className="text-xs text-destructive-foreground bg-destructive/80 p-2 rounded-md">
                     주의: 부정한 방법으로 점수를 올리기 위해 퀴즈를 생성하는 경우 계정이 삭제될 수 있습니다.
                   </p>
-                  <Button type="submit" size="lg" className="font-headline w-full sm:w-auto" disabled={isLoading}>
-                    {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> AI 검증 및 저장 중...</> : <><Sparkles className="mr-2 h-4 w-4" /> 퀴즈 세트 저장</>}
-                  </Button>
+                  <div className="w-full sm:w-auto flex flex-col items-center">
+                    <FormField
+                      control={form.control}
+                      name="questions"
+                      render={() => (
+                        <FormItem>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <Button type="submit" size="lg" className="font-headline w-full" disabled={isLoading}>
+                      {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> AI 검증 및 저장 중...</> : <><Sparkles className="mr-2 h-4 w-4" /> 퀴즈 세트 저장</>}
+                    </Button>
+                  </div>
                 </div>
               </fieldset>
             </form>
@@ -653,3 +649,5 @@ export default function CreateGameSetPage() {
     </div>
   );
 }
+
+    
