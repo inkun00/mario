@@ -18,19 +18,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { ADMIN_EMAILS } from '@/lib/admins';
-
-async function callApi(flow: string, input: any) {
-  const response = await fetch('/api/genkit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ flow, input }),
-  });
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'API call failed');
-  }
-  return response.json();
-}
+import { checkUserId } from '@/app/actions';
 
 function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
     const router = useRouter();
@@ -159,9 +147,9 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
         }
 
         try {
-            const result = await callApi('checkUserId', { userId });
+            const result = await checkUserId(userId);
 
-            if (result.exists && result.uid) {
+            if (result.exists && result.uid && result.nickname) {
                 const isDuplicate = players.some(p => p.uid === result.uid);
                 if (isDuplicate) {
                     toast({ variant: 'destructive', title: '중복 참여', description: `"${result.nickname}" 님은 이미 참여 중입니다.`});
