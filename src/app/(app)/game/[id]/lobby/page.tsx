@@ -19,6 +19,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { checkUserId } from '@/ai/flows/check-nickname-flow';
 import { cn } from '@/lib/utils';
+import { ADMIN_EMAILS } from '@/lib/admins';
 
 function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
     const router = useRouter();
@@ -114,9 +115,11 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
 
 
 function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
+    const [user] = useAuthState(auth);
     const [numPlayers, setNumPlayers] = useState(2);
     const [players, setPlayers] = useState<Array<{userId: string; uid: string; nickname: string; confirmed: boolean; isChecking: boolean }>>([]);
     const { toast } = useToast();
+    const isAdmin = user ? ADMIN_EMAILS.includes(user.email || '') : false;
 
     useEffect(() => {
         setPlayers(Array.from({ length: numPlayers }, () => ({ userId: '', uid: '', nickname: '', confirmed: false, isChecking: false })));
@@ -146,8 +149,6 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
 
         try {
             const result = await checkUserId({ userId });
-            console.log("Game Creator UID:", gameSet?.creatorId);
-            console.log("Participant Check Result:", result);
 
             if (result.exists && result.uid) {
                 const isDuplicate = players.some(p => p.uid === result.uid);
@@ -159,7 +160,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
                     return;
                 }
 
-                if (gameSet && gameSet.creatorId === result.uid) {
+                if (gameSet && gameSet.creatorId === result.uid && !isAdmin) {
                     toast({ variant: 'destructive', title: '참여 불가', description: `제작자(${result.nickname})는 자신이 만든 퀴즈에 참여할 수 없습니다.`});
                 } else {
                     newPlayers[index].confirmed = true;

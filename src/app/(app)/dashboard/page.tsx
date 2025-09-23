@@ -44,6 +44,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
 import { joinGame } from '@/ai/flows/join-game-flow';
+import { ADMIN_EMAILS } from '@/lib/admins';
 
 const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '음악', '미술', '체육', '영어', '창체'];
 
@@ -68,6 +69,8 @@ export default function DashboardPage() {
   const [searchSubject, setSearchSubject] = useState('');
 
   const [joinCode, setJoinCode] = useState('');
+
+  const isAdmin = user ? ADMIN_EMAILS.includes(user.email || '') : false;
 
   useEffect(() => {
     if (loadingUser) {
@@ -345,7 +348,7 @@ export default function DashboardPage() {
                 const isCreator = user ? set.creatorId === user.uid : false;
                 
                 let createRoomButton;
-                if (isCreator) {
+                if (isCreator && !isAdmin) {
                   createRoomButton = (
                     <TooltipProvider>
                       <Tooltip>
