@@ -22,20 +22,17 @@ import {
 } from '@/components/ui/card';
 import Link from 'next/link';
 import { auth, db } from '@/lib/firebase';
-import { createUserWithEmailAndPassword, updateProfile, signInWithPopup, GoogleAuthProvider, User } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile, User } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
 
-
 const formSchema = z.object({
   email: z.string().email({ message: '유효한 이메일을 입력해주세요.' }),
   nickname: z.string().min(2, { message: '닉네임은 2자 이상이어야 합니다.' }).max(20, { message: '닉네임은 20자를 넘을 수 없습니다.' }),
   password: z.string().min(6, { message: '비밀번호는 6자 이상이어야 합니다.' }),
-  schoolName: z.string().optional(),
-  grade: z.string().optional(),
-  class: z.string().optional(),
+  schoolName: z.string().min(1, '학교 이름을 입력해주세요.'),
 });
 
 export default function SignupPage() {
@@ -50,13 +47,11 @@ export default function SignupPage() {
       nickname: '',
       password: '',
       schoolName: '',
-      grade: '',
-      class: '',
     },
   });
 
   // Function to create user document in Firestore
-  const createUserDocument = async (user: User, customData?: { nickname?: string, schoolName?: string, grade?: string, class?: string }) => {
+  const createUserDocument = async (user: User, customData?: { nickname?: string, schoolName?: string }) => {
     const userRef = doc(db, 'users', user.uid);
     const docSnap = await getDoc(userRef);
     if (!docSnap.exists()) {
@@ -65,8 +60,6 @@ export default function SignupPage() {
             email: user.email,
             displayName: customData?.nickname || user.displayName,
             schoolName: customData?.schoolName || '',
-            grade: customData?.grade || '',
-            class: customData?.class || '',
             createdAt: serverTimestamp(),
             xp: 0,
             level: 1,
@@ -86,8 +79,6 @@ export default function SignupPage() {
       await createUserDocument(user, {
           nickname: values.nickname,
           schoolName: values.schoolName,
-          grade: values.grade,
-          class: values.class,
       });
 
       toast({
@@ -101,32 +92,6 @@ export default function SignupPage() {
         title: "회원가입 실패",
         description: error.message,
       });
-    } finally {
-        setIsLoading(false);
-    }
-  }
-
-  async function handleGoogleSignup() {
-    setIsLoading(true);
-    const provider = new GoogleAuthProvider();
-    try {
-        const result = await signInWithPopup(auth, provider);
-        const user = result.user;
-        
-        // Create user document in firestore if it doesn't exist
-        await createUserDocument(user);
-
-        toast({
-            title: "회원가입 성공",
-            description: "마리오 게임에 오신 것을 환영합니다!",
-        });
-        router.push('/dashboard');
-    } catch (error: any) {
-        toast({
-            variant: "destructive",
-            title: "Google 회원가입 실패",
-            description: error.message,
-        });
     } finally {
         setIsLoading(false);
     }
@@ -181,77 +146,27 @@ export default function SignupPage() {
               )}
             />
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                 <FormField
-                  control={form.control}
-                  name="schoolName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>학교 이름 (선택)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="마리오초등학교" {...field} disabled={isLoading} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                 <div className="grid grid-cols-2 gap-2">
-                    <FormField
-                      control={form.control}
-                      name="grade"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>학년 (선택)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="5" {...field} disabled={isLoading} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                     <FormField
-                      control={form.control}
-                      name="class"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>반 (선택)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="3" {...field} disabled={isLoading} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                 </div>
-            </div>
+            <FormField
+              control={form.control}
+              name="schoolName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>학교 이름</FormLabel>
+                  <FormControl>
+                    <Input placeholder="마리오초등학교" {...field} disabled={isLoading} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-            <Button type="submit" className="w-full font-headline" disabled={isLoading}>
+            <Button type="submit" className="w-full font-headline pt-6" disabled={isLoading}>
               {isLoading ? '계정 생성 중...' : '계정 만들기'}
             </Button>
           </form>
         </Form>
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-card px-2 text-muted-foreground">
-              또는
-            </span>
-          </div>
-        </div>
-        <Button variant="outline" className="w-full" onClick={handleGoogleSignup} disabled={isLoading}>
-            <svg className="mr-2 h-4 w-4" viewBox="0 0 48 48" aria-hidden="true">
-                <path fill="#4285F4" d="M24 9.5c3.2 0 5.8 1.4 7.6 3.2l5.8-5.8C33.6 2.7 29.2 1 24 1 14.9 1 7.4 6.6 4.1 14.5l6.9 5.3C12.5 13.5 17.8 9.5 24 9.5z"/>
-                <path fill="#34A853" d="M46.2 25.4c0-1.8-.2-3.5-.5-5.2H24v9.9h12.5c-.5 3.2-2.3 5.9-5.1 7.8l6.5 5C43.1 38.8 46.2 32.8 46.2 25.4z"/>
-                <path fill="#FBBC05" d="M11 20.2c-.5-1.5-.8-3.1-.8-4.8s.3-3.3.8-4.8l-6.9-5.3C1.6 8.7 0 13.2 0 18s1.6 9.3 4.1 12.5l6.9-5.3z"/>
-                <path fill="#EA4335" d="M24 47c5.2 0 9.6-1.7 12.8-4.6l-6.5-5c-1.8 1.2-4.1 1.9-6.3 1.9-6.2 0-11.5-4-13.4-9.5L4.1 35.5C7.4 43.4 14.9 47 24 47z"/>
-                <path fill="none" d="M0 0h48v48H0z"/>
-            </svg>
-            Google 계정으로 가입
-        </Button>
       </CardContent>
-      <CardFooter className="justify-center text-sm">
+      <CardFooter className="justify-center text-sm pt-6">
         <p>
           이미 계정이 있으신가요?{' '}
           <Link href="/login" className="font-medium text-primary hover:underline">
