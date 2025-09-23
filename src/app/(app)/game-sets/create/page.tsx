@@ -209,9 +209,9 @@ export default function CreateGameSetPage() {
   const { isValid, errors } = form.formState;
   
   const submitButton = (
-      <Button type="submit" size="lg" className="font-headline w-full" disabled={isLoading || !isValid}>
-          {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> AI 검증 및 저장 중...</> : <><Sparkles className="mr-2 h-4 w-4" /> 퀴즈 세트 저장</>}
-      </Button>
+    <Button type="submit" size="lg" className="font-headline w-full" disabled={isLoading || !isValid}>
+      {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> AI 검증 및 저장 중...</> : <><Sparkles className="mr-2 h-4 w-4" /> 퀴즈 세트 저장</>}
+    </Button>
   );
 
   return (
@@ -389,9 +389,9 @@ export default function CreateGameSetPage() {
                 <Separator />
 
                 <div>
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold">질문 카드</h3>
-                    </div>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold">질문 카드</h3>
+                  </div>
                   <div className="space-y-6">
                     {fields.map((field, index) => (
                       <Card key={field.id} className="p-4 bg-secondary/30">
@@ -636,21 +636,25 @@ export default function CreateGameSetPage() {
                     주의: 부정한 방법으로 점수를 올리기 위해 퀴즈를 생성하는 경우 계정이 삭제될 수 있습니다.
                   </p>
                   <div className="w-full sm:w-auto flex flex-col items-center">
-                    {!isValid && errors.questions ? (
-                         <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <span tabIndex={0} className="w-full">
-                                        {submitButton}
-                                    </span>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>{errors.questions.message}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                    {isValid ? (
+                      submitButton
                     ) : (
-                        submitButton
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span tabIndex={0} className="w-full">
+                              {submitButton}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>
+                              {errors.questions
+                                ? '최소 5개 이상의 질문이 필요합니다.'
+                                : '모든 필수 항목을 입력해주세요.'}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     )}
                   </div>
                 </div>
@@ -662,5 +666,3 @@ export default function CreateGameSetPage() {
     </div>
   );
 }
-
-    
