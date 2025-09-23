@@ -1,3 +1,4 @@
+
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 import type { CorrectAnswer, IncorrectAnswer, Question } from '@/lib/types';
@@ -42,25 +43,28 @@ interface CheckReviewAnswerData {
 }
 
 async function validateQuizSet(data: ValidateQuizSetData) {
-  const prompt = `You are an expert AI content moderator for an educational platform. Your task is to review a user-submitted quiz set to ensure it is appropriate and high-quality.
+  const prompt = `당신은 교육용 플랫폼의 전문 AI 콘텐츠 검수관입니다. 사용자가 제출한 퀴즈 세트가 아래 기준을 모두 만족하는지 검토해 주세요.
 
-  Please validate the quiz set based on the following criteria:
-  1.  **No Duplicate Questions:** Check if there are any identical or nearly identical questions in the set.
-  2.  **Educational and Safe Content:** Ensure all questions and answers are educational, safe for all ages, and not profane, abusive, or designed for cheating/point farming (e.g., "문제1", "정답1").
-  3.  **Content Relevance:** Verify that the questions are relevant to the specified grade, subject, and unit. The content should match the provided metadata.
+  **검증 기준:**
+  1.  **교육적 적합성 및 안전성:** 모든 질문과 답변은 교육적이어야 하며, 모든 연령대에 안전해야 합니다. 비속어, 모욕적인 내용, 또는 폭력적이거나 부적절한 콘텐츠가 포함되어서는 안 됩니다.
+  2.  **성의 없는 콘텐츠 방지 (치팅/포인트 파밍 방지):** "문제1", "정답1", "asdf" 와 같이 의미 없이 점수 획득만을 목적으로 생성된 것으로 보이는 성의 없는 질문이나 답변이 있는지 확인합니다.
+  3.  **내용의 관련성:** 질문들이 명시된 학년, 과목, 단원의 주제와 관련이 있는지 확인합니다.
+  4.  **중복 질문:** 완전히 동일하거나 거의 유사한 질문이 반복되는지 확인합니다.
 
-  Here is the quiz set data:
-  - Title: ${data.title}
-  - Description: ${data.description}
-  - Grade: ${data.grade}
-  - Semester: ${data.semester}
-  - Subject: ${data.subject}
-  - Unit: ${data.unit}
-  - Questions:
-    ${data.questions.map(q => `- Q: ${q.question} / A: ${q.answer || q.correctAnswer}`).join('\n')}
+  **제출된 퀴즈 데이터:**
+  - 제목: ${data.title}
+  - 설명: ${data.description}
+  - 학년: ${data.grade}
+  - 학기: ${data.semester}
+  - 과목: ${data.subject}
+  - 단원: ${data.unit}
+  - 질문 목록:
+    ${data.questions.map(q => `- 질문: ${q.question} / 답변: ${q.answer || q.correctAnswer}`).join('\n')}
 
-  Based on your review, respond with a JSON object with "isValid" (boolean) and a "reason" (string).
-  If it fails any criterion, set "isValid" to false and provide a clear, concise, user-friendly "reason" in Korean explaining what the user needs to fix. If valid, "reason" can be empty.
+  **출력 형식:**
+  검토 결과를 바탕으로, "isValid" (boolean)와 "reason" (string) 키를 가진 JSON 객체로만 응답해 주세요.
+  - 모든 기준을 통과하면 "isValid"를 true로 설정하고, "reason"은 비워둡니다.
+  - 하나라도 기준을 통과하지 못하면 "isValid"를 false로 설정하고, "reason"에 사용자가 무엇을 수정해야 하는지 한국어로 명확하고 간결하게 설명해 주세요.
   `;
   
   const result = await model.generateContent(prompt);

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useFieldArray, useForm, Controller } from 'react-hook-form';
@@ -29,7 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { PlusCircle, Trash2, Loader2 } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Sparkles } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
@@ -601,7 +602,7 @@ export default function CreateGameSetPage() {
                     주의: 부정한 방법으로 점수를 올리기 위해 퀴즈를 생성하는 경우 계정이 삭제될 수 있습니다.
                   </p>
                   <Button type="submit" size="lg" className="font-headline w-full sm:w-auto" disabled={isLoading}>
-                    {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> AI 검증 및 저장 중...</> : '퀴즈 세트 저장'}
+                    {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> AI 검증 및 저장 중...</> : <><Sparkles className="mr-2 h-4 w-4" /> 퀴즈 세트 저장</>}
                   </Button>
                 </div>
               </fieldset>
