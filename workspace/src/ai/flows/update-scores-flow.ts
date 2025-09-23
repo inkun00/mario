@@ -1,3 +1,5 @@
+'use server';
+
 /**
  * @fileOverview An AI agent that securely updates player scores and XP at the end of a game.
  *

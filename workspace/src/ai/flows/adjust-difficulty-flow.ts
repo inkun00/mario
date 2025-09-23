@@ -1,3 +1,5 @@
+'use server';
+
 /**
  * @fileOverview An AI agent that dynamically adjusts the game difficulty based on student performance.
  *
@@ -7,6 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'zod';
 
 const AdjustDifficultyInputSchema = z.object({
@@ -35,6 +38,7 @@ export async function adjustDifficulty(input: AdjustDifficultyInput): Promise<Ad
 
 const adjustDifficultyPrompt = ai.definePrompt({
   name: 'adjustDifficultyPrompt',
+  model: googleAI.model('gemini-1.5-flash'),
   input: {schema: AdjustDifficultyInputSchema},
   output: {schema: AdjustDifficultyOutputSchema},
   prompt: `You are an AI game master, tasked with dynamically adjusting the difficulty of a game for a student.

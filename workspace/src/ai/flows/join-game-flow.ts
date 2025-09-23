@@ -1,3 +1,5 @@
+'use server';
+
 /**
  * @fileOverview A Genkit flow to handle a player joining a game room.
  *

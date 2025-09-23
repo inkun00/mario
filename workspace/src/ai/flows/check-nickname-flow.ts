@@ -1,3 +1,5 @@
+'use server';
+
 /**
  * @fileOverview An AI agent that checks for the existence of a user ID and returns their nickname.
  *

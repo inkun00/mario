@@ -1,3 +1,5 @@
+'use server';
+
 /**
  * @fileOverview An AI agent that checks a user's answer to a review question for semantic correctness.
  *
@@ -7,6 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'zod';
 import type { Question } from '@/lib/types';
 
@@ -30,6 +33,7 @@ export async function checkReviewAnswer(input: { originalQuestion: Question, rev
 
 const checkReviewAnswerPrompt = ai.definePrompt({
   name: 'checkReviewAnswerPrompt',
+  model: googleAI.model('gemini-1.5-flash'),
   input: { schema: CheckReviewAnswerInputSchema },
   output: { schema: CheckReviewAnswerOutputSchema },
   prompt: `You are an AI grading assistant. Your task is to evaluate a student's answer to a review question.

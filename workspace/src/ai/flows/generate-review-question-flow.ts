@@ -1,3 +1,5 @@
+'use server';
+
 /**
  * @fileOverview An AI agent that generates a new review question from a previously incorrect one.
  *
@@ -7,6 +9,7 @@
  */
 
 import { ai } from '@/ai/genkit';
+import { googleAI } from '@genkit-ai/googleai';
 import { z } from 'zod';
 import type { Question } from '@/lib/types';
 
@@ -28,13 +31,17 @@ export async function generateReviewQuestion(input: { originalQuestion: Question
 
 const generateReviewQuestionPrompt = ai.definePrompt({
   name: 'generateReviewQuestionPrompt',
+  model: googleAI.model('gemini-1.5-flash'),
   input: { schema: GenerateReviewQuestionInputSchema },
   output: { schema: GenerateReviewQuestionOutputSchema },
   prompt: `You are an AI tutor. Your task is to create a review question based on a question a student previously answered incorrectly.
   The new question must be related to the original one but phrased differently.
   It MUST be a subjective/descriptive question that requires a written answer, not multiple choice or O/X.
+  Most importantly, the difficulty and vocabulary of the new question MUST be appropriate for the original question's grade level.
   Generate only the question text.
   Respond in Korean.
+
+  Original Question Grade Level: {{originalQuestion.grade}}
 
   {{#if originalQuestion.imageUrl}}
   The original question included an image, which is not available now. Therefore, create a new descriptive question based on the original question's correct answer keyword.
