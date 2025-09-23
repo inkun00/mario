@@ -160,7 +160,7 @@ export default function SignupPage() {
               )}
             />
 
-            <Button type="submit" className="w-full font-headline pt-6" disabled={isLoading}>
+            <Button type="submit" className="w-full font-headline" disabled={isLoading}>
               {isLoading ? '계정 생성 중...' : '계정 만들기'}
             </Button>
           </form>
