@@ -344,15 +344,33 @@ export default function DashboardPage() {
               {filteredGameSets.map((set) => {
                 const isCreator = user ? set.creatorId === user.uid : false;
                 
-                const createRoomButton = (
-                    <Button asChild={!(isCreator ?? true)} size="sm" disabled={isCreator ?? true}>
-                        {isCreator ? (
-                            <span><Users className="mr-2 h-4 w-4" />방 만들기</span>
-                        ) : (
-                            <Link href={`/game-rooms/new?gameSetId=${set.id}`}><Users className="mr-2 h-4 w-4" />방 만들기</Link>
-                        )}
+                let createRoomButton;
+                if (isCreator) {
+                  createRoomButton = (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span tabIndex={0}>
+                            <Button size="sm" disabled={true}>
+                              <Users className="mr-2 h-4 w-4" />방 만들기
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>자신이 만든 퀴즈로는 게임을 시작할 수 없습니다.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  );
+                } else {
+                  createRoomButton = (
+                    <Button asChild size="sm">
+                      <Link href={`/game-rooms/new?gameSetId=${set.id}`}>
+                        <Users className="mr-2 h-4 w-4" />방 만들기
+                      </Link>
                     </Button>
-                );
+                  );
+                }
 
                 return (
                 <Card key={set.id} className="hover:shadow-lg transition-shadow flex flex-col min-w-[380px]">
@@ -388,20 +406,7 @@ export default function DashboardPage() {
                       </>
                     )}
                     
-                    <TooltipProvider>
-                      {isCreator ? (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span tabIndex={0}>{createRoomButton}</span>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>자신이 만든 퀴즈로는 게임을 시작할 수 없습니다.</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      ) : (
-                        createRoomButton
-                      )}
-                    </TooltipProvider>
+                    {createRoomButton}
 
                   </CardFooter>
                 </Card>
