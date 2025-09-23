@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc, arrayUnion, Timestamp } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog } from '@/lib/types';
@@ -258,13 +258,15 @@ export default function GamePage() {
           
           const newGameState: GameRoom['gameState'] = { ...gameRoom.gameState, [String(blockId)]: 'answered' };
           const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+          
+          const nextTurnUID = getNextTurnUID();
+          const allAnswered = blocks.every(b => newGameState[String(b.id)] === 'answered');
 
-          if (blocks.every(b => newGameState[String(b.id)] === 'answered')) {
-              updateDoc(roomRef, { gameState: newGameState, status: 'finished' });
-          } else {
-              updateDoc(roomRef, { gameState: newGameState });
-              handleNextTurn();
-          }
+          updateDoc(roomRef, { 
+              gameState: newGameState,
+              currentTurn: nextTurnUID,
+              ...(allAnswered && { status: 'finished' })
+          });
           return;
       }
       
@@ -301,22 +303,17 @@ export default function GamePage() {
     setCurrentPoints(prev => Math.floor(prev / 2));
   };
 
-  const handleNextTurn = () => {
-    if (!gameRoom) return;
+  const getNextTurnUID = (): string => {
+    if (!gameRoom) return '';
+    const playerUIDs = gameRoom.playerUIDs || Object.keys(gameRoom.players);
+    if (playerUIDs.length === 0) return '';
+    if (gameRoom.joinType === 'remote') return gameRoom.currentTurn; // Remote game turn is handled by host implicitly
 
-    if (gameRoom.joinType === 'local') {
-        const playerUIDs = gameRoom.playerUIDs || Object.keys(gameRoom.players);
-        if (playerUIDs.length === 0) return;
-        const currentTurnIndex = playerUIDs.indexOf(gameRoom.currentTurn);
-        const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
-        const nextTurnUID = playerUIDs[nextTurnIndex];
-        
-        const roomRef = doc(db, 'game-rooms', gameRoomId as string);
-        updateDoc(roomRef, {
-            currentTurn: nextTurnUID
-        });
-    }
+    const currentTurnIndex = playerUIDs.indexOf(gameRoom.currentTurn);
+    const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
+    return playerUIDs[nextTurnIndex];
   }
+
 
   const handleCloseDialogs = () => {
     setCurrentQuestionInfo(null);
@@ -348,25 +345,23 @@ export default function GamePage() {
         userAnswer: userAnswer,
         isCorrect: isCorrect,
         pointsAwarded: pointsToAward,
-        timestamp: new Date(),
+        timestamp: Timestamp.now(),
     };
     
     try {
         const roomRef = doc(db, 'game-rooms', gameRoomId as string);
-        const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
         
+        const newAnswerLogs = [...(gameRoom.answerLogs || []), answerLog];
+        const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
         const allAnswered = blocks.every(b => newGameState[String(b.id)] === 'answered');
+        const nextTurnUID = getNextTurnUID();
 
-        const updatePayload: any = {
-            answerLogs: arrayUnion(answerLog),
+        await updateDoc(roomRef, {
+            answerLogs: newAnswerLogs,
             gameState: newGameState,
-        };
-
-        if (allAnswered) {
-          updatePayload.status = 'finished';
-        }
-
-        await updateDoc(roomRef, updatePayload);
+            currentTurn: nextTurnUID,
+            ...(allAnswered && { status: 'finished' })
+        });
 
         if (isCorrect) {
             toast({
@@ -381,16 +376,11 @@ export default function GamePage() {
             });
         }
         
-        handleCloseDialogs();
-        setIsSubmitting(false);
-
-        if (!allAnswered) {
-            handleNextTurn();
-        }
-
     } catch(error) {
          toast({variant: 'destructive', title: '오류', description: '답변 제출 중 오류가 발생했습니다.'});
-         setIsSubmitting(false);
+    } finally {
+        setIsSubmitting(false);
+        handleCloseDialogs();
     }
   };
 
@@ -409,13 +399,13 @@ export default function GamePage() {
       return;
     }
   
-    let newLog: Partial<AnswerLog> = {
+    let newLogEntry: Partial<AnswerLog> = {
       userId: currentTurnUID,
       gameSetId: gameRoom.gameSetId,
       gameSetTitle: gameSet?.title || "미스터리 박스",
       question: { id: Date.now(), question: mysteryBoxEffect.title, type: 'subjective', points: 0 },
       isCorrect: true, 
-      timestamp: new Date(),
+      timestamp: Timestamp.now(),
     };
   
     try {
@@ -428,15 +418,15 @@ export default function GamePage() {
             case 'bonus':
             case 'penalty':
                 pointsChange = mysteryBoxEffect.value || 0;
-                logsToPush.push({ ...newLog, pointsAwarded: pointsChange, userAnswer: 'effect' } as AnswerLog);
+                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange, userAnswer: 'effect' } as AnswerLog);
                 break;
             case 'double':
                 pointsChange = currentPlayersState.find(p => p.uid === currentTurnUID)?.score || 0;
-                logsToPush.push({ ...newLog, pointsAwarded: pointsChange, userAnswer: 'effect' } as AnswerLog);
+                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange, userAnswer: 'effect' } as AnswerLog);
                 break;
             case 'half':
                 pointsChange = -Math.floor((currentPlayersState.find(p => p.uid === currentTurnUID)?.score || 0) / 2);
-                logsToPush.push({ ...newLog, pointsAwarded: pointsChange, userAnswer: 'effect' } as AnswerLog);
+                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange, userAnswer: 'effect' } as AnswerLog);
                 break;
             case 'swap':
                  if (!playerForSwap) {
@@ -450,30 +440,24 @@ export default function GamePage() {
                 const pointsDiffForCurrent = targetPlayerScore - currentPlayerScore;
                 const pointsDiffForTarget = currentPlayerScore - targetPlayerScore;
         
-                logsToPush.push({ ...newLog, userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent, userAnswer: 'effect', question: {...newLog.question!, id: Date.now() + 1}} as AnswerLog);
-                logsToPush.push({ ...newLog, userId: playerForSwap, pointsAwarded: pointsDiffForTarget, userAnswer: 'effect', question: {...newLog.question!, id: Date.now() + 2} } as AnswerLog);
+                logsToPush.push({ ...newLogEntry, userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent, userAnswer: 'effect', question: {...newLogEntry.question!, id: Date.now() + 1}} as AnswerLog);
+                logsToPush.push({ ...newLogEntry, userId: playerForSwap, pointsAwarded: pointsDiffForTarget, userAnswer: 'effect', question: {...newLogEntry.question!, id: Date.now() + 2} } as AnswerLog);
                 break;
         }
 
         const roomRef = doc(db, 'game-rooms', gameRoomId as string);
-        const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [blockId]: 'answered'};
-
-        const allAnswered = blocks.every(b => newGameState[String(b.id)] === 'answered');
-
-        const updatePayload: any = {
-            answerLogs: arrayUnion(...logsToPush),
-            gameState: newGameState,
-        };
-
-        if (allAnswered) {
-          updatePayload.status = 'finished';
-        }
         
-        await updateDoc(roomRef, updatePayload);
+        const newAnswerLogs = [...(gameRoom.answerLogs || []), ...logsToPush];
+        const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [blockId]: 'answered'};
+        const allAnswered = blocks.every(b => newGameState[String(b.id)] === 'answered');
+        const nextTurnUID = getNextTurnUID();
 
-        if (!allAnswered) {
-            handleNextTurn();
-        }
+        await updateDoc(roomRef, {
+            answerLogs: newAnswerLogs,
+            gameState: newGameState,
+            currentTurn: nextTurnUID,
+            ...(allAnswered && { status: 'finished' })
+        });
 
     } catch (error: any) {
       console.error("Error applying mystery effect:", error);

@@ -102,8 +102,9 @@ const updateScoresFlow = ai.defineFlow(
       throw new Error("Game room ID and final player scores are required.");
     }
 
+    const roomRef = db.collection('game-rooms').doc(gameRoomId);
+    
     try {
-      const roomRef = db.collection('game-rooms').doc(gameRoomId);
       const roomSnap = await roomRef.get();
       if (!roomSnap.exists) {
         throw new Error(`Game room with ID ${gameRoomId} not found.`);
@@ -111,12 +112,12 @@ const updateScoresFlow = ai.defineFlow(
       const gameRoomData = roomSnap.data() as GameRoom;
       const answerLogs = gameRoomData.answerLogs || [];
 
-      const batch = db.batch();
-      
       // Sort players by score to determine rank.
       const rankedPlayers = [...players].sort((a, b) => b.score - a.score);
       const totalPlayers = rankedPlayers.length;
 
+      const batch = db.batch();
+      
       // 1. Update player XP based on their rank and total questions.
       for (let i = 0; i < rankedPlayers.length; i++) {
         const player = rankedPlayers[i];
@@ -137,6 +138,11 @@ const updateScoresFlow = ai.defineFlow(
       for (const log of answerLogs) {
           if (!log.userId || !log.question) continue;
 
+          // Convert JS Date back to Firestore Timestamp if it's not already one
+          const timestamp = (log.timestamp && !(log.timestamp instanceof Timestamp)) 
+            ? Timestamp.fromDate(new Date(log.timestamp as any)) 
+            : log.timestamp || FieldValue.serverTimestamp();
+
           if (log.isCorrect) {
               const correctAnswerRef = db.collection('users').doc(log.userId).collection('correct-answers').doc();
               const data = {
@@ -147,7 +153,7 @@ const updateScoresFlow = ai.defineFlow(
                   semester: log.question.semester,
                   subject: log.question.subject,
                   unit: log.question.unit,
-                  timestamp: log.timestamp || FieldValue.serverTimestamp()
+                  timestamp: timestamp
               };
               batch.set(correctAnswerRef, removeUndefined(data));
           } else {
@@ -158,7 +164,7 @@ const updateScoresFlow = ai.defineFlow(
                   gameSetTitle: log.gameSetTitle,
                   question: log.question,
                   userAnswer: log.userAnswer,
-                  timestamp: log.timestamp || FieldValue.serverTimestamp()
+                  timestamp: timestamp
               };
               batch.set(incorrectAnswerRef, removeUndefined(data));
           }
