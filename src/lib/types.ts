@@ -3,6 +3,7 @@
 
 
 
+
 export interface User {
   uid: string;
   email: string | null;
@@ -10,6 +11,9 @@ export interface User {
   xp: number;
   level: number;
   lastPlayed?: any;
+  schoolName?: string;
+  grade?: string;
+  class?: string;
 }
 
 export interface Question {

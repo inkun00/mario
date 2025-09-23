@@ -33,6 +33,9 @@ const formSchema = z.object({
   email: z.string().email({ message: '유효한 이메일을 입력해주세요.' }),
   nickname: z.string().min(2, { message: '닉네임은 2자 이상이어야 합니다.' }).max(20, { message: '닉네임은 20자를 넘을 수 없습니다.' }),
   password: z.string().min(6, { message: '비밀번호는 6자 이상이어야 합니다.' }),
+  schoolName: z.string().optional(),
+  grade: z.string().optional(),
+  class: z.string().optional(),
 });
 
 export default function SignupPage() {
@@ -46,18 +49,24 @@ export default function SignupPage() {
       email: '',
       nickname: '',
       password: '',
+      schoolName: '',
+      grade: '',
+      class: '',
     },
   });
 
   // Function to create user document in Firestore
-  const createUserDocument = async (user: User, customDisplayName?: string) => {
+  const createUserDocument = async (user: User, customData?: { nickname?: string, schoolName?: string, grade?: string, class?: string }) => {
     const userRef = doc(db, 'users', user.uid);
     const docSnap = await getDoc(userRef);
     if (!docSnap.exists()) {
         await setDoc(userRef, {
             uid: user.uid,
             email: user.email,
-            displayName: customDisplayName || user.displayName,
+            displayName: customData?.nickname || user.displayName,
+            schoolName: customData?.schoolName || '',
+            grade: customData?.grade || '',
+            class: customData?.class || '',
             createdAt: serverTimestamp(),
             xp: 0,
             level: 1,
@@ -74,7 +83,12 @@ export default function SignupPage() {
         displayName: values.nickname
       });
       // Create user document in firestore
-      await createUserDocument(user, values.nickname);
+      await createUserDocument(user, {
+          nickname: values.nickname,
+          schoolName: values.schoolName,
+          grade: values.grade,
+          class: values.class,
+      });
 
       toast({
         title: "회원가입 성공",
@@ -166,6 +180,51 @@ export default function SignupPage() {
                 </FormItem>
               )}
             />
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                 <FormField
+                  control={form.control}
+                  name="schoolName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>학교 이름 (선택)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="마리오초등학교" {...field} disabled={isLoading} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 <div className="grid grid-cols-2 gap-2">
+                    <FormField
+                      control={form.control}
+                      name="grade"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>학년 (선택)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="5" {...field} disabled={isLoading} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                     <FormField
+                      control={form.control}
+                      name="class"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>반 (선택)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="3" {...field} disabled={isLoading} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                 </div>
+            </div>
+
             <Button type="submit" className="w-full font-headline" disabled={isLoading}>
               {isLoading ? '계정 생성 중...' : '계정 만들기'}
             </Button>

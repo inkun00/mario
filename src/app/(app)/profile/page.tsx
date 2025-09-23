@@ -16,7 +16,7 @@ import { auth, db } from '@/lib/firebase';
 import { useEffect, useState } from 'react';
 import type { User, CorrectAnswer, IncorrectAnswer } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, Timestamp } from 'firebase/firestore';
-import { BrainCircuit, Activity, FileWarning, Sparkles, Loader2, Lightbulb, CheckCircle, Trophy } from 'lucide-react';
+import { BrainCircuit, Activity, FileWarning, Sparkles, Loader2, Lightbulb, CheckCircle, Trophy, School } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { analyzeLearning } from '@/ai/flows/analyze-learning-flow';
@@ -196,6 +196,8 @@ export default function ProfilePage() {
   const currentXpProgress = userData ? userData.xp - (levelInfo?.xpThreshold || 0) : 0;
   const progressPercentage = xpForNextLevel > 0 ? (currentXpProgress / xpForNextLevel) * 100 : 100;
 
+  const schoolInfo = [userData?.schoolName, userData?.grade && `${userData.grade}학년`, userData?.class && `${userData.class}반`].filter(Boolean).join(' ');
+
   if (isLoading) {
     return (
         <div className="container mx-auto flex flex-col gap-8">
@@ -242,13 +244,19 @@ export default function ProfilePage() {
     <div className="container mx-auto flex flex-col gap-8">
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-4">
-            <div className="relative h-20 w-20 flex items-center justify-center rounded-full bg-secondary">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="relative h-20 w-20 flex items-center justify-center rounded-full bg-secondary flex-shrink-0">
                 <span className="text-5xl">{levelInfo.icon}</span>
             </div>
             <div>
               <CardTitle className="font-headline text-3xl">{userData.displayName}</CardTitle>
               <CardDescription>{levelInfo.title}</CardDescription>
+              {schoolInfo && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                    <School className="w-4 h-4"/>
+                    <span>{schoolInfo}</span>
+                </div>
+              )}
             </div>
           </div>
         </CardHeader>
