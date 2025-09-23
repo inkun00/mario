@@ -40,6 +40,7 @@ import { auth, db } from '@/lib/firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 async function callApi(action: string, data: any) {
   const response = await fetch('/api/ai', {
@@ -205,6 +206,14 @@ export default function CreateGameSetPage() {
     }
   }
   
+  const { isValid, errors } = form.formState;
+  
+  const submitButton = (
+      <Button type="submit" size="lg" className="font-headline w-full" disabled={isLoading || !isValid}>
+          {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> AI 검증 및 저장 중...</> : <><Sparkles className="mr-2 h-4 w-4" /> 퀴즈 세트 저장</>}
+      </Button>
+  );
+
   return (
     <div className="container mx-auto py-8">
       <Card>
@@ -627,18 +636,22 @@ export default function CreateGameSetPage() {
                     주의: 부정한 방법으로 점수를 올리기 위해 퀴즈를 생성하는 경우 계정이 삭제될 수 있습니다.
                   </p>
                   <div className="w-full sm:w-auto flex flex-col items-center">
-                    <FormField
-                      control={form.control}
-                      name="questions"
-                      render={() => (
-                        <FormItem>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <Button type="submit" size="lg" className="font-headline w-full" disabled={isLoading}>
-                      {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> AI 검증 및 저장 중...</> : <><Sparkles className="mr-2 h-4 w-4" /> 퀴즈 세트 저장</>}
-                    </Button>
+                    {!isValid && errors.questions ? (
+                         <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span tabIndex={0} className="w-full">
+                                        {submitButton}
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p>{errors.questions.message}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    ) : (
+                        submitButton
+                    )}
                   </div>
                 </div>
               </fieldset>
