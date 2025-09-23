@@ -9,7 +9,6 @@ import '@/ai/flows/join-game-flow';
 import '@/ai/flows/update-scores-flow';
 import '@/ai/flows/validate-quiz-set-flow';
 
-import type { NextRequest } from 'next/server';
 import { nextJsHandler } from '@genkit-ai/next';
 
 export const { GET, POST } = nextJsHandler();
