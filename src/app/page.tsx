@@ -7,7 +7,7 @@ import AppLogo from '@/components/app-logo';
 
 export default function Home() {
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col min-h-screen bg-background">
       <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm">
         <div className="container mx-auto flex h-16 items-center justify-between px-4 md:px-6">
           <AppLogo />
@@ -23,7 +23,7 @@ export default function Home() {
       </header>
 
       <main className="flex-grow">
-        <section className="relative pt-16 h-[80vh] min-h-[600px] flex items-center justify-center text-center bg-primary/10">
+        <section className="relative pt-16 h-[80vh] min-h-[600px] flex items-center justify-center text-center bg-gradient-to-br from-primary/10 via-background to-background">
           <div className="absolute inset-0 overflow-hidden">
              <div className="absolute top-1/4 left-1/4 w-32 h-32 bg-primary/20 rounded-full opacity-50 animate-blob"></div>
              <div className="absolute top-1/2 right-1/4 w-48 h-48 bg-accent/20 rounded-full opacity-50 animate-blob animation-delay-2000"></div>
@@ -102,7 +102,7 @@ export default function Home() {
 
 function FeatureCard({ icon, title, description }: { icon: React.ReactNode, title: string, description: string }) {
   return (
-    <Card className="text-center p-6 shadow-lg hover:shadow-xl transition-shadow duration-300">
+    <Card className="text-center p-6 shadow-lg hover:shadow-xl hover:-translate-y-2 transition-all duration-300">
       <CardHeader className="flex justify-center items-center mb-4">
         <div className="bg-primary/10 p-4 rounded-full">
           {icon}
