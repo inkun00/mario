@@ -9,7 +9,7 @@
  */
 
 import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import {z} from 'zod';
 
 const AdjustDifficultyInputSchema = z.object({
   studentId: z.string().describe('The unique identifier of the student.'),
