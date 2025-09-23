@@ -222,6 +222,7 @@ export default function CreateGameSetPage() {
           <CardDescription>
             다른 사람들과 플레이할 나만의 학습 퀴즈 세트를 만들어보세요.
           </CardDescription>
+          <p className="text-sm text-destructive mt-2">5개 이상의 문제를 만들어야 저장할 수 있습니다.</p>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -391,6 +392,11 @@ export default function CreateGameSetPage() {
                 <div>
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-semibold">질문 카드</h3>
+                    <FormField
+                      control={form.control}
+                      name="questions"
+                      render={() => <FormMessage />}
+                    />
                   </div>
                   <div className="space-y-6">
                     {fields.map((field, index) => (
