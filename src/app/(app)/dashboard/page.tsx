@@ -32,9 +32,9 @@ import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe,
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, doc, deleteDoc, where, getDocs, QuerySnapshot, DocumentData, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, deleteDoc, where, getDocs, QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { GameRoom, GameSet } from '@/lib/types';
+import type { GameSet } from '@/lib/types';
 import { auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { useToast } from '@/hooks/use-toast';
