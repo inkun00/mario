@@ -11,7 +11,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { getFirestore, doc, getDoc } from 'firebase-admin/firestore';
+import { getFirestore } from 'firebase-admin/firestore';
 import { initializeApp, getApps } from 'firebase-admin/app';
 import type { Player, GameRoom } from '@/lib/types';
 
@@ -57,12 +57,12 @@ const joinGameFlow = ai.defineFlow(
       throw new Error("Game room ID and player information are required.");
     }
     
-    const roomRef = doc(db, 'game-rooms', gameRoomId);
+    const roomRef = db.collection('game-rooms').doc(gameRoomId);
 
     try {
-      const roomSnap = await getDoc(roomRef);
+      const roomSnap = await roomRef.get();
 
-      if (!roomSnap.exists()) {
+      if (!roomSnap.exists) {
         return { success: false, message: '존재하지 않는 게임방입니다.' };
       }
 
