@@ -1,34 +1,52 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    match /users/{userId} {
-      allow read;
-      allow create, update: if request.auth != null && request.auth.uid == userId;
+    //
+    // Functions
+    //
+    function isSignedIn() {
+      return request.auth != null;
     }
 
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function isUpdatingPlayCountOnly() {
+      // Check that only 'playCount' is being incremented by 1.
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playCount'])
+             && request.resource.data.playCount == resource.data.playCount + 1;
+    }
+
+    //
+    // Rules
+    //
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+      
+      match /correct-answers/{docId} {
+          allow read, write: if isOwner(userId);
+      }
+      match /incorrect-answers/{docId} {
+          allow read, write: if isOwner(userId);
+      }
+    }
+    
     match /game-sets/{gameSetId} {
-      allow read: if request.auth != null && (resource.data.isPublic == true || request.auth.uid == resource.data.creatorId);
-      allow create: if request.auth != null;
-      // Combine update rules into one to allow either full update by owner or playCount update by anyone.
-      allow update: if request.auth != null && 
-                      (request.auth.uid == resource.data.creatorId || 
-                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playCount']) &&
-                       request.resource.data.playCount == resource.data.playCount + 1));
-      allow delete: if request.auth != null && request.auth.uid == resource.data.creatorId;
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if (isOwner(resource.data.creatorId)) || (isUpdatingPlayCountOnly());
+      allow delete: if isOwner(resource.data.creatorId);
     }
     
     match /game-rooms/{gameRoomId} {
-      allow read, create, update: if request.auth != null;
-    }
-
-    match /users/{userId}/correct-answers/{answerId} {
-      allow read, create, delete: if request.auth != null && request.auth.uid == userId;
-    }
-
-    match /users/{userId}/incorrect-answers/{answerId} {
-      allow read, create, delete: if request.auth != null && request.auth.uid == userId;
+      allow create: if isSignedIn();
+      allow read, update: if isSignedIn();
+      // Disallow delete for now to prevent accidental deletion during a game.
+      allow delete: if false;
     }
   }
 }
