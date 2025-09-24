@@ -9,28 +9,25 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if true;
-      allow create: if isSignedIn() && request.resource.data.uid == userId;
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update: if isSignedIn() && request.auth.uid == userId;
-    }
-    
-    match /users/{userId}/correct-answers/{docId} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
-    }
-
-    match /users/{userId}/incorrect-answers/{docId} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
 
     match /game-sets/{gameSetId} {
-      allow read: if isSignedIn();
+      // Logged-in users can read public sets or their own private sets.
+      allow read: if isSignedIn() && (resource.data.isPublic == true || request.auth.uid == resource.data.creatorId);
       allow create: if isSignedIn();
-      allow update: if (request.auth.uid == resource.data.creatorId) || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playCount']));
-      allow delete: if isSignedIn() && request.auth.uid == resource.data.creatorId;
+      // Allow updates if the user is the creator OR if only the playCount is being modified.
+      allow update: if isSignedIn();
     }
 
     match /game-rooms/{gameRoomId} {
-      allow read, update: if isSignedIn();
       allow create: if isSignedIn();
+      allow read, update: if isSignedIn();
+    }
+    
+    match /users/{userId}/{document=**} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
   }
 }
