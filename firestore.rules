@@ -2,37 +2,35 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
+
     function isSignedIn() {
       return request.auth != null;
     }
 
     match /users/{userId} {
       allow read: if true;
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.uid == userId;
       allow update: if isSignedIn() && request.auth.uid == userId;
+    }
+    
+    match /users/{userId}/correct-answers/{docId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /users/{userId}/incorrect-answers/{docId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
     }
 
     match /game-sets/{gameSetId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow delete: if isSignedIn() && resource.data.creatorId == request.auth.uid;
-      allow update: if (isSignedIn() && request.auth.uid == resource.data.creatorId) || 
-                       (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playCount']));
+      allow update: if (request.auth.uid == resource.data.creatorId) || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playCount']));
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.creatorId;
     }
 
     match /game-rooms/{gameRoomId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.createdAt == request.time;
-      allow update: if isSignedIn();
-    }
-    
-    match /users/{userId}/correct-answers/{docId} {
-      allow read, write: if isSignedIn() && userId == request.auth.uid;
-    }
-
-    match /users/{userId}/incorrect-answers/{docId} {
-      allow read, write: if isSignedIn() && userId == request.auth.uid;
+      allow read, update: if isSignedIn();
+      allow create: if isSignedIn();
     }
   }
 }
