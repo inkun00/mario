@@ -2,32 +2,16 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
+    
     function isSignedIn() {
       return request.auth != null;
     }
 
-    match /users/{userId} {
-      allow read: if true;
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update: if isSignedIn() && request.auth.uid == userId;
-    }
-
-    match /game-sets/{gameSetId} {
-      // Logged-in users can read public sets or their own private sets.
-      allow read: if isSignedIn() && (resource.data.isPublic == true || request.auth.uid == resource.data.creatorId);
-      allow create: if isSignedIn();
-      // Allow updates if the user is the creator OR if only the playCount is being modified.
-      allow update: if isSignedIn();
-    }
-
-    match /game-rooms/{gameRoomId} {
-      allow create: if isSignedIn();
-      allow read, update: if isSignedIn();
-    }
-    
-    match /users/{userId}/{document=**} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    // Allow signed in users to read and write to any collection.
+    // This is a permissive rule for development.
+    // TODO: Secure these rules before deploying to production.
+    match /{document=**} {
+      allow read, write: if isSignedIn();
     }
   }
 }
