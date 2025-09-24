@@ -1,17 +1,12 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // Allow signed in users to read and write to any collection.
-    // This is a permissive rule for development.
-    // TODO: Secure these rules before deploying to production.
+    // Development rule: Allow read/write access to all documents
+    // for any authenticated user.
+    // This is insecure and should be replaced with more granular rules
+    // before production.
     match /{document=**} {
-      allow read, write: if isSignedIn();
+      allow read, write: if request.auth != null;
     }
   }
 }
