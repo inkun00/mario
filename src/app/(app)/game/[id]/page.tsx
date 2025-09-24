@@ -108,24 +108,34 @@ export default function GamePage() {
   const [selectedEffects, setSelectedEffects] = useState<MysteryEffectType[]>(allMysteryEffects.map(e => e.type));
   const [showGameOverPopup, setShowGameOverPopup] = useState(false);
   const [finalScores, setFinalScores] = useState<Player[]>([]);
-  
-  const finishGame = useCallback(async (room: GameRoom) => {
-    if (!gameSet || finalScores.length > 0) return;
+  const [isGameFinished, setIsGameFinished] = useState(false);
 
-    const finalPlayers = calculateScoresFromLogs(room);
-    setFinalScores(finalPlayers.sort((a, b) => b.score - a.score));
-    setShowGameOverPopup(true);
-    
-    // updateScores is a fire-and-forget operation in the background
-    updateScores({ 
-      gameRoomId: room.id as string, 
-      players: finalPlayers,
-      totalQuestions: gameSet.questions.length
-    }).catch(error => {
-      console.error("Error updating scores in background:", error);
-      // Optionally notify user of background failure
-    });
-  }, [gameSet, finalScores.length]);
+  const finishGame = useCallback(async (room: GameRoom) => {
+    if (isGameFinished || !gameSet) return;
+    setIsGameFinished(true); // Prevent multiple executions
+  
+    try {
+      const finalPlayers = calculateScoresFromLogs(room);
+      setFinalScores(finalPlayers);
+      setShowGameOverPopup(true);
+  
+      // Call server action to update scores and XP
+      const result = await updateScores({
+        players: finalPlayers,
+      });
+  
+      if (!result.success) {
+        // This toast might be useful for debugging if score updates fail silently
+        toast({
+          variant: "destructive",
+          title: "오류",
+          description: "점수 업데이트에 실패했습니다. 하지만 게임 결과는 저장되었습니다.",
+        });
+      }
+    } catch (error) {
+      console.error("Error during finishGame:", error);
+    }
+  }, [gameSet, isGameFinished, toast]);
 
   // Fetch GameRoom and GameSet data
   useEffect(() => {
@@ -140,6 +150,10 @@ export default function GamePage() {
 
             if (roomData.status === 'playing' && roomData.mysteryBoxEnabled && !roomData.isMysterySettingDone && roomData.hostId === user?.uid) {
                 setShowMysterySettings(true);
+            }
+             
+            if (roomData.status === 'finished') {
+                finishGame(roomData);
             }
 
             if (!gameSet && roomData.gameSetId) {
@@ -171,7 +185,7 @@ export default function GamePage() {
       unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameRoomId, router, toast, user]);
+  }, [gameRoomId, router, toast, user, finishGame]);
   
   // Initialize players and turn status from local gameRoom state
   useEffect(() => {
@@ -187,13 +201,7 @@ export default function GamePage() {
     } else {
         setIsMyTurn(true);
     }
-    
-    // New logic to handle game finish
-    if (gameRoom.status === 'finished' && finalScores.length === 0) {
-      finishGame(gameRoom);
-    }
-
-  }, [gameRoom, user, loadingUser, players, finishGame, finalScores.length]);
+  }, [gameRoom, user, loadingUser, players]);
 
 
   // Initialize game blocks once

@@ -46,19 +46,17 @@ export async function checkUserId(userId: string): Promise<CheckUserResult> {
 
 
 interface UpdateScoresInput {
-    gameRoomId: string;
     players: Player[];
-    totalQuestions: number;
 }
 
 /**
  * Updates player scores and XP in Firestore after a game finishes.
  * @param input - The game result data.
  */
-export async function updateScores(input: UpdateScoresInput): Promise<{ success: boolean }> {
+export async function updateScores(input: UpdateScoresInput): Promise<{ success: boolean; message?: string }> {
   const { players } = input;
   if (!players || players.length === 0) {
-    console.log("No players to update.");
+    console.log("No players to update scores for.");
     return { success: true };
   }
 
@@ -66,11 +64,21 @@ export async function updateScores(input: UpdateScoresInput): Promise<{ success:
 
   try {
     for (const player of players) {
-      if (!player.uid) continue;
+      // Validate player data before updating
+      if (!player.uid) {
+        console.warn("Skipping player with missing UID:", player);
+        continue;
+      }
+      
+      const xpGained = player.score;
+      if (typeof xpGained !== 'number' || isNaN(xpGained)) {
+         console.warn(`Skipping player with invalid score: ${player.uid}`, player);
+         continue;
+      }
 
       const userRef = db.collection('users').doc(player.uid);
-      const xpGained = player.score; 
-
+      
+      // Use FieldValue.increment to atomically update the XP
       batch.update(userRef, {
         xp: FieldValue.increment(xpGained),
         lastPlayed: FieldValue.serverTimestamp(),
@@ -78,11 +86,12 @@ export async function updateScores(input: UpdateScoresInput): Promise<{ success:
     }
 
     await batch.commit();
-    console.log(`Scores and XP updated for ${players.length} players.`);
+    console.log(`Scores and XP successfully updated for ${players.length} players.`);
     return { success: true };
+    
   } catch (error) {
     console.error("Error updating scores in server action:", error);
-    // This error is caught on the server, will not bubble up to client unless thrown
-    return { success: false };
+    // Do not throw, just return failure. Client can decide how to handle.
+    return { success: false, message: 'An error occurred while updating scores.' };
   }
 }
