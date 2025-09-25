@@ -113,15 +113,14 @@ export default function GamePage() {
   const [isGameFinished, setIsGameFinished] = useState(false);
 
   const finishGame = useCallback(async (room: GameRoom) => {
-    if (isGameFinished || !gameSet) return;
-    setIsGameFinished(true); // Prevent multiple executions
+    if (isGameFinished) return;
+    setIsGameFinished(true);
   
     try {
       const finalPlayers = calculateScoresFromLogs(room);
       setFinalScores(finalPlayers);
       setShowGameOverPopup(true);
   
-      // Call server action to update scores and XP, and log answers
       await updateScores({
         players: finalPlayers,
         answerLogs: room.answerLogs || [],
@@ -135,7 +134,7 @@ export default function GamePage() {
           description: "게임 결과 처리 중 심각한 오류가 발생했습니다.",
         });
     }
-  }, [gameSet, isGameFinished, toast]);
+  }, [isGameFinished, toast]);
 
   // Fetch GameRoom and GameSet data
   useEffect(() => {
@@ -152,7 +151,7 @@ export default function GamePage() {
                 setShowMysterySettings(true);
             }
              
-            if (roomData.status === 'finished' && !isGameFinished) {
+            if (roomData.status === 'finished') {
                 finishGame(roomData);
             }
 
@@ -185,7 +184,7 @@ export default function GamePage() {
       unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameRoomId, router, toast, user, isGameFinished]);
+  }, [gameRoomId, router, toast, user]);
   
   // Initialize players and turn status from local gameRoom state
   useEffect(() => {
@@ -207,6 +206,13 @@ export default function GamePage() {
   // Initialize game blocks once
   useEffect(() => {
     if (!gameSet || !gameRoom || blocks.length > 0) return;
+    
+    // This effect should only run once to set up the initial board.
+    // It is sensitive to `gameRoom.isMysterySettingDone` being available.
+    if (gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone) {
+      // Waiting for host to set mystery settings
+      return;
+    }
 
     const questionItems: GameBlock[] = gameSet.questions.map((q, i) => ({
         id: i,
@@ -257,7 +263,7 @@ export default function GamePage() {
   };
   
   const handleMysteryBoxOpen = (blockId: number) => {
-      if (!gameRoom || typeof gameRoomId !== 'string') return;
+      if (!gameRoom || typeof gameRoomId !== 'string' || !gameSet) return;
 
       const effects = gameRoom?.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
       if (effects.length === 0) {
