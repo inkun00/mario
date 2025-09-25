@@ -111,6 +111,7 @@ export default function GamePage() {
   const [showGameOverPopup, setShowGameOverPopup] = useState(false);
   const [finalScores, setFinalScores] = useState<Player[]>([]);
   const [isGameFinished, setIsGameFinished] = useState(false);
+  const [isBoardInitialized, setIsBoardInitialized] = useState(false);
 
   const finishGame = useCallback(async (room: GameRoom) => {
     if (isGameFinished) return;
@@ -149,6 +150,7 @@ export default function GamePage() {
              
             if (roomData.status === 'finished' && !isGameFinished) {
                 finishGame(roomData);
+                return;
             }
 
             if (!gameSet && roomData.gameSetId) {
@@ -204,39 +206,38 @@ export default function GamePage() {
     if (gameRoom.status === 'playing' && gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone && gameRoom.hostId === user.uid) {
         setShowMysterySettings(true);
     }
-  }, [gameRoom, user]);
+  }, [gameRoom?.status, gameRoom?.mysteryBoxEnabled, gameRoom?.isMysterySettingDone, gameRoom?.hostId, user]);
 
 
   // Initialize game blocks once
   useEffect(() => {
-    if (!gameSet || !gameRoom || blocks.length > 0) return;
+    if (!gameSet || !gameRoom || isBoardInitialized) return;
     
-    // This effect should only run once to set up the initial board.
-    // If mystery box is enabled, wait for host to set it up.
-    if (gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone) {
-      return;
-    }
+    const canInitializeBoard = !gameRoom.mysteryBoxEnabled || gameRoom.isMysterySettingDone;
 
-    const questionItems: GameBlock[] = gameSet.questions.map((q, i) => ({
-        id: i,
-        type: 'question',
-        question: {...q, id: i},
-    }));
-
-    let mysteryItems: GameBlock[] = [];
-    if(gameRoom.mysteryBoxEnabled && gameRoom.isMysterySettingDone) {
-        const mysteryCount = Math.round(gameSet.questions.length * 0.3);
-        mysteryItems = Array.from({ length: mysteryCount }, (_, i) => ({
-            id: gameSet.questions.length + i,
-            type: 'mystery',
+    if (canInitializeBoard) {
+        const questionItems: GameBlock[] = gameSet.questions.map((q, i) => ({
+            id: i,
+            type: 'question',
+            question: {...q, id: i},
         }));
+
+        let mysteryItems: GameBlock[] = [];
+        if(gameRoom.mysteryBoxEnabled) {
+            const mysteryCount = Math.round(gameSet.questions.length * 0.3);
+            mysteryItems = Array.from({ length: mysteryCount }, (_, i) => ({
+                id: gameSet.questions.length + i,
+                type: 'mystery',
+            }));
+        }
+        
+        const allItems = [...questionItems, ...mysteryItems];
+        const shuffledBlocks = shuffleArray(allItems);
+        
+        setBlocks(shuffledBlocks);
+        setIsBoardInitialized(true);
     }
-    
-    const allItems = [...questionItems, ...mysteryItems];
-    const shuffledBlocks = shuffleArray(allItems);
-    
-    setBlocks(shuffledBlocks);
-  }, [gameSet, gameRoom, gameRoom?.isMysterySettingDone, blocks.length]);
+  }, [gameSet, gameRoom, isBoardInitialized]);
 
   
   const handleBlockClick = (block: GameBlock) => {
@@ -277,8 +278,11 @@ export default function GamePage() {
           
           const nextTurnUID = getNextTurnUID();
           
-          const totalBlocks = gameSet.questions.length + (gameRoom.isMysterySettingDone ? Math.round(gameSet.questions.length * 0.3) : 0);
+          const totalQuestions = gameSet.questions.length;
+          const mysteryBlockCount = (gameRoom.isMysterySettingDone && gameRoom.mysteryBoxEnabled) ? Math.round(totalQuestions * 0.3) : 0;
+          const totalBlocks = totalQuestions + mysteryBlockCount;
           const allAnswered = Object.keys(newGameState).length >= totalBlocks;
+
 
           updateDoc(roomRef, { 
               gameState: newGameState,
@@ -546,9 +550,7 @@ export default function GamePage() {
     );
   }
   
-  if (blocks.length === 0 && gameSet) {
-    // This condition might be met for a brief moment while blocks are being initialized.
-    // Showing a loader here prevents a flash of empty content.
+  if (!isBoardInitialized) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
