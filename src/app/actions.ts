@@ -87,38 +87,30 @@ export async function updateScores(input: UpdateScoresInput): Promise<{ success:
       });
     }
 
-    // 2. Record incorrect answers
-    const incorrectAnswers = answerLogs?.filter(log => !log.isCorrect && log.userId && log.question) || [];
-    for (const log of incorrectAnswers) {
-        if (!log.userId) continue;
+    // 2. Record all answer logs
+    if (answerLogs && answerLogs.length > 0) {
+        for (const log of answerLogs) {
+            if (!log.userId) continue;
 
-        const incorrectAnswerRef = db.collection('users').doc(log.userId).collection('incorrect-answers').doc();
-        batch.set(incorrectAnswerRef, {
-            userId: log.userId,
-            gameSetId: log.gameSetId,
-            gameSetTitle: log.gameSetTitle,
-            question: log.question,
-            userAnswer: log.userAnswer || '',
-            timestamp: FieldValue.serverTimestamp(),
-        });
-    }
-    
-    // 3. Record correct answers
-    const correctAnswers = answerLogs?.filter(log => log.isCorrect && log.userId && log.question) || [];
-    for (const log of correctAnswers) {
-        if(!log.userId) continue;
-        
-        const correctAnswerRef = db.collection('users').doc(log.userId).collection('correct-answers').doc();
-        batch.set(correctAnswerRef, {
-            userId: log.userId,
-            gameSetId: log.gameSetId,
-            gameSetTitle: log.gameSetTitle,
-            question: log.question.question,
-            grade: log.question.grade || '',
-            subject: log.question.subject || '',
-            unit: log.question.unit || '',
-            timestamp: FieldValue.serverTimestamp(),
-        });
+            const logRef = db.collection('users').doc(log.userId).collection('answerLogs').doc();
+            batch.set(logRef, {
+                ...log,
+                timestamp: FieldValue.serverTimestamp(),
+            });
+
+            // Keep separate incorrect answers collection for review feature
+            if (!log.isCorrect) {
+                const incorrectAnswerRef = db.collection('users').doc(log.userId).collection('incorrect-answers').doc();
+                batch.set(incorrectAnswerRef, {
+                    userId: log.userId,
+                    gameSetId: log.gameSetId,
+                    gameSetTitle: log.gameSetTitle,
+                    question: log.question,
+                    userAnswer: log.userAnswer || '',
+                    timestamp: FieldValue.serverTimestamp(),
+                });
+            }
+        }
     }
 
 
@@ -131,3 +123,5 @@ export async function updateScores(input: UpdateScoresInput): Promise<{ success:
     return { success: false, message: 'An error occurred while updating scores and logs.' };
   }
 }
+
+    

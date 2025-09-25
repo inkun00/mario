@@ -15,8 +15,8 @@ import { Button } from '@/components/ui/button';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState } from 'react';
-import type { User, CorrectAnswer, IncorrectAnswer, Question } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, Timestamp } from 'firebase/firestore';
+import type { User, AnswerLog, IncorrectAnswer, Question } from '@/lib/types';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, Timestamp, query } from 'firebase/firestore';
 import { BrainCircuit, Activity, FileWarning, Sparkles, Loader2, Lightbulb, CheckCircle, Trophy, School } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -52,7 +52,7 @@ async function callApi(action: string, data: any) {
 export default function ProfilePage() {
   const [user] = useAuthState(auth);
   const [userData, setUserData] = useState<User | null>(null);
-  const [correctAnswers, setCorrectAnswers] = useState<CorrectAnswer[]>([]);
+  const [answerLogs, setAnswerLogs] = useState<AnswerLog[]>([]);
   const [reviewQuestions, setReviewQuestions] = useState<ReviewQuestion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -80,18 +80,18 @@ export default function ProfilePage() {
         setNextLevelInfo(getNextLevelInfo(currentLevel.level));
       }
 
-      const correctAnswersRef = collection(db, 'users', user.uid, 'correct-answers');
+      const answerLogsRef = collection(db, 'users', user.uid, 'answerLogs');
       const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
       
-      const [correctSnapshot, incorrectSnapshot] = await Promise.all([
-        getDocs(correctAnswersRef),
-        getDocs(incorrectAnswersRef)
+      const [logsSnapshot, incorrectSnapshot] = await Promise.all([
+        getDocs(query(answerLogsRef)),
+        getDocs(query(incorrectAnswersRef))
       ]);
 
-      const correctData = correctSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CorrectAnswer));
+      const logsData = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AnswerLog));
       const incorrectData = incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer));
 
-      setCorrectAnswers(correctData);
+      setAnswerLogs(logsData);
       setReviewQuestions(incorrectData.map(item => ({...item, isGenerating: false})));
       setIsLoading(false);
     };
@@ -103,8 +103,7 @@ export default function ProfilePage() {
       setIsAnalyzing(true);
       try {
           const result = await callApi('analyzeLearning', { 
-            correctAnswers: correctAnswers.map(c => ({...c})),
-            incorrectAnswers: reviewQuestions.map(i => ({...i}))
+            answerLogs: answerLogs.map(c => ({...c})),
           });
           setLearningAnalysis(result);
       } catch (error: any) {
@@ -184,8 +183,9 @@ export default function ProfilePage() {
   };
 
 
-  const totalQuestions = correctAnswers.length + reviewQuestions.length;
-  const correctRate = totalQuestions > 0 ? (correctAnswers.length / totalQuestions * 100).toFixed(1) : 0;
+  const totalQuestions = answerLogs.length;
+  const correctAnswersCount = answerLogs.filter(log => log.isCorrect).length;
+  const correctRate = totalQuestions > 0 ? (correctAnswersCount / totalQuestions * 100).toFixed(1) : 0;
   
   const xpForNextLevel = nextLevelInfo ? nextLevelInfo.xpThreshold - (levelInfo?.xpThreshold || 0) : 0;
   const currentXpProgress = userData ? userData.xp - (levelInfo?.xpThreshold || 0) : 0;
@@ -407,3 +407,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    

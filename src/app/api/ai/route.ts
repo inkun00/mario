@@ -1,7 +1,7 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
-import type { CorrectAnswer, IncorrectAnswer, Question } from '@/lib/types';
+import type { AnswerLog, Question } from '@/lib/types';
 
 if (!process.env.GEMINI_API_KEY) {
   throw new Error("GEMINI_API_KEY environment variable is not set.");
@@ -28,8 +28,7 @@ interface ValidateQuizSetData {
 }
 
 interface AnalyzeLearningData {
-    correctAnswers: CorrectAnswer[];
-    incorrectAnswers: IncorrectAnswer[];
+    answerLogs: AnswerLog[];
 }
 
 interface GenerateReviewQuestionData {
@@ -73,21 +72,18 @@ async function validateQuizSet(data: ValidateQuizSetData) {
 }
 
 async function analyzeLearning(data: AnalyzeLearningData) {
-    const prompt = `You are an expert learning analyst AI. Your task is to analyze a student's performance based on their correct and incorrect answers. Identify patterns to determine their strong and weak areas.
+    const prompt = `You are an expert learning analyst AI. Your task is to analyze a student's performance based on their answer logs. Identify patterns to determine their strong and weak areas.
 
   - Analyze the subjects, grades, and units from the lists of correct and incorrect answers.
-  - For "strongAreas", summarize which topics the student seems to understand well.
-  - For "weakAreas", summarize which topics the student is struggling with.
+  - For "strongAreas", summarize which topics the student seems to understand well (based on `isCorrect: true`).
+  - For "weakAreas", summarize which topics the student is struggling with (based on `isCorrect: false`).
   - Provide the output as a short, easy-to-read summary for each category. Use bullet points and simple HTML like <ul> and <li>.
-  - If a list is empty, state that there is not enough data to analyze.
+  - If the log is empty, state that there is not enough data to analyze.
   - Respond in Korean.
   - Your entire response should be a single JSON object with keys "strongAreas" and "weakAreas".
 
-  Correct Answers:
-  ${data.correctAnswers.map(c => `- Subject: ${c.subject}, Unit: ${c.unit}`).join('\n')}
-
-  Incorrect Answers:
-  ${data.incorrectAnswers.map(i => `- Subject: ${i.question.subject}, Unit: ${i.question.unit}`).join('\n')}
+  Answer Logs:
+  ${data.answerLogs.map(log => `- Subject: ${log.question.subject}, Unit: ${log.question.unit}, Correct: ${log.isCorrect}`).join('\n')}
   `;
 
   const result = await model.generateContent(prompt);
@@ -171,3 +167,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'An error occurred while processing the AI request.' }, { status: 500 });
   }
 }
+
+    

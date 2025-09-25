@@ -82,23 +82,14 @@ function NewGameRoomPageContents() {
         today.setHours(0, 0, 0, 0);
         const startOfToday = Timestamp.fromDate(today);
 
-        const correctQuery = query(
-          collection(db, 'users', user.uid, 'correct-answers'),
-          where('gameSetId', '==', gameSetId),
-          where('timestamp', '>=', startOfToday)
-        );
-        const incorrectQuery = query(
-          collection(db, 'users', user.uid, 'incorrect-answers'),
+        const playedQuery = query(
+          collection(db, 'users', user.uid, 'answerLogs'),
           where('gameSetId', '==', gameSetId),
           where('timestamp', '>=', startOfToday)
         );
 
-        const [correctSnapshot, incorrectSnapshot] = await Promise.all([
-            getDocs(correctQuery),
-            getDocs(incorrectQuery),
-        ]);
-
-        if (!correctSnapshot.empty || !incorrectSnapshot.empty) {
+        const querySnapshot = await getDocs(playedQuery);
+        if (!querySnapshot.empty) {
             setHasPlayedToday(true);
         }
       }
@@ -304,3 +295,5 @@ export default function NewGameRoomPage() {
     </Suspense>
   )
 }
+
+    
