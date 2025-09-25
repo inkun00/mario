@@ -146,12 +146,8 @@ export default function GamePage() {
         if (docSnap.exists()) {
             const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
             setGameRoom(roomData);
-
-            if (roomData.status === 'playing' && roomData.mysteryBoxEnabled && !roomData.isMysterySettingDone && roomData.hostId === user?.uid) {
-                setShowMysterySettings(true);
-            }
              
-            if (roomData.status === 'finished') {
+            if (roomData.status === 'finished' && !isGameFinished) {
                 finishGame(roomData);
             }
 
@@ -184,7 +180,7 @@ export default function GamePage() {
       unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameRoomId, router, toast, user]);
+  }, [gameRoomId, router, toast, isGameFinished]);
   
   // Initialize players and turn status from local gameRoom state
   useEffect(() => {
@@ -202,14 +198,22 @@ export default function GamePage() {
     }
   }, [gameRoom, user, loadingUser, players]);
 
+  // Show mystery settings popup for host
+  useEffect(() => {
+    if (!gameRoom || !user) return;
+    if (gameRoom.status === 'playing' && gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone && gameRoom.hostId === user.uid) {
+        setShowMysterySettings(true);
+    }
+  }, [gameRoom, user]);
+
 
   // Initialize game blocks once
   useEffect(() => {
     if (!gameSet || !gameRoom || blocks.length > 0) return;
     
     // This effect should only run once to set up the initial board.
+    // If mystery box is enabled, wait for host to set it up.
     if (gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone) {
-      // Waiting for host to set mystery settings
       return;
     }
 
@@ -220,7 +224,7 @@ export default function GamePage() {
     }));
 
     let mysteryItems: GameBlock[] = [];
-    if(gameRoom.isMysterySettingDone) {
+    if(gameRoom.mysteryBoxEnabled && gameRoom.isMysterySettingDone) {
         const mysteryCount = Math.round(gameSet.questions.length * 0.3);
         mysteryItems = Array.from({ length: mysteryCount }, (_, i) => ({
             id: gameSet.questions.length + i,
@@ -232,7 +236,7 @@ export default function GamePage() {
     const shuffledBlocks = shuffleArray(allItems);
     
     setBlocks(shuffledBlocks);
-  }, [gameSet, gameRoom, gameRoom?.isMysterySettingDone]);
+  }, [gameSet, gameRoom, gameRoom?.isMysterySettingDone, blocks.length]);
 
   
   const handleBlockClick = (block: GameBlock) => {
@@ -368,7 +372,9 @@ export default function GamePage() {
         const newAnswerLogs = [...(gameRoom.answerLogs || []), answerLog];
         const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
         
-        const totalBlocks = gameSet.questions.length + (gameRoom.isMysterySettingDone ? Math.round(gameSet.questions.length * 0.3) : 0);
+        const totalQuestions = gameSet.questions.length;
+        const mysteryBlockCount = (gameRoom.isMysterySettingDone && gameRoom.mysteryBoxEnabled) ? Math.round(totalQuestions * 0.3) : 0;
+        const totalBlocks = totalQuestions + mysteryBlockCount;
         const allAnswered = Object.keys(newGameState).length >= totalBlocks;
 
         const nextTurnUID = getNextTurnUID();
@@ -467,7 +473,9 @@ export default function GamePage() {
         const newAnswerLogs = [...(gameRoom.answerLogs || []), ...logsToPush];
         const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [blockId]: 'answered'};
 
-        const totalBlocks = gameSet.questions.length + (gameRoom.isMysterySettingDone ? Math.round(gameSet.questions.length * 0.3) : 0);
+        const totalQuestions = gameSet.questions.length;
+        const mysteryBlockCount = (gameRoom.isMysterySettingDone && gameRoom.mysteryBoxEnabled) ? Math.round(totalQuestions * 0.3) : 0;
+        const totalBlocks = totalQuestions + mysteryBlockCount;
         const allAnswered = Object.keys(newGameState).length >= totalBlocks;
 
         const nextTurnUID = getNextTurnUID();
