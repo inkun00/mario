@@ -202,11 +202,12 @@ export default function GamePage() {
 
   // Show mystery settings popup for host
   useEffect(() => {
-    if (!gameRoom || !user) return;
+    if (!user || !gameRoom) return;
+
     if (gameRoom.status === 'playing' && gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone && gameRoom.hostId === user.uid) {
         setShowMysterySettings(true);
     }
-  }, [gameRoom?.status, gameRoom?.mysteryBoxEnabled, gameRoom?.isMysterySettingDone, gameRoom?.hostId, user]);
+  }, [gameRoom?.status, gameRoom?.mysteryBoxEnabled, gameRoom?.isMysterySettingDone, gameRoom?.hostId, user, gameRoom]);
 
 
   // Initialize game blocks once
