@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
 import { db, auth } from '@/lib/firebase';
-import type { GameRoom, GameSet, Player, JoinType } from '@/lib/types';
+import type { GameRoom, GameSet, Player, JoinType, AnswerLog } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, Timestamp, updateDoc, increment } from 'firebase/firestore';
@@ -80,16 +80,22 @@ function NewGameRoomPageContents() {
       if (user) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const startOfToday = Timestamp.fromDate(today);
 
-        const playedQuery = query(
+        const answerLogsQuery = query(
           collection(db, 'users', user.uid, 'answerLogs'),
-          where('gameSetId', '==', gameSetId),
-          where('timestamp', '>=', startOfToday)
+          where('gameSetId', '==', gameSetId)
         );
 
-        const querySnapshot = await getDocs(playedQuery);
-        if (!querySnapshot.empty) {
+        const querySnapshot = await getDocs(answerLogsQuery);
+        
+        const playedToday = querySnapshot.docs.some(doc => {
+            const log = doc.data() as AnswerLog;
+            if (!log.timestamp) return false;
+            const logDate = (log.timestamp as Timestamp).toDate();
+            return logDate >= today;
+        });
+
+        if (playedToday) {
             setHasPlayedToday(true);
         }
       }
@@ -295,5 +301,3 @@ export default function NewGameRoomPage() {
     </Suspense>
   )
 }
-
-    
