@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -121,18 +122,11 @@ export default function GamePage() {
       setShowGameOverPopup(true);
   
       // Call server action to update scores and XP, and log answers
-      const result = await updateScores({
+      await updateScores({
         players: finalPlayers,
         answerLogs: room.answerLogs || [],
       });
   
-      if (!result.success) {
-        toast({
-          variant: "destructive",
-          title: "오류",
-          description: result.message || "게임 결과 저장 중 오류가 발생했습니다.",
-        });
-      }
     } catch (error) {
       console.error("Error during finishGame:", error);
        toast({
@@ -273,7 +267,7 @@ export default function GamePage() {
           const roomRef = doc(db, 'game-rooms', gameRoomId);
           
           const nextTurnUID = getNextTurnUID();
-          const allAnswered = blocks.every(b => newGameState[String(b.id)] === 'answered');
+          const allAnswered = Object.keys(newGameState).length === blocks.length;
 
           updateDoc(roomRef, { 
               gameState: newGameState,
@@ -366,7 +360,7 @@ export default function GamePage() {
         
         const newAnswerLogs = [...(gameRoom.answerLogs || []), answerLog];
         const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
-        const allAnswered = blocks.every(b => newGameState[String(b.id)] === 'answered');
+        const allAnswered = Object.keys(newGameState).length === blocks.length;
         const nextTurnUID = getNextTurnUID();
 
         await updateDoc(roomRef, {
@@ -462,7 +456,7 @@ export default function GamePage() {
         
         const newAnswerLogs = [...(gameRoom.answerLogs || []), ...logsToPush];
         const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [blockId]: 'answered'};
-        const allAnswered = blocks.every(b => newGameState[String(b.id)] === 'answered');
+        const allAnswered = Object.keys(newGameState).length === blocks.length;
         const nextTurnUID = getNextTurnUID();
 
         await updateDoc(roomRef, {
