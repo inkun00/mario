@@ -17,7 +17,7 @@ import { db, auth } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, JoinType, AnswerLog } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, Timestamp, updateDoc, increment } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, Timestamp, updateDoc, increment, collectionGroup } from 'firebase/firestore';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
 import { Smartphone, Lock, Users, Loader2 } from 'lucide-react';
@@ -80,19 +80,20 @@ function NewGameRoomPageContents() {
       if (user) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
+        const startOfToday = Timestamp.fromDate(today);
 
-        const answerLogsQuery = query(
-          collection(db, 'users', user.uid, 'answerLogs'),
-          where('gameSetId', '==', gameSetId)
+        // This query requires a composite index on gameSetId and timestamp.
+        const playedQuery = query(
+          collectionGroup(db, 'answerLogs'),
+          where('gameSetId', '==', gameSetId),
+          where('timestamp', '>=', startOfToday)
         );
 
-        const querySnapshot = await getDocs(answerLogsQuery);
+        const querySnapshot = await getDocs(playedQuery);
         
         const playedToday = querySnapshot.docs.some(doc => {
             const log = doc.data() as AnswerLog;
-            if (!log.timestamp) return false;
-            const logDate = (log.timestamp as Timestamp).toDate();
-            return logDate >= today;
+            return log.userId === user.uid;
         });
 
         if (playedToday) {
@@ -301,3 +302,5 @@ export default function NewGameRoomPage() {
     </Suspense>
   )
 }
+
+    
