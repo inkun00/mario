@@ -208,7 +208,6 @@ export default function GamePage() {
     if (!gameSet || !gameRoom || blocks.length > 0) return;
     
     // This effect should only run once to set up the initial board.
-    // It is sensitive to `gameRoom.isMysterySettingDone` being available.
     if (gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone) {
       // Waiting for host to set mystery settings
       return;
@@ -233,7 +232,7 @@ export default function GamePage() {
     const shuffledBlocks = shuffleArray(allItems);
     
     setBlocks(shuffledBlocks);
-  }, [gameSet, gameRoom, blocks.length]);
+  }, [gameSet, gameRoom, gameRoom?.isMysterySettingDone]);
 
   
   const handleBlockClick = (block: GameBlock) => {
