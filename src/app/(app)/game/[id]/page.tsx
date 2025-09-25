@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -119,21 +120,26 @@ export default function GamePage() {
       setFinalScores(finalPlayers);
       setShowGameOverPopup(true);
   
-      // Call server action to update scores and XP
+      // Call server action to update scores and XP, and log answers
       const result = await updateScores({
         players: finalPlayers,
+        answerLogs: room.answerLogs || [],
       });
   
       if (!result.success) {
-        // This toast might be useful for debugging if score updates fail silently
         toast({
           variant: "destructive",
           title: "오류",
-          description: "점수 업데이트에 실패했습니다. 하지만 게임 결과는 저장되었습니다.",
+          description: result.message || "게임 결과 저장 중 오류가 발생했습니다.",
         });
       }
     } catch (error) {
       console.error("Error during finishGame:", error);
+       toast({
+          variant: "destructive",
+          title: "오류",
+          description: "게임 결과 처리 중 심각한 오류가 발생했습니다.",
+        });
     }
   }, [gameSet, isGameFinished, toast]);
 
@@ -185,7 +191,7 @@ export default function GamePage() {
       unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameRoomId, router, toast, user, finishGame]);
+  }, [gameRoomId, router, toast, user]);
   
   // Initialize players and turn status from local gameRoom state
   useEffect(() => {
