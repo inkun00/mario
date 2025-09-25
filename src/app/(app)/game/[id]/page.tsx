@@ -152,7 +152,7 @@ export default function GamePage() {
                 setShowMysterySettings(true);
             }
              
-            if (roomData.status === 'finished') {
+            if (roomData.status === 'finished' && !isGameFinished) {
                 finishGame(roomData);
             }
 
@@ -185,7 +185,7 @@ export default function GamePage() {
       unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameRoomId, router, toast, user]);
+  }, [gameRoomId, router, toast, user, isGameFinished]);
   
   // Initialize players and turn status from local gameRoom state
   useEffect(() => {
@@ -215,7 +215,7 @@ export default function GamePage() {
     }));
 
     let mysteryItems: GameBlock[] = [];
-    if(gameRoom.mysteryBoxEnabled) {
+    if(gameRoom.isMysterySettingDone) {
         const mysteryCount = Math.round(gameSet.questions.length * 0.3);
         mysteryItems = Array.from({ length: mysteryCount }, (_, i) => ({
             id: gameSet.questions.length + i,
@@ -267,7 +267,9 @@ export default function GamePage() {
           const roomRef = doc(db, 'game-rooms', gameRoomId);
           
           const nextTurnUID = getNextTurnUID();
-          const allAnswered = Object.keys(newGameState).length === blocks.length;
+          
+          const totalBlocks = gameSet.questions.length + (gameRoom.isMysterySettingDone ? Math.round(gameSet.questions.length * 0.3) : 0);
+          const allAnswered = Object.keys(newGameState).length >= totalBlocks;
 
           updateDoc(roomRef, { 
               gameState: newGameState,
@@ -360,7 +362,10 @@ export default function GamePage() {
         
         const newAnswerLogs = [...(gameRoom.answerLogs || []), answerLog];
         const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
-        const allAnswered = Object.keys(newGameState).length === blocks.length;
+        
+        const totalBlocks = gameSet.questions.length + (gameRoom.isMysterySettingDone ? Math.round(gameSet.questions.length * 0.3) : 0);
+        const allAnswered = Object.keys(newGameState).length >= totalBlocks;
+
         const nextTurnUID = getNextTurnUID();
 
         await updateDoc(roomRef, {
@@ -456,7 +461,10 @@ export default function GamePage() {
         
         const newAnswerLogs = [...(gameRoom.answerLogs || []), ...logsToPush];
         const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [blockId]: 'answered'};
-        const allAnswered = Object.keys(newGameState).length === blocks.length;
+
+        const totalBlocks = gameSet.questions.length + (gameRoom.isMysterySettingDone ? Math.round(gameSet.questions.length * 0.3) : 0);
+        const allAnswered = Object.keys(newGameState).length >= totalBlocks;
+
         const nextTurnUID = getNextTurnUID();
 
         await updateDoc(roomRef, {
@@ -516,11 +524,22 @@ export default function GamePage() {
     return !isMyTurn || !!currentQuestionInfo || !!showMysteryBoxPopup;
   };
   
-  if (isLoading || loadingUser || !gameRoom || !gameSet || blocks.length === 0) {
+  if (isLoading || loadingUser || !gameRoom || !gameSet) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
         <p className="mt-4 text-muted-foreground">게임 정보를 불러오는 중...</p>
+      </div>
+    );
+  }
+  
+  if (blocks.length === 0 && gameSet) {
+    // This condition might be met for a brief moment while blocks are being initialized.
+    // Showing a loader here prevents a flash of empty content.
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
+        <Loader2 className="w-12 h-12 animate-spin text-primary" />
+        <p className="mt-4 text-muted-foreground">게임판을 생성하는 중...</p>
       </div>
     );
   }
