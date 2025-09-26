@@ -100,7 +100,7 @@ export default function GamePage() {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [showMysterySettings, setShowMysterySettings] = useState(false);
+  const [showMysterySettings, setShowMysterySettings] = useState(true);
   const [enabledEffects, setEnabledEffects] = useState<MysteryEffectType[]>(allMysteryEffects.map(e => e.type));
 
   const [showMysteryBoxPopup, setShowMysteryBoxPopup] = useState(false);
@@ -195,13 +195,6 @@ export default function GamePage() {
         setIsMyTurn(true);
     }
   }, [gameRoom, user, loadingUser]);
-
-  // Show mystery box settings dialog
-  useEffect(() => {
-    if (gameRoom && !gameRoom.isMysterySettingDone) {
-      setShowMysterySettings(true);
-    }
-  }, [gameRoom]);
 
   // Initialize game board
   useEffect(() => {
@@ -544,20 +537,7 @@ setShowMysteryBoxPopup(true);
     );
   }
   
-  if (blocks.length === 0) {
-    const isHostWaitingForSettings = !gameRoom.isMysterySettingDone;
-    
-    if (isHostWaitingForSettings) {
-        return (
-          <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
-            <Loader2 className="w-12 h-12 animate-spin text-primary" />
-            <p className="mt-4 text-muted-foreground">
-              미스터리 박스 설정을 완료해주세요...
-            </p>
-          </div>
-        );
-    }
-
+  if (blocks.length === 0 && gameRoom.isMysterySettingDone) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
