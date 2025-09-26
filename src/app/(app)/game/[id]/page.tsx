@@ -106,8 +106,6 @@ export default function GamePage() {
   const [mysteryBoxEffect, setMysteryBoxEffect] = useState<MysteryEffect | null>(null);
   const [playerForSwap, setPlayerForSwap] = useState<string | null>(null);
   
-  const [showMysterySettings, setShowMysterySettings] = useState(false);
-  const [selectedEffects, setSelectedEffects] = useState<MysteryEffectType[]>(allMysteryEffects.map(e => e.type));
   const [showGameOverPopup, setShowGameOverPopup] = useState(false);
   const [finalScores, setFinalScores] = useState<Player[]>([]);
   const [isGameFinished, setIsGameFinished] = useState(false);
@@ -121,10 +119,12 @@ export default function GamePage() {
       setFinalScores(finalPlayers);
       setShowGameOverPopup(true);
   
-      await updateScores({
-        players: finalPlayers,
-        answerLogs: room.answerLogs || [],
-      });
+      if (room.hostId === user?.uid) {
+        await updateScores({
+          players: finalPlayers,
+          answerLogs: room.answerLogs || [],
+        });
+      }
   
     } catch (error) {
       console.error("Error during finishGame:", error);
@@ -134,7 +134,7 @@ export default function GamePage() {
           description: "게임 결과 처리 중 심각한 오류가 발생했습니다.",
         });
     }
-  }, [isGameFinished, toast]);
+  }, [isGameFinished, toast, user?.uid]);
 
   // Fetch GameRoom and GameSet data
   useEffect(() => {
@@ -197,19 +197,9 @@ export default function GamePage() {
     }
   }, [gameRoom, user, loadingUser]);
 
-  // Show mystery settings popup for host
-  useEffect(() => {
-    if (!user || !gameRoom || gameRoom.status !== 'playing' || blocks.length > 0) return;
-
-    if (gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone && gameRoom.hostId === user.uid) {
-        setShowMysterySettings(true);
-    }
-  }, [gameRoom, user, blocks.length]);
-
-
   // Initialize game blocks once
   useEffect(() => {
-    if (!gameSet || !gameRoom || blocks.length > 0) return;
+    if (blocks.length > 0 || !gameSet || !gameRoom) return;
     
     const canInitializeBoard = !gameRoom.mysteryBoxEnabled || gameRoom.isMysterySettingDone;
 
@@ -276,7 +266,7 @@ export default function GamePage() {
           const nextTurnUID = getNextTurnUID();
 
           const totalQuestions = gameSet.questions.length;
-          const mysteryBlockCount = (gameRoom.isMysterySettingDone && gameRoom.mysteryBoxEnabled) ? Math.round(totalQuestions * 0.3) : 0;
+          const mysteryBlockCount = gameRoom.mysteryBoxEnabled ? Math.round(totalQuestions * 0.3) : 0;
           const totalBlocks = totalQuestions + mysteryBlockCount;
           const allAnswered = Object.keys(newGameState).length >= totalBlocks;
 
@@ -374,7 +364,7 @@ export default function GamePage() {
         const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
         
         const totalQuestions = gameSet.questions.length;
-        const mysteryBlockCount = (gameRoom.isMysterySettingDone && gameRoom.mysteryBoxEnabled) ? Math.round(totalQuestions * 0.3) : 0;
+        const mysteryBlockCount = gameRoom.mysteryBoxEnabled ? Math.round(totalQuestions * 0.3) : 0;
         const totalBlocks = totalQuestions + mysteryBlockCount;
         const allAnswered = Object.keys(newGameState).length >= totalBlocks;
 
@@ -475,7 +465,7 @@ export default function GamePage() {
         const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [blockId]: 'answered'};
 
         const totalQuestions = gameSet.questions.length;
-        const mysteryBlockCount = (gameRoom.isMysterySettingDone && gameRoom.mysteryBoxEnabled) ? Math.round(totalQuestions * 0.3) : 0;
+        const mysteryBlockCount = gameRoom.mysteryBoxEnabled ? Math.round(totalQuestions * 0.3) : 0;
         const totalBlocks = totalQuestions + mysteryBlockCount;
         const allAnswered = Object.keys(newGameState).length >= totalBlocks;
 
@@ -496,26 +486,6 @@ export default function GamePage() {
       handleCloseDialogs();
     }
   };
-
-  const handleSaveMysterySettings = async () => {
-      if (!gameRoomId || typeof gameRoomId !== 'string' || !gameRoom) return;
-      setIsSubmitting(true);
-      try {
-        const roomRef = doc(db, 'game-rooms', gameRoomId);
-        await updateDoc(roomRef, {
-            enabledMysteryEffects: selectedEffects,
-            isMysterySettingDone: true
-        });
-
-        setShowMysterySettings(false);
-        toast({ title: '성공', description: '미스터리 박스 설정이 저장되었습니다.'});
-      } catch (error) {
-          console.error("Error saving mystery settings:", error);
-          toast({ variant: 'destructive', title: '오류', description: '설정 저장 중 오류가 발생했습니다.'});
-      } finally {
-          setIsSubmitting(false);
-      }
-  }
 
 
   const currentTurnPlayer = players.find(p => p.uid === gameRoom?.currentTurn);
@@ -653,38 +623,6 @@ export default function GamePage() {
           </Card>
         </aside>
       </div>
-
-      {/* Mystery Box Settings Popup */}
-       <Dialog open={showMysterySettings} onOpenChange={setShowMysterySettings}>
-          <DialogContent>
-              <DialogHeader>
-                  <DialogTitle className="font-headline text-2xl">미스터리 박스 효과 설정</DialogTitle>
-                  <DialogDescription>게임에 적용할 미스터리 박스 효과를 선택하세요. (호스트만 설정 가능)</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                  {allMysteryEffects.map((effect) => (
-                      <div key={effect.type} className="flex items-center space-x-2">
-                          <Checkbox
-                              id={effect.type}
-                              checked={selectedEffects.includes(effect.type)}
-                              onCheckedChange={(checked) => {
-                                  return checked
-                                      ? setSelectedEffects([...selectedEffects, effect.type])
-                                      : setSelectedEffects(selectedEffects.filter(e => e !== effect.type));
-                              }}
-                          />
-                          <Label htmlFor={effect.type} className="flex flex-col gap-0.5">
-                              <span>{effect.title}</span>
-                              <span className="text-xs text-muted-foreground">{effect.description}</span>
-                          </Label>
-                      </div>
-                  ))}
-              </div>
-              <Button onClick={handleSaveMysterySettings} disabled={isSubmitting}>
-                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : "설정 완료하고 게임 시작"}
-              </Button>
-          </DialogContent>
-      </Dialog>
 
       {/* Question Popup */}
       <Dialog open={!!currentQuestion} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>

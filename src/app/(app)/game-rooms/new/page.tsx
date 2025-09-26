@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
 import { db, auth } from '@/lib/firebase';
-import type { GameRoom, GameSet, Player, JoinType, AnswerLog } from '@/lib/types';
+import type { GameRoom, GameSet, Player, JoinType, AnswerLog, MysteryEffectType } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, Timestamp, updateDoc, increment, collectionGroup } from 'firebase/firestore';
@@ -34,6 +34,8 @@ function generateRoomId() {
   }
   return result;
 }
+
+const allMysteryEffects: MysteryEffectType[] = ['bonus', 'double', 'penalty', 'half', 'swap'];
 
 
 function NewGameRoomPageContents() {
@@ -83,20 +85,22 @@ function NewGameRoomPageContents() {
 
         // This query requires a composite index on gameSetId and timestamp.
         const playedQuery = query(
-          collectionGroup(db, 'answerLogs'),
-          where('gameSetId', '==', gameSetId),
-          where('timestamp', '>=', startOfToday)
+            collectionGroup(db, 'answerLogs'),
+            where('gameSetId', '==', gameSetId),
+            where('timestamp', '>=', startOfToday)
         );
 
-        const querySnapshot = await getDocs(playedQuery);
-        
-        const playedToday = querySnapshot.docs.some(doc => {
-            const log = doc.data() as AnswerLog;
-            return log.userId === user.uid;
-        });
-
-        if (playedToday) {
-            setHasPlayedToday(true);
+        try {
+            const querySnapshot = await getDocs(playedQuery);
+            const playedToday = querySnapshot.docs.some(doc => {
+                const log = doc.data() as AnswerLog;
+                return log.userId === user.uid;
+            });
+            if (playedToday) {
+                setHasPlayedToday(true);
+            }
+        } catch (e) {
+            console.warn("Could not check if user played today. This might be due to a missing index.", e);
         }
       }
 
@@ -144,8 +148,9 @@ function NewGameRoomPageContents() {
             [user.uid]: hostPlayer
         },
         gameState: {},
-        mysteryBoxEnabled: true, // Always enable mystery box
-        isMysterySettingDone: false,
+        mysteryBoxEnabled: true,
+        isMysterySettingDone: true, // Always set to true now
+        enabledMysteryEffects: allMysteryEffects, // Enable all effects by default
         joinType: joinType,
         ...(usePassword && password && { password }),
       };
