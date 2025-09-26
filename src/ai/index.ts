@@ -7,14 +7,11 @@
  */
 import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
+import './flows/quiz-flow';
 
 // Initialize Genkit with the Google AI plugin.
 export const ai = genkit({
   plugins: [
     googleAI(),
   ],
-  // Log events to the console.
-  logLevel: 'debug',
-  // Log to a file.
-  logSinks: ['file'],
 });
