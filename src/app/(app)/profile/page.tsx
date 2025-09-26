@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -102,8 +103,16 @@ export default function ProfilePage() {
   const handleAnalyzeLearning = async () => {
       setIsAnalyzing(true);
       try {
+          const simplifiedLogs = answerLogs.map(log => ({
+            question: {
+                subject: log.question.subject,
+                unit: log.question.unit,
+            },
+            isCorrect: log.isCorrect
+          }));
+
           const result = await callApi('analyzeLearning', { 
-            answerLogs: answerLogs.map(c => ({...c})),
+            answerLogs: simplifiedLogs,
           });
           setLearningAnalysis(result);
       } catch (error: any) {

@@ -28,7 +28,13 @@ interface ValidateQuizSetData {
 }
 
 interface AnalyzeLearningData {
-    answerLogs: AnswerLog[];
+    answerLogs: {
+      question: {
+          subject?: string;
+          unit?: string;
+      };
+      isCorrect: boolean;
+    }[];
 }
 
 interface GenerateReviewQuestionData {
