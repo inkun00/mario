@@ -60,9 +60,7 @@ function NewGameRoomPageContents() {
   const [password, setPassword] = useState('');
   const [usePassword, setUsePassword] = useState(false);
   const [joinType, setJoinType] = useState<JoinType>('local');
-  const [mysteryBoxEnabled, setMysteryBoxEnabled] = useState(true);
-  const [enabledEffects, setEnabledEffects] = useState<MysteryEffectType[]>(allMysteryEffects.map(e => e.type));
-
+  
   useEffect(() => {
     if (!gameSetId) {
       toast({ variant: 'destructive', title: '오류', description: '게임 세트 ID가 필요합니다.' });
@@ -152,9 +150,8 @@ function NewGameRoomPageContents() {
             [user.uid]: hostPlayer
         },
         gameState: {},
-        mysteryBoxEnabled: mysteryBoxEnabled,
-        isMysterySettingDone: !mysteryBoxEnabled,
-        enabledMysteryEffects: mysteryBoxEnabled ? enabledEffects : [],
+        mysteryBoxEnabled: true,
+        isMysterySettingDone: false,
         joinType: joinType,
         ...(usePassword && password && { password }),
       };
@@ -243,18 +240,6 @@ function NewGameRoomPageContents() {
                       </Label>
                     </div>
                   </RadioGroup>
-              </div>
-
-               <div className="flex items-center justify-between">
-                <Label htmlFor="mystery-box-switch" className="flex flex-col gap-1">
-                  <span>미스터리 박스 사용</span>
-                  <span className="text-xs text-muted-foreground">게임판에 미스터리 박스를 추가합니다.</span>
-                </Label>
-                <Switch
-                  id="mystery-box-switch"
-                  checked={mysteryBoxEnabled}
-                  onCheckedChange={setMysteryBoxEnabled}
-                />
               </div>
 
             </div>

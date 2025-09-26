@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -191,16 +190,13 @@ export default function GamePage() {
     if (!gameRoom || loadingUser) return;
 
     const calculatedPlayers = calculateScoresFromLogs(gameRoom);
-    if (JSON.stringify(calculatedPlayers) !== JSON.stringify(players)) {
-      setPlayers(calculatedPlayers);
-    }
+    setPlayers(calculatedPlayers);
     
     if (gameRoom.joinType === 'remote') {
         setIsMyTurn(gameRoom.currentTurn === user?.uid);
     } else {
         setIsMyTurn(true);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameRoom, user, loadingUser]);
 
   // Show mystery box settings for host
@@ -211,7 +207,6 @@ export default function GamePage() {
         setShowMysterySettings(true);
     }
   }, [gameRoom, user, blocks.length]);
-
 
   // Initialize game board
   useEffect(() => {
@@ -240,8 +235,7 @@ export default function GamePage() {
         
         setBlocks(shuffledBlocks);
     }
-  }, [gameSet, gameRoom, blocks.length, gameRoom?.isMysterySettingDone]);
-
+  }, [gameSet, gameRoom, blocks.length]);
   
   const handleBlockClick = (block: GameBlock) => {
     if (isClickDisabled(block) || !gameRoom || typeof gameRoomId !== 'string') return;
