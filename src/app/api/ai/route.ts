@@ -72,15 +72,18 @@ async function validateQuizSet(data: ValidateQuizSetData) {
 }
 
 async function analyzeLearning(data: AnalyzeLearningData) {
-    const prompt = 'You are an expert learning analyst AI. Your task is to analyze a student\'s performance based on their answer logs. Identify patterns to determine their strong and weak areas.' +
-  '\n\n- Analyze the subjects, grades, and units from the lists of correct and incorrect answers.' +
-  '\n- For "strongAreas", summarize which topics the student seems to understand well (based on `isCorrect: true`).' +
-  '\n- For "weakAreas", summarize which topics the student is struggling with (based on `isCorrect: false`).' +
-  '\n- Provide the output as a short, easy-to-read summary for each category. Use bullet points and simple HTML like <ul> and <li>.' +
-  '\n- If the log is empty, state that there is not enough data to analyze.' +
-  '\n- Respond in Korean.' +
-  '\n- Your entire response should be a single JSON object with keys "strongAreas" and "weakAreas".' +
-  `\n\nAnswer Logs:\n${data.answerLogs.map(log => `- Subject: ${log.question.subject || 'N/A'}, Unit: ${log.question.unit || 'N/A'}, Correct: ${log.isCorrect}`).join('\n')}`;
+    const prompt = `You are an expert learning analyst AI. Your task is to analyze a student's performance based on their answer logs. Identify patterns to determine their strong and weak areas.
+
+- Analyze the subjects, grades, and units from the lists of correct and incorrect answers.
+- For "strongAreas", summarize which topics the student seems to understand well (based on 'isCorrect: true').
+- For "weakAreas", summarize which topics the student is struggling with (based on 'isCorrect: false').
+- Provide the output as a short, easy-to-read summary for each category. Use bullet points and simple HTML like <ul> and <li>.
+- If the log is empty, state that there is not enough data to analyze.
+- Respond in Korean.
+- Your entire response should be a single JSON object with keys "strongAreas" and "weakAreas".
+
+Answer Logs:
+${data.answerLogs.map(log => `- Subject: ${log.question.subject || 'N/A'}, Unit: ${log.question.unit || 'N/A'}, Correct: ${log.isCorrect}`).join('\n')}`;
 
   const result = await model.generateContent(prompt);
   const response = result.response;
