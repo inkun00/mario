@@ -29,10 +29,7 @@ interface ValidateQuizSetData {
 
 interface AnalyzeLearningData {
     answerLogs: {
-      question: {
-          subject?: string;
-          unit?: string;
-      };
+      question: string;
       isCorrect: boolean;
     }[];
 }
@@ -80,7 +77,7 @@ async function validateQuizSet(data: ValidateQuizSetData) {
 async function analyzeLearning(data: AnalyzeLearningData) {
     const prompt = `You are an expert learning analyst AI. Your task is to analyze a student's performance based on their answer logs. Identify patterns to determine their strong and weak areas.
 
-- Analyze the subjects, grades, and units from the lists of correct and incorrect answers.
+- Analyze the topics from the list of questions.
 - For "strongAreas", summarize which topics the student seems to understand well (based on 'isCorrect: true').
 - For "weakAreas", summarize which topics the student is struggling with (based on 'isCorrect: false').
 - Provide the output as a short, easy-to-read summary for each category. Use bullet points and simple HTML like <ul> and <li>.
@@ -89,7 +86,7 @@ async function analyzeLearning(data: AnalyzeLearningData) {
 - Your entire response should be a single JSON object with keys "strongAreas" and "weakAreas".
 
 Answer Logs:
-${data.answerLogs.map(log => `- Subject: ${log.question.subject || 'N/A'}, Unit: ${log.question.unit || 'N/A'}, Correct: ${log.isCorrect}`).join('\n')}`;
+${data.answerLogs.map(log => `- Question: ${log.question}, Correct: ${log.isCorrect}`).join('\n')}`;
 
   const result = await model.generateContent(prompt);
   const response = result.response;
@@ -172,3 +169,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'An error occurred while processing the AI request.' }, { status: 500 });
   }
 }
+
+    

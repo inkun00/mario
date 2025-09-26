@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -15,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import type { User, AnswerLog, IncorrectAnswer, Question } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, Timestamp, query } from 'firebase/firestore';
 import { BrainCircuit, Activity, FileWarning, Sparkles, Loader2, Lightbulb, CheckCircle, Trophy, School } from 'lucide-react';
@@ -104,10 +103,7 @@ export default function ProfilePage() {
       setIsAnalyzing(true);
       try {
           const simplifiedLogs = answerLogs.map(log => ({
-            question: {
-                subject: log.question.subject,
-                unit: log.question.unit,
-            },
+            question: log.question.question, // Pass only the question text
             isCorrect: log.isCorrect
           }));
 
@@ -192,9 +188,14 @@ export default function ProfilePage() {
   };
 
 
-  const totalQuestions = answerLogs.length;
-  const correctAnswersCount = answerLogs.filter(log => log.isCorrect).length;
-  const correctRate = totalQuestions > 0 ? (correctAnswersCount / totalQuestions * 100).toFixed(1) : 0;
+  const { totalQuestions, correctRate } = useMemo(() => {
+    const actualAnswerLogs = answerLogs.filter(log => log.userAnswer !== 'effect');
+    const total = actualAnswerLogs.length;
+    const correctCount = actualAnswerLogs.filter(log => log.isCorrect).length;
+    const rate = total > 0 ? (correctCount / total * 100).toFixed(1) : '0.0';
+    return { totalQuestions: total, correctRate: rate };
+  }, [answerLogs]);
+
   
   const xpForNextLevel = nextLevelInfo ? nextLevelInfo.xpThreshold - (levelInfo?.xpThreshold || 0) : 0;
   const currentXpProgress = userData ? userData.xp - (levelInfo?.xpThreshold || 0) : 0;
@@ -416,5 +417,7 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    
 
     
