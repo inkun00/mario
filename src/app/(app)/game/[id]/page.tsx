@@ -181,33 +181,30 @@ export default function GamePage() {
       unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameRoomId, router, toast, isGameFinished]);
+  }, [gameRoomId, router, toast]);
   
   // Initialize players and turn status from gameRoom state
   useEffect(() => {
     if (!gameRoom || loadingUser) return;
 
     const calculatedPlayers = calculateScoresFromLogs(gameRoom);
-    if (JSON.stringify(calculatedPlayers) !== JSON.stringify(players)) {
-        setPlayers(calculatedPlayers);
-    }
+    setPlayers(calculatedPlayers);
     
     if (gameRoom.joinType === 'remote') {
         setIsMyTurn(gameRoom.currentTurn === user?.uid);
     } else {
         setIsMyTurn(true);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameRoom, user, loadingUser]);
 
   // Show mystery settings popup for host
   useEffect(() => {
-    if (!user || !gameRoom || gameRoom.status !== 'playing') return;
+    if (!user || !gameRoom || gameRoom.status !== 'playing' || blocks.length > 0) return;
 
     if (gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone && gameRoom.hostId === user.uid) {
         setShowMysterySettings(true);
     }
-  }, [gameRoom, user]);
+  }, [gameRoom, user, blocks.length]);
 
 
   // Initialize game blocks once

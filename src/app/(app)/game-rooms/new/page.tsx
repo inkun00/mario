@@ -50,7 +50,6 @@ function NewGameRoomPageContents() {
   
   const [password, setPassword] = useState('');
   const [usePassword, setUsePassword] = useState(false);
-  const [mysteryBoxEnabled, setMysteryBoxEnabled] = useState(true);
   const [joinType, setJoinType] = useState<JoinType>('local');
 
   useEffect(() => {
@@ -145,7 +144,7 @@ function NewGameRoomPageContents() {
             [user.uid]: hostPlayer
         },
         gameState: {},
-        mysteryBoxEnabled: mysteryBoxEnabled,
+        mysteryBoxEnabled: true, // Always enable mystery box
         isMysterySettingDone: false,
         joinType: joinType,
         ...(usePassword && password && { password }),
@@ -197,18 +196,6 @@ function NewGameRoomPageContents() {
           <div className="space-y-2">
             <h3 className="font-semibold">게임 설정</h3>
             <div className="p-4 border rounded-lg space-y-4">
-               <div className="flex items-center justify-between">
-                <Label htmlFor="mystery-box" className="flex flex-col gap-1">
-                    <span>미스터리 박스 사용</span>
-                    <span className="text-xs text-muted-foreground">게임에 특수 효과를 추가합니다.</span>
-                </Label>
-                <Switch
-                  id="mystery-box"
-                  checked={mysteryBoxEnabled}
-                  onCheckedChange={setMysteryBoxEnabled}
-                />
-              </div>
-
               <div className="space-y-2">
                 <Label>참여 방식</Label>
                 <RadioGroup
@@ -302,5 +289,3 @@ export default function NewGameRoomPage() {
     </Suspense>
   )
 }
-
-    
