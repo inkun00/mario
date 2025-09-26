@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Centralized AI configuration for the application.
  *
@@ -7,9 +8,6 @@
  */
 import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
-
-// Import flows to ensure they are registered with the Genkit instance.
-import './flows/quiz-flow';
 
 // Initialize Genkit with the Google AI plugin.
 export const ai = genkit({
@@ -24,3 +22,7 @@ export const ai = genkit({
   // Log to a file.
   logSinks: ['file'],
 });
+
+
+// Import flows to ensure they are registered with the Genkit instance AFTER ai is exported.
+import './flows/quiz-flow';
