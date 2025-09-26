@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Defines AI flows for quiz management using Genkit.
@@ -81,6 +82,8 @@ const validateQuizSetPrompt = ai.definePrompt({
     name: 'validateQuizSetPrompt',
     input: { schema: QuizSetValidationSchema },
     output: { schema: ValidationOutputSchema },
+    model: 'gemini-1.5-flash',
+    response: { format: 'json' },
     prompt: `당신은 교육용 플랫폼의 전문 AI 콘텐츠 검수관입니다. 사용자가 제출한 퀴즈 세트가 아래 기준을 모두 만족하는지 검토해 주세요.
 
   **검증 기준:**
@@ -102,11 +105,7 @@ const validateQuizSetPrompt = ai.definePrompt({
   **출력 형식:**
   검토 결과를 바탕으로, "isValid" (boolean)와 "reason" (string) 키를 가진 JSON 객체로만 응답해 주세요.
   - 모든 기준을 통과하면 "isValid"를 true로 설정하고, "reason"은 비워둡니다.
-  - 하나라도 기준을 통과하지 못하면 "isValid"를 false로 설정하고, "reason"에 사용자가 무엇을 수정해야 하는지 한국어로 명확하고 간결하게 설명해 주세요.`,
-    config: {
-        model: 'gemini-1.5-flash',
-        response: { format: 'json' }
-    }
+  - 하나라도 기준을 통과하지 못하면 "isValid"를 false로 설정하고, "reason"에 사용자가 무엇을 수정해야 하는지 한국어로 명확하고 간결하게 설명해 주세요.`
 });
 
 export const validateQuizSetFlow = ai.defineFlow(
@@ -126,6 +125,8 @@ const analyzeLearningPrompt = ai.definePrompt({
     name: 'analyzeLearningPrompt',
     input: { schema: LearningAnalysisSchema },
     output: { schema: AnalysisOutputSchema },
+    model: 'gemini-1.5-flash',
+    response: { format: 'json' },
     prompt: `You are an expert learning analyst AI. Your task is to analyze a student's performance based on their answer logs. Identify patterns to determine their strong and weak areas.
 
 - Analyze the topics from the list of questions.
@@ -137,11 +138,7 @@ const analyzeLearningPrompt = ai.definePrompt({
 - Your entire response should be a single JSON object with keys "strongAreas" and "weakAreas".
 
 Answer Logs:
-{{#each answerLogs}}- Question: {{{question}}}, Correct: {{{isCorrect}}}{{/each}}`,
-    config: {
-        model: 'gemini-1.5-flash',
-        response: { format: 'json' }
-    }
+{{#each answerLogs}}- Question: {{{question}}}, Correct: {{{isCorrect}}}{{/each}}`
 });
 
 export const analyzeLearningFlow = ai.defineFlow(
@@ -161,6 +158,8 @@ const generateReviewQuestionPrompt = ai.definePrompt({
     name: 'generateReviewQuestionPrompt',
     input: { schema: ReviewQuestionSchema },
     output: { schema: ReviewQuestionOutputSchema },
+    model: 'gemini-1.5-flash',
+    response: { format: 'json' },
     prompt: `You are an AI tutor. Your task is to create a review question based on a question a student previously answered incorrectly.
   The new question must be related to the original one but phrased differently.
   It MUST be a subjective/descriptive question that requires a written answer, not multiple choice or O/X.
@@ -175,11 +174,7 @@ const generateReviewQuestionPrompt = ai.definePrompt({
   Original Question and Answer:
   - Question: {{{question}}}
   - Answer: {{{answer}}}
-  `,
-    config: {
-        model: 'gemini-1.5-flash',
-        response: { format: 'json' }
-    }
+  `
 });
 
 export const generateReviewQuestionFlow = ai.defineFlow(
@@ -199,6 +194,8 @@ const checkReviewAnswerPrompt = ai.definePrompt({
     name: 'checkReviewAnswerPrompt',
     input: { schema: CheckReviewAnswerSchema },
     output: { schema: CheckReviewAnswerOutputSchema },
+    model: 'gemini-1.5-flash',
+    response: { format: 'json' },
     prompt: `You are an AI grading assistant. Your task is to evaluate a student's answer to a review question.
   The answer doesn't have to be an exact match, but it must be semantically correct.
   Base your evaluation on the context of the original question and its answer.
@@ -212,11 +209,7 @@ const checkReviewAnswerPrompt = ai.definePrompt({
   Review Question Asked: {{{reviewQuestion}}}
   Student's Answer: {{{userAnswer}}}
 
-  Is the student's answer semantically correct based on the original question's context?`,
-    config: {
-        model: 'gemini-1.5-flash',
-        response: { format: 'json' }
-    }
+  Is the student's answer semantically correct based on the original question's context?`
 });
 
 export const checkReviewAnswerFlow = ai.defineFlow(
@@ -230,3 +223,5 @@ export const checkReviewAnswerFlow = ai.defineFlow(
     return output!;
   }
 );
+
+    
