@@ -75,8 +75,8 @@ async function analyzeLearning(data: AnalyzeLearningData) {
     const prompt = `You are an expert learning analyst AI. Your task is to analyze a student's performance based on their answer logs. Identify patterns to determine their strong and weak areas.
 
   - Analyze the subjects, grades, and units from the lists of correct and incorrect answers.
-  - For "strongAreas", summarize which topics the student seems to understand well (based on \\\`isCorrect: true\\\`).
-  - For "weakAreas", summarize which topics the student is struggling with (based on \\\`isCorrect: false\\\`).
+  - For "strongAreas", summarize which topics the student seems to understand well (based on \`isCorrect: true\`).
+  - For "weakAreas", summarize which topics the student is struggling with (based on \`isCorrect: false\`).
   - Provide the output as a short, easy-to-read summary for each category. Use bullet points and simple HTML like <ul> and <li>.
   - If the log is empty, state that there is not enough data to analyze.
   - Respond in Korean.
