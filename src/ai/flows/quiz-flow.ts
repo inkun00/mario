@@ -114,7 +114,7 @@ const validateQuizSetPrompt = ai.definePrompt({
     }
 });
 
-ai.defineFlow(
+const validateQuizSetFlow = ai.defineFlow(
   {
     name: 'validateQuizSet',
     inputSchema: QuizSetValidationSchema,
@@ -150,7 +150,7 @@ Answer Logs:
     }
 });
 
-ai.defineFlow(
+const analyzeLearningFlow = ai.defineFlow(
   {
     name: 'analyzeLearning',
     inputSchema: LearningAnalysisSchema,
@@ -189,7 +189,7 @@ const generateReviewQuestionPrompt = ai.definePrompt({
     }
 });
 
-ai.defineFlow(
+const generateReviewQuestionFlow = ai.defineFlow(
   {
     name: 'generateReviewQuestion',
     inputSchema: ReviewQuestionSchema,
@@ -227,7 +227,7 @@ const checkReviewAnswerPrompt = ai.definePrompt({
     }
 });
 
-ai.defineFlow(
+const checkReviewAnswerFlow = ai.defineFlow(
   {
     name: 'checkReviewAnswer',
     inputSchema: CheckReviewAnswerSchema,
