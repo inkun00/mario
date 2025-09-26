@@ -2,7 +2,7 @@
 'use server';
 
 import { initializeApp, getApps, App } from 'firebase-admin/app';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
 import type { User, Player, AnswerLog } from '@/lib/types';
 
 // Initialize Firebase Admin SDK for server-side execution.
@@ -48,7 +48,7 @@ export async function checkUserId(userId: string): Promise<CheckUserResult> {
 
 interface UpdateScoresInput {
     players: Player[];
-    answerLogs: AnswerLog[];
+    answerLogs: (Omit<AnswerLog, 'timestamp'> & { timestamp?: number | AdminTimestamp })[];
 }
 
 /**
@@ -93,10 +93,13 @@ export async function updateScores(input: UpdateScoresInput): Promise<{ success:
             if (!log.userId) continue;
 
             const logRef = db.collection('users').doc(log.userId).collection('answerLogs').doc();
-            batch.set(logRef, {
-                ...log,
-                timestamp: FieldValue.serverTimestamp(),
-            });
+            
+            const logWithServerTimestamp = {
+              ...log,
+              timestamp: log.timestamp ? AdminTimestamp.fromMillis(log.timestamp as number) : FieldValue.serverTimestamp(),
+            };
+
+            batch.set(logRef, logWithServerTimestamp);
 
             // Keep separate incorrect answers collection for review feature
             if (!log.isCorrect) {
@@ -107,7 +110,7 @@ export async function updateScores(input: UpdateScoresInput): Promise<{ success:
                     gameSetTitle: log.gameSetTitle,
                     question: log.question,
                     userAnswer: log.userAnswer || '',
-                    timestamp: FieldValue.serverTimestamp(),
+                    timestamp: logWithServerTimestamp.timestamp,
                 });
             }
         }

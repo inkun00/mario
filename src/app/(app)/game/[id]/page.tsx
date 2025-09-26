@@ -121,9 +121,18 @@ export default function GamePage() {
       setShowGameOverPopup(true);
   
       if (room.hostId === user?.uid) {
+        // Convert Timestamps to numbers before sending to server action
+        const serializableAnswerLogs = (room.answerLogs || []).map(log => {
+          const { timestamp, ...rest } = log;
+          if (timestamp && typeof timestamp.toMillis === 'function') {
+            return { ...rest, timestamp: timestamp.toMillis() };
+          }
+          return { ...rest, timestamp: Date.now() }; // Fallback
+        });
+
         await updateScores({
           players: finalPlayers,
-          answerLogs: room.answerLogs || [],
+          answerLogs: serializableAnswerLogs,
         });
       }
   
