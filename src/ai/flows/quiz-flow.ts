@@ -12,12 +12,6 @@
 
 import { ai } from '@/ai';
 import { z } from 'zod';
-import type {
-  QuizSetValidationData,
-  LearningAnalysisData,
-  ReviewQuestionData,
-  CheckReviewAnswerData,
-} from '@/lib/types';
 
 // Schema for Quiz Set Validation Flow
 const QuizSetValidationSchema = z.object({
@@ -126,11 +120,6 @@ ai.defineFlow(
   }
 );
 
-export async function runValidateQuizSet(input: QuizSetValidationData) {
-    return await ai.flow('validateQuizSet', input);
-}
-
-
 // 2. Flow for Analyzing Learning
 const analyzeLearningPrompt = ai.definePrompt({
     name: 'analyzeLearningPrompt',
@@ -165,11 +154,6 @@ ai.defineFlow(
     return output!;
   }
 );
-
-export async function runAnalyzeLearning(input: LearningAnalysisData) {
-    return await ai.flow('analyzeLearning', input);
-}
-
 
 // 3. Flow for Generating Review Questions
 const generateReviewQuestionPrompt = ai.definePrompt({
@@ -209,11 +193,6 @@ ai.defineFlow(
   }
 );
 
-export async function runGenerateReviewQuestion(input: ReviewQuestionData) {
-    return await ai.flow('generateReviewQuestion', input);
-}
-
-
 // 4. Flow for Checking Review Answers
 const checkReviewAnswerPrompt = ai.definePrompt({
     name: 'checkReviewAnswerPrompt',
@@ -250,7 +229,3 @@ ai.defineFlow(
     return output!;
   }
 );
-
-export async function runCheckReviewAnswer(input: CheckReviewAnswerData) {
-    return await ai.flow('checkReviewAnswer', input);
-}
