@@ -98,7 +98,6 @@ export default function GamePage() {
   
   const [isMyTurn, setIsMyTurn] = useState(true);
   
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [showMysterySettings, setShowMysterySettings] = useState(false);
@@ -169,13 +168,11 @@ export default function GamePage() {
             toast({ variant: 'destructive', title: '오류', description: '게임방을 찾을 수 없습니다.' });
             router.push('/dashboard');
         }
-        setIsLoading(false);
     }
     
     const unsubscribe = onSnapshot(roomRef, handleSnapshot, (error) => {
         console.error("Error fetching game room: ", error);
         toast({ variant: 'destructive', title: '오류', description: '게임방 정보를 불러오는 중 오류가 발생했습니다.' });
-        setIsLoading(false);
         router.push('/dashboard');
     });
 
@@ -187,7 +184,7 @@ export default function GamePage() {
   
   // Update player scores and turn status from gameRoom state
   useEffect(() => {
-    if (!gameRoom || loadingUser) return;
+    if (!gameRoom) return;
 
     const calculatedPlayers = calculateScoresFromLogs(gameRoom);
     setPlayers(calculatedPlayers);
@@ -197,11 +194,11 @@ export default function GamePage() {
     } else {
         setIsMyTurn(true);
     }
-  }, [gameRoom, user, loadingUser]);
+  }, [gameRoom, user]);
 
   // Show mystery box settings for host
   useEffect(() => {
-    if (!user || !gameRoom || gameRoom.status !== 'playing' || blocks.length > 0) return;
+    if (!user || !gameRoom || blocks.length > 0 || gameRoom.status !== 'playing') return;
   
     if (gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone && gameRoom.hostId === user.uid) {
         setShowMysterySettings(true);
@@ -210,7 +207,7 @@ export default function GamePage() {
 
   // Initialize game board
   useEffect(() => {
-    if (blocks.length > 0 || !gameSet || !gameRoom) return;
+    if (!gameSet || !gameRoom || blocks.length > 0) return;
     
     const canInitializeBoard = !gameRoom.mysteryBoxEnabled || gameRoom.isMysterySettingDone;
 
@@ -314,7 +311,7 @@ export default function GamePage() {
               break;
       }
       setMysteryBoxEffect(effectDetails);
-      setShowMysteryBoxPopup(true);
+setShowMysteryBoxPopup(true);
   }
 
   const handleShowHint = () => {
@@ -540,7 +537,7 @@ export default function GamePage() {
     return !isMyTurn || !!currentQuestionInfo || !!showMysteryBoxPopup;
   };
   
-  if (isLoading || loadingUser || !gameRoom || !gameSet) {
+  if (loadingUser || !gameRoom || !gameSet) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
@@ -550,7 +547,7 @@ export default function GamePage() {
   }
   
   if (blocks.length === 0) {
-    const isHostWaitingForSettings = gameRoom.hostId === user?.uid && gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone;
+    const isHostWaitingForSettings = user && gameRoom.hostId === user.uid && gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone;
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />

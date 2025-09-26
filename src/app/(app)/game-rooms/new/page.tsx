@@ -91,8 +91,9 @@ function NewGameRoomPageContents() {
         const startOfToday = Timestamp.fromDate(today);
 
         const playedQuery = query(
-            collection(db, 'users', user.uid, 'answerLogs'),
+            collectionGroup(db, 'answerLogs'),
             where('gameSetId', '==', gameSetId),
+            where('userId', '==', user.uid),
             where('timestamp', '>=', startOfToday)
         );
         
@@ -151,7 +152,7 @@ function NewGameRoomPageContents() {
         },
         gameState: {},
         mysteryBoxEnabled: true,
-        isMysterySettingDone: false,
+        isMysterySettingDone: false, // Make sure this is explicitly false
         joinType: joinType,
         ...(usePassword && password && { password }),
       };
