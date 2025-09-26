@@ -13,7 +13,8 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const result = await ai.run(flow, input);
+    // Use ai.flow() for a more robust resolution of the flow function
+    const result = await ai.flow(flow, input);
     return NextResponse.json(result);
   } catch (e: any) {
     console.error(`Error running flow ${flow}:`, e);

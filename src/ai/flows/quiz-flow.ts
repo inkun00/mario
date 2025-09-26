@@ -114,7 +114,7 @@ const validateQuizSetPrompt = ai.definePrompt({
     }
 });
 
-const validateQuizSetFlow = ai.defineFlow(
+ai.defineFlow(
   {
     name: 'validateQuizSet',
     inputSchema: QuizSetValidationSchema,
@@ -127,7 +127,7 @@ const validateQuizSetFlow = ai.defineFlow(
 );
 
 export async function validateQuizSet(input: QuizSetValidationData) {
-    return await validateQuizSetFlow(input);
+    return await ai.flow('validateQuizSet', input);
 }
 
 
@@ -154,7 +154,7 @@ Answer Logs:
     }
 });
 
-const analyzeLearningFlow = ai.defineFlow(
+ai.defineFlow(
   {
     name: 'analyzeLearning',
     inputSchema: LearningAnalysisSchema,
@@ -167,7 +167,7 @@ const analyzeLearningFlow = ai.defineFlow(
 );
 
 export async function analyzeLearning(input: LearningAnalysisData) {
-    return await analyzeLearningFlow(input);
+    return await ai.flow('analyzeLearning', input);
 }
 
 
@@ -197,7 +197,7 @@ const generateReviewQuestionPrompt = ai.definePrompt({
     }
 });
 
-const generateReviewQuestionFlow = ai.defineFlow(
+ai.defineFlow(
   {
     name: 'generateReviewQuestion',
     inputSchema: ReviewQuestionSchema,
@@ -210,7 +210,7 @@ const generateReviewQuestionFlow = ai.defineFlow(
 );
 
 export async function generateReviewQuestion(input: ReviewQuestionData) {
-    return await generateReviewQuestionFlow(input);
+    return await ai.flow('generateReviewQuestion', input);
 }
 
 
@@ -239,7 +239,7 @@ const checkReviewAnswerPrompt = ai.definePrompt({
     }
 });
 
-const checkReviewAnswerFlow = ai.defineFlow(
+ai.defineFlow(
   {
     name: 'checkReviewAnswer',
     inputSchema: CheckReviewAnswerSchema,
@@ -252,5 +252,5 @@ const checkReviewAnswerFlow = ai.defineFlow(
 );
 
 export async function checkReviewAnswer(input: CheckReviewAnswerData) {
-    return await checkReviewAnswerFlow(input);
+    return await ai.flow('checkReviewAnswer', input);
 }
