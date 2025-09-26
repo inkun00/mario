@@ -102,10 +102,18 @@ export default function ProfilePage() {
   const handleAnalyzeLearning = async () => {
       setIsAnalyzing(true);
       try {
-          const simplifiedLogs = answerLogs.map(log => ({
-            question: log.question.question, // Pass only the question text
-            isCorrect: log.isCorrect
-          }));
+          const simplifiedLogs = answerLogs
+            .filter(log => log.question && log.question.question) // Ensure log has a question
+            .map(log => ({
+              question: log.question.question,
+              isCorrect: log.isCorrect
+            }));
+
+          if (simplifiedLogs.length === 0) {
+            toast({ title: '분석 불가', description: '분석할 학습 기록이 없습니다.' });
+            setIsAnalyzing(false);
+            return;
+          }
 
           const result = await callApi('analyzeLearning', { 
             answerLogs: simplifiedLogs,
@@ -189,10 +197,13 @@ export default function ProfilePage() {
 
 
   const { totalQuestions, correctRate } = useMemo(() => {
-    const actualAnswerLogs = answerLogs.filter(log => log.userAnswer !== 'effect');
+    const actualAnswerLogs = answerLogs.filter(log => log.question && log.userAnswer !== 'effect');
     const total = actualAnswerLogs.length;
+    if (total === 0) {
+        return { totalQuestions: 0, correctRate: '0.0' };
+    }
     const correctCount = actualAnswerLogs.filter(log => log.isCorrect).length;
-    const rate = total > 0 ? (correctCount / total * 100).toFixed(1) : '0.0';
+    const rate = ((correctCount / total) * 100).toFixed(1);
     return { totalQuestions: total, correctRate: rate };
   }, [answerLogs]);
 
@@ -417,7 +428,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    
-
-    
