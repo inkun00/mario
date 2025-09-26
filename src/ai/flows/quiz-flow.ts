@@ -12,6 +12,8 @@
 
 import { ai } from '@/ai';
 import { z } from 'zod';
+import type { QuizSetValidationData, LearningAnalysisData, ReviewQuestionData, CheckReviewAnswerData } from '@/lib/types';
+
 
 // Schema for Quiz Set Validation Flow
 const QuizSetValidationSchema = z.object({
@@ -108,13 +110,13 @@ const validateQuizSetPrompt = ai.definePrompt({
     }
 });
 
-ai.defineFlow(
+export const validateQuizSetFlow = ai.defineFlow(
   {
     name: 'validateQuizSet',
     inputSchema: QuizSetValidationSchema,
     outputSchema: ValidationOutputSchema,
   },
-  async (input) => {
+  async (input: QuizSetValidationData) => {
     const { output } = await validateQuizSetPrompt(input);
     return output!;
   }
@@ -143,13 +145,13 @@ Answer Logs:
     }
 });
 
-ai.defineFlow(
+export const analyzeLearningFlow = ai.defineFlow(
   {
     name: 'analyzeLearning',
     inputSchema: LearningAnalysisSchema,
     outputSchema: AnalysisOutputSchema,
   },
-  async (input) => {
+  async (input: LearningAnalysisData) => {
     const { output } = await analyzeLearningPrompt(input);
     return output!;
   }
@@ -181,13 +183,13 @@ const generateReviewQuestionPrompt = ai.definePrompt({
     }
 });
 
-ai.defineFlow(
+export const generateReviewQuestionFlow = ai.defineFlow(
   {
     name: 'generateReviewQuestion',
     inputSchema: ReviewQuestionSchema,
     outputSchema: ReviewQuestionOutputSchema,
   },
-  async (input) => {
+  async (input: ReviewQuestionData) => {
     const { output } = await generateReviewQuestionPrompt(input);
     return output!;
   }
@@ -218,13 +220,13 @@ const checkReviewAnswerPrompt = ai.definePrompt({
     }
 });
 
-ai.defineFlow(
+export const checkReviewAnswerFlow = ai.defineFlow(
   {
     name: 'checkReviewAnswer',
     inputSchema: CheckReviewAnswerSchema,
     outputSchema: CheckReviewAnswerOutputSchema,
   },
-  async (input) => {
+  async (input: CheckReviewAnswerData) => {
     const { output } = await checkReviewAnswerPrompt(input);
     return output!;
   }
