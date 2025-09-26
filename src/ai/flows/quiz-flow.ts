@@ -126,6 +126,10 @@ const validateQuizSetFlow = ai.defineFlow(
   }
 );
 
+export async function validateQuizSet(input: QuizSetValidationData) {
+    return await validateQuizSetFlow(input);
+}
+
 
 // 2. Flow for Analyzing Learning
 const analyzeLearningPrompt = ai.definePrompt({
@@ -161,6 +165,10 @@ const analyzeLearningFlow = ai.defineFlow(
     return output!;
   }
 );
+
+export async function analyzeLearning(input: LearningAnalysisData) {
+    return await analyzeLearningFlow(input);
+}
 
 
 // 3. Flow for Generating Review Questions
@@ -201,6 +209,10 @@ const generateReviewQuestionFlow = ai.defineFlow(
   }
 );
 
+export async function generateReviewQuestion(input: ReviewQuestionData) {
+    return await generateReviewQuestionFlow(input);
+}
+
 
 // 4. Flow for Checking Review Answers
 const checkReviewAnswerPrompt = ai.definePrompt({
@@ -238,3 +250,7 @@ const checkReviewAnswerFlow = ai.defineFlow(
     return output!;
   }
 );
+
+export async function checkReviewAnswer(input: CheckReviewAnswerData) {
+    return await checkReviewAnswerFlow(input);
+}

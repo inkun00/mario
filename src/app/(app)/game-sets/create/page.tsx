@@ -49,8 +49,13 @@ async function callApi(flow: string, input: any) {
     body: JSON.stringify({ flow, input }),
   });
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'API call failed');
+    const errorText = await response.text();
+    try {
+        const errorJson = JSON.parse(errorText);
+        throw new Error(errorJson.error || 'API call failed');
+    } catch(e) {
+        throw new Error(errorText || 'API call failed with non-JSON response');
+    }
   }
   return response.json();
 }
@@ -194,12 +199,12 @@ export default function CreateGameSetPage() {
       });
       router.push('/dashboard');
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating game set: ", error);
       toast({
         variant: 'destructive',
         title: '오류',
-        description: '퀴즈 세트를 만드는 중 오류가 발생했습니다.',
+        description: `퀴즈 세트를 만드는 중 오류가 발생했습니다: ${error.message}`,
       });
     } finally {
         setIsLoading(false);

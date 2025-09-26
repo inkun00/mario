@@ -43,8 +43,13 @@ async function callApi(flow: string, input: any) {
     body: JSON.stringify({ flow, input }),
   });
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'API call failed');
+    const errorText = await response.text();
+    try {
+        const errorJson = JSON.parse(errorText);
+        throw new Error(errorJson.error || 'API call failed');
+    } catch(e) {
+        throw new Error(errorText || 'API call failed with non-JSON response');
+    }
   }
   return response.json();
 }
@@ -103,7 +108,7 @@ export default function ProfilePage() {
       setIsAnalyzing(true);
       try {
           const simplifiedLogs = answerLogs
-            .filter(log => log.question && log.question.type) // Filter for actual questions
+            .filter(log => log.question && log.question.type) 
             .map(log => ({
               question: log.question.question,
               isCorrect: log.isCorrect
@@ -120,7 +125,7 @@ export default function ProfilePage() {
           });
           setLearningAnalysis(result);
       } catch (error: any) {
-          toast({ variant: 'destructive', title: '분석 오류', description: error.message });
+          toast({ variant: 'destructive', title: '분석 오류', description: `AI 학습 분석 중 오류가 발생했습니다: ${error.message}` });
       } finally {
           setIsAnalyzing(false);
       }
@@ -142,7 +147,7 @@ export default function ProfilePage() {
       });
       updatedQuestions[index].newQuestion = result.newQuestion;
     } catch (error: any) {
-      toast({ variant: 'destructive', title: '오류', description: '복습 질문 생성 중 오류가 발생했습니다.' });
+      toast({ variant: 'destructive', title: '오류', description: `복습 질문 생성 중 오류가 발생했습니다: ${error.message}` });
     } finally {
       updatedQuestions[index].isGenerating = false;
       setReviewQuestions(updatedQuestions);
@@ -187,7 +192,7 @@ export default function ProfilePage() {
       }
 
     } catch (error: any) {
-      toast({ variant: 'destructive', title: '오류', description: '답변 확인 중 오류가 발생했습니다.' });
+      toast({ variant: 'destructive', title: '오류', description: `답변 확인 중 오류가 발생했습니다: ${error.message}` });
     } finally {
       updatedQuestions[index].isChecking = false;
       setReviewQuestions(updatedQuestions);
@@ -433,4 +438,4 @@ export default function ProfilePage() {
     </div>
   );
 
-    
+}
