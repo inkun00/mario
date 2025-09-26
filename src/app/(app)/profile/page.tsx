@@ -348,7 +348,7 @@ export default function ProfilePage() {
                       {reviewQuestions.map((item, index) => (
                           <div key={item.id} className="p-4 border rounded-lg bg-background shadow-sm">
                               <p className="text-sm text-muted-foreground">
-                                  <strong>원본 문제:</strong> {item.question.question} (정답: {item.question.answer || item.question.correctAnswer})
+                                  <strong>원본 문제:</strong> {item.question.question}
                               </p>
                               <Separator className="my-3"/>
                               
