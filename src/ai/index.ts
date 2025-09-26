@@ -8,6 +8,9 @@
 import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
 
+// Import flows to ensure they are registered with the Genkit instance.
+import './flows/quiz-flow';
+
 // Initialize Genkit with the Google AI plugin.
 export const ai = genkit({
   plugins: [
