@@ -120,7 +120,7 @@ export default function ProfilePage() {
             return;
           }
 
-          const result = await callApi('analyzeLearning', { 
+          const result = await callApi('runAnalyzeLearning', { 
             answerLogs: simplifiedLogs,
           });
           setLearningAnalysis(result);
@@ -139,7 +139,7 @@ export default function ProfilePage() {
     setReviewQuestions(updatedQuestions);
 
     try {
-      const result = await callApi('generateReviewQuestion', {
+      const result = await callApi('runGenerateReviewQuestion', {
         question: originalQuestionData.question,
         answer: originalQuestionData.answer || originalQuestionData.correctAnswer,
         grade: originalQuestionData.grade,
@@ -165,7 +165,7 @@ export default function ProfilePage() {
     setReviewQuestions(updatedQuestions);
 
     try {
-      const { isCorrect, explanation } = await callApi('checkReviewAnswer', {
+      const { isCorrect, explanation } = await callApi('runCheckReviewAnswer', {
         originalQuestion: updatedQuestions[index].question,
         reviewQuestion: updatedQuestions[index].newQuestion!,
         userAnswer: updatedQuestions[index].userReviewAnswer!,

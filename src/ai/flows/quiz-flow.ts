@@ -126,7 +126,7 @@ ai.defineFlow(
   }
 );
 
-export async function validateQuizSet(input: QuizSetValidationData) {
+export async function runValidateQuizSet(input: QuizSetValidationData) {
     return await ai.flow('validateQuizSet', input);
 }
 
@@ -166,7 +166,7 @@ ai.defineFlow(
   }
 );
 
-export async function analyzeLearning(input: LearningAnalysisData) {
+export async function runAnalyzeLearning(input: LearningAnalysisData) {
     return await ai.flow('analyzeLearning', input);
 }
 
@@ -209,7 +209,7 @@ ai.defineFlow(
   }
 );
 
-export async function generateReviewQuestion(input: ReviewQuestionData) {
+export async function runGenerateReviewQuestion(input: ReviewQuestionData) {
     return await ai.flow('generateReviewQuestion', input);
 }
 
@@ -251,6 +251,6 @@ ai.defineFlow(
   }
 );
 
-export async function checkReviewAnswer(input: CheckReviewAnswerData) {
+export async function runCheckReviewAnswer(input: CheckReviewAnswerData) {
     return await ai.flow('checkReviewAnswer', input);
 }

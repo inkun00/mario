@@ -175,7 +175,7 @@ export default function CreateGameSetPage() {
     }
 
     try {
-      const validationResult = await callApi('validateQuizSet', data);
+      const validationResult = await callApi('runValidateQuizSet', data);
       if (!validationResult.isValid) {
         toast({
           variant: 'destructive',
