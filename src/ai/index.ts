@@ -11,10 +11,7 @@ import { googleAI } from '@genkit-ai/googleai';
 // Initialize Genkit with the Google AI plugin.
 export const ai = genkit({
   plugins: [
-    googleAI({
-      // You must specify the API version.
-      apiVersion: 'v1beta',
-    }),
+    googleAI(),
   ],
   // Log events to the console.
   logLevel: 'debug',
