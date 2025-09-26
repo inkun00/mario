@@ -103,7 +103,7 @@ export default function ProfilePage() {
       setIsAnalyzing(true);
       try {
           const simplifiedLogs = answerLogs
-            .filter(log => log.question && log.userAnswer !== 'effect')
+            .filter(log => log.question && log.question.type) // Filter for actual questions
             .map(log => ({
               question: log.question.question,
               isCorrect: log.isCorrect
@@ -202,7 +202,7 @@ export default function ProfilePage() {
 
 
   const { totalQuestions, correctRate } = useMemo(() => {
-    const actualAnswerLogs = answerLogs.filter(log => log.question && log.userAnswer !== 'effect');
+    const actualAnswerLogs = answerLogs.filter(log => log.question && log.question.type);
     const total = actualAnswerLogs.length;
     if (total === 0) {
         return { totalQuestions: 0, correctRate: '0.0' };
@@ -432,4 +432,5 @@ export default function ProfilePage() {
 
     </div>
   );
-}
+
+    
