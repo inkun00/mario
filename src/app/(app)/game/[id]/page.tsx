@@ -198,12 +198,12 @@ export default function GamePage() {
 
   // Show mystery box settings for host
   useEffect(() => {
-    if (!user || !gameRoom || blocks.length > 0 || gameRoom.status !== 'playing') return;
+    if (!user || !gameRoom) return;
   
     if (gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone && gameRoom.hostId === user.uid) {
         setShowMysterySettings(true);
     }
-  }, [gameRoom, user, blocks.length]);
+  }, [gameRoom, user]);
 
   // Initialize game board
   useEffect(() => {
@@ -548,12 +548,22 @@ setShowMysteryBoxPopup(true);
   
   if (blocks.length === 0) {
     const isHostWaitingForSettings = user && gameRoom.hostId === user.uid && gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone;
+    
+    if (isHostWaitingForSettings) {
+        return (
+          <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
+            <Loader2 className="w-12 h-12 animate-spin text-primary" />
+            <p className="mt-4 text-muted-foreground">
+              미스터리 박스 설정을 완료해주세요...
+            </p>
+          </div>
+        );
+    }
+
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">
-          {isHostWaitingForSettings ? '미스터리 박스 설정을 완료해주세요...' : '게임판을 생성하는 중...'}
-        </p>
+        <p className="mt-4 text-muted-foreground">게임판을 생성하는 중...</p>
       </div>
     );
   }
