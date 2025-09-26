@@ -111,7 +111,6 @@ export default function GamePage() {
   const [showGameOverPopup, setShowGameOverPopup] = useState(false);
   const [finalScores, setFinalScores] = useState<Player[]>([]);
   const [isGameFinished, setIsGameFinished] = useState(false);
-  const [isBoardInitialized, setIsBoardInitialized] = useState(false);
 
   const finishGame = useCallback(async (room: GameRoom) => {
     if (isGameFinished) return;
@@ -184,7 +183,7 @@ export default function GamePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameRoomId, router, toast, isGameFinished]);
   
-  // Initialize players and turn status from local gameRoom state
+  // Initialize players and turn status from gameRoom state
   useEffect(() => {
     if (!gameRoom || loadingUser) return;
 
@@ -198,21 +197,22 @@ export default function GamePage() {
     } else {
         setIsMyTurn(true);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameRoom, user, loadingUser]);
 
   // Show mystery settings popup for host
   useEffect(() => {
-    if (!user || !gameRoom) return;
+    if (!user || !gameRoom || gameRoom.status !== 'playing') return;
 
-    if (gameRoom.status === 'playing' && gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone && gameRoom.hostId === user.uid) {
+    if (gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone && gameRoom.hostId === user.uid) {
         setShowMysterySettings(true);
     }
-  }, [gameRoom?.status, gameRoom?.mysteryBoxEnabled, gameRoom?.isMysterySettingDone, gameRoom?.hostId, user, gameRoom]);
+  }, [gameRoom, user]);
 
 
   // Initialize game blocks once
   useEffect(() => {
-    if (!gameSet || !gameRoom || isBoardInitialized) return;
+    if (!gameSet || !gameRoom || blocks.length > 0) return;
     
     const canInitializeBoard = !gameRoom.mysteryBoxEnabled || gameRoom.isMysterySettingDone;
 
@@ -236,9 +236,8 @@ export default function GamePage() {
         const shuffledBlocks = shuffleArray(allItems);
         
         setBlocks(shuffledBlocks);
-        setIsBoardInitialized(true);
     }
-  }, [gameSet, gameRoom, isBoardInitialized]);
+  }, [gameSet, gameRoom, blocks.length]);
 
   
   const handleBlockClick = (block: GameBlock) => {
@@ -278,7 +277,7 @@ export default function GamePage() {
           const roomRef = doc(db, 'game-rooms', gameRoomId);
           
           const nextTurnUID = getNextTurnUID();
-          
+
           const totalQuestions = gameSet.questions.length;
           const mysteryBlockCount = (gameRoom.isMysterySettingDone && gameRoom.mysteryBoxEnabled) ? Math.round(totalQuestions * 0.3) : 0;
           const totalBlocks = totalQuestions + mysteryBlockCount;
@@ -551,7 +550,7 @@ export default function GamePage() {
     );
   }
   
-  if (!isBoardInitialized) {
+  if (blocks.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
