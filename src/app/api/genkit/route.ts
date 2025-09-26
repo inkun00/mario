@@ -2,9 +2,8 @@
 'use server';
 
 import { ai } from '@/ai';
+import '@/ai/flows/quiz-flow'; // Ensure flows are registered
 import { NextRequest, NextResponse } from 'next/server';
-
-// All AI flows are implicitly available via the `ai` object.
 
 export async function POST(req: NextRequest) {
   const { flow, input } = await req.json();
