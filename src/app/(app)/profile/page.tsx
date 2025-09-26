@@ -128,12 +128,22 @@ export default function ProfilePage() {
 
   const handleGenerateReviewQuestion = async (index: number) => {
     const updatedQuestions = [...reviewQuestions];
+    const originalQuestionData = updatedQuestions[index].question;
+    
     updatedQuestions[index].isGenerating = true;
     setReviewQuestions(updatedQuestions);
 
     try {
+      // Pass a simplified object to the API
       const result = await callApi('generateReviewQuestion', {
-        originalQuestion: updatedQuestions[index].question
+        originalQuestion: {
+          question: originalQuestionData.question,
+          answer: originalQuestionData.answer,
+          correctAnswer: originalQuestionData.correctAnswer,
+          grade: originalQuestionData.grade,
+          subject: originalQuestionData.subject,
+          imageUrl: originalQuestionData.imageUrl,
+        }
       });
       updatedQuestions[index].newQuestion = result.newQuestion;
     } catch (error: any) {
