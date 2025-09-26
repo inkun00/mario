@@ -3,15 +3,17 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
 import type { AnswerLog, Question } from '@/lib/types';
 
-if (!process.env.GEMINI_API_KEY) {
-  throw new Error("GEMINI_API_KEY environment variable is not set.");
+const apiKey = process.env.GEMINI_API_KEY;
+
+let genAI: GoogleGenerativeAI | null = null;
+if (apiKey) {
+  genAI = new GoogleGenerativeAI(apiKey);
 }
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ 
+const model = genAI ? genAI.getGenerativeModel({ 
     model: "gemini-1.5-flash",
     generationConfig: { responseMimeType: "application/json" }
-});
+}) : null;
 
 interface ValidateQuizSetData {
     title: string;
@@ -36,7 +38,7 @@ interface AnalyzeLearningData {
 
 interface GenerateReviewQuestionData {
     question: string;
-    answer?: string;
+    answer: string;
     grade?: string;
     unit?: string;
 }
@@ -48,6 +50,7 @@ interface CheckReviewAnswerData {
 }
 
 async function validateQuizSet(data: ValidateQuizSetData) {
+  if (!model) throw new Error("AI Model not initialized");
   const prompt = `당신은 교육용 플랫폼의 전문 AI 콘텐츠 검수관입니다. 사용자가 제출한 퀴즈 세트가 아래 기준을 모두 만족하는지 검토해 주세요.
 
   **검증 기준:**
@@ -78,6 +81,7 @@ async function validateQuizSet(data: ValidateQuizSetData) {
 }
 
 async function analyzeLearning(data: AnalyzeLearningData) {
+    if (!model) throw new Error("AI Model not initialized");
     const prompt = `You are an expert learning analyst AI. Your task is to analyze a student's performance based on their answer logs. Identify patterns to determine their strong and weak areas.
 
 - Analyze the topics from the list of questions.
@@ -97,6 +101,7 @@ ${data.answerLogs.map(log => `- Question: ${log.question}, Correct: ${log.isCorr
 }
 
 async function generateReviewQuestion(data: GenerateReviewQuestionData) {
+    if (!model) throw new Error("AI Model not initialized");
     const { question, answer, grade, unit } = data;
     const prompt = `You are an AI tutor. Your task is to create a review question based on a question a student previously answered incorrectly.
   The new question must be related to the original one but phrased differently.
@@ -120,6 +125,7 @@ async function generateReviewQuestion(data: GenerateReviewQuestionData) {
 }
 
 async function checkReviewAnswer(data: CheckReviewAnswerData) {
+    if (!model) throw new Error("AI Model not initialized");
     const { originalQuestion, reviewQuestion, userAnswer } = data;
     const prompt = `You are an AI grading assistant. Your task is to evaluate a student's answer to a review question.
   The answer doesn't have to be an exact match, but it must be semantically correct.
@@ -144,6 +150,10 @@ async function checkReviewAnswer(data: CheckReviewAnswerData) {
 
 
 export async function POST(req: NextRequest) {
+  if (!apiKey || !genAI || !model) {
+    return NextResponse.json({ error: 'GEMINI_API_KEY is not configured on the server.' }, { status: 500 });
+  }
+
   try {
     const { action, data } = await req.json();
 
@@ -168,6 +178,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result);
   } catch (error) {
     console.error("API Error:", error);
-    return NextResponse.json({ error: 'An error occurred while processing the AI request.' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+    return NextResponse.json({ error: `An error occurred while processing the AI request: ${errorMessage}` }, { status: 500 });
   }
 }
