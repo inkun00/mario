@@ -42,11 +42,11 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
-async function callApi(action: string, data: any) {
-  const response = await fetch('/api/ai', {
+async function callApi(flow: string, input: any) {
+  const response = await fetch('/api/genkit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, data }),
+    body: JSON.stringify({ flow, input }),
   });
   if (!response.ok) {
     const error = await response.json();
