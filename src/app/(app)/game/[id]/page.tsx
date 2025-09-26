@@ -198,7 +198,7 @@ export default function GamePage() {
     } else {
         setIsMyTurn(true);
     }
-  }, [gameRoom, user, loadingUser, players]);
+  }, [gameRoom, user, loadingUser]);
 
   // Show mystery settings popup for host
   useEffect(() => {
@@ -224,7 +224,7 @@ export default function GamePage() {
         }));
 
         let mysteryItems: GameBlock[] = [];
-        if(gameRoom.mysteryBoxEnabled) {
+        if(gameRoom.mysteryBoxEnabled && gameRoom.isMysterySettingDone) {
             const mysteryCount = Math.round(gameSet.questions.length * 0.3);
             mysteryItems = Array.from({ length: mysteryCount }, (_, i) => ({
                 id: gameSet.questions.length + i,
