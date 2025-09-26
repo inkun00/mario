@@ -20,10 +20,11 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, Timestamp, updateDoc, increment, collectionGroup } from 'firebase/firestore';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
-import { Smartphone, Lock, Users, Loader2 } from 'lucide-react';
+import { Smartphone, Lock, Users, Loader2, Gift } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 function generateRoomId() {
@@ -35,7 +36,13 @@ function generateRoomId() {
   return result;
 }
 
-const allMysteryEffects: MysteryEffectType[] = ['bonus', 'double', 'penalty', 'half', 'swap'];
+const allMysteryEffects: {type: MysteryEffectType, title: string, description: string}[] = [
+    { type: 'bonus', title: '점수 보너스', description: '10-50점의 보너스 점수를 획득합니다.'},
+    { type: 'double', title: '점수 2배', description: '누적 점수가 2배가 됩니다.'},
+    { type: 'penalty', title: '점수 감점', description: '10-50점의 점수가 감점됩니다.'},
+    { type: 'half', title: '점수 반감', description: '누적 점수가 절반으로 줄어듭니다.'},
+    { type: 'swap', title: '점수 바꾸기', description: '다른 플레이어와 점수를 바꿉니다.'},
+];
 
 
 function NewGameRoomPageContents() {
@@ -53,6 +60,8 @@ function NewGameRoomPageContents() {
   const [password, setPassword] = useState('');
   const [usePassword, setUsePassword] = useState(false);
   const [joinType, setJoinType] = useState<JoinType>('local');
+  const [mysteryBoxEnabled, setMysteryBoxEnabled] = useState(true);
+  const [enabledEffects, setEnabledEffects] = useState<MysteryEffectType[]>(allMysteryEffects.map(e => e.type));
 
   useEffect(() => {
     if (!gameSetId) {
@@ -83,21 +92,16 @@ function NewGameRoomPageContents() {
         today.setHours(0, 0, 0, 0);
         const startOfToday = Timestamp.fromDate(today);
 
-        // This query requires a composite index on gameSetId and timestamp.
         const playedQuery = query(
-            collectionGroup(db, 'answerLogs'),
+            collection(db, 'users', user.uid, 'answerLogs'),
             where('gameSetId', '==', gameSetId),
             where('timestamp', '>=', startOfToday)
         );
-
+        
         try {
             const querySnapshot = await getDocs(playedQuery);
-            const playedToday = querySnapshot.docs.some(doc => {
-                const log = doc.data() as AnswerLog;
-                return log.userId === user.uid;
-            });
-            if (playedToday) {
-                setHasPlayedToday(true);
+            if (!querySnapshot.empty) {
+                 setHasPlayedToday(true);
             }
         } catch (e) {
             console.warn("Could not check if user played today. This might be due to a missing index.", e);
@@ -148,9 +152,9 @@ function NewGameRoomPageContents() {
             [user.uid]: hostPlayer
         },
         gameState: {},
-        mysteryBoxEnabled: true,
-        isMysterySettingDone: true, // Always set to true now
-        enabledMysteryEffects: allMysteryEffects, // Enable all effects by default
+        mysteryBoxEnabled: mysteryBoxEnabled,
+        isMysterySettingDone: !mysteryBoxEnabled,
+        enabledMysteryEffects: mysteryBoxEnabled ? enabledEffects : [],
         joinType: joinType,
         ...(usePassword && password && { password }),
       };
@@ -239,6 +243,18 @@ function NewGameRoomPageContents() {
                       </Label>
                     </div>
                   </RadioGroup>
+              </div>
+
+               <div className="flex items-center justify-between">
+                <Label htmlFor="mystery-box-switch" className="flex flex-col gap-1">
+                  <span>미스터리 박스 사용</span>
+                  <span className="text-xs text-muted-foreground">게임판에 미스터리 박스를 추가합니다.</span>
+                </Label>
+                <Switch
+                  id="mystery-box-switch"
+                  checked={mysteryBoxEnabled}
+                  onCheckedChange={setMysteryBoxEnabled}
+                />
               </div>
 
             </div>
