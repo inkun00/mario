@@ -103,7 +103,7 @@ export default function ProfilePage() {
       setIsAnalyzing(true);
       try {
           const simplifiedLogs = answerLogs
-            .filter(log => log.question && log.question.question) // Ensure log has a question
+            .filter(log => log.question && log.userAnswer !== 'effect')
             .map(log => ({
               question: log.question.question,
               isCorrect: log.isCorrect
@@ -134,16 +134,11 @@ export default function ProfilePage() {
     setReviewQuestions(updatedQuestions);
 
     try {
-      // Pass a simplified object to the API
       const result = await callApi('generateReviewQuestion', {
-        originalQuestion: {
-          question: originalQuestionData.question,
-          answer: originalQuestionData.answer,
-          correctAnswer: originalQuestionData.correctAnswer,
-          grade: originalQuestionData.grade,
-          subject: originalQuestionData.subject,
-          imageUrl: originalQuestionData.imageUrl,
-        }
+        question: originalQuestionData.question,
+        answer: originalQuestionData.answer || originalQuestionData.correctAnswer,
+        grade: originalQuestionData.grade,
+        unit: originalQuestionData.unit,
       });
       updatedQuestions[index].newQuestion = result.newQuestion;
     } catch (error: any) {
@@ -438,6 +433,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-
-    

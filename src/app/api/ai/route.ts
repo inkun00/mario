@@ -35,7 +35,10 @@ interface AnalyzeLearningData {
 }
 
 interface GenerateReviewQuestionData {
-    originalQuestion: Question;
+    question: string;
+    answer?: string;
+    grade?: string;
+    unit?: string;
 }
 
 interface CheckReviewAnswerData {
@@ -94,22 +97,21 @@ ${data.answerLogs.map(log => `- Question: ${log.question}, Correct: ${log.isCorr
 }
 
 async function generateReviewQuestion(data: GenerateReviewQuestionData) {
-    const { originalQuestion } = data;
+    const { question, answer, grade, unit } = data;
     const prompt = `You are an AI tutor. Your task is to create a review question based on a question a student previously answered incorrectly.
   The new question must be related to the original one but phrased differently.
   It MUST be a subjective/descriptive question that requires a written answer, not multiple choice or O/X.
-  Most importantly, the difficulty and vocabulary of the new question MUST be appropriate for the original question's grade level.
+  Most importantly, the difficulty and vocabulary of the new question MUST be appropriate for the original question's grade level and unit.
   Respond with a JSON object containing a single key "newQuestion".
   Respond in Korean.
 
-  Original Question Grade Level: ${originalQuestion.grade}
-
-  ${originalQuestion.imageUrl 
-    ? `The original question included an image, which is not available now. Therefore, create a new descriptive question based on the original question's correct answer keyword.
-  Original Question's Correct Answer: ${originalQuestion.answer || originalQuestion.correctAnswer}`
-    : `Original Question: ${originalQuestion.question}
-  Original Answer: ${originalQuestion.answer || originalQuestion.correctAnswer}`
-  }
+  Context:
+  - Grade Level: ${grade || 'Not specified'}
+  - Unit: ${unit || 'Not specified'}
+  
+  Original Question and Answer:
+  - Question: ${question}
+  - Answer: ${answer}
   `;
 
   const result = await model.generateContent(prompt);
@@ -169,5 +171,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'An error occurred while processing the AI request.' }, { status: 500 });
   }
 }
-
-    
