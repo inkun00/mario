@@ -184,7 +184,7 @@ export default function GamePage() {
   
   // Update player scores and turn status from gameRoom state
   useEffect(() => {
-    if (!gameRoom) return;
+    if (!gameRoom || loadingUser) return;
 
     const calculatedPlayers = calculateScoresFromLogs(gameRoom);
     setPlayers(calculatedPlayers);
@@ -194,21 +194,19 @@ export default function GamePage() {
     } else {
         setIsMyTurn(true);
     }
-  }, [gameRoom, user]);
+  }, [gameRoom, user, loadingUser]);
 
-  // Show mystery box settings for host
+  // Show mystery box settings dialog
   useEffect(() => {
-    if (!user || !gameRoom) return;
-  
-    if (gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone && gameRoom.hostId === user.uid) {
-        setShowMysterySettings(true);
+    if (gameRoom && !gameRoom.isMysterySettingDone) {
+      setShowMysterySettings(true);
     }
-  }, [gameRoom, user]);
+  }, [gameRoom]);
 
   // Initialize game board
   useEffect(() => {
-    if (!gameSet || !gameRoom || blocks.length > 0) return;
-    
+    if (blocks.length > 0 || !gameSet || !gameRoom) return;
+
     const canInitializeBoard = !gameRoom.mysteryBoxEnabled || gameRoom.isMysterySettingDone;
 
     if (canInitializeBoard) {
@@ -547,7 +545,7 @@ setShowMysteryBoxPopup(true);
   }
   
   if (blocks.length === 0) {
-    const isHostWaitingForSettings = user && gameRoom.hostId === user.uid && gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone;
+    const isHostWaitingForSettings = !gameRoom.isMysterySettingDone;
     
     if (isHostWaitingForSettings) {
         return (
