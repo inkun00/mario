@@ -15,7 +15,7 @@ import { z } from 'zod';
 import type { QuizSetValidationData, LearningAnalysisData, ReviewQuestionData, CheckReviewAnswerData } from '@/lib/types';
 import { googleAI } from '@genkit-ai/googleai';
 
-const gemini15Flash = googleAI.model('gemini-1.5-flash-latest');
+const gemini15Flash = googleAI.model('gemini-1.5-flash');
 
 // Schema for Quiz Set Validation Flow
 const QuizSetValidationSchema = z.object({
