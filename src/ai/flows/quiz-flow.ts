@@ -45,7 +45,6 @@ export async function validateQuizSet(input: QuizSetValidationData): Promise<z.i
     model: 'gemini-2.0-flash-lite-001',
     prompt,
     output: {
-      format: 'json',
       schema: ValidationOutputSchema,
     },
   });
@@ -72,7 +71,6 @@ ${input.answerLogs.map(log => `- Question: ${log.question}, Correct: ${log.isCor
     model: 'gemini-2.0-flash-lite-001',
     prompt,
     output: {
-      format: 'json',
       schema: AnalysisOutputSchema,
     },
   });
@@ -102,7 +100,6 @@ export async function generateReviewQuestion(input: ReviewQuestionData): Promise
     model: 'gemini-2.0-flash-lite-001',
     prompt,
     output: {
-      format: 'json',
       schema: ReviewQuestionOutputSchema,
     },
   });
@@ -130,7 +127,6 @@ export async function checkReviewAnswer(input: CheckReviewAnswerData): Promise<z
     model: 'gemini-2.0-flash-lite-001',
     prompt,
     output: {
-      format: 'json',
       schema: CheckReviewAnswerOutputSchema,
     },
   });
