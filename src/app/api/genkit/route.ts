@@ -4,8 +4,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runFlow } from 'genkit';
 
-// Import flows so they are registered with Genkit
-import '@/ai/flows/quiz-flow';
+// Import the centrally configured Genkit instance to ensure all flows are registered
+// before any API routes are handled.
+import '@/ai';
 
 export async function POST(req: NextRequest) {
   const { flow, input } = await req.json();
@@ -31,3 +32,5 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+    

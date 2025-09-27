@@ -1,14 +1,14 @@
+
 /**
  * @fileOverview Centralized AI configuration for the application.
  *
- * This file initializes and configures the Genkit AI instance with the necessary plugins.
- * All AI-related flows should be defined in the `src/ai/flows` directory.
+ * This file initializes and configures the Genkit AI instance with the necessary plugins,
+ * defines the model to be used, and imports all AI flows to ensure they are registered.
  */
 import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
 
-// Initialize Genkit with the Google AI plugin.
-// It will automatically look for the GEMINI_API_KEY in the environment variables.
+// Initialize Genkit with the Google AI plugin, explicitly providing the API key.
 export const ai = genkit({
   plugins: [
     googleAI({
@@ -16,3 +16,12 @@ export const ai = genkit({
     }),
   ],
 });
+
+// Define the model to be used throughout the application.
+export const geminiPro = googleAI.model('gemini-pro');
+
+// Import all flows to ensure they are registered with the Genkit instance.
+// This must be done after the `ai` object is initialized.
+import '@/ai/flows/quiz-flow';
+
+    

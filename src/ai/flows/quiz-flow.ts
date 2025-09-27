@@ -10,12 +10,9 @@
  * - Checking the correctness of an answer to a review question.
  */
 
-import { ai } from '@/ai';
+import { ai, geminiPro } from '@/ai';
 import { z } from 'zod';
 import type { QuizSetValidationData, LearningAnalysisData, ReviewQuestionData, CheckReviewAnswerData } from '@/lib/types';
-import { googleAI } from '@genkit-ai/googleai';
-
-const geminiPro = googleAI.model('gemini-pro');
 
 // Schema for Quiz Set Validation Flow
 const QuizSetValidationSchema = z.object({
@@ -225,3 +222,5 @@ export const checkReviewAnswerFlow = ai.defineFlow(
     return output!;
   }
 );
+
+    
