@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -37,6 +38,9 @@ const nextConfig: NextConfig = {
   },
   serverActions: {
     allowedOrigins: ["localhost:9002", "*.firebase.app", "*.web.app"]
+  },
+  env: {
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   }
 };
 

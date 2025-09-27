@@ -8,12 +8,10 @@
 import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
 
-// Initialize Genkit with the Google AI plugin, explicitly providing the API key.
-// This setup ensures that the API key from environment variables is used for all AI operations.
+// Initialize Genkit with the Google AI plugin.
+// The plugin will automatically use the `GEMINI_API_KEY` environment variable.
 export const ai = genkit({
   plugins: [
-    googleAI({
-      apiKey: process.env.GEMINI_API_KEY,
-    }),
+    googleAI(),
   ],
 });
