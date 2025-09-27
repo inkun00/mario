@@ -19,9 +19,4 @@ export const ai = genkit({
 
 // Define the model to be used throughout the application.
 export const geminiPro = googleAI.model('gemini-pro');
-
-// Import all flows to ensure they are registered with the Genkit instance.
-// This must be done after the `ai` object is initialized.
-import '@/ai/flows/quiz-flow';
-
     
