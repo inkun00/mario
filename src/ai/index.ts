@@ -8,9 +8,11 @@ import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
 
 // Initialize Genkit with the Google AI plugin.
-// It will automatically look for the GEMINI_API_KEY (or NEXT_PUBLIC_GEMINI_API_KEY) in the environment variables.
+// It will automatically look for the GEMINI_API_KEY in the environment variables.
 export const ai = genkit({
   plugins: [
-    googleAI(),
+    googleAI({
+      apiKey: process.env.GEMINI_API_KEY,
+    }),
   ],
 });
