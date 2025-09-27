@@ -15,7 +15,7 @@ import { z } from 'zod';
 import type { QuizSetValidationData, LearningAnalysisData, ReviewQuestionData, CheckReviewAnswerData } from '@/lib/types';
 import { googleAI } from '@genkit-ai/googleai';
 
-const gemini15Flash = googleAI.model('gemini-1.5-flash');
+const geminiPro = googleAI.model('gemini-pro');
 
 // Schema for Quiz Set Validation Flow
 const QuizSetValidationSchema = z.object({
@@ -84,7 +84,7 @@ const validateQuizSetPrompt = ai.definePrompt({
     name: 'validateQuizSetPrompt',
     input: { schema: QuizSetValidationSchema },
     output: { schema: ValidationOutputSchema },
-    model: gemini15Flash,
+    model: geminiPro,
     response: { format: 'json' },
     prompt: `당신은 교육용 플랫폼의 전문 AI 콘텐츠 검수관입니다. 사용자가 제출한 퀴즈 세트가 아래 기준을 모두 만족하는지 검토해 주세요.
 
@@ -127,7 +127,7 @@ const analyzeLearningPrompt = ai.definePrompt({
     name: 'analyzeLearningPrompt',
     input: { schema: LearningAnalysisSchema },
     output: { schema: AnalysisOutputSchema },
-    model: gemini15Flash,
+    model: geminiPro,
     response: { format: 'json' },
     prompt: `You are an expert learning analyst AI. Your task is to analyze a student's performance based on their answer logs. Identify patterns to determine their strong and weak areas.
 
@@ -160,7 +160,7 @@ const generateReviewQuestionPrompt = ai.definePrompt({
     name: 'generateReviewQuestionPrompt',
     input: { schema: ReviewQuestionSchema },
     output: { schema: ReviewQuestionOutputSchema },
-    model: gemini15Flash,
+    model: geminiPro,
     response: { format: 'json' },
     prompt: `You are an AI tutor. Your task is to create a review question based on a question a student previously answered incorrectly.
   The new question must be related to the original one but phrased differently.
@@ -196,7 +196,7 @@ const checkReviewAnswerPrompt = ai.definePrompt({
     name: 'checkReviewAnswerPrompt',
     input: { schema: CheckReviewAnswerSchema },
     output: { schema: CheckReviewAnswerOutputSchema },
-    model: gemini15Flash,
+    model: geminiPro,
     response: { format: 'json' },
     prompt: `You are an AI grading assistant. Your task is to evaluate a student's answer to a review question.
   The answer doesn't have to be an exact match, but it must be semantically correct.
