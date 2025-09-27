@@ -36,6 +36,9 @@ const nextConfig: NextConfig = {
 
     return config;
   },
+  serverActions: {
+    allowedOrigins: ["localhost:9002", "*.firebase.app", "*.web.app"]
+  }
 };
 
 export default nextConfig;
