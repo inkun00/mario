@@ -4,12 +4,12 @@
  * This file initializes and configures the Genkit AI instance with the necessary plugins.
  * All AI-related flows should be defined in the `src/ai/flows` directory.
  */
-import 'dotenv/config';
 import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
 
 // Initialize Genkit with the Google AI plugin.
-// It will automatically look for the GEMINI_API_KEY in the environment variables.
+// It will automatically look for the GEMINI_API_KEY in the environment variables,
+// but we pass it explicitly for clarity and robustness.
 export const ai = genkit({
   plugins: [
     googleAI({ apiKey: process.env.GEMINI_API_KEY }),
