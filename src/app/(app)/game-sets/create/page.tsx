@@ -41,24 +41,7 @@ import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-
-async function callApi(flow: string, input: any) {
-  const response = await fetch('/api/genkit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ flow, input }),
-  });
-  if (!response.ok) {
-    const errorText = await response.text();
-    try {
-        const errorJson = JSON.parse(errorText);
-        throw new Error(errorJson.error || 'API call failed');
-    } catch(e) {
-        throw new Error(errorText || 'API call failed with non-JSON response');
-    }
-  }
-  return response.json();
-}
+import { validateQuizSet } from '@/ai/flows/quiz-flow';
 
 const questionSchema = z.object({
   question: z.string().min(1, '질문을 입력해주세요.'),
@@ -175,7 +158,7 @@ export default function CreateGameSetPage() {
     }
 
     try {
-      const validationResult = await callApi('validateQuizSet', data);
+      const validationResult = await validateQuizSet(data);
       if (!validationResult.isValid) {
         toast({
           variant: 'destructive',

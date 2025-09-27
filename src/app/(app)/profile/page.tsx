@@ -26,6 +26,8 @@ import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
+import { analyzeLearning, generateReviewQuestion, checkReviewAnswer } from '@/ai/flows/quiz-flow';
+
 
 interface ReviewQuestion extends IncorrectAnswer {
     newQuestion?: string;
@@ -34,24 +36,6 @@ interface ReviewQuestion extends IncorrectAnswer {
     isChecking?: boolean;
     isCorrect?: boolean;
     explanation?: string;
-}
-
-async function callApi(flow: string, input: any) {
-  const response = await fetch('/api/genkit', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ flow, input }),
-  });
-  if (!response.ok) {
-    const errorText = await response.text();
-    try {
-        const errorJson = JSON.parse(errorText);
-        throw new Error(errorJson.error || 'API call failed');
-    } catch(e) {
-        throw new Error(errorText || 'API call failed with non-JSON response');
-    }
-  }
-  return response.json();
 }
 
 export default function ProfilePage() {
@@ -120,7 +104,7 @@ export default function ProfilePage() {
             return;
           }
 
-          const result = await callApi('analyzeLearning', { 
+          const result = await analyzeLearning({ 
             answerLogs: simplifiedLogs,
           });
           setLearningAnalysis(result);
@@ -139,9 +123,9 @@ export default function ProfilePage() {
     setReviewQuestions(updatedQuestions);
 
     try {
-      const result = await callApi('generateReviewQuestion', {
+      const result = await generateReviewQuestion({
         question: originalQuestionData.question,
-        answer: originalQuestionData.answer || originalQuestionData.correctAnswer,
+        answer: originalQuestionData.answer || originalQuestionData.correctAnswer || '',
         grade: originalQuestionData.grade,
         unit: originalQuestionData.unit,
       });
@@ -165,7 +149,7 @@ export default function ProfilePage() {
     setReviewQuestions(updatedQuestions);
 
     try {
-      const { isCorrect, explanation } = await callApi('checkReviewAnswer', {
+      const { isCorrect, explanation } = await checkReviewAnswer({
         originalQuestion: updatedQuestions[index].question,
         reviewQuestion: updatedQuestions[index].newQuestion!,
         userAnswer: updatedQuestions[index].userReviewAnswer!,
@@ -226,33 +210,33 @@ export default function ProfilePage() {
 
   if (isLoading) {
     return (
-        <div className="container mx-auto flex flex-col gap-8">
+        <div class="container mx-auto flex flex-col gap-8">
             <Card>
                 <CardHeader>
-                    <div className="flex items-center gap-4">
-                        <Skeleton className="h-20 w-20 rounded-full" />
+                    <div class="flex items-center gap-4">
+                        <Skeleton class="h-20 w-20 rounded-full" />
                         <div>
-                           <Skeleton className="h-8 w-40 mb-2" />
-                           <Skeleton className="h-5 w-32" />
+                           <Skeleton class="h-8 w-40 mb-2" />
+                           <Skeleton class="h-5 w-32" />
                         </div>
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="grid grid-cols-2 gap-4 text-center">
+                    <div class="grid grid-cols-2 gap-4 text-center">
                         <div>
-                            <Skeleton className="h-7 w-24 mx-auto mb-1" />
-                            <Skeleton className="h-5 w-20 mx-auto" />
+                            <Skeleton class="h-7 w-24 mx-auto mb-1" />
+                            <Skeleton class="h-5 w-20 mx-auto" />
                         </div>
                         <div>
-                            <Skeleton className="h-7 w-24 mx-auto mb-1" />
-                            <Skeleton className="h-5 w-16 mx-auto" />
+                            <Skeleton class="h-7 w-24 mx-auto mb-1" />
+                            <Skeleton class="h-5 w-16 mx-auto" />
                         </div>
                     </div>
                 </CardContent>
             </Card>
             <Card>
-                <CardHeader><Skeleton className="h-8 w-32" /></CardHeader>
-                <CardContent><Skeleton className="h-24 w-full" /></CardContent>
+                <CardHeader><Skeleton class="h-8 w-32" /></CardHeader>
+                <CardContent><Skeleton class="h-24 w-full" /></CardContent>
             </Card>
         </div>
     )
@@ -263,48 +247,48 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="container mx-auto flex flex-col gap-8">
+    <div class="container mx-auto flex flex-col gap-8">
       <Card>
         <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <div className="relative h-20 w-20 flex items-center justify-center rounded-full bg-secondary flex-shrink-0">
-                <span className="text-5xl">{levelInfo.icon}</span>
+          <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div class="relative h-20 w-20 flex items-center justify-center rounded-full bg-secondary flex-shrink-0">
+                <span class="text-5xl">{levelInfo.icon}</span>
             </div>
             <div>
-              <CardTitle className="font-headline text-3xl">{userData.displayName}</CardTitle>
+              <CardTitle class="font-headline text-3xl">{userData.displayName}</CardTitle>
               <CardDescription>{levelInfo.title}</CardDescription>
               {schoolInfo && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
-                    <School className="w-4 h-4"/>
+                <div class="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                    <School class="w-4 h-4"/>
                     <span>{schoolInfo}</span>
                 </div>
               )}
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent class="space-y-6">
           <div>
-            <div className="flex justify-between items-end mb-1">
-              <span className="text-sm font-medium">Lv. {levelInfo.level}</span>
-              <span className="text-sm text-muted-foreground">
+            <div class="flex justify-between items-end mb-1">
+              <span class="text-sm font-medium">Lv. {levelInfo.level}</span>
+              <span class="text-sm text-muted-foreground">
                 {nextLevelInfo ? `${userData.xp.toLocaleString()} / ${nextLevelInfo.xpThreshold.toLocaleString()} XP` : '최고 레벨'}
               </span>
             </div>
-            <Progress value={progressPercentage} className="h-3" />
+            <Progress value={progressPercentage} class="h-3" />
              {nextLevelInfo && (
-                <p className="text-xs text-right text-muted-foreground mt-1">
+                <p class="text-xs text-right text-muted-foreground mt-1">
                     다음 레벨까지 {nextLevelInfo.xpThreshold - userData.xp} XP 남음
                 </p>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-4 text-center">
+          <div class="grid grid-cols-2 gap-4 text-center">
             <div>
-              <p className="text-2xl font-bold">{userData.xp.toLocaleString()}</p>
-              <p className="text-sm text-muted-foreground">누적 포인트</p>
+              <p class="text-2xl font-bold">{userData.xp.toLocaleString()}</p>
+              <p class="text-sm text-muted-foreground">누적 포인트</p>
             </div>
             <div>
-              <p className="text-2xl font-bold">{correctRate}%</p>
-              <p className="text-sm text-muted-foreground">정답률</p>
+              <p class="text-2xl font-bold">{correctRate}%</p>
+              <p class="text-sm text-muted-foreground">정답률</p>
             </div>
           </div>
         </CardContent>
@@ -312,29 +296,29 @@ export default function ProfilePage() {
       
       <Card>
         <CardHeader>
-            <div className="flex justify-between items-start">
+            <div class="flex justify-between items-start">
                 <div>
-                    <CardTitle className="font-headline flex items-center gap-2">
-                        <BrainCircuit className="text-primary"/> 학습 성취도 분석
+                    <CardTitle class="font-headline flex items-center gap-2">
+                        <BrainCircuit class="text-primary"/> 학습 성취도 분석
                     </CardTitle>
                     <CardDescription>AI가 나의 학습 패턴을 분석해 강점과 약점을 알려줘요.</CardDescription>
                 </div>
                 <Button onClick={handleAnalyzeLearning} disabled={isAnalyzing}>
-                    {isAnalyzing ? <Loader2 className="w-4 h-4 mr-2 animate-spin"/> : <Sparkles className="w-4 h-4 mr-2"/>}
+                    {isAnalyzing ? <Loader2 class="w-4 h-4 mr-2 animate-spin"/> : <Sparkles class="w-4 h-4 mr-2"/>}
                     분석하기
                 </Button>
             </div>
         </CardHeader>
         {learningAnalysis && (
             <CardContent>
-                <div className="grid md:grid-cols-2 gap-6 p-4 bg-secondary/30 rounded-lg">
+                <div class="grid md:grid-cols-2 gap-6 p-4 bg-secondary/30 rounded-lg">
                     <div>
-                        <h3 className="font-semibold text-green-600">🚀 강점 분야</h3>
-                        <div className="text-sm mt-2 prose prose-sm prose-p:my-1 prose-ul:my-1 text-muted-foreground" dangerouslySetInnerHTML={{ __html: learningAnalysis.strongAreas.replace(/\n/g, '<br/>') }} />
+                        <h3 class="font-semibold text-green-600">🚀 강점 분야</h3>
+                        <div class="text-sm mt-2 prose prose-sm prose-p:my-1 prose-ul:my-1 text-muted-foreground" dangerouslySetInnerHTML={{ __html: learningAnalysis.strongAreas.replace(/\n/g, '<br/>') }} />
                     </div>
                     <div>
-                        <h3 className="font-semibold text-orange-600">🤔 약점 분야</h3>
-                        <div className="text-sm mt-2 prose prose-sm prose-p:my-1 prose-ul:my-1 text-muted-foreground" dangerouslySetInnerHTML={{ __html: learningAnalysis.weakAreas.replace(/\n/g, '<br/>') }} />
+                        <h3 class="font-semibold text-orange-600">🤔 약점 분야</h3>
+                        <div class="text-sm mt-2 prose prose-sm prose-p:my-1 prose-ul:my-1 text-muted-foreground" dangerouslySetInnerHTML={{ __html: learningAnalysis.weakAreas.replace(/\n/g, '<br/>') }} />
                     </div>
                 </div>
             </CardContent>
@@ -343,36 +327,36 @@ export default function ProfilePage() {
       
       <Card>
           <CardHeader>
-              <CardTitle className="font-headline flex items-center gap-2">
-                  <FileWarning className="text-primary"/> AI 오답노트
+              <CardTitle class="font-headline flex items-center gap-2">
+                  <FileWarning class="text-primary"/> AI 오답노트
               </CardTitle>
               <CardDescription>틀렸던 문제들을 AI가 만든 새로운 문제로 복습하고 점수를 만회하세요!</CardDescription>
           </CardHeader>
           <CardContent>
               {reviewQuestions.length === 0 ? (
-                  <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                      <p className="text-muted-foreground">복습할 문제가 없습니다. 완벽해요!</p>
+                  <div class="text-center py-8 border-2 border-dashed rounded-lg">
+                      <p class="text-muted-foreground">복습할 문제가 없습니다. 완벽해요!</p>
                   </div>
               ) : (
-                  <div className="space-y-4">
+                  <div class="space-y-4">
                       {reviewQuestions.map((item, index) => (
-                          <div key={item.id} className="p-4 border rounded-lg bg-background shadow-sm">
-                              <p className="text-sm text-muted-foreground">
+                          <div key={item.id} class="p-4 border rounded-lg bg-background shadow-sm">
+                              <p class="text-sm text-muted-foreground">
                                   <strong>원본 문제:</strong> {item.question.question}
                               </p>
-                              <Separator className="my-3"/>
+                              <Separator class="my-3"/>
                               
                               {!item.newQuestion && (
                                 <Button onClick={() => handleGenerateReviewQuestion(index)} disabled={item.isGenerating}>
-                                    {item.isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin"/> : <Lightbulb className="w-4 h-4 mr-2"/>}
+                                    {item.isGenerating ? <Loader2 class="w-4 h-4 mr-2 animate-spin"/> : <Lightbulb class="w-4 h-4 mr-2"/>}
                                     AI 복습 문제 만들기
                                 </Button>
                               )}
 
                               {item.newQuestion && (
-                                  <div className="space-y-3">
-                                      <p className="font-semibold">{item.newQuestion}</p>
-                                      <div className="flex gap-2">
+                                  <div class="space-y-3">
+                                      <p class="font-semibold">{item.newQuestion}</p>
+                                      <div class="flex gap-2">
                                           <Input 
                                               placeholder="정답을 입력하세요"
                                               value={item.userReviewAnswer || ''}
@@ -380,14 +364,14 @@ export default function ProfilePage() {
                                               disabled={item.isChecking || item.isCorrect}
                                           />
                                           <Button onClick={() => handleCheckReviewAnswer(index)} disabled={item.isChecking || item.isCorrect}>
-                                              {item.isChecking ? <Loader2 className="w-4 h-4 animate-spin"/> : "제출"}
+                                              {item.isChecking ? <Loader2 class="w-4 h-4 animate-spin"/> : "제출"}
                                           </Button>
                                       </div>
                                       {item.isCorrect === true && (
-                                        <p className="text-sm text-green-600 font-semibold flex items-center gap-1"><CheckCircle className="w-4 h-4"/> 정답! {item.explanation}</p>
+                                        <p class="text-sm text-green-600 font-semibold flex items-center gap-1"><CheckCircle class="w-4 h-4"/> 정답! {item.explanation}</p>
                                       )}
                                       {item.isCorrect === false && (
-                                         <p className="text-sm text-destructive font-semibold">{item.explanation}</p>
+                                         <p class="text-sm text-destructive font-semibold">{item.explanation}</p>
                                       )}
                                   </div>
                               )}
@@ -402,22 +386,22 @@ export default function ProfilePage() {
 
       <Card>
         <CardHeader>
-            <CardTitle className="font-headline flex items-center gap-2">
-                <Trophy className="text-primary" /> 레벨 엠블럼 컬렉션
+            <CardTitle class="font-headline flex items-center gap-2">
+                <Trophy class="text-primary" /> 레벨 엠블럼 컬렉션
             </CardTitle>
             <CardDescription>지금까지 획득한 엠블럼들을 확인해보세요!</CardDescription>
         </CardHeader>
         <CardContent>
             <TooltipProvider delayDuration={0}>
-                <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-4">
+                <div class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-4">
                     {levelSystem.filter(level => userData.xp >= level.xpThreshold).map((level) => (
                         <Tooltip key={level.level}>
                             <TooltipTrigger asChild>
-                                <div className={cn(
+                                <div class={cn(
                                     "group relative aspect-square flex items-center justify-center p-1 rounded-full transition-all duration-300",
                                     'bg-secondary/70'
                                 )}>
-                                    <span className={cn(
+                                    <span class={cn(
                                         "text-4xl transition-all duration-300 group-hover:scale-110"
                                     )}>
                                         {level.icon}
@@ -425,8 +409,8 @@ export default function ProfilePage() {
                                 </div>
                             </TooltipTrigger>
                             <TooltipContent>
-                                <p className="font-semibold">Lv. {level.level}: {level.title}</p>
-                                <p className="text-sm text-muted-foreground">필요 XP: {level.xpThreshold.toLocaleString()}</p>
+                                <p class="font-semibold">Lv. {level.level}: {level.title}</p>
+                                <p class="text-sm text-muted-foreground">필요 XP: {level.xpThreshold.toLocaleString()}</p>
                             </TooltipContent>
                         </Tooltip>
                     ))}

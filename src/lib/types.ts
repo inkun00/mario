@@ -114,7 +114,7 @@ export interface IncorrectAnswer {
     timestamp: any;
 }
 
-// Data types for AI flows
+// Data types for AI functions
 export interface QuizSetValidationData {
     title: string;
     description?: string;
