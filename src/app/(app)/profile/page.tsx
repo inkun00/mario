@@ -1,7 +1,7 @@
 
 'use client';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar } from '@/components/ui/avatar';
 import {
   Card,
   CardContent,
@@ -10,14 +10,13 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo } from 'react';
-import type { User, AnswerLog, IncorrectAnswer, Question } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, Timestamp, query } from 'firebase/firestore';
-import { BrainCircuit, Activity, FileWarning, Sparkles, Loader2, Lightbulb, CheckCircle, Trophy, School } from 'lucide-react';
+import type { User, AnswerLog, IncorrectAnswer } from '@/lib/types';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query } from 'firebase/firestore';
+import { BrainCircuit, Sparkles, Loader2, Lightbulb, CheckCircle, Trophy, School } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,8 +24,7 @@ import { getLevelInfo, getNextLevelInfo, LevelInfo, levelSystem } from '@/lib/le
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import Image from 'next/image';
-import { analyzeLearning, generateReviewQuestion, checkReviewAnswer } from '@/ai/flows/quiz-flow';
+import { FileWarning } from 'lucide-react';
 
 
 interface ReviewQuestion extends IncorrectAnswer {
@@ -37,6 +35,20 @@ interface ReviewQuestion extends IncorrectAnswer {
     isCorrect?: boolean;
     explanation?: string;
 }
+
+async function callApi(flow: string, input: any) {
+  const response = await fetch('/api/genkit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ flow, input }),
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || 'API call failed');
+  }
+  return response.json();
+}
+
 
 export default function ProfilePage() {
   const [user] = useAuthState(auth);
@@ -104,7 +116,7 @@ export default function ProfilePage() {
             return;
           }
 
-          const result = await analyzeLearning({ 
+          const result = await callApi('analyzeLearning', { 
             answerLogs: simplifiedLogs,
           });
           setLearningAnalysis(result);
@@ -123,7 +135,7 @@ export default function ProfilePage() {
     setReviewQuestions(updatedQuestions);
 
     try {
-      const result = await generateReviewQuestion({
+      const result = await callApi('generateReviewQuestion', {
         question: originalQuestionData.question,
         answer: originalQuestionData.answer || originalQuestionData.correctAnswer || '',
         grade: originalQuestionData.grade,
@@ -149,7 +161,7 @@ export default function ProfilePage() {
     setReviewQuestions(updatedQuestions);
 
     try {
-      const { isCorrect, explanation } = await checkReviewAnswer({
+      const { isCorrect, explanation } = await callApi('checkReviewAnswer', {
         originalQuestion: updatedQuestions[index].question,
         reviewQuestion: updatedQuestions[index].newQuestion!,
         userAnswer: updatedQuestions[index].userReviewAnswer!,

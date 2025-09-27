@@ -41,7 +41,6 @@ import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { validateQuizSet } from '@/ai/flows/quiz-flow';
 
 const questionSchema = z.object({
   question: z.string().min(1, '질문을 입력해주세요.'),
@@ -116,6 +115,19 @@ const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '�
 
 const pointMapping = [-1, 10, 20, 30, 40, 50];
 
+async function callApi(flow: string, input: any) {
+  const response = await fetch('/api/genkit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ flow, input }),
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(errorText || 'API call failed');
+  }
+  return response.json();
+}
+
 export default function CreateGameSetPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -158,7 +170,7 @@ export default function CreateGameSetPage() {
     }
 
     try {
-      const validationResult = await validateQuizSet(data);
+      const validationResult = await callApi('validateQuizSet', data);
       if (!validationResult.isValid) {
         toast({
           variant: 'destructive',
