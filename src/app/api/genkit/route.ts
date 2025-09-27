@@ -1,6 +1,6 @@
-
 'use server';
 
+import 'dotenv/config';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   validateQuizSetFlow,
