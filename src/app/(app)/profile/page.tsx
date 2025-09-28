@@ -201,18 +201,10 @@ export default function ProfilePage() {
     setReviewQuestions(updatedQuestions);
   };
 
-
-  const { totalQuestions, correctRate } = useMemo(() => {
-    const actualAnswerLogs = answerLogs.filter(log => log.question && log.question.type);
-    const total = actualAnswerLogs.length;
-    if (total === 0) {
-        return { totalQuestions: 0, correctRate: '0.0' };
-    }
-    const correctCount = actualAnswerLogs.filter(log => log.isCorrect).length;
-    const rate = ((correctCount / total) * 100).toFixed(1);
-    return { totalQuestions: total, correctRate: rate };
-  }, [answerLogs]);
-
+  const actualAnswerLogs = answerLogs.filter(log => log.question && log.question.type);
+  const totalQuestions = actualAnswerLogs.length;
+  const correctCount = actualAnswerLogs.filter(log => log.isCorrect).length;
+  const correctRate = totalQuestions > 0 ? ((correctCount / totalQuestions) * 100).toFixed(1) : '0.0';
   
   const xpForNextLevel = nextLevelInfo ? nextLevelInfo.xpThreshold - (levelInfo?.xpThreshold || 0) : 0;
   const currentXpProgress = userData ? userData.xp - (levelInfo?.xpThreshold || 0) : 0;
@@ -437,4 +429,3 @@ export default function ProfilePage() {
   );
 
 }
-
