@@ -100,7 +100,7 @@ export default function GamePage() {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [showMysterySettings, setShowMysterySettings] = useState(true);
+  const [showMysterySettings, setShowMysterySettings] = useState(false);
   const [enabledEffects, setEnabledEffects] = useState<MysteryEffectType[]>(allMysteryEffects.map(e => e.type));
 
   const [showMysteryBoxPopup, setShowMysteryBoxPopup] = useState(false);
@@ -127,7 +127,8 @@ export default function GamePage() {
           if (timestamp && typeof timestamp.toMillis === 'function') {
             return { ...rest, timestamp: timestamp.toMillis() };
           }
-          return { ...rest, timestamp: Date.now() }; // Fallback
+          // Fallback for cases where timestamp might already be a number or undefined
+          return { ...rest, timestamp: timestamp || Date.now() }; 
         });
 
         await updateScores({
@@ -148,7 +149,7 @@ export default function GamePage() {
 
   // Fetch GameRoom and GameSet data
   useEffect(() => {
-    if (!gameRoomId || typeof gameRoomId !== 'string') return;
+    if (!gameRoomId || typeof gameRoomId !== 'string' || loadingUser) return;
 
     const roomRef = doc(db, 'game-rooms', gameRoomId);
 
@@ -160,6 +161,15 @@ export default function GamePage() {
             if (roomData.status === 'finished' && !isGameFinished) {
                 finishGame(roomData);
                 return;
+            }
+
+            // Show mystery settings only if they are enabled and not yet done.
+            if (roomData.mysteryBoxEnabled && !roomData.isMysterySettingDone) {
+                if (roomData.hostId === user?.uid) {
+                    setShowMysterySettings(true);
+                }
+            } else {
+                setShowMysterySettings(false);
             }
 
             if (!gameSet && roomData.gameSetId) {
@@ -189,7 +199,7 @@ export default function GamePage() {
       unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameRoomId, router, toast]);
+  }, [gameRoomId, router, toast, user, loadingUser]);
   
   // Update player scores and turn status from gameRoom state
   useEffect(() => {
@@ -323,7 +333,10 @@ setShowMysteryBoxPopup(true);
     if (!gameRoom) return '';
     const playerUIDs = gameRoom.playerUIDs || Object.keys(gameRoom.players);
     if (playerUIDs.length === 0) return '';
-    if (gameRoom.joinType === 'remote') return gameRoom.currentTurn; // Remote game turn is handled by host implicitly
+    if (gameRoom.joinType === 'remote') {
+        if (!gameRoom.currentTurn) return playerUIDs[0]; // Fallback
+        return gameRoom.currentTurn; // Remote game turn is handled by host implicitly
+    }
 
     const currentTurnIndex = playerUIDs.indexOf(gameRoom.currentTurn);
     const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
@@ -827,3 +840,4 @@ setShowMysteryBoxPopup(true);
     </>
   );
 }
+

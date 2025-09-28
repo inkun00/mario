@@ -306,6 +306,7 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
       
+      {/*
       <Card>
         <CardHeader>
             <div className="flex justify-between items-start">
@@ -336,6 +337,7 @@ export default function ProfilePage() {
             </CardContent>
         )}
       </Card>
+      */}
       
       <Card>
           <CardHeader>
@@ -435,3 +437,4 @@ export default function ProfilePage() {
   );
 
 }
+
