@@ -12,9 +12,6 @@ import { googleAI } from '@genkit-ai/googleai';
 // The plugin will automatically use the `GEMINI_API_KEY` environment variable.
 export const ai = genkit({
   plugins: [
-    googleAI({
-      project: process.env.GOOGLE_CLOUD_PROJECT_ID,
-      location: 'us-central1',
-    }),
+    googleAI(),
   ],
 });
