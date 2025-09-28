@@ -14,7 +14,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState } from 'react';
 import type { User, AnswerLog, IncorrectAnswer, Question } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, where } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, where, limit } from 'firebase/firestore';
 import { Loader2, FileWarning, Star, School, Trophy } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -361,5 +361,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    
