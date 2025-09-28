@@ -9,14 +9,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState } from 'react';
-import type { User, AnswerLog, IncorrectAnswer } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, limit, orderBy, where } from 'firebase/firestore';
-import { BrainCircuit, Sparkles, Loader2, Lightbulb, CheckCircle, Trophy, School } from 'lucide-react';
+import type { User, AnswerLog, IncorrectAnswer, Question } from '@/lib/types';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, where } from 'firebase/firestore';
+import { Loader2, FileWarning, Star, School, Trophy } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -24,37 +23,13 @@ import { getLevelInfo, getNextLevelInfo, LevelInfo, levelSystem } from '@/lib/le
 import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
-import { FileWarning } from 'lucide-react';
-
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 
 interface ReviewQuestion extends IncorrectAnswer {
-    newQuestion?: string;
-    isGenerating?: boolean;
     userReviewAnswer?: string;
-    isChecking?: boolean;
-    isCorrect?: boolean;
-    explanation?: string;
+    isSubmitting?: boolean;
 }
-
-async function callApi(flowName: string, input: any) {
-  const response = await fetch('/api/ai', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ flowName, input }),
-  });
-  if (!response.ok) {
-    let errorDetails = 'API call failed';
-    try {
-        const error = await response.clone().json();
-        errorDetails = error.details || JSON.stringify(error);
-    } catch (e) {
-        errorDetails = await response.text();
-    }
-    throw new Error(errorDetails);
-  }
-  return response.json();
-}
-
 
 export default function ProfilePage() {
   const [user] = useAuthState(auth);
@@ -66,9 +41,6 @@ export default function ProfilePage() {
 
   const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
   const [nextLevelInfo, setNextLevelInfo] = useState<LevelInfo | null>(null);
-
-  const [learningAnalysis, setLearningAnalysis] = useState<{ strongAreas: string; weakAreas: string } | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -97,120 +69,85 @@ export default function ProfilePage() {
       
       const [logsSnapshot, incorrectSnapshot] = await Promise.all([
         getDocs(answerLogsQuery),
-        getDocs(query(incorrectAnswersRef))
+        getDocs(query(incorrectAnswersRef, orderBy('timestamp', 'desc')))
       ]);
 
       const logsData = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AnswerLog));
       const incorrectData = incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer));
 
       setAnswerLogs(logsData);
-      setReviewQuestions(incorrectData.map(item => ({...item, isGenerating: false})));
+      setReviewQuestions(incorrectData);
       setIsLoading(false);
     };
 
     fetchData();
   }, [user]);
-  
-  const handleAnalyzeLearning = async () => {
-      setIsAnalyzing(true);
-      try {
-          const simplifiedLogs = answerLogs
-            .filter(log => log.question && log.question.type) 
-            .map(log => ({
-              question: log.question.question,
-              isCorrect: log.isCorrect
-            }));
-
-          if (simplifiedLogs.length === 0) {
-            toast({ title: '분석 불가', description: '분석할 학습 기록이 없습니다.' });
-            setIsAnalyzing(false);
-            return;
-          }
-
-          const result = await callApi('analyzeLearning', { 
-            answerLogs: simplifiedLogs,
-          });
-          setLearningAnalysis(result);
-      } catch (error: any) {
-          toast({ variant: 'destructive', title: '분석 오류', description: `AI 학습 분석 중 오류가 발생했습니다: ${error.message}` });
-      } finally {
-          setIsAnalyzing(false);
-      }
-  };
-
-  const handleGenerateReviewQuestion = async (index: number) => {
-    const updatedQuestions = [...reviewQuestions];
-    const originalQuestionData = updatedQuestions[index].question;
-    
-    updatedQuestions[index].isGenerating = true;
-    setReviewQuestions(updatedQuestions);
-
-    try {
-      const result = await callApi('generateReviewQuestion', {
-        question: originalQuestionData.question,
-        answer: originalQuestionData.answer || originalQuestionData.correctAnswer || '',
-        grade: originalQuestionData.grade,
-        unit: originalQuestionData.unit,
-      });
-      updatedQuestions[index].newQuestion = result.newQuestion;
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: '오류', description: `복습 질문 생성 중 오류가 발생했습니다: ${error.message}` });
-    } finally {
-      updatedQuestions[index].isGenerating = false;
-      setReviewQuestions(updatedQuestions);
-    }
-  };
-  
-  const handleCheckReviewAnswer = async (index: number) => {
-    const updatedQuestions = [...reviewQuestions];
-    if (!updatedQuestions[index].userReviewAnswer) {
-      toast({ variant: 'destructive', title: '오류', description: '답변을 입력해주세요.' });
-      return;
-    }
-
-    updatedQuestions[index].isChecking = true;
-    setReviewQuestions(updatedQuestions);
-
-    try {
-      const { isCorrect, explanation } = await callApi('checkReviewAnswer', {
-        originalQuestion: updatedQuestions[index].question,
-        reviewQuestion: updatedQuestions[index].newQuestion!,
-        userAnswer: updatedQuestions[index].userReviewAnswer!,
-      });
-      updatedQuestions[index].isCorrect = isCorrect;
-      updatedQuestions[index].explanation = explanation;
-
-      if (isCorrect) {
-        toast({ title: '정답입니다!', description: '복습을 완료했습니다. 10 XP를 획득했습니다!' });
-        
-        if (user) {
-            const userRef = doc(db, 'users', user.uid);
-            await updateDoc(userRef, { xp: increment(10) });
-            await deleteDoc(doc(db, 'users', user.uid, 'incorrect-answers', updatedQuestions[index].id));
-            if(userData) setUserData({...userData, xp: userData.xp + 10});
-        }
-        
-        setTimeout(() => {
-          setReviewQuestions(prev => prev.filter((_, i) => i !== index));
-        }, 1500);
-
-      } else {
-        toast({ variant: 'destructive', title: '아쉽지만 오답입니다.', description: explanation });
-      }
-
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: '오류', description: `답변 확인 중 오류가 발생했습니다: ${error.message}` });
-    } finally {
-      updatedQuestions[index].isChecking = false;
-      setReviewQuestions(updatedQuestions);
-    }
-  };
 
   const handleReviewAnswerChange = (index: number, value: string) => {
     const updatedQuestions = [...reviewQuestions];
     updatedQuestions[index].userReviewAnswer = value;
     setReviewQuestions(updatedQuestions);
   };
+
+  const checkAnswer = (question: Question, userAnswer: string) => {
+    if (question.type === 'subjective') {
+      return userAnswer.trim().toLowerCase() === question.answer?.trim().toLowerCase();
+    }
+    return userAnswer === question.correctAnswer;
+  };
+
+  const handleSubmitReview = async (index: number) => {
+    const updatedQuestions = [...reviewQuestions];
+    const reviewItem = updatedQuestions[index];
+
+    if (!reviewItem.userReviewAnswer) {
+      toast({ variant: 'destructive', title: '오류', description: '답변을 입력하거나 선택해주세요.' });
+      return;
+    }
+
+    updatedQuestions[index].isSubmitting = true;
+    setReviewQuestions(updatedQuestions);
+
+    const isCorrect = checkAnswer(reviewItem.question, reviewItem.userReviewAnswer);
+    
+    try {
+        if (user) {
+            // Delete the question from incorrect-answers regardless of the outcome
+            await deleteDoc(doc(db, 'users', user.uid, 'incorrect-answers', reviewItem.id));
+
+            if (isCorrect) {
+                const userRef = doc(db, 'users', user.uid);
+                await updateDoc(userRef, { xp: increment(10) });
+                
+                // Update user data locally to reflect XP change
+                const newXp = (userData?.xp || 0) + 10;
+                setUserData(prev => prev ? { ...prev, xp: newXp } : null);
+                
+                // Update level info if level up
+                const newLevelInfo = getLevelInfo(newXp);
+                if (newLevelInfo.level !== levelInfo?.level) {
+                  setLevelInfo(newLevelInfo);
+                  setNextLevelInfo(getNextLevelInfo(newLevelInfo.level));
+                }
+
+                toast({ title: '정답입니다!', description: '복습을 완료했습니다. 10 XP를 획득했습니다!' });
+            } else {
+                 toast({ variant: 'destructive', title: '아쉽지만 오답입니다.', description: `정답은 "${reviewItem.question.answer || reviewItem.question.correctAnswer}" 입니다.` });
+            }
+        }
+        
+        // Remove the question from the list in the UI
+        setReviewQuestions(prev => prev.filter((_, i) => i !== index));
+
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: '오류', description: `답변 제출 중 오류가 발생했습니다: ${error.message}` });
+        // If submission fails, revert the submitting state
+        const revertedQuestions = [...reviewQuestions];
+        revertedQuestions[index].isSubmitting = false;
+        setReviewQuestions(revertedQuestions);
+    }
+  };
+
 
   const actualAnswerLogs = answerLogs.filter(log => log.question && log.question.type);
   const totalQuestions = actualAnswerLogs.length;
@@ -310,43 +247,11 @@ export default function ProfilePage() {
       </Card>
       
       <Card>
-        <CardHeader>
-            <div className="flex justify-between items-start">
-                <div>
-                    <CardTitle className="font-headline flex items-center gap-2">
-                        <BrainCircuit className="text-primary"/> 학습 성취도 분석
-                    </CardTitle>
-                    <CardDescription>AI가 나의 학습 패턴을 분석해 강점과 약점을 알려줘요.</CardDescription>
-                </div>
-                <Button onClick={handleAnalyzeLearning} disabled={isAnalyzing}>
-                    {isAnalyzing ? <Loader2 className="w-4 h-4 mr-2 animate-spin"/> : <Sparkles className="w-4 h-4 mr-2"/>}
-                    분석하기
-                </Button>
-            </div>
-        </CardHeader>
-        {learningAnalysis && (
-            <CardContent>
-                <div className="grid md:grid-cols-2 gap-6 p-4 bg-secondary/30 rounded-lg">
-                    <div>
-                        <h3 className="font-semibold text-green-600">🚀 강점 분야</h3>
-                        <div className="text-sm mt-2 prose prose-sm prose-p:my-1 prose-ul:my-1 text-muted-foreground" dangerouslySetInnerHTML={{ __html: learningAnalysis.strongAreas.replace(/\n/g, '<br/>') }} />
-                    </div>
-                    <div>
-                        <h3 className="font-semibold text-orange-600">🤔 약점 분야</h3>
-                        <div className="text-sm mt-2 prose prose-sm prose-p:my-1 prose-ul:my-1 text-muted-foreground" dangerouslySetInnerHTML={{ __html: learningAnalysis.weakAreas.replace(/\n/g, '<br/>') }} />
-                    </div>
-                </div>
-            </CardContent>
-        )}
-      </Card>
-      
-      
-      <Card>
           <CardHeader>
               <CardTitle className="font-headline flex items-center gap-2">
-                  <FileWarning className="text-primary"/> AI 오답노트
+                  <FileWarning className="text-primary"/> 오답노트
               </CardTitle>
-              <CardDescription>틀렸던 문제들을 AI가 만든 새로운 문제로 복습하고 점수를 만회하세요!</CardDescription>
+              <CardDescription>틀렸던 문제들을 다시 풀어보고 점수를 만회하세요!</CardDescription>
           </CardHeader>
           <CardContent>
               {reviewQuestions.length === 0 ? (
@@ -355,45 +260,63 @@ export default function ProfilePage() {
                   </div>
               ) : (
                   <div className="space-y-4">
-                      {reviewQuestions.map((item, index) => (
-                          <div key={item.id} className="p-4 border rounded-lg bg-background shadow-sm">
-                              <p className="text-sm text-muted-foreground">
-                                  <strong>원본 문제:</strong> {item.question.question}
-                              </p>
-                              <Separator className="my-3"/>
+                      {reviewQuestions.map((item, index) => {
+                        const question = item.question;
+                        return (
+                          <div key={item.id} className="p-4 border rounded-lg bg-background shadow-sm space-y-3">
+                              <div className="flex justify-between items-start">
+                                  <p className="font-semibold text-base">{question.question}</p>
+                                  <span className="flex items-center gap-1 font-semibold text-primary text-sm">
+                                      <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
+                                      {question.points === -1 ? '랜덤' : `${question.points}점`}
+                                  </span>
+                              </div>
                               
-                              {!item.newQuestion && (
-                                <Button onClick={() => handleGenerateReviewQuestion(index)} disabled={item.isGenerating}>
-                                    {item.isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin"/> : <Lightbulb className="w-4 h-4 mr-2"/>}
-                                    AI 복습 문제 만들기
-                                </Button>
+                              {question.type === 'subjective' && (
+                                <Input 
+                                    placeholder="정답을 입력하세요"
+                                    value={item.userReviewAnswer || ''}
+                                    onChange={(e) => handleReviewAnswerChange(index, e.target.value)}
+                                    disabled={item.isSubmitting}
+                                />
                               )}
-
-                              {item.newQuestion && (
-                                  <div className="space-y-3">
-                                      <p className="font-semibold">{item.newQuestion}</p>
-                                      <div className="flex gap-2">
-                                          <Input 
-                                              placeholder="정답을 입력하세요"
-                                              value={item.userReviewAnswer || ''}
-                                              onChange={(e) => handleReviewAnswerChange(index, e.target.value)}
-                                              disabled={item.isChecking || item.isCorrect}
-                                          />
-                                          <Button onClick={() => handleCheckReviewAnswer(index)} disabled={item.isChecking || item.isCorrect}>
-                                              {item.isChecking ? <Loader2 className="w-4 h-4 animate-spin"/> : "제출"}
-                                          </Button>
-                                      </div>
-                                      {item.isCorrect === true && (
-                                        <p className="text-sm text-green-600 font-semibold flex items-center gap-1"><CheckCircle className="w-4 h-4"/> 정답! {item.explanation}</p>
-                                      )}
-                                      {item.isCorrect === false && (
-                                         <p className="text-sm text-destructive font-semibold">{item.explanation}</p>
-                                      )}
-                                  </div>
+                              {question.type === 'multipleChoice' && question.options && (
+                                <RadioGroup 
+                                    value={item.userReviewAnswer} 
+                                    onValueChange={(value) => handleReviewAnswerChange(index, value)} 
+                                    className="space-y-2" 
+                                    disabled={item.isSubmitting}
+                                >
+                                    {question.options.map((option, idx) => (
+                                        <div key={idx} className="flex items-center space-x-2">
+                                            <RadioGroupItem value={option} id={`review-${item.id}-option-${idx}`} />
+                                            <Label htmlFor={`review-${item.id}-option-${idx}`} className="flex-1 p-3 rounded-md border hover:border-primary cursor-pointer">{option}</Label>
+                                        </div>
+                                    ))}
+                                </RadioGroup>
                               )}
-
+                              {question.type === 'ox' && (
+                                <RadioGroup 
+                                    value={item.userReviewAnswer} 
+                                    onValueChange={(value) => handleReviewAnswerChange(index, value)} 
+                                    className="grid grid-cols-2 gap-4" 
+                                    disabled={item.isSubmitting}
+                                >
+                                    <Label htmlFor={`review-${item.id}-o`} className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", item.userReviewAnswer === 'O' && 'border-primary bg-primary/10')}>
+                                        <RadioGroupItem value="O" id={`review-${item.id}-o`} className="sr-only"/>O
+                                    </Label>
+                                    <Label htmlFor={`review-${item.id}-x`} className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", item.userReviewAnswer === 'X' && 'border-primary bg-primary/10')}>
+                                        <RadioGroupItem value="X" id={`review-${item.id}-x`} className="sr-only"/>X
+                                    </Label>
+                                </RadioGroup>
+                              )}
+                              
+                              <Button onClick={() => handleSubmitReview(index)} disabled={item.isSubmitting} className="w-full">
+                                  {item.isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "제출"}
+                              </Button>
                           </div>
-                      ))}
+                        )
+                      })}
                   </div>
               )}
           </CardContent>
@@ -437,5 +360,6 @@ export default function ProfilePage() {
 
     </div>
   );
-
 }
+
+    

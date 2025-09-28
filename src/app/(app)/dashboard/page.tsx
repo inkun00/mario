@@ -52,25 +52,6 @@ interface GameSetDocument extends GameSet {
   id: string;
 }
 
-async function callApi(flowName: string, input: any) {
-  const response = await fetch('/api/ai', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ flowName, input }),
-  });
-  if (!response.ok) {
-    let errorDetails = 'API call failed';
-    try {
-        const error = await response.clone().json();
-        errorDetails = error.details || JSON.stringify(error);
-    } catch (e) {
-        errorDetails = await response.text();
-    }
-    throw new Error(errorDetails);
-  }
-  return response.json();
-}
-
 export default function DashboardPage() {
   const [user, loadingUser] = useAuthState(auth);
   const router = useRouter();

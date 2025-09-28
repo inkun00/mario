@@ -30,7 +30,7 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { PlusCircle, Trash2, Loader2, Sparkles } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Save } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
@@ -115,25 +115,6 @@ const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '�
 
 const pointMapping = [-1, 10, 20, 30, 40, 50];
 
-async function callApi(flowName: string, input: any) {
-  const response = await fetch('/api/ai', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ flowName, input }),
-  });
-  if (!response.ok) {
-    let errorDetails = 'API call failed';
-    try {
-        const error = await response.clone().json();
-        errorDetails = error.details || JSON.stringify(error);
-    } catch (e) {
-        errorDetails = await response.text();
-    }
-    throw new Error(errorDetails);
-  }
-  return response.json();
-}
-
 export default function CreateGameSetPage() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -176,17 +157,6 @@ export default function CreateGameSetPage() {
     }
 
     try {
-      const validationResult = await callApi('validateQuizSet', data);
-      if (!validationResult.isValid) {
-        toast({
-          variant: 'destructive',
-          title: '퀴즈 세트 저장 실패',
-          description: validationResult.reason || 'AI 검증에 실패했습니다. 내용을 다시 확인해주세요.',
-        });
-        setIsLoading(false);
-        return;
-      }
-
       await addDoc(collection(db, 'game-sets'), {
         ...data,
         creatorId: user.uid,
@@ -216,7 +186,7 @@ export default function CreateGameSetPage() {
   
   const submitButton = (
     <Button type="submit" size="lg" className="font-headline w-full" disabled={isLoading || !isValid}>
-      {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> AI 검증 및 저장 중...</> : <><Sparkles className="mr-2 h-4 w-4" /> 퀴즈 세트 저장</>}
+      {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> 저장 중...</> : <><Save className="mr-2 h-4 w-4" /> 퀴즈 세트 저장</>}
     </Button>
   );
 

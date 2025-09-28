@@ -113,38 +113,3 @@ export interface IncorrectAnswer {
     userAnswer: string;
     timestamp: any;
 }
-
-// Data types for AI functions
-export interface QuizSetValidationData {
-    title: string;
-    description?: string;
-    grade?: string;
-    semester?: string;
-    subject?: string;
-    unit?: string;
-    questions: {
-        question: string;
-        answer?: string;
-        correctAnswer?: string;
-    }[];
-}
-
-export interface LearningAnalysisData {
-    answerLogs: {
-      question: string;
-      isCorrect: boolean;
-    }[];
-}
-
-export interface ReviewQuestionData {
-    question: string;
-    answer: string;
-    grade?: string;
-    unit?: string;
-}
-
-export interface CheckReviewAnswerData {
-    originalQuestion: Question;
-    reviewQuestion: string;
-    userAnswer: string;
-}

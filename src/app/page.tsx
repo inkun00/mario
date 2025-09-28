@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle2, Gamepad2, Lightbulb, Users } from 'lucide-react';
+import { CheckCircle2, Gamepad2, Lightbulb, Trophy } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import AppLogo from '@/components/app-logo';
@@ -58,18 +58,18 @@ export default function Home() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               <FeatureCard
                 icon={<Lightbulb className="w-8 h-8 text-primary" />}
-                title="퀴즈 제작"
-                description="나만의 학습 퀴즈 세트를 쉽게 만들고 공유할 수 있습니다."
+                title="나만의 퀴즈 제작"
+                description="다양한 형식의 학습 퀴즈 세트를 쉽게 만들고 공유할 수 있습니다."
               />
               <FeatureCard
-                icon={<Gamepad2 className="w-8 h-8 text-primary" />}
+                icon={<Trophy className="w-8 h-8 text-primary" />}
                 title="경험치 및 레벨 시스템"
                 description="문제를 맞혀 경험치를 얻고 레벨을 올려 리더보드에 도전하세요."
               />
               <FeatureCard
                 icon={<CheckCircle2 className="w-8 h-8 text-primary" />}
-                title="AI오답문제 풀이"
-                description="틀린 문제는 AI가 만들어준 유사 문제로 복습할 수 있습니다."
+                title="오답 노트"
+                description="틀린 문제는 오답 노트에서 다시 풀어보며 완벽하게 학습할 수 있습니다."
               />
             </div>
           </div>
