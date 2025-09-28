@@ -34,7 +34,7 @@ const validateQuizSetPrompt = ai.definePrompt({
   name: 'validateQuizSetPrompt',
   input: {schema: QuizSetValidationInputSchema},
   output: {schema: ValidationOutputSchema},
-  config: {model: 'gemini-1.5-flash-latest'},
+  config: {model: 'gemini-2.0-flash-latest'},
   prompt: `당신은 교육용 플랫폼의 전문 AI 콘텐츠 검수관입니다. 사용자가 제출한 퀴즈 세트가 아래 기준을 모두 만족하는지 검토해 주세요.
 
     **검증 기준:**
@@ -84,7 +84,7 @@ const analyzeLearningPrompt = ai.definePrompt({
     name: 'analyzeLearningPrompt',
     input: { schema: LearningAnalysisInputSchema },
     output: { schema: AnalysisOutputSchema },
-    config: {model: 'gemini-1.5-flash-latest'},
+    config: {model: 'gemini-2.0-flash-latest'},
     prompt: `You are an expert learning analyst AI. Your task is to analyze a student's performance based on their answer logs. Identify patterns to determine their strong and weak areas.
 
     - Analyze the topics from the list of questions.
@@ -125,7 +125,7 @@ const generateReviewQuestionPrompt = ai.definePrompt({
     name: 'generateReviewQuestionPrompt',
     input: { schema: ReviewQuestionInputSchema },
     output: { schema: ReviewQuestionOutputSchema },
-    config: {model: 'gemini-1.5-flash-latest'},
+    config: {model: 'gemini-2.0-flash-latest'},
     prompt: `You are an AI tutor. Your task is to create a review question based on a question a student previously answered incorrectly.
     The new question must be related to the original one but phrased differently.
     It MUST be a subjective/descriptive question that requires a written answer, not multiple choice or O/X.
@@ -167,7 +167,7 @@ const checkReviewAnswerPrompt = ai.definePrompt({
     name: 'checkReviewAnswerPrompt',
     input: { schema: CheckReviewAnswerInputSchema },
     output: { schema: CheckReviewAnswerOutputSchema },
-    config: {model: 'gemini-1.5-flash-latest'},
+    config: {model: 'gemini-2.0-flash-latest'},
     prompt: `You are an AI grading assistant. Your task is to evaluate a student's answer to a review question.
     The answer doesn't have to be an exact match, but it must be semantically correct.
     Base your evaluation on the context of the original question and its answer.
