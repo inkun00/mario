@@ -1,28 +1,9 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users can only read and write to their own user document.
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-
-      // Allow users to create documents in their own subcollections.
-      match /{subcollection}/{docId} {
-        allow create: if request.auth != null && request.auth.uid == userId;
-        allow read, write: if request.auth != null && request.auth.uid == userId;
-      }
-    }
-
-    // Allow any authenticated user to read game sets and game rooms.
-    // Write operations should be handled by secure server-side logic (server actions).
-    match /game-sets/{gameSetId} {
-      allow read: if request.auth != null;
-      allow create, update, delete: if request.auth != null; // Relying on server-side validation
-    }
-
-    match /game-rooms/{gameRoomId} {
-      allow read, write: if request.auth != null;
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
