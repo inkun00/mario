@@ -61,7 +61,7 @@ async function callApi(flowName: string, input: any) {
   if (!response.ok) {
     let errorDetails = 'API call failed';
     try {
-        const error = await response.json();
+        const error = await response.clone().json();
         errorDetails = error.details || JSON.stringify(error);
     } catch (e) {
         errorDetails = await response.text();
@@ -521,3 +521,5 @@ export default function DashboardPage() {
     </>
   );
 }
+
+    
