@@ -115,15 +115,15 @@ const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '�
 
 const pointMapping = [-1, 10, 20, 30, 40, 50];
 
-async function callApi(flow: string, input: any) {
-  const response = await fetch('/api/genkit', {
+async function callApi(flowName: string, input: any) {
+  const response = await fetch('/api/ai', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ flow, input }),
+    body: JSON.stringify({ flowName, input }),
   });
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || 'API call failed');
+    const error = await response.json();
+    throw new Error(error.details || 'API call failed');
   }
   return response.json();
 }

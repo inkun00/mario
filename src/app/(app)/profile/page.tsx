@@ -15,7 +15,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo } from 'react';
 import type { User, AnswerLog, IncorrectAnswer } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, limit, orderBy } from 'firebase/firestore';
 import { BrainCircuit, Sparkles, Loader2, Lightbulb, CheckCircle, Trophy, School } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -36,15 +36,15 @@ interface ReviewQuestion extends IncorrectAnswer {
     explanation?: string;
 }
 
-async function callApi(flow: string, input: any) {
-  const response = await fetch('/api/genkit', {
+async function callApi(flowName: string, input: any) {
+  const response = await fetch('/api/ai', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ flow, input }),
+    body: JSON.stringify({ flowName, input }),
   });
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(errorText || 'API call failed');
+    const error = await response.json();
+    throw new Error(error.details || 'API call failed');
   }
   return response.json();
 }
@@ -81,11 +81,11 @@ export default function ProfilePage() {
         setNextLevelInfo(getNextLevelInfo(currentLevel.level));
       }
 
-      const answerLogsRef = collection(db, 'users', user.uid, 'answerLogs');
+      const answerLogsQuery = query(collection(db, 'users', user.uid, 'answerLogs'), orderBy('timestamp', 'desc'), limit(100));
       const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
       
       const [logsSnapshot, incorrectSnapshot] = await Promise.all([
-        getDocs(query(answerLogsRef)),
+        getDocs(answerLogsQuery),
         getDocs(query(incorrectAnswersRef))
       ]);
 
@@ -286,7 +286,7 @@ export default function ProfilePage() {
                 {nextLevelInfo ? `${userData.xp.toLocaleString()} / ${nextLevelInfo.xpThreshold.toLocaleString()} XP` : '최고 레벨'}
               </span>
             </div>
-            <Progress value={progressPercentage} className="h-3" />
+            <Progress value={Math.max(0, progressPercentage)} className="h-3" />
              {nextLevelInfo && (
                 <p className="text-xs text-right text-muted-foreground mt-1">
                     다음 레벨까지 {nextLevelInfo.xpThreshold - userData.xp} XP 남음

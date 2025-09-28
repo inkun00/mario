@@ -52,15 +52,15 @@ interface GameSetDocument extends GameSet {
   id: string;
 }
 
-async function callApi(flow: string, input: any) {
-  const response = await fetch('/api/genkit', {
+async function callApi(flowName: string, input: any) {
+  const response = await fetch('/api/ai', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ flow, input }),
+    body: JSON.stringify({ flowName, input }),
   });
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.error || 'API call failed');
+    throw new Error(error.details || 'API call failed');
   }
   return response.json();
 }
@@ -182,22 +182,9 @@ export default function DashboardPage() {
     setIsJoining(true);
 
     try {
-      const result = await callApi('joinGame', {
-        gameRoomId: joinCode.toUpperCase(),
-        player: {
-          uid: user.uid,
-          nickname: user.displayName || '참가자',
-          score: 0,
-          avatarId: `player-avatar-${(Math.floor(Math.random() * 4)) + 1}`,
-          isHost: false,
-        }
-      });
-      
-      if (result.success) {
-        router.push(`/game/${joinCode.toUpperCase()}/lobby`);
-      } else {
-        toast({ variant: 'destructive', title: '오류', description: result.message });
-      }
+      // This is a placeholder for a 'joinGame' server action or API call
+      // For now, we simulate a failure as the backend logic isn't fully implemented
+      toast({ variant: 'destructive', title: '오류', description: '게임 참여 기능은 현재 개발 중입니다.'});
 
     } catch (error: any) {
       console.error("Error joining game:", error);

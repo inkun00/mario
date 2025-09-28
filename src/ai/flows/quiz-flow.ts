@@ -1,31 +1,73 @@
 
 'use server';
 /**
- * @fileOverview Defines AI flows for quiz management using Genkit.
- *
- * This file contains the flows for:
- * - Validating user-created quiz sets.
- * - Analyzing a user's learning patterns.
- * - Generating review questions for incorrectly answered items.
- * - Checking the correctness of an answer to a review question.
+ * @fileOverview Defines AI functions for quiz management using Google Generative AI.
  */
 
-import { ai } from '@/ai';
-import { z } from 'zod';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import type { QuizSetValidationData, LearningAnalysisData, ReviewQuestionData, CheckReviewAnswerData } from '@/lib/types';
-import { ValidationOutputSchema, AnalysisOutputSchema, ReviewQuestionOutputSchema, CheckReviewAnswerOutputSchema } from '@/lib/schemas';
-import { defineFlow } from 'genkit';
 
+const API_KEY = process.env.GEMINI_API_KEY as string;
+const genAI = new GoogleGenerativeAI(API_KEY);
+const model = genAI.getGenerativeModel({
+  model: 'gemini-1.5-flash-latest',
+});
+
+const generationConfig = {
+  responseMimeType: 'application/json',
+};
+
+const safetySettings = [
+  {
+    category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+  {
+    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+    threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+  },
+];
+
+/**
+ * A helper function to call the generative AI model and parse the response.
+ * It handles cleaning up the markdown JSON block if present.
+ * @param prompt The prompt to send to the model.
+ * @returns The parsed JSON object from the model's response.
+ */
+async function callGenerativeAI(prompt: string): Promise<any> {
+  const result = await model.generateContent({
+    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig,
+    safetySettings,
+  });
+
+  const response = result.response;
+  let text = response.text();
+
+  // Clean up the response text to ensure it's a valid JSON string
+  if (text.startsWith('```json')) {
+    text = text.slice(7, text.length - 3);
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    console.error("Failed to parse JSON response:", text);
+    throw new Error("The AI returned an invalid response format.");
+  }
+}
 
 // 1. Flow for Validating Quiz Sets
-export const validateQuizSet = defineFlow(
-  {
-    name: 'validateQuizSet',
-    inputSchema: z.custom<QuizSetValidationData>(),
-    outputSchema: ValidationOutputSchema,
-  },
-  async (input) => {
-    const prompt = `당신은 교육용 플랫폼의 전문 AI 콘텐츠 검수관입니다. 사용자가 제출한 퀴즈 세트가 아래 기준을 모두 만족하는지 검토해 주세요.
+export async function validateQuizSet(input: QuizSetValidationData) {
+  const prompt = `당신은 교육용 플랫폼의 전문 AI 콘텐츠 검수관입니다. 사용자가 제출한 퀴즈 세트가 아래 기준을 모두 만족하는지 검토해 주세요.
 
     **검증 기준:**
     1.  **교육적 적합성 및 안전성:** 모든 질문과 답변은 교육적이어야 하며, 모든 연령대에 안전해야 합니다. 비속어, 모욕적인 내용, 또는 폭력적이거나 부적절한 콘텐츠가 포함되어서는 안 됩니다.
@@ -48,27 +90,12 @@ export const validateQuizSet = defineFlow(
     - 모든 기준을 통과하면 "isValid"를 true로 설정하고, "reason"은 비워둡니다.
     - 하나라도 기준을 통과하지 못하면 "isValid"를 false로 설정하고, "reason"에 사용자가 무엇을 수정해야 하는지 한국어로 명확하고 간결하게 설명해 주세요.`;
 
-    const { output } = await ai.generate({
-      model: 'gemini-1.5-flash-latest',
-      prompt,
-      output: {
-        schema: ValidationOutputSchema,
-      },
-    });
-    return output!;
-  }
-);
-
+  return callGenerativeAI(prompt);
+}
 
 // 2. Flow for Analyzing Learning
-export const analyzeLearning = defineFlow(
-  {
-    name: 'analyzeLearning',
-    inputSchema: z.custom<LearningAnalysisData>(),
-    outputSchema: AnalysisOutputSchema,
-  },
-  async (input) => {
-    const prompt = `You are an expert learning analyst AI. Your task is to analyze a student's performance based on their answer logs. Identify patterns to determine their strong and weak areas.
+export async function analyzeLearning(input: LearningAnalysisData) {
+  const prompt = `You are an expert learning analyst AI. Your task is to analyze a student's performance based on their answer logs. Identify patterns to determine their strong and weak areas.
 
     - Analyze the topics from the list of questions.
     - For "strongAreas", summarize which topics the student seems to understand well (based on 'isCorrect: true').
@@ -82,26 +109,12 @@ export const analyzeLearning = defineFlow(
     ${input.answerLogs.map(log => `- Question: ${log.question}, Correct: ${log.isCorrect}`).join('\n')}
     `;
 
-    const { output } = await ai.generate({
-      model: 'gemini-1.5-flash-latest',
-      prompt,
-      output: {
-        schema: AnalysisOutputSchema,
-      },
-    });
-    return output!;
-  }
-);
+  return callGenerativeAI(prompt);
+}
 
 // 3. Flow for Generating Review Questions
-export const generateReviewQuestion = defineFlow(
-  {
-    name: 'generateReviewQuestion',
-    inputSchema: z.custom<ReviewQuestionData>(),
-    outputSchema: ReviewQuestionOutputSchema,
-  },
-  async (input) => {
-    const prompt = `You are an AI tutor. Your task is to create a review question based on a question a student previously answered incorrectly.
+export async function generateReviewQuestion(input: ReviewQuestionData) {
+  const prompt = `You are an AI tutor. Your task is to create a review question based on a question a student previously answered incorrectly.
     The new question must be related to the original one but phrased differently.
     It MUST be a subjective/descriptive question that requires a written answer, not multiple choice or O/X.
     Most importantly, the difficulty and vocabulary of the new question MUST be appropriate for the original question's grade level and unit.
@@ -117,27 +130,12 @@ export const generateReviewQuestion = defineFlow(
     - Answer: ${input.answer}
     `;
 
-    const { output } = await ai.generate({
-      model: 'gemini-1.5-flash-latest',
-      prompt,
-      output: {
-        schema: ReviewQuestionOutputSchema,
-      },
-    });
-    return output!;
-  }
-);
-
+  return callGenerativeAI(prompt);
+}
 
 // 4. Flow for Checking Review Answers
-export const checkReviewAnswer = defineFlow(
-  {
-    name: 'checkReviewAnswer',
-    inputSchema: z.custom<CheckReviewAnswerData>(),
-    outputSchema: CheckReviewAnswerOutputSchema,
-  },
-  async (input) => {
-    const prompt = `You are an AI grading assistant. Your task is to evaluate a student's answer to a review question.
+export async function checkReviewAnswer(input: CheckReviewAnswerData) {
+  const prompt = `You are an AI grading assistant. Your task is to evaluate a student's answer to a review question.
     The answer doesn't have to be an exact match, but it must be semantically correct.
     Base your evaluation on the context of the original question and its answer.
     Respond with a JSON object with keys "isCorrect" (boolean) and "explanation" (string).
@@ -152,13 +150,5 @@ export const checkReviewAnswer = defineFlow(
 
     Is the student's answer semantically correct based on the original question's context?`;
 
-    const { output } = await ai.generate({
-      model: 'gemini-1.5-flash-latest',
-      prompt,
-      output: {
-        schema: CheckReviewAnswerOutputSchema,
-      },
-    });
-    return output!;
-  }
-);
+  return callGenerativeAI(prompt);
+}

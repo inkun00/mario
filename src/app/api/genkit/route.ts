@@ -1,29 +1,32 @@
 
-import { runFlow } from 'genkit';
 import { NextRequest, NextResponse } from 'next/server';
-import '@/ai';
-import '@/ai/flows/quiz-flow';
+import * as flows from '@/ai/flows/quiz-flow';
+
+type FlowName = keyof typeof flows;
+
+const isFlowName = (name: string): name is FlowName => {
+    return name in flows;
+}
 
 export async function POST(req: NextRequest) {
-  const { flow, input } = await req.json();
+  const { flowName, input } = await req.json();
 
-  if (!flow) {
-    return NextResponse.json({ error: 'Flow ID is required.' }, { status: 400 });
+  if (!flowName || !isFlowName(flowName)) {
+    return NextResponse.json({ error: 'A valid flow name is required.' }, { status: 400 });
   }
 
   try {
-    const result = await runFlow(flow, input);
+    const flowFunction = flows[flowName];
+    const result = await (flowFunction as (arg: any) => Promise<any>)(input);
     return NextResponse.json(result);
   } catch (error: any) {
-    console.error(`Error running flow ${flow}:`, error);
+    console.error(`Error running flow ${flowName}:`, error);
     const errorMessage = error.message || 'An unexpected error occurred.';
-    const errorDetails = error.cause ? JSON.stringify(error.cause) : 'No details available.';
     
     return NextResponse.json(
       { 
-        error: `Failed to run flow '${flow}'.`,
+        error: `Failed to run flow '${flowName}'.`,
         details: errorMessage,
-        cause: errorDetails
       },
       { status: 500 }
     );
