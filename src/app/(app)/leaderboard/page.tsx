@@ -1,5 +1,7 @@
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+'use client';
+
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Card,
   CardContent,
@@ -15,22 +17,19 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Crown } from 'lucide-react';
-import { getFirestore } from 'firebase-admin/firestore';
-import { initializeApp, getApps, App } from 'firebase-admin/app';
+import { db } from '@/lib/firebase';
 import type { User } from '@/lib/types';
 import { getLevelInfo } from '@/lib/level-system';
+import { collection, getDocs, limit, orderBy, query } from 'firebase/firestore';
+import { Crown, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
 
-// Correctly initialize Firebase Admin SDK for server-side execution.
-if (!getApps().length) {
-  initializeApp();
-}
-
-const db = getFirestore();
 
 async function getLeaderboardData(): Promise<User[]> {
-  const usersRef = db.collection('users');
-  const snapshot = await usersRef.orderBy('xp', 'desc').limit(100).get(); // Fetch more to handle duplicates
+  const usersRef = collection(db, 'users');
+  const q = query(usersRef, orderBy('xp', 'desc'), limit(100));
+  const snapshot = await getDocs(q);
   
   if (snapshot.empty) {
     return [];
@@ -54,8 +53,16 @@ async function getLeaderboardData(): Promise<User[]> {
 }
 
 
-export default async function LeaderboardPage() {
-  const leaderboardData = await getLeaderboardData();
+export default function LeaderboardPage() {
+  const [leaderboardData, setLeaderboardData] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    getLeaderboardData().then(data => {
+      setLeaderboardData(data);
+      setIsLoading(false);
+    });
+  }, []);
 
   return (
     <div className="container mx-auto">
@@ -67,6 +74,17 @@ export default async function LeaderboardPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+           {isLoading ? (
+            <div className="space-y-2">
+                {Array.from({length: 10}).map((_, i) => (
+                    <div key={i} className="flex items-center gap-4 p-2">
+                        <Skeleton className="h-6 w-6" />
+                        <Skeleton className="h-10 w-10 rounded-full" />
+                        <Skeleton className="h-6 flex-grow" />
+                    </div>
+                ))}
+            </div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -102,6 +120,7 @@ export default async function LeaderboardPage() {
               })}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
     </div>
