@@ -25,7 +25,7 @@ import {
 import type { z } from 'zod';
 
 // Initialize the Google AI client
-const API_KEY = process.env.GEMINI_API_KEY;
+const API_KEY = process.env.AUTH_GEMINI_API_KEY;
 if (!API_KEY) {
     throw new Error('GEMINI_API_KEY environment variable is not set. Please check your .env file.');
 }
