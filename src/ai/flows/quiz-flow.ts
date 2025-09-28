@@ -25,39 +25,30 @@ import {
 import type { z } from 'zod';
 
 // Initialize the Google AI client
-const API_KEY = process.env.AUTH_GEMINI_API_KEY;
+const API_KEY = process.env.GOOGLE_API_KEY;
 if (!API_KEY) {
-    throw new Error('GEMINI_API_KEY environment variable is not set. Please check your .env file.');
+    throw new Error('GOOGLE_API_KEY environment variable is not set. Please check your .env file.');
 }
 const genAI = new GoogleGenerativeAI(API_KEY);
 const model = genAI.getGenerativeModel({ 
-    model: 'gemini-1.5-flash',
+    model: 'gemini-1.5-flash-latest',
     generationConfig: { responseMimeType: "application/json" }
 });
 
 
 async function runPrompt<T_Output>(prompt: string, schema: z.ZodType<T_Output>): Promise<T_Output> {
-    try {
-        const result = await model.generateContent(prompt);
-        const responseText = result.response.text();
-        const parsedJson = JSON.parse(responseText);
-        
-        // Validate the parsed JSON against the provided Zod schema
-        const validation = schema.safeParse(parsedJson);
-        if (!validation.success) {
-            console.error("AI response validation failed:", validation.error.errors);
-            throw new Error(`AI response did not match the expected format. Issues: ${validation.error.errors.map(e => e.message).join(', ')}`);
-        }
-
-        return validation.data;
-    } catch (error: any) {
-        console.error("Error running or parsing AI prompt:", error);
-        // Rethrow with a more user-friendly message if possible
-        if (error.message.includes("JSON")) {
-            throw new Error("AI returned an invalid JSON response.");
-        }
-        throw error;
+    const result = await model.generateContent(prompt);
+    const responseText = result.response.text();
+    const parsedJson = JSON.parse(responseText);
+    
+    // Validate the parsed JSON against the provided Zod schema
+    const validation = schema.safeParse(parsedJson);
+    if (!validation.success) {
+        console.error("AI response validation failed:", validation.error.errors);
+        throw new Error(`AI response did not match the expected format. Issues: ${validation.error.errors.map(e => e.message).join(', ')}`);
     }
+
+    return validation.data;
 }
 
 

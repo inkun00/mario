@@ -521,5 +521,3 @@ export default function DashboardPage() {
     </>
   );
 }
-
-    
