@@ -68,7 +68,7 @@ const validateQuizSetPrompt = ai.definePrompt({
     - 모든 기준을 통과하면 "isValid"를 true로 설정하고, "reason"은 비워둡니다.
     - 하나라도 기준을 통과하지 못하면 "isValid"를 false로 설정하고, "reason"에 사용자가 무엇을 수정해야 하는지 한국어로 명확하고 간결하게 설명해 주세요.`,
   config: {
-    model: 'gemini-pro',
+    model: 'gemini-1.5-flash',
   },
 });
 
@@ -116,7 +116,7 @@ const analyzeLearningPrompt = ai.definePrompt({
     {{#each answerLogs}}- Question: {{{question}}}, Correct: {{{isCorrect}}}{{/each}}
     `,
   config: {
-    model: 'gemini-pro',
+    model: 'gemini-1.5-flash',
   },
 });
 
@@ -164,7 +164,7 @@ const generateReviewQuestionPrompt = ai.definePrompt({
     - Answer: {{{answer}}}
     `,
   config: {
-    model: 'gemini-pro',
+    model: 'gemini-1.5-flash',
   },
 });
 
@@ -214,7 +214,7 @@ const checkReviewAnswerPrompt = ai.definePrompt({
 
     Is the student's answer semantically correct based on the original question's context?`,
   config: {
-    model: 'gemini-pro',
+    model: 'gemini-1.5-flash',
   },
 });
 
