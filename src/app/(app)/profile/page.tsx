@@ -25,6 +25,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { cn } from '@/lib/utils';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import Image from 'next/image';
 
 interface ReviewQuestion extends IncorrectAnswer {
     userReviewAnswer?: string;
@@ -143,7 +144,9 @@ export default function ProfilePage() {
         toast({ variant: 'destructive', title: '오류', description: `답변 제출 중 오류가 발생했습니다: ${error.message}` });
         // If submission fails, revert the submitting state
         const revertedQuestions = [...reviewQuestions];
-        revertedQuestions[index].isSubmitting = false;
+        if (revertedQuestions[index]) {
+            revertedQuestions[index].isSubmitting = false;
+        }
         setReviewQuestions(revertedQuestions);
     }
   };
@@ -264,14 +267,14 @@ export default function ProfilePage() {
                         const question = item.question;
                         return (
                           <div key={item.id} className="p-4 border rounded-lg bg-background shadow-sm space-y-3">
-                              <div className="flex justify-between items-start">
-                                  <p className="font-semibold text-base">{question.question}</p>
-                                  <span className="flex items-center gap-1 font-semibold text-primary text-sm">
-                                      <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
-                                      {question.points === -1 ? '랜덤' : `${question.points}점`}
-                                  </span>
-                              </div>
+                              <p className="font-semibold text-base">{question.question}</p>
                               
+                              {question.imageUrl && (
+                                <div className="mt-2 relative aspect-video">
+                                    <Image src={encodeURI(question.imageUrl)} alt={`Question ${index + 1} image`} fill className="rounded-md object-contain" unoptimized={true} />
+                                </div>
+                              )}
+
                               {question.type === 'subjective' && (
                                 <Input 
                                     placeholder="정답을 입력하세요"
@@ -311,7 +314,7 @@ export default function ProfilePage() {
                                 </RadioGroup>
                               )}
                               
-                              <Button onClick={() => handleSubmitReview(index)} disabled={item.isSubmitting} className="w-full">
+                              <Button onClick={() => handleSubmitReview(index)} disabled={item.isSubmitting || !item.userReviewAnswer} className="w-full">
                                   {item.isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "제출"}
                               </Button>
                           </div>
@@ -361,3 +364,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    
