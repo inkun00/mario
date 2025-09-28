@@ -14,11 +14,11 @@ import { ai } from '@/ai';
 import { z } from 'zod';
 import type { QuizSetValidationData, LearningAnalysisData, ReviewQuestionData, CheckReviewAnswerData } from '@/lib/types';
 import { ValidationOutputSchema, AnalysisOutputSchema, ReviewQuestionOutputSchema, CheckReviewAnswerOutputSchema } from '@/lib/schemas';
-import { defineFlow, definePrompt } from 'genkit';
+import { defineFlow } from 'genkit';
 
 
 // 1. Flow for Validating Quiz Sets
-export const validateQuizSetFlow = defineFlow(
+export const validateQuizSet = defineFlow(
   {
     name: 'validateQuizSet',
     inputSchema: z.custom<QuizSetValidationData>(),
@@ -61,7 +61,7 @@ export const validateQuizSetFlow = defineFlow(
 
 
 // 2. Flow for Analyzing Learning
-export const analyzeLearningFlow = defineFlow(
+export const analyzeLearning = defineFlow(
   {
     name: 'analyzeLearning',
     inputSchema: z.custom<LearningAnalysisData>(),
@@ -94,7 +94,7 @@ export const analyzeLearningFlow = defineFlow(
 );
 
 // 3. Flow for Generating Review Questions
-export const generateReviewQuestionFlow = defineFlow(
+export const generateReviewQuestion = defineFlow(
   {
     name: 'generateReviewQuestion',
     inputSchema: z.custom<ReviewQuestionData>(),
@@ -130,7 +130,7 @@ export const generateReviewQuestionFlow = defineFlow(
 
 
 // 4. Flow for Checking Review Answers
-export const checkReviewAnswerFlow = defineFlow(
+export const checkReviewAnswer = defineFlow(
   {
     name: 'checkReviewAnswer',
     inputSchema: z.custom<CheckReviewAnswerData>(),
