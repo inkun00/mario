@@ -90,16 +90,17 @@ export async function updateScores(input: UpdateScoresInput): Promise<{ success:
     // 2. Record all answer logs
     if (answerLogs && answerLogs.length > 0) {
         for (const log of answerLogs) {
-            if (!log.userId) continue;
+            if (!log.userId || !log.question) continue;
 
-            const logRef = db.collection('users').doc(log.userId).collection('answerLogs').doc();
-            
             const logWithServerTimestamp = {
               ...log,
               timestamp: log.timestamp ? AdminTimestamp.fromMillis(log.timestamp as number) : FieldValue.serverTimestamp(),
             };
 
+            // Save to top-level answerLogs collection
+            const logRef = db.collection('answerLogs').doc();
             batch.set(logRef, logWithServerTimestamp);
+
 
             // Keep separate incorrect answers collection for review feature
             if (!log.isCorrect) {
@@ -126,5 +127,3 @@ export async function updateScores(input: UpdateScoresInput): Promise<{ success:
     return { success: false, message: 'An error occurred while updating scores and logs.' };
   }
 }
-
-    

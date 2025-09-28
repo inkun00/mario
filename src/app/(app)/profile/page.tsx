@@ -15,7 +15,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo } from 'react';
 import type { User, AnswerLog, IncorrectAnswer } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, limit, orderBy } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, limit, orderBy, where } from 'firebase/firestore';
 import { BrainCircuit, Sparkles, Loader2, Lightbulb, CheckCircle, Trophy, School } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -81,7 +81,13 @@ export default function ProfilePage() {
         setNextLevelInfo(getNextLevelInfo(currentLevel.level));
       }
 
-      const answerLogsQuery = query(collection(db, 'users', user.uid, 'answerLogs'), orderBy('timestamp', 'desc'), limit(100));
+      // Fetch from the top-level answerLogs collection
+      const answerLogsQuery = query(
+          collection(db, 'answerLogs'), 
+          where('userId', '==', user.uid),
+          orderBy('timestamp', 'desc'), 
+          limit(100)
+      );
       const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
       
       const [logsSnapshot, incorrectSnapshot] = await Promise.all([
@@ -429,5 +435,3 @@ export default function ProfilePage() {
   );
 
 }
-
-    
