@@ -37,8 +37,14 @@ const nextConfig: NextConfig = {
     return config;
   },
   serverActions: {
-    allowedOrigins: ["localhost:9002", "*.firebase.app", "*.web.app"]
-  }
+    allowedOrigins: ["localhost:9002", "*.firebase.app", "*.web.app"],
+    bodySizeLimit: '4.5mb',
+  },
+  experimental: {
+    httpAgentOptions: {
+      keepAlive: true,
+    },
+  },
 };
 
 export default nextConfig;
