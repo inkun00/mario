@@ -281,7 +281,7 @@ export default function ProfilePage() {
             <Progress value={Math.max(0, progressPercentage)} className="h-3" />
              {nextLevelInfo && (
                 <p className="text-xs text-right text-muted-foreground mt-1">
-                    다음 레벨까지 {nextLevelInfo.xpThreshold - userData.xp} XP 남음
+                    다음 레벨까지 {Math.max(0, nextLevelInfo.xpThreshold - userData.xp)} XP 남음
                 </p>
             )}
           </div>
@@ -429,3 +429,5 @@ export default function ProfilePage() {
   );
 
 }
+
+    
