@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview Defines AI flows for quiz management using @google/generative-ai.
+ * @fileOverview Defines AI flows for quiz management using Genkit.
  *
  * - validateQuizSet: Validates a user-submitted quiz set.
  * - analyzeLearning: Analyzes a student's learning patterns.
@@ -9,7 +9,7 @@
  * - checkReviewAnswer: Checks a student's answer to a review question.
  */
 
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import {ai} from '@/ai/genkit';
 import {
   QuizSetValidationData,
   LearningAnalysisData,
@@ -21,50 +21,21 @@ import {
   AnalysisOutputSchema,
   ReviewQuestionOutputSchema,
   CheckReviewAnswerOutputSchema,
+  QuizSetValidationInputSchema,
+  LearningAnalysisInputSchema,
+  ReviewQuestionInputSchema,
+  CheckReviewAnswerInputSchema
 } from '@/lib/schemas';
-import type { z } from 'zod';
-
-// Initialize the Google AI client
-const API_KEY = process.env.GOOGLE_API_KEY;
-if (!API_KEY) {
-    throw new Error('GOOGLE_API_KEY environment variable is not set. Please check your .env file.');
-}
-const genAI = new GoogleGenerativeAI(API_KEY);
-const model = genAI.getGenerativeModel({ 
-    model: 'gemini-1.5-flash-latest',
-});
-
-
-async function runPrompt<T_Output>(prompt: string, schema: z.ZodType<T_Output>): Promise<T_Output> {
-    const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
-    
-    // Find the JSON block within the response text
-    const jsonMatch = responseText.match(/```json\n([\s\S]*?)\n```/);
-    const jsonString = jsonMatch ? jsonMatch[1] : responseText;
-
-    try {
-        const parsedJson = JSON.parse(jsonString);
-        
-        // Validate the parsed JSON against the provided Zod schema
-        const validation = schema.safeParse(parsedJson);
-        if (!validation.success) {
-            console.error("AI response validation failed:", validation.error.errors);
-            throw new Error(`AI response did not match the expected format. Issues: ${validation.error.errors.map(e => e.message).join(', ')}`);
-        }
-
-        return validation.data;
-    } catch (error) {
-        console.error("Failed to parse AI response as JSON:", error);
-        console.error("Original AI response text:", responseText);
-        throw new Error("The AI returned a response that was not valid JSON.");
-    }
-}
 
 
 // 1. Flow for Validating Quiz Sets
-export async function validateQuizSet(input: QuizSetValidationData) {
-    const prompt = `당신은 교육용 플랫폼의 전문 AI 콘텐츠 검수관입니다. 사용자가 제출한 퀴즈 세트가 아래 기준을 모두 만족하는지 검토해 주세요.
+
+const validateQuizSetPrompt = ai.definePrompt({
+  name: 'validateQuizSetPrompt',
+  input: {schema: QuizSetValidationInputSchema},
+  output: {schema: ValidationOutputSchema},
+  config: {model: 'gemini-1.5-flash-latest'},
+  prompt: `당신은 교육용 플랫폼의 전문 AI 콘텐츠 검수관입니다. 사용자가 제출한 퀴즈 세트가 아래 기준을 모두 만족하는지 검토해 주세요.
 
     **검증 기준:**
     1.  **교육적 적합성 및 안전성:** 모든 질문과 답변은 교육적이어야 하며, 모든 연령대에 안전해야 합니다. 비속어, 모욕적인 내용, 또는 폭력적이거나 부적절한 콘텐츠가 포함되어서는 안 됩니다.
@@ -73,28 +44,48 @@ export async function validateQuizSet(input: QuizSetValidationData) {
     4.  **중복 질문:** 완전히 동일하거나 거의 유사한 질문이 반복되는지 확인합니다.
 
     **제출된 퀴즈 데이터:**
-    - 제목: ${input.title}
-    - 설명: ${input.description}
-    - 학년: ${input.grade}
-    - 학기: ${input.semester}
-    - 과목: ${input.subject}
-    - 단원: ${input.unit}
+    - 제목: ${"{{title}}"}
+    - 설명: ${"{{description}}"}
+    - 학년: ${"{{grade}}"}
+    - 학기: ${"{{semester}}"}
+    - 과목: ${"{{subject}}"}
+    - 단원: ${"{{unit}}"}
     - 질문 목록:
-      ${input.questions.map(q => `- 질문: ${q.question} / 답변: ${q.answer || q.correctAnswer}`).join('\n')}
+      {{#each questions}}- 질문: {{question}} / 답변: {{answer}}{{correctAnswer}}
+      {{/each}}
 
     **출력 형식:**
     검토 결과를 바탕으로, "isValid" (boolean)와 "reason" (string) 키를 가진 JSON 객체로만 응답해 주세요.
     - 모든 기준을 통과하면 "isValid"를 true로 설정하고, "reason"은 비워둡니다.
     - 하나라도 기준을 통과하지 못하면 "isValid"를 false로 설정하고, "reason"에 사용자가 무엇을 수정해야 하는지 한국어로 명확하고 간결하게 설명해 주세요.
-    Your response must be a valid JSON object.`;
+    Your response must be a valid JSON object.`,
+});
 
-    return await runPrompt(prompt, ValidationOutputSchema);
+const validateQuizSetFlow = ai.defineFlow(
+  {
+    name: 'validateQuizSetFlow',
+    inputSchema: QuizSetValidationInputSchema,
+    outputSchema: ValidationOutputSchema,
+  },
+  async input => {
+    const {output} = await validateQuizSetPrompt(input);
+    return output!;
+  }
+);
+
+export async function validateQuizSet(input: QuizSetValidationData) {
+    return await validateQuizSetFlow(input);
 }
 
 
 // 2. Flow for Analyzing Learning
-export async function analyzeLearning(input: LearningAnalysisData) {
-    const prompt = `You are an expert learning analyst AI. Your task is to analyze a student's performance based on their answer logs. Identify patterns to determine their strong and weak areas.
+
+const analyzeLearningPrompt = ai.definePrompt({
+    name: 'analyzeLearningPrompt',
+    input: { schema: LearningAnalysisInputSchema },
+    output: { schema: AnalysisOutputSchema },
+    config: {model: 'gemini-1.5-flash-latest'},
+    prompt: `You are an expert learning analyst AI. Your task is to analyze a student's performance based on their answer logs. Identify patterns to determine their strong and weak areas.
 
     - Analyze the topics from the list of questions.
     - For "strongAreas", summarize which topics the student seems to understand well (based on 'isCorrect: true').
@@ -105,17 +96,37 @@ export async function analyzeLearning(input: LearningAnalysisData) {
     - Your entire response should be a single JSON object with keys "strongAreas" and "weakAreas".
 
     Answer Logs:
-    ${input.answerLogs.map(log => `- Question: ${log.question}, Correct: ${log.isCorrect}`).join('\n')}
+    {{#each answerLogs}}- Question: {{question}}, Correct: {{isCorrect}}
+    {{/each}}
     
-    Your response must be a valid JSON object.`;
-    
-    return await runPrompt(prompt, AnalysisOutputSchema);
+    Your response must be a valid JSON object.`
+});
+
+const analyzeLearningFlow = ai.defineFlow(
+    {
+        name: 'analyzeLearningFlow',
+        inputSchema: LearningAnalysisInputSchema,
+        outputSchema: AnalysisOutputSchema,
+    },
+    async (input) => {
+        const { output } = await analyzeLearningPrompt(input);
+        return output!;
+    }
+);
+
+export async function analyzeLearning(input: LearningAnalysisData) {
+    return await analyzeLearningFlow(input);
 }
 
 
 // 3. Flow for Generating Review Questions
-export async function generateReviewQuestion(input: ReviewQuestionData) {
-    const prompt = `You are an AI tutor. Your task is to create a review question based on a question a student previously answered incorrectly.
+
+const generateReviewQuestionPrompt = ai.definePrompt({
+    name: 'generateReviewQuestionPrompt',
+    input: { schema: ReviewQuestionInputSchema },
+    output: { schema: ReviewQuestionOutputSchema },
+    config: {model: 'gemini-1.5-flash-latest'},
+    prompt: `You are an AI tutor. Your task is to create a review question based on a question a student previously answered incorrectly.
     The new question must be related to the original one but phrased differently.
     It MUST be a subjective/descriptive question that requires a written answer, not multiple choice or O/X.
     Most importantly, the difficulty and vocabulary of the new question MUST be appropriate for the original question's grade level and unit.
@@ -123,36 +134,69 @@ export async function generateReviewQuestion(input: ReviewQuestionData) {
     Respond in Korean.
 
     Context:
-    - Grade Level: ${input.grade}
-    - Unit: ${input.unit}
+    - Grade Level: ${"{{grade}}"}
+    - Unit: ${"{{unit}}"}
     
     Original Question and Answer:
-    - Question: ${input.question}
-    - Answer: ${input.answer}
+    - Question: ${"{{question}}"}
+    - Answer: ${"{{answer}}"}
 
-    Your response must be a valid JSON object.`;
+    Your response must be a valid JSON object.`
+});
 
-    return await runPrompt(prompt, ReviewQuestionOutputSchema);
+const generateReviewQuestionFlow = ai.defineFlow(
+    {
+        name: 'generateReviewQuestionFlow',
+        inputSchema: ReviewQuestionInputSchema,
+        outputSchema: ReviewQuestionOutputSchema,
+    },
+    async (input) => {
+        const { output } = await generateReviewQuestionPrompt(input);
+        return output!;
+    }
+);
+
+export async function generateReviewQuestion(input: ReviewQuestionData) {
+    return await generateReviewQuestionFlow(input);
 }
 
 
 // 4. Flow for Checking Review Answers
-export async function checkReviewAnswer(input: CheckReviewAnswerData) {
-    const prompt = `You are an AI grading assistant. Your task is to evaluate a student's answer to a review question.
+
+const checkReviewAnswerPrompt = ai.definePrompt({
+    name: 'checkReviewAnswerPrompt',
+    input: { schema: CheckReviewAnswerInputSchema },
+    output: { schema: CheckReviewAnswerOutputSchema },
+    config: {model: 'gemini-1.5-flash-latest'},
+    prompt: `You are an AI grading assistant. Your task is to evaluate a student's answer to a review question.
     The answer doesn't have to be an exact match, but it must be semantically correct.
     Base your evaluation on the context of the original question and its answer.
     Respond with a JSON object with keys "isCorrect" (boolean) and "explanation" (string).
     The explanation should be a brief reason for why the answer is correct or incorrect.
     Respond in Korean.
 
-    Original Question: ${input.originalQuestion.question}
-    Correct Answer to Original Question: ${input.originalQuestion.answer || input.originalQuestion.correctAnswer}
+    Original Question: ${"{{originalQuestion.question}}"}
+    Correct Answer to Original Question: ${"{{originalQuestion.answer}}{{originalQuestion.correctAnswer}}"}
 
-    Review Question Asked: ${input.reviewQuestion}
-    Student's Answer: ${input.userAnswer}
+    Review Question Asked: ${"{{reviewQuestion}}"}
+    Student's Answer: ${"{{userAnswer}}"}
 
     Is the student's answer semantically correct based on the original question's context?
-    Your response must be a valid JSON object.`;
+    Your response must be a valid JSON object.`
+});
 
-    return await runPrompt(prompt, CheckReviewAnswerOutputSchema);
+const checkReviewAnswerFlow = ai.defineFlow(
+    {
+        name: 'checkReviewAnswerFlow',
+        inputSchema: CheckReviewAnswerInputSchema,
+        outputSchema: CheckReviewAnswerOutputSchema,
+    },
+    async (input) => {
+        const { output } = await checkReviewAnswerPrompt(input);
+        return output!;
+    }
+);
+
+export async function checkReviewAnswer(input: CheckReviewAnswerData) {
+    return await checkReviewAnswerFlow(input);
 }
