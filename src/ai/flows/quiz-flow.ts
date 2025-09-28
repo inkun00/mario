@@ -32,23 +32,33 @@ if (!API_KEY) {
 const genAI = new GoogleGenerativeAI(API_KEY);
 const model = genAI.getGenerativeModel({ 
     model: 'gemini-1.5-flash-latest',
-    generationConfig: { responseMimeType: "application/json" }
 });
 
 
 async function runPrompt<T_Output>(prompt: string, schema: z.ZodType<T_Output>): Promise<T_Output> {
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
-    const parsedJson = JSON.parse(responseText);
     
-    // Validate the parsed JSON against the provided Zod schema
-    const validation = schema.safeParse(parsedJson);
-    if (!validation.success) {
-        console.error("AI response validation failed:", validation.error.errors);
-        throw new Error(`AI response did not match the expected format. Issues: ${validation.error.errors.map(e => e.message).join(', ')}`);
-    }
+    // Find the JSON block within the response text
+    const jsonMatch = responseText.match(/```json\n([\s\S]*?)\n```/);
+    const jsonString = jsonMatch ? jsonMatch[1] : responseText;
 
-    return validation.data;
+    try {
+        const parsedJson = JSON.parse(jsonString);
+        
+        // Validate the parsed JSON against the provided Zod schema
+        const validation = schema.safeParse(parsedJson);
+        if (!validation.success) {
+            console.error("AI response validation failed:", validation.error.errors);
+            throw new Error(`AI response did not match the expected format. Issues: ${validation.error.errors.map(e => e.message).join(', ')}`);
+        }
+
+        return validation.data;
+    } catch (error) {
+        console.error("Failed to parse AI response as JSON:", error);
+        console.error("Original AI response text:", responseText);
+        throw new Error("The AI returned a response that was not valid JSON.");
+    }
 }
 
 
@@ -75,7 +85,8 @@ export async function validateQuizSet(input: QuizSetValidationData) {
     **출력 형식:**
     검토 결과를 바탕으로, "isValid" (boolean)와 "reason" (string) 키를 가진 JSON 객체로만 응답해 주세요.
     - 모든 기준을 통과하면 "isValid"를 true로 설정하고, "reason"은 비워둡니다.
-    - 하나라도 기준을 통과하지 못하면 "isValid"를 false로 설정하고, "reason"에 사용자가 무엇을 수정해야 하는지 한국어로 명확하고 간결하게 설명해 주세요.`;
+    - 하나라도 기준을 통과하지 못하면 "isValid"를 false로 설정하고, "reason"에 사용자가 무엇을 수정해야 하는지 한국어로 명확하고 간결하게 설명해 주세요.
+    Your response must be a valid JSON object.`;
 
     return await runPrompt(prompt, ValidationOutputSchema);
 }
@@ -95,7 +106,8 @@ export async function analyzeLearning(input: LearningAnalysisData) {
 
     Answer Logs:
     ${input.answerLogs.map(log => `- Question: ${log.question}, Correct: ${log.isCorrect}`).join('\n')}
-    `;
+    
+    Your response must be a valid JSON object.`;
     
     return await runPrompt(prompt, AnalysisOutputSchema);
 }
@@ -117,7 +129,8 @@ export async function generateReviewQuestion(input: ReviewQuestionData) {
     Original Question and Answer:
     - Question: ${input.question}
     - Answer: ${input.answer}
-    `;
+
+    Your response must be a valid JSON object.`;
 
     return await runPrompt(prompt, ReviewQuestionOutputSchema);
 }
@@ -138,7 +151,8 @@ export async function checkReviewAnswer(input: CheckReviewAnswerData) {
     Review Question Asked: ${input.reviewQuestion}
     Student's Answer: ${input.userAnswer}
 
-    Is the student's answer semantically correct based on the original question's context?`;
+    Is the student's answer semantically correct based on the original question's context?
+    Your response must be a valid JSON object.`;
 
     return await runPrompt(prompt, CheckReviewAnswerOutputSchema);
 }
