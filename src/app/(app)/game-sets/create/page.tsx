@@ -122,8 +122,14 @@ async function callApi(flowName: string, input: any) {
     body: JSON.stringify({ flowName, input }),
   });
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.details || 'API call failed');
+    let errorDetails = 'API call failed';
+    try {
+        const error = await response.json();
+        errorDetails = error.details || JSON.stringify(error);
+    } catch (e) {
+        errorDetails = await response.text();
+    }
+    throw new Error(errorDetails);
   }
   return response.json();
 }

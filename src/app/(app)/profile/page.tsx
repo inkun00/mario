@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import type { User, AnswerLog, IncorrectAnswer } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, limit, orderBy, where } from 'firebase/firestore';
 import { BrainCircuit, Sparkles, Loader2, Lightbulb, CheckCircle, Trophy, School } from 'lucide-react';
@@ -43,8 +43,14 @@ async function callApi(flowName: string, input: any) {
     body: JSON.stringify({ flowName, input }),
   });
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.details || 'API call failed');
+    let errorDetails = 'API call failed';
+    try {
+        const error = await response.json();
+        errorDetails = error.details || JSON.stringify(error);
+    } catch (e) {
+        errorDetails = await response.text();
+    }
+    throw new Error(errorDetails);
   }
   return response.json();
 }
@@ -81,7 +87,6 @@ export default function ProfilePage() {
         setNextLevelInfo(getNextLevelInfo(currentLevel.level));
       }
 
-      // Fetch from the top-level answerLogs collection
       const answerLogsQuery = query(
           collection(db, 'answerLogs'), 
           where('userId', '==', user.uid),
@@ -304,7 +309,6 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
       
-      {/*
       <Card>
         <CardHeader>
             <div className="flex justify-between items-start">
@@ -335,7 +339,7 @@ export default function ProfilePage() {
             </CardContent>
         )}
       </Card>
-      */}
+      
       
       <Card>
           <CardHeader>
