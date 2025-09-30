@@ -80,28 +80,29 @@ export async function updateScores(input: UpdateScoresInput): Promise<{ success:
 
       const userRef = db.collection('users').doc(player.uid);
       
+      // Update XP and last played timestamp
       batch.update(userRef, {
         xp: FieldValue.increment(xpGained),
         lastPlayed: FieldValue.serverTimestamp(),
       });
     }
 
-    // 2. Record all answer logs
+    // 2. Record all answer logs and incorrect answers for review
     if (answerLogs && answerLogs.length > 0) {
         for (const log of answerLogs) {
             if (!log.userId || !log.question) continue;
 
             const logWithServerTimestamp = {
               ...log,
-              timestamp: log.timestamp ? AdminTimestamp.fromMillis(log.timestamp as number) : FieldValue.serverTimestamp(),
+              // Ensure timestamp is a server timestamp for consistency
+              timestamp: FieldValue.serverTimestamp(),
             };
 
             // Save to top-level answerLogs collection
             const logRef = db.collection('answerLogs').doc();
             batch.set(logRef, logWithServerTimestamp);
 
-
-            // Keep separate incorrect answers collection for review feature
+            // If the answer is incorrect, also save it to the user's private 'incorrect-answers' subcollection for review.
             if (!log.isCorrect) {
                 const incorrectAnswerRef = db.collection('users').doc(log.userId).collection('incorrect-answers').doc();
                 batch.set(incorrectAnswerRef, {
