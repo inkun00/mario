@@ -34,8 +34,6 @@ export async function recordIncorrectAnswer(incorrectLog: Omit<IncorrectAnswer, 
  * 디버깅을 위해 상세한 결과 객체를 반환합니다.
  */
 export async function finishGameAndRecordStats(gameRoomId: string, finalLogsForXp: { userId: string, pointsAwarded: number }[]): Promise<{ success: boolean; message: string; data?: any; error?: any;}> {
-    console.log("--- finishGameAndRecordStats 실행 ---");
-    console.log("클라이언트로부터 받은 데이터:", JSON.stringify(finalLogsForXp, null, 2));
     try {
         const roomRef = adminDb.collection('game-rooms').doc(gameRoomId);
         const roomSnap = await roomRef.get();
@@ -45,7 +43,6 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalLogsForX
         }
         
         const playerUIDs = Array.from(new Set(finalLogsForXp.map(log => log.userId).filter(Boolean))) as string[];
-        console.log("XP를 업데이트할 필터링된 UID 목록:", playerUIDs);
         
         const scores: Record<string, number> = {};
         playerUIDs.forEach(uid => scores[uid] = 0);

@@ -123,14 +123,15 @@ export default function GamePage() {
     const handleSnapshot = async (docSnap: any) => {
         if (docSnap.exists()) {
             const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
-            setGameRoom(roomData);
-             
+            
             if (roomData.status === 'finished' && !showGameOverPopup) {
                 const finalPlayers = calculateScoresFromLogs(roomData);
                 setFinalScores(finalPlayers);
                 setShowGameOverPopup(true);
                 return;
             }
+            
+            setGameRoom(roomData);
 
             if (roomData.status === 'setting-mystery') {
                 if (roomData.joinType === 'local' || (roomData.joinType === 'remote' && user?.uid === roomData.hostId)) {
@@ -254,9 +255,9 @@ export default function GamePage() {
           const allAnswered = Object.keys(newGameState).length >= totalBlocks;
 
           if (allAnswered) {
-             updateDoc(roomRef, { status: 'finished', gameState: newGameState });
+             await updateDoc(roomRef, { status: 'finished' });
           } else {
-             updateDoc(roomRef, { 
+             await updateDoc(roomRef, { 
                 gameState: newGameState,
                 currentTurn: nextTurnUID,
             });
@@ -334,13 +335,11 @@ export default function GamePage() {
     const pointsToAward = isCorrect ? currentPoints : 0;
     const currentTurnUID = gameRoom.currentTurn;
 
-    const answerLogId = uuidv4();
-    
     // If incorrect, record it immediately via a lightweight server action
     if (!isCorrect) {
         try {
             await recordIncorrectAnswer({
-                id: answerLogId,
+                id: uuidv4(),
                 userId: currentTurnUID,
                 gameSetId: gameSet.id,
                 gameSetTitle: gameSet.title,
@@ -419,11 +418,6 @@ export default function GamePage() {
       return;
     }
   
-    let newLogEntry: Partial<AnswerLog> = {
-      userId: currentTurnUID,
-      pointsAwarded: 0,
-    };
-  
     try {
         const logsToPush: Partial<AnswerLog>[] = [];
         let pointsChange = 0;
@@ -434,15 +428,15 @@ export default function GamePage() {
             case 'bonus':
             case 'penalty':
                 pointsChange = mysteryBoxEffect.value || 0;
-                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange });
+                logsToPush.push({ userId: currentTurnUID, pointsAwarded: pointsChange });
                 break;
             case 'double':
                 pointsChange = currentPlayersState.find(p => p.uid === currentTurnUID)?.score || 0;
-                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange });
+                logsToPush.push({ userId: currentTurnUID, pointsAwarded: pointsChange });
                 break;
             case 'half':
                 pointsChange = -Math.floor((currentPlayersState.find(p => p.uid === currentTurnUID)?.score || 0) / 2);
-                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange });
+                logsToPush.push({ userId: currentTurnUID, pointsAwarded: pointsChange });
                 break;
             case 'swap':
                  if (!playerForSwap) {
