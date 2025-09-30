@@ -1,8 +1,9 @@
+
 'use server';
 
-import { FieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
+import { FieldValue } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase-admin';
-import type { AnswerLog, IncorrectAnswer } from '@/lib/types';
+import type { IncorrectAnswer, AnswerLog } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -15,15 +16,14 @@ export async function recordIncorrectAnswer(incorrectLog: Omit<IncorrectAnswer, 
             // userId가 없는 경우 그냥 무시
             return;
         }
-
-        const logWithAdminTimestamp = {
+        
+        const incorrectAnswerRef = adminDb.collection('users').doc(userId).collection('incorrect-answers').doc(incorrectLog.id || uuidv4());
+        // Here, we can directly set the JS Date object, Firestore Admin SDK will convert it.
+        await incorrectAnswerRef.set({
             ...rest,
             userId,
-            timestamp: AdminTimestamp.fromDate(new Date(incorrectLog.timestamp)),
-        };
-        
-        const incorrectAnswerRef = adminDb.collection('users').doc(userId).collection('incorrect-answers').doc(logWithAdminTimestamp.id || uuidv4());
-        await incorrectAnswerRef.set(logWithAdminTimestamp);
+            timestamp: incorrectLog.timestamp, 
+        });
 
     } catch (error) {
         console.error("Error recording single incorrect answer:", error);
@@ -33,44 +33,43 @@ export async function recordIncorrectAnswer(incorrectLog: Omit<IncorrectAnswer, 
 
 
 /**
- * 게임 종료 시 필수적인 XP 업데이트만 트랜잭션으로 처리하는 경량화된 함수
+ * 트랜잭션을 Batched Write로 변경하여 극적으로 경량화된 최종 함수
  */
 export async function finishGameAndRecordStats(gameRoomId: string, finalLogsForXp: { userId: string, pointsAwarded: number }[]) {
     try {
-        // --- 1. 필수적인 XP 업데이트 트랜잭션 ---
-        await adminDb.runTransaction(async (transaction) => {
-            const roomRef = adminDb.collection('game-rooms').doc(gameRoomId);
-            const roomSnap = await transaction.get(roomRef);
+        // 1. 트랜잭션 없이 게임방 존재 여부만 빠르게 확인
+        const roomRef = adminDb.collection('game-rooms').doc(gameRoomId);
+        const roomSnap = await roomRef.get();
 
-            if (!roomSnap.exists) {
-                throw new Error("Game room not found.");
+        if (!roomSnap.exists) {
+            throw new Error("Game room not found.");
+        }
+        
+        // 2. 메모리에서 점수 집계 (매우 빠름)
+        const playerUIDs = Array.from(new Set(finalLogsForXp.map(log => log.userId).filter(Boolean))) as string[];
+        const scores: Record<string, number> = {};
+        playerUIDs.forEach(uid => scores[uid] = 0);
+
+        finalLogsForXp.forEach(log => {
+            if (log.userId && typeof log.pointsAwarded === 'number') {
+                scores[log.userId] = (scores[log.userId] || 0) + log.pointsAwarded;
             }
-            
-            const playerUIDs = Array.from(new Set(finalLogsForXp.map(log => log.userId).filter(Boolean))) as string[];
-            
-            const scores: Record<string, number> = {};
-            playerUIDs.forEach(uid => scores[uid] = 0);
-
-            finalLogsForXp.forEach(log => {
-                if (log.userId && typeof log.pointsAwarded === 'number') {
-                    scores[log.userId] = (scores[log.userId] || 0) + log.pointsAwarded;
-                }
-            });
-            
-            const userRefs = playerUIDs.map(uid => adminDb.collection('users').doc(uid));
-            const userSnaps = await transaction.getAll(...userRefs);
-            
-            userSnaps.forEach(userSnap => {
-                if (userSnap.exists) {
-                    const userRef = userSnap.ref;
-                    const xpGained = scores[userSnap.id] || 0;
-                    
-                    if (xpGained !== 0) {
-                        transaction.update(userRef, { xp: FieldValue.increment(xpGained) });
-                    }
-                }
-            });
         });
+        
+        // 3. Batched Write 생성
+        const batch = adminDb.batch();
+
+        playerUIDs.forEach(uid => {
+            const xpGained = scores[uid] || 0;
+            if (xpGained !== 0) {
+                const userRef = adminDb.collection('users').doc(uid);
+                // 읽기 작업 없이 업데이트 작업만 배치에 추가
+                batch.update(userRef, { xp: FieldValue.increment(xpGained) });
+            }
+        });
+
+        // 4. 모든 XP 업데이트를 한 번의 요청으로 커밋 (매우 빠름)
+        await batch.commit();
 
         console.log(`Successfully finished game and updated XP for room ${gameRoomId}.`);
 
