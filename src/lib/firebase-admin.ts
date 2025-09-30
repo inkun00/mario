@@ -5,25 +5,23 @@ import { getFirestore, Firestore } from 'firebase-admin/firestore';
 let adminDb: Firestore;
 
 
-
-
-function initializeAdmin() {
-  const BATCH_REQUESTS_MAX = 500;
-  if (getApps().length > 0) {
-    adminDb = getFirestore(getApps()[0]);
-    adminDb.settings({
-        batchRequests: BATCH_REQUESTS_MAX,
-    });
-  } else {
-    initializeApp();
-    adminDb = getFirestore();
-    adminDb.settings({
-        batchRequests: BATCH_REQUESTS_MAX,
-    });
-  }
-  return adminDb;
+// This robust singleton pattern ensures Firebase is initialized only once.
+if (getApps().length === 0) {
+  initializeApp();
 }
 
-adminDb = initializeAdmin();
+adminDb = getFirestore();
+
+try {
+  // Firestore has a maximum batch size of 500.
+  // This settings call will only succeed on the very first initialization.
+  // Subsequent calls will throw an error, which we safely ignore in the catch block.
+  adminDb.settings({
+      batchRequests: 500,
+  });
+} catch (e) {
+  // This is expected and fine if settings have already been applied.
+}
+
 
 export { adminDb };
