@@ -7,7 +7,9 @@ let adminDb: Firestore;
 
 // This robust singleton pattern ensures Firebase is initialized only once.
 if (getApps().length === 0) {
-  initializeApp();
+  initializeApp({
+    projectId: "studio-3737899036-7f9e4"
+  });
 }
 
 adminDb = getFirestore();
