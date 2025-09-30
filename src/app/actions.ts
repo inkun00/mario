@@ -11,41 +11,6 @@ if (!getApps().length) {
 }
 const db = getFirestore();
 
-interface CheckUserResult {
-    exists: boolean;
-    uid: string | null;
-    nickname: string | null;
-}
-
-/**
- * Checks if a user exists in the database by their email using Admin privileges.
- * @param userId - The email of the user to check.
- * @returns An object indicating if the user exists, their UID, and their nickname.
- */
-export async function checkUserId(userId: string): Promise<CheckUserResult> {
-    try {
-        const usersRef = db.collection('users');
-        const querySnapshot = await usersRef.where('email', '==', userId).limit(1).get();
-
-        if (querySnapshot.empty) {
-            return { exists: false, uid: null, nickname: null };
-        }
-
-        const userDoc = querySnapshot.docs[0];
-        const userData = userDoc.data();
-
-        return {
-            exists: true,
-            uid: userDoc.id,
-            nickname: userData.displayName || '이름없음',
-        };
-    } catch (error) {
-        console.error("Error in checkUserId server action:", error);
-        // Do not expose detailed server errors to the client
-        throw new Error('사용자 확인 중 오류가 발생했습니다.');
-    }
-}
-
 
 /**
  * Finishes the game and records stats for all players.

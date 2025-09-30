@@ -18,7 +18,6 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { ADMIN_EMAILS } from '@/lib/admins';
-import { checkUserId } from '@/app/actions';
 
 function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
     const router = useRouter();
@@ -147,9 +146,19 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
         }
 
         try {
-            const result = await checkUserId(userId);
-            
-            if (result.exists && result.uid && result.nickname) {
+            const usersRef = collection(db, 'users');
+            const q = query(usersRef, where('email', '==', userId), limit(1));
+            const querySnapshot = await getDocs(q);
+
+            if (!querySnapshot.empty) {
+                const userDoc = querySnapshot.docs[0];
+                const userData = userDoc.data();
+                const result = {
+                    exists: true,
+                    uid: userDoc.id,
+                    nickname: userData.displayName || '이름없음',
+                };
+                
                 const isDuplicate = players.some(p => p.uid === result.uid);
                 if (isDuplicate) {
                     toast({ variant: 'destructive', title: '중복 참여', description: `"${result.nickname}" 님은 이미 참여 중입니다.`});
