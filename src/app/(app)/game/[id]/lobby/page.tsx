@@ -18,7 +18,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { ADMIN_EMAILS } from '@/lib/admins';
-import { useUserDirectory } from '@/contexts/UserDirectoryContext';
+import { checkUserId } from '@/app/actions';
 
 function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
     const router = useRouter();
@@ -119,8 +119,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
     const [players, setPlayers] = useState<Array<{userId: string; uid: string; nickname: string; confirmed: boolean; isChecking: boolean }>>([]);
     const { toast } = useToast();
     const isAdmin = user ? ADMIN_EMAILS.includes(user.email || '') : false;
-    const { getUserByEmail, isLoading: isLoadingDirectory } = useUserDirectory();
-
+    
     useEffect(() => {
         setPlayers(Array.from({ length: numPlayers }, () => ({ userId: '', uid: '', nickname: '', confirmed: false, isChecking: false })));
     }, [numPlayers]);
@@ -134,10 +133,10 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
         setPlayers(newPlayers);
     };
 
-    const handleConfirmPlayer = (index: number) => {
+    const handleConfirmPlayer = async (index: number) => {
         const newPlayers = [...players];
         newPlayers[index].isChecking = true;
-        setPlayers(newPlayers);
+        setPlayers([...newPlayers]);
 
         const userId = players[index].userId;
         if (!userId) {
@@ -147,23 +146,27 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
             return;
         }
 
-        const foundUser = getUserByEmail(userId);
-
-        if (foundUser && foundUser.uid && foundUser.displayName) {
-            const isDuplicate = players.some(p => p.uid === foundUser.uid);
-            if (isDuplicate) {
-                toast({ variant: 'destructive', title: '중복 참여', description: `"${foundUser.displayName}" 님은 이미 참여 중입니다.`});
-                newPlayers[index].userId = '';
-            } else if (gameSet && gameSet.creatorId === foundUser.uid && !isAdmin) {
-                toast({ variant: 'destructive', title: '참여 불가', description: `제작자(${foundUser.displayName})는 자신이 만든 퀴즈에 참여할 수 없습니다.`});
+        try {
+            const result = await checkUserId(userId);
+            
+            if (result.exists && result.uid && result.nickname) {
+                const isDuplicate = players.some(p => p.uid === result.uid);
+                if (isDuplicate) {
+                    toast({ variant: 'destructive', title: '중복 참여', description: `"${result.nickname}" 님은 이미 참여 중입니다.`});
+                    newPlayers[index].userId = '';
+                } else if (gameSet && gameSet.creatorId === result.uid && !isAdmin) {
+                    toast({ variant: 'destructive', title: '참여 불가', description: `제작자(${result.nickname})는 자신이 만든 퀴즈에 참여할 수 없습니다.`});
+                } else {
+                    newPlayers[index].confirmed = true;
+                    newPlayers[index].nickname = result.nickname;
+                    newPlayers[index].uid = result.uid;
+                    toast({ title: '성공', description: `"${result.nickname}" 님이 확인되었습니다.`});
+                }
             } else {
-                newPlayers[index].confirmed = true;
-                newPlayers[index].nickname = foundUser.displayName;
-                newPlayers[index].uid = foundUser.uid;
-                toast({ title: '성공', description: `"${foundUser.displayName}" 님이 확인되었습니다.`});
+                toast({ variant: 'destructive', title: '오류', description: `"${userId}" 님을 찾을 수 없습니다.`});
             }
-        } else {
-            toast({ variant: 'destructive', title: '오류', description: `"${userId}" 님을 찾을 수 없습니다.`});
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: '오류', description: error.message || '사용자 확인 중 오류가 발생했습니다.' });
         }
         
         newPlayers[index].isChecking = false;
@@ -249,10 +252,10 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
                                             placeholder="아이디(이메일) 입력"
                                             value={player.userId}
                                             onChange={(e) => handleUserIdChange(index, e.target.value)}
-                                            disabled={player.isChecking || isLoadingDirectory}
+                                            disabled={player.isChecking}
                                         />
-                                        <Button onClick={() => handleConfirmPlayer(index)} disabled={player.isChecking || isLoadingDirectory || !player.userId}>
-                                            {player.isChecking || isLoadingDirectory ? <Loader2 className="w-4 h-4 animate-spin"/> : "확인"}
+                                        <Button onClick={() => handleConfirmPlayer(index)} disabled={player.isChecking || !player.userId}>
+                                            {player.isChecking ? <Loader2 className="w-4 h-4 animate-spin"/> : "확인"}
                                         </Button>
                                     </div>
                                 )}

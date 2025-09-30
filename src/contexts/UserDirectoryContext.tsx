@@ -11,58 +11,27 @@ interface SimpleUser {
   displayName: string;
 }
 
+// The context type is simplified as we are removing direct data fetching logic from here.
+// This context might still be useful for other purposes in the future.
 interface UserDirectoryContextType {
   userDirectory: SimpleUser[];
   isLoading: boolean;
-  getUserByEmail: (email: string) => SimpleUser | undefined;
 }
 
 const UserDirectoryContext = createContext<UserDirectoryContextType | undefined>(undefined);
 
 export const UserDirectoryProvider = ({ children }: { children: ReactNode }) => {
   const [userDirectory, setUserDirectory] = useState<SimpleUser[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // No longer loading from here by default
   const { toast } = useToast();
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const usersRef = collection(db, 'users');
-        const q = query(usersRef);
-        const snapshot = await getDocs(q);
-        
-        if (!snapshot.empty) {
-          const allUsers = snapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-              uid: doc.id,
-              email: data.email || null,
-              displayName: data.displayName || '이름없음',
-            };
-          });
-          setUserDirectory(allUsers);
-        }
-      } catch (error) {
-        console.error("Error fetching user directory:", error);
-        toast({
-          variant: 'destructive',
-          title: '오류',
-          description: '사용자 목록을 불러오는 데 실패했습니다. 일부 기능이 제한될 수 있습니다.',
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchUsers();
-  }, [toast]);
   
-  const getUserByEmail = (email: string): SimpleUser | undefined => {
-      return userDirectory.find(user => user.email?.toLowerCase() === email.toLowerCase());
-  }
+  // The client-side data fetching is removed to rely on server actions for sensitive operations.
+  // This hook can be repurposed if there's a need for a global, non-sensitive user list.
+
+  const value = { userDirectory, isLoading };
 
   return (
-    <UserDirectoryContext.Provider value={{ userDirectory, isLoading, getUserByEmail }}>
+    <UserDirectoryContext.Provider value={value}>
       {children}
     </UserDirectoryContext.Provider>
   );
