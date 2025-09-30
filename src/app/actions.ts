@@ -1,28 +1,20 @@
 'use server';
 
-import { initializeApp, getApps } from 'firebase-admin/app';
-import { getFirestore, FieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
+import { adminDb } from '@/lib/firebase-admin';
 import type { AnswerLog } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
-// Initialize Firebase Admin SDK.
-// This must be done once and before any other Firestore operations.
-if (!getApps().length) {
-  initializeApp();
-}
-const db = getFirestore();
-
-
 /**
- * Finishes the game and records stats for all players.
- * This function runs with admin privileges and bypasses security rules.
+ * Finishes the game and records stats for all players using the Admin SDK.
+ * This function runs with admin privileges and bypasses all security rules.
  * @param gameRoomId The ID of the game room.
- * @param finalAnswerLogs The final list of answer logs from the client (as plain objects with Date).
+ * @param finalAnswerLogs The final list of answer logs from the client.
  */
 export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLogs: Omit<AnswerLog, 'timestamp'> & { timestamp: Date }[]) {
     try {
-        await db.runTransaction(async (transaction) => {
-            const roomRef = db.collection('game-rooms').doc(gameRoomId);
+        await adminDb.runTransaction(async (transaction) => {
+            const roomRef = adminDb.collection('game-rooms').doc(gameRoomId);
             const roomSnap = await transaction.get(roomRef);
 
             if (!roomSnap.exists) {
@@ -36,7 +28,6 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLo
                 return;
             }
             
-            // Convert Date objects from client to Firestore Admin Timestamps
             const serverAnswerLogs = finalAnswerLogs.map(log => ({
                 ...log,
                 timestamp: AdminTimestamp.fromDate(new Date(log.timestamp)),
@@ -58,7 +49,7 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLo
                 }
             });
             
-            const userRefs = playerUIDs.map(uid => db.collection('users').doc(uid));
+            const userRefs = playerUIDs.map(uid => adminDb.collection('users').doc(uid));
             const userSnaps = await transaction.getAll(...userRefs);
             
             userSnaps.forEach(userSnap => {
@@ -66,8 +57,7 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLo
                     const userRef = userSnap.ref;
                     const xpGained = scores[userSnap.id] || 0;
                     
-                    if (xpGained > 0) {
-                        // Use Admin SDK's FieldValue.increment to update XP
+                    if (xpGained !== 0) {
                         transaction.update(userRef, { xp: FieldValue.increment(xpGained) });
                     }
                 }
@@ -77,8 +67,7 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLo
 
             for (const log of incorrectLogs) {
                 if(log.userId && log.question) {
-                     const incorrectAnswerRef = db.collection('users').doc(log.userId).collection('incorrect-answers').doc(log.id || uuidv4());
-                     // Write incorrect answer logs using the admin transaction
+                     const incorrectAnswerRef = adminDb.collection('users').doc(log.userId).collection('incorrect-answers').doc(log.id || uuidv4());
                      transaction.set(incorrectAnswerRef, {
                         id: log.id,
                         userId: log.userId,
@@ -93,8 +82,7 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLo
         });
         console.log(`Successfully finished game and recorded stats for room ${gameRoomId}.`);
     } catch (error) {
-        console.error("Error finishing game and recording stats:", error);
-        // Throw a new error to be caught by the client
-        throw new Error('게임 종료 및 기록 저장 중 서버 오류가 발생했습니다.');
+        console.error("Error in finishGameAndRecordStats transaction:", error);
+        throw new Error('Failed to finish game and record stats.');
     }
 }
