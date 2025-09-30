@@ -1,7 +1,11 @@
 import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
 
+
 let adminDb: Firestore;
+
+
+
 
 function initializeAdmin() {
   const BATCH_REQUESTS_MAX = 500;
