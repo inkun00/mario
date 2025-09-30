@@ -84,27 +84,8 @@ function NewGameRoomPageContents() {
         return;
       }
       
-      if (user) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const startOfToday = Timestamp.fromDate(today);
-
-        const playedQuery = query(
-            collectionGroup(db, 'answerLogs'),
-            where('gameSetId', '==', gameSetId),
-            where('userId', '==', user.uid),
-            where('timestamp', '>=', startOfToday)
-        );
-        
-        try {
-            const querySnapshot = await getDocs(playedQuery);
-            if (!querySnapshot.empty) {
-                 setHasPlayedToday(true);
-            }
-        } catch (e) {
-            console.warn("Could not check if user played today. This might be due to a missing index.", e);
-        }
-      }
+      // Removed the logic that checks if user has played today to prevent index error.
+      // The hasPlayedToday state will remain false.
 
       setIsLoading(false);
     };
