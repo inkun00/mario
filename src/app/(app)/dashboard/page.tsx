@@ -32,8 +32,8 @@ import { Input } from '@/components/ui/input';
 import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, doc, deleteDoc, where, getDocs, QuerySnapshot, DocumentData } from 'firebase/firestore';
+import { useEffect, useState, useRef } from 'react';
+import { collection, onSnapshot, query, doc, deleteDoc, where, getDocs, QuerySnapshot, DocumentData, Unsubscribe } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { GameSet } from '@/lib/types';
 import { auth } from '@/lib/firebase';
@@ -72,11 +72,23 @@ export default function DashboardPage() {
 
   const isAdmin = user ? ADMIN_EMAILS.includes(user.email || '') : false;
 
+  const publicUnsubscribe = useRef<Unsubscribe | null>(null);
+  const privateUnsubscribe = useRef<Unsubscribe | null>(null);
+
+
   useEffect(() => {
     if (loadingUser) {
       return;
     }
     setLoading(true);
+  
+    // Clean up previous listeners before setting new ones
+    if (publicUnsubscribe.current) {
+        publicUnsubscribe.current();
+    }
+    if (privateUnsubscribe.current) {
+        privateUnsubscribe.current();
+    }
 
     const handleSnapshots = (
       publicSnapshot: QuerySnapshot<DocumentData>, 
@@ -108,19 +120,17 @@ export default function DashboardPage() {
       where('isPublic', '==', true)
     );
 
-    const publicUnsubscribe = onSnapshot(publicQuery, (publicSnapshot) => {
-      if (user) {
-        // Defer handling to combined handler
-      } else {
+    publicUnsubscribe.current = onSnapshot(publicQuery, (publicSnapshot) => {
+      if (!user) { // If user is not logged in, just show public sets
         handleSnapshots(publicSnapshot);
       }
+      // If user is logged in, we let the private listener handle the combined state
     }, (error) => {
       console.error("Error fetching public game sets: ", error);
       toast({ variant: "destructive", title: "오류", description: "퀴즈 세트를 불러오는 중 오류가 발생했습니다." });
       setLoading(false);
     });
 
-    let privateUnsubscribe = () => {};
     if (user) {
       const privateQuery = query(
           collection(db, 'game-sets'),
@@ -128,19 +138,25 @@ export default function DashboardPage() {
           where('isPublic', '==', false)
       );
       
-      privateUnsubscribe = onSnapshot(privateQuery, async (privateSnapshot) => {
-         const publicSnapshot = await getDocs(publicQuery);
+      privateUnsubscribe.current = onSnapshot(privateQuery, async (privateSnapshot) => {
+         const publicSnapshot = await getDocs(publicQuery); // fetch latest public sets
          handleSnapshots(publicSnapshot, privateSnapshot);
       }, (error) => {
            console.error("Error fetching private game sets: ", error);
            toast({ variant: "destructive", title: "오류", description: "비공개 퀴즈 세트를 불러오는 중 오류가 발생했습니다." });
       });
+    } else { // No user, so no private sets to fetch
+      setLoading(false);
     }
 
-
+    // Cleanup function
     return () => {
-      publicUnsubscribe();
-      privateUnsubscribe();
+      if (publicUnsubscribe.current) {
+        publicUnsubscribe.current();
+      }
+      if (privateUnsubscribe.current) {
+        privateUnsubscribe.current();
+      }
     };
   }, [user, loadingUser, toast]);
 
@@ -502,3 +518,5 @@ export default function DashboardPage() {
     </>
   );
 }
+
+    
