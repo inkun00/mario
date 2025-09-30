@@ -21,6 +21,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import { updateScores } from '@/app/actions';
+import { v4 as uuidv4 } from 'uuid';
 
 interface GameBlock {
   id: number;
@@ -63,7 +64,7 @@ const calculateScoresFromLogs = (gameRoom: GameRoom | null): Player[] => {
     }
 
     gameRoom.answerLogs?.forEach(log => {
-        if (log.userId && log.pointsAwarded) {
+        if (log.userId && typeof log.pointsAwarded === 'number') {
              scores[log.userId] = (scores[log.userId] || 0) + log.pointsAwarded;
         }
     });
@@ -112,37 +113,36 @@ export default function GamePage() {
 
   const finishGame = useCallback(async (room: GameRoom) => {
     if (isGameFinished) return;
-    setIsGameFinished(true);
+    setIsGameFinished(true); // Mark that the game finish process has started for this client
   
     try {
+      // This part runs on all clients to show the UI immediately
       const finalPlayers = calculateScoresFromLogs(room);
       setFinalScores(finalPlayers);
       setShowGameOverPopup(true);
-  
-      if (room.hostId === user?.uid) {
-        // Convert Timestamps to numbers before sending to server action
-        const serializableAnswerLogs = (room.answerLogs || []).map(log => {
-          const { timestamp, ...rest } = log;
-          if (timestamp && typeof timestamp.toMillis === 'function') {
-            return { ...rest, timestamp: timestamp.toMillis() };
-          }
-          // Fallback for cases where timestamp might already be a number or undefined
-          return { ...rest, timestamp: timestamp || Date.now() }; 
-        });
+      
+      // This part attempts to update scores for the current user
+      const currentUserInGame = finalPlayers.find(p => p.uid === user?.uid);
+      if (currentUserInGame) {
+          const serializableAnswerLogs = (room.answerLogs || []).map(log => {
+            const { timestamp, ...rest } = log;
+            if (timestamp && typeof timestamp.toMillis === 'function') {
+                return { ...rest, timestamp: timestamp.toMillis() };
+            }
+            return { ...rest, timestamp: timestamp || Date.now() };
+          });
 
-        await updateScores({
-          gameSetId: room.gameSetId,
-          players: finalPlayers,
-          answerLogs: serializableAnswerLogs,
-        });
+          await updateScores({
+            players: [currentUserInGame], // Send only the current user's data
+            answerLogs: serializableAnswerLogs.filter(log => log.userId === user?.uid), // Send only logs for the current user
+          });
       }
-  
     } catch (error) {
       console.error("Error during finishGame:", error);
        toast({
           variant: "destructive",
           title: "오류",
-          description: "게임 결과 처리 중 심각한 오류가 발생했습니다.",
+          description: "게임 결과 처리 중 오류가 발생했습니다.",
         });
     }
   }, [isGameFinished, toast, user?.uid]);
@@ -214,9 +214,11 @@ export default function GamePage() {
   useEffect(() => {
     if (blocks.length > 0 || !gameSet || !gameRoom) return;
 
+    const questions = gameSet.questions || [];
+
     // Only create board if game is in 'playing' state
     if (gameRoom.status === 'playing') {
-        const questionItems: GameBlock[] = gameSet.questions.map((q, i) => ({
+        const questionItems: GameBlock[] = questions.map((q, i) => ({
             id: i,
             type: 'question',
             question: {...q, id: i},
@@ -224,9 +226,9 @@ export default function GamePage() {
 
         let mysteryItems: GameBlock[] = [];
         if(gameRoom.mysteryBoxEnabled) {
-            const mysteryCount = Math.round(gameSet.questions.length * 0.3);
+            const mysteryCount = Math.round(questions.length * 0.3);
             mysteryItems = Array.from({ length: mysteryCount }, (_, i) => ({
-                id: gameSet.questions.length + i,
+                id: questions.length + i,
                 type: 'mystery',
             }));
         }
@@ -361,6 +363,7 @@ setShowMysteryBoxPopup(true);
     const currentTurnUID = gameRoom.currentTurn;
 
     const answerLog: AnswerLog = {
+        id: uuidv4(),
         userId: currentTurnUID,
         gameSetId: gameSet.id,
         gameSetTitle: gameSet.title,
@@ -428,6 +431,7 @@ setShowMysteryBoxPopup(true);
     }
   
     let newLogEntry: Partial<AnswerLog> = {
+      id: uuidv4(),
       userId: currentTurnUID,
       gameSetId: gameRoom.gameSetId,
       gameSetTitle: gameSet?.title || "미스터리 박스",
@@ -468,8 +472,8 @@ setShowMysteryBoxPopup(true);
                 const pointsDiffForCurrent = targetPlayerScore - currentPlayerScore;
                 const pointsDiffForTarget = currentPlayerScore - targetPlayerScore;
         
-                logsToPush.push({ ...newLogEntry, userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent, userAnswer: 'effect', question: {...newLogEntry.question!, id: Date.now() + 1}} as AnswerLog);
-                logsToPush.push({ ...newLogEntry, userId: playerForSwap, pointsAwarded: pointsDiffForTarget, userAnswer: 'effect', question: {...newLogEntry.question!, id: Date.now() + 2} } as AnswerLog);
+                logsToPush.push({ ...newLogEntry, id: uuidv4(), userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent, userAnswer: 'effect', question: {...newLogEntry.question!, id: Date.now() + 1}} as AnswerLog);
+                logsToPush.push({ ...newLogEntry, id: uuidv4(), userId: playerForSwap, pointsAwarded: pointsDiffForTarget, userAnswer: 'effect', question: {...newLogEntry.question!, id: Date.now() + 2} } as AnswerLog);
                 break;
         }
 

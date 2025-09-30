@@ -62,6 +62,7 @@ export interface LocalPlayer {
 export type MysteryEffectType = 'bonus' | 'double' | 'penalty' | 'half' | 'swap';
 
 export interface AnswerLog {
+    id: string; // Unique ID for each log entry
     userId: string;
     gameSetId: string;
     gameSetTitle: string;

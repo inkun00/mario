@@ -47,7 +47,7 @@ export async function checkUserId(userId: string): Promise<CheckUserResult> {
 
 interface UpdateScoresInput {
     players: Player[];
-    answerLogs: (Omit<AnswerLog, 'timestamp'> & { timestamp?: number | AdminTimestamp })[];
+    answerLogs: (Omit<AnswerLog, 'timestamp'> & { timestamp?: number | AdminTimestamp | any })[];
 }
 
 /**
@@ -80,7 +80,6 @@ export async function updateScores(input: UpdateScoresInput): Promise<{ success:
 
       const userRef = db.collection('users').doc(player.uid);
       
-      // Update XP and last played timestamp
       batch.update(userRef, {
         xp: FieldValue.increment(xpGained),
         lastPlayed: FieldValue.serverTimestamp(),
@@ -90,19 +89,19 @@ export async function updateScores(input: UpdateScoresInput): Promise<{ success:
     // 2. Record all answer logs and incorrect answers for review
     if (answerLogs && answerLogs.length > 0) {
         for (const log of answerLogs) {
-            if (!log.userId || !log.question) continue;
+            if (!log.userId || !log.question || !log.id) continue;
+
+            // Use the client-generated UUID as the document ID to prevent duplicates
+            const logRef = db.collection('answerLogs').doc(log.id);
 
             const logWithServerTimestamp = {
               ...log,
-              // Ensure timestamp is a server timestamp for consistency
               timestamp: FieldValue.serverTimestamp(),
             };
+            
+            // Use 'create' instead of 'set' to fail if the document already exists.
+            batch.create(logRef, logWithServerTimestamp);
 
-            // Save to top-level answerLogs collection
-            const logRef = db.collection('answerLogs').doc();
-            batch.set(logRef, logWithServerTimestamp);
-
-            // If the answer is incorrect, also save it to the user's private 'incorrect-answers' subcollection for review.
             if (!log.isCorrect) {
                 const incorrectAnswerRef = db.collection('users').doc(log.userId).collection('incorrect-answers').doc();
                 batch.set(incorrectAnswerRef, {
@@ -122,7 +121,13 @@ export async function updateScores(input: UpdateScoresInput): Promise<{ success:
     console.log(`Scores and logs successfully updated for ${players.length} players.`);
     return { success: true };
     
-  } catch (error) {
+  } catch (error: any) {
+    // It's common for this to fail if multiple clients try to write the same logs.
+    // We can safely ignore "6 ALREADY_EXISTS" errors.
+    if (error.code === 6) { // 6 is the gRPC code for ALREADY_EXISTS
+        console.log('Batch commit failed because logs already exist. This is expected in multi-client scenarios.');
+        return { success: true, message: 'Logs already recorded.' };
+    }
     console.error("Error updating scores and logs in server action:", error);
     return { success: false, message: 'An error occurred while updating scores and logs.' };
   }
