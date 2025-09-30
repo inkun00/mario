@@ -39,7 +39,7 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
         const roomRef = doc(db, 'game-rooms', gameRoom.id as string);
         try {
             await updateDoc(roomRef, { 
-              status: 'playing',
+              status: gameRoom.mysteryBoxEnabled ? 'setting-mystery' : 'playing',
               playerUIDs: Object.keys(gameRoom.players),
             });
             // The onSnapshot listener in the main component will handle the redirection
@@ -196,7 +196,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
 
         try {
             await updateDoc(roomRef, { 
-                status: 'playing',
+                status: gameRoom.mysteryBoxEnabled ? 'setting-mystery' : 'playing',
                 players: playerObjects,
                 playerUIDs: playerUIDs,
                 currentTurn: playerUIDs[0],
@@ -296,7 +296,7 @@ export default function LobbyPage() {
         setGameRoom(roomData);
 
         // Check if game has started and redirect if needed
-        if (roomData.status === 'playing') {
+        if (roomData.status === 'playing' || roomData.status === 'setting-mystery') {
             router.push(`/game/${gameRoomId}`);
             return; // Stop further processing for this snapshot
         }

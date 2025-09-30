@@ -77,7 +77,7 @@ export interface GameRoom {
   id: string;
   gameSetId: string;
   password?: string;
-  status: 'waiting' | 'playing' | 'finished';
+  status: 'waiting' | 'setting-mystery' | 'playing' | 'finished';
   hostId: string;
   currentTurn: string; // userId or nickname for local
   players: Record<string, Player>; // key is userId for remote, or nickname for local

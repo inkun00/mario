@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -164,8 +163,8 @@ export default function GamePage() {
                 return;
             }
 
-            if (roomData.hostId === user?.uid && roomData.mysteryBoxEnabled && !roomData.isMysterySettingDone) {
-              setShowMysterySettings(true);
+            if (roomData.status === 'setting-mystery' && user?.uid === roomData.hostId) {
+                setShowMysterySettings(true);
             }
 
             if (!gameSet && roomData.gameSetId) {
@@ -215,9 +214,8 @@ export default function GamePage() {
   useEffect(() => {
     if (blocks.length > 0 || !gameSet || !gameRoom) return;
 
-    const canInitializeBoard = (gameRoom.mysteryBoxEnabled && gameRoom.isMysterySettingDone) || !gameRoom.mysteryBoxEnabled;
-
-    if (canInitializeBoard) {
+    // Only create board if game is in 'playing' state
+    if (gameRoom.status === 'playing') {
         const questionItems: GameBlock[] = gameSet.questions.map((q, i) => ({
             id: i,
             type: 'question',
@@ -511,6 +509,7 @@ setShowMysteryBoxPopup(true);
       await updateDoc(roomRef, {
         enabledMysteryEffects: enabledEffects,
         isMysterySettingDone: true,
+        status: 'playing',
       });
       setShowMysterySettings(false);
     } catch(error) {
@@ -525,7 +524,7 @@ setShowMysteryBoxPopup(true);
   const currentQuestion = currentQuestionInfo?.question;
   
   const isClickDisabled = (block: GameBlock) => {
-    if (!gameRoom || showGameOverPopup) return true;
+    if (!gameRoom || showGameOverPopup || gameRoom.status !== 'playing') return true;
 
     // Board not ready if settings are pending
     if (gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone) {
@@ -555,7 +554,7 @@ setShowMysteryBoxPopup(true);
     );
   }
   
-  if (blocks.length === 0 && ((gameRoom.mysteryBoxEnabled && gameRoom.isMysterySettingDone) || !gameRoom.mysteryBoxEnabled)) {
+  if (blocks.length === 0 && gameRoom.status === 'playing') {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
@@ -576,7 +575,9 @@ setShowMysteryBoxPopup(true);
           <Card className="w-full max-w-4xl p-4 sm:p-6 bg-background/70 backdrop-blur-sm">
             <div className="text-center mb-6">
                   <h2 className="text-2xl font-bold font-headline">
-                      {gameRoom.joinType === 'local' ? (
+                      {gameRoom.status !== 'playing' ? (
+                          <span>미스터리 박스 설정을 기다리는 중...</span>
+                      ) : gameRoom.joinType === 'local' ? (
                           <span><span className="text-primary">{currentTurnPlayer?.nickname || ''}</span>님, 박스를 선택하여 문제를 풀어보세요!</span>
                       ) : isMyTurn ? (
                           <span className="text-primary">내 차례입니다!</span>
@@ -836,7 +837,3 @@ setShowMysteryBoxPopup(true);
     </>
   );
 }
-
-    
-
-    
