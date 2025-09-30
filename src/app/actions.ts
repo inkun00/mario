@@ -3,7 +3,7 @@
 
 import { FieldValue } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase-admin';
-import type { IncorrectAnswer, AnswerLog } from '@/lib/types';
+import type { IncorrectAnswer } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -34,11 +34,6 @@ export async function recordIncorrectAnswer(incorrectLog: Omit<IncorrectAnswer, 
  * 디버깅을 위해 상세한 결과 객체를 반환합니다.
  */
 export async function finishGameAndRecordStats(gameRoomId: string, finalLogsForXp: { userId: string, pointsAwarded: number }[]): Promise<{ success: boolean; message: string; data?: any; error?: any;}> {
-    const debugInfo = {
-        receivedData: finalLogsForXp,
-        playerUIDs: [] as string[],
-    };
-
     try {
         const roomRef = adminDb.collection('game-rooms').doc(gameRoomId);
         const roomSnap = await roomRef.get();
@@ -48,7 +43,6 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalLogsForX
         }
         
         const playerUIDs = Array.from(new Set(finalLogsForXp.map(log => log.userId).filter(Boolean))) as string[];
-        debugInfo.playerUIDs = playerUIDs;
         
         const scores: Record<string, number> = {};
         playerUIDs.forEach(uid => scores[uid] = 0);
@@ -60,7 +54,7 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalLogsForX
         });
         
         if (playerUIDs.length === 0) {
-            return { success: true, message: 'No players to update XP for.', data: debugInfo };
+            return { success: true, message: 'No players to update XP for.', data: { receivedData: finalLogsForXp } };
         }
         
         const batch = adminDb.batch();
@@ -75,19 +69,19 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalLogsForX
 
         await batch.commit();
 
-        return { success: true, message: `Successfully finished game and updated XP for room ${gameRoomId}.`, data: debugInfo };
+        return { success: true, message: `Successfully finished game and updated XP for room ${gameRoomId}.` };
 
     } catch (error: any) {
         console.error("Error in finishGameAndRecordStats:", error);
         return { 
             success: false, 
-            message: 'Failed to finish game and record stats.',
+            message: error.message,
             error: {
                 message: error.message,
                 stack: error.stack,
                 code: error.code,
             },
-            data: debugInfo 
+            data: { receivedData: finalLogsForXp }
         };
     }
 }

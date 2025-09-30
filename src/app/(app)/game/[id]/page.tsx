@@ -521,9 +521,7 @@ export default function GamePage() {
             pointsAwarded: log.pointsAwarded
         }));
         
-        const result = await finishGameAndRecordStats(gameRoomId, finalLogsForXp as any);
-
-        console.log('Server Action Result:', result);
+        const result = await finishGameAndRecordStats(gameRoomId, finalLogsForXp);
 
         if (result.success) {
             toast({ title: "저장 완료!", description: result.message });
