@@ -1,12 +1,12 @@
 'use server';
 
-import { initializeApp, getApps, App } from 'firebase-admin/app';
+import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp as AdminTimestamp, Transaction } from 'firebase-admin/firestore';
-import type { User, Player, AnswerLog, GameRoom, Question } from '@/lib/types';
+import type { User, AnswerLog } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
-// Initialize Firebase Admin SDK for server-side execution.
-// This must be done once per server instance.
+// Initialize Firebase Admin SDK. This must be done once per server instance.
+// In environments like Firebase App Hosting, it automatically finds the service account.
 if (!getApps().length) {
   initializeApp();
 }
@@ -19,7 +19,7 @@ interface CheckUserResult {
 }
 
 /**
- * Checks if a user exists in the database by their email.
+ * Checks if a user exists in the database by their email using Admin privileges.
  * @param userId - The email of the user to check.
  * @returns An object indicating if the user exists, their UID, and their nickname.
  */
@@ -42,7 +42,8 @@ export async function checkUserId(userId: string): Promise<CheckUserResult> {
         };
     } catch (error) {
         console.error("Error in checkUserId server action:", error);
-        throw new Error('사용자 확인 중 서버 오류가 발생했습니다.');
+        // Do not expose detailed server errors to the client
+        throw new Error('사용자 확인 중 오류가 발생했습니다.');
     }
 }
 
@@ -64,15 +65,15 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLo
                 throw new Error("Game room not found.");
             }
 
-            const gameRoom = roomSnap.data() as GameRoom;
+            const gameRoom = roomSnap.data();
 
             // Prevent multiple executions for the same game
-            if (gameRoom.status === 'finished') {
+            if (gameRoom?.status === 'finished') {
                 console.log("Game already finished. Aborting stat recording.");
                 return;
             }
 
-            // Convert date strings/objects back to Firestore Timestamps
+            // Convert date objects from client back to Firestore Timestamps on the server
             const serverAnswerLogs = finalAnswerLogs.map(log => ({
                 ...log,
                 timestamp: AdminTimestamp.fromDate(new Date(log.timestamp as any)),
@@ -124,7 +125,7 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLo
                         gameSetTitle: log.gameSetTitle,
                         question: log.question,
                         userAnswer: log.userAnswer || '',
-                        timestamp: log.timestamp || FieldValue.serverTimestamp(),
+                        timestamp: log.timestamp,
                      });
                 }
             }
@@ -133,6 +134,6 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLo
     } catch (error) {
         console.error("Error finishing game and recording stats:", error);
         // We throw the error so the client can be notified
-        throw new Error('게임 종료 및 기록 저장 중 서버 오류가 발생했습니다.');
+        throw new Error('게임 종료 및 기록 저장 중 오류가 발생했습니다.');
     }
 }
