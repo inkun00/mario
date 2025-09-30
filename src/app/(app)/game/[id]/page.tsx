@@ -20,8 +20,8 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
-import { updateScores } from '@/app/actions';
 import { v4 as uuidv4 } from 'uuid';
+import { getFirestore, writeBatch } from 'firebase/firestore';
 
 interface GameBlock {
   id: number;
@@ -109,43 +109,6 @@ export default function GamePage() {
   
   const [showGameOverPopup, setShowGameOverPopup] = useState(false);
   const [finalScores, setFinalScores] = useState<Player[]>([]);
-  const [isGameFinished, setIsGameFinished] = useState(false);
-
-  const finishGame = useCallback(async (room: GameRoom) => {
-    if (isGameFinished) return;
-    setIsGameFinished(true); // Mark that the game finish process has started for this client
-  
-    try {
-      // This part runs on all clients to show the UI immediately
-      const finalPlayers = calculateScoresFromLogs(room);
-      setFinalScores(finalPlayers);
-      setShowGameOverPopup(true);
-      
-      // This part attempts to update scores for the current user
-      const currentUserInGame = finalPlayers.find(p => p.uid === user?.uid);
-      if (currentUserInGame) {
-          const serializableAnswerLogs = (room.answerLogs || []).map(log => {
-            const { timestamp, ...rest } = log;
-            if (timestamp && typeof timestamp.toMillis === 'function') {
-                return { ...rest, timestamp: timestamp.toMillis() };
-            }
-            return { ...rest, timestamp: timestamp || Date.now() };
-          });
-
-          await updateScores({
-            players: [currentUserInGame], // Send only the current user's data
-            answerLogs: serializableAnswerLogs.filter(log => log.userId === user?.uid), // Send only logs for the current user
-          });
-      }
-    } catch (error) {
-      console.error("Error during finishGame:", error);
-       toast({
-          variant: "destructive",
-          title: "오류",
-          description: "게임 결과 처리 중 오류가 발생했습니다.",
-        });
-    }
-  }, [isGameFinished, toast, user?.uid]);
 
   // Fetch GameRoom and GameSet data
   useEffect(() => {
@@ -158,8 +121,10 @@ export default function GamePage() {
             const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
             setGameRoom(roomData);
              
-            if (roomData.status === 'finished' && !isGameFinished) {
-                finishGame(roomData);
+            if (roomData.status === 'finished') {
+                const finalPlayers = calculateScoresFromLogs(roomData);
+                setFinalScores(finalPlayers);
+                setShowGameOverPopup(true);
                 return;
             }
 
@@ -193,8 +158,7 @@ export default function GamePage() {
     return () => {
       unsubscribe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameRoomId, router, toast, user, loadingUser]);
+  }, [gameRoomId, router, toast, user, loadingUser, gameSet]);
   
   // Update player scores and turn status from gameRoom state
   useEffect(() => {
@@ -348,13 +312,15 @@ setShowMysteryBoxPopup(true);
   }
 
   const handleSubmitAnswer = async () => {
-    if (!currentQuestionInfo || !gameRoom || !userAnswer || !gameSet || typeof gameRoomId !== 'string') {
+    if (!currentQuestionInfo || !gameRoom || !userAnswer || !gameSet || typeof gameRoomId !== 'string' || !user) {
       toast({ variant: 'destructive', title: '오류', description: '답변을 선택하거나 입력해주세요.'});
       return;
     }
     const currentQuestion = currentQuestionInfo.question;
 
     setIsSubmitting(true);
+    const firestoreDb = getFirestore();
+    const batch = writeBatch(firestoreDb);
 
     const isCorrect = (currentQuestion.type === 'subjective' && userAnswer.trim().toLowerCase() === currentQuestion.answer?.trim().toLowerCase())
       || (currentQuestion.type !== 'subjective' && userAnswer === currentQuestion.correctAnswer);
@@ -362,8 +328,9 @@ setShowMysteryBoxPopup(true);
     const pointsToAward = isCorrect ? currentPoints : 0;
     const currentTurnUID = gameRoom.currentTurn;
 
+    const answerLogId = uuidv4();
     const answerLog: AnswerLog = {
-        id: uuidv4(),
+        id: answerLogId,
         userId: currentTurnUID,
         gameSetId: gameSet.id,
         gameSetTitle: gameSet.title,
@@ -387,12 +354,42 @@ setShowMysteryBoxPopup(true);
 
         const nextTurnUID = getNextTurnUID();
 
-        await updateDoc(roomRef, {
+        const updateData: Partial<GameRoom> = {
             answerLogs: newAnswerLogs,
             gameState: newGameState,
             currentTurn: nextTurnUID,
-            ...(allAnswered && { status: 'finished' })
-        });
+        };
+
+        if (allAnswered) {
+          updateData.status = 'finished';
+
+          const finalPlayers = calculateScoresFromLogs({ ...gameRoom, answerLogs: newAnswerLogs });
+
+          finalPlayers.forEach(player => {
+            const playerRef = doc(db, 'users', player.uid);
+            const xpGained = player.score;
+            if(xpGained > 0) {
+              batch.update(playerRef, { xp: player.xp + xpGained });
+            }
+          });
+
+          newAnswerLogs.forEach(log => {
+            if (!log.isCorrect) {
+              const incorrectAnswerRef = doc(db, 'users', log.userId, 'incorrect-answers', log.id);
+              batch.set(incorrectAnswerRef, {
+                  userId: log.userId,
+                  gameSetId: log.gameSetId,
+                  gameSetTitle: log.gameSetTitle,
+                  question: log.question,
+                  userAnswer: log.userAnswer || '',
+                  timestamp: log.timestamp,
+              });
+            }
+          });
+        }
+        
+        batch.update(roomRef, updateData as any);
+        await batch.commit();
 
         if (isCorrect) {
             toast({
@@ -416,9 +413,11 @@ setShowMysteryBoxPopup(true);
   };
 
   const handleMysteryEffect = async () => {
-    if (!mysteryBoxEffect || !gameRoom || typeof gameRoomId !== 'string' || !gameSet) return;
+    if (!mysteryBoxEffect || !gameRoom || typeof gameRoomId !== 'string' || !gameSet || !user) return;
   
     setIsSubmitting(true);
+    const firestoreDb = getFirestore();
+    const batch = writeBatch(firestoreDb);
     
     const currentTurnUID = gameRoom.currentTurn;
     const currentFlippingBlock = Object.entries(gameRoom.gameState).find(([_, state]) => state === 'flipping');
@@ -489,12 +488,42 @@ setShowMysteryBoxPopup(true);
 
         const nextTurnUID = getNextTurnUID();
 
-        await updateDoc(roomRef, {
+        const updateData: Partial<GameRoom> = {
             answerLogs: newAnswerLogs,
             gameState: newGameState,
             currentTurn: nextTurnUID,
-            ...(allAnswered && { status: 'finished' })
-        });
+        };
+
+        if (allAnswered) {
+          updateData.status = 'finished';
+
+          const finalPlayers = calculateScoresFromLogs({ ...gameRoom, answerLogs: newAnswerLogs });
+
+          finalPlayers.forEach(player => {
+            const playerRef = doc(db, 'users', player.uid);
+            const xpGained = player.score;
+             if(xpGained > 0) {
+              batch.update(playerRef, { xp: player.xp + xpGained });
+            }
+          });
+
+          newAnswerLogs.forEach(log => {
+            if (!log.isCorrect) {
+              const incorrectAnswerRef = doc(db, 'users', log.userId, 'incorrect-answers', log.id);
+              batch.set(incorrectAnswerRef, {
+                  userId: log.userId,
+                  gameSetId: log.gameSetId,
+                  gameSetTitle: log.gameSetTitle,
+                  question: log.question,
+                  userAnswer: log.userAnswer || '',
+                  timestamp: log.timestamp,
+              });
+            }
+          });
+        }
+
+        batch.update(roomRef, updateData as any);
+        await batch.commit();
 
     } catch (error: any) {
       console.error("Error applying mystery effect:", error);
