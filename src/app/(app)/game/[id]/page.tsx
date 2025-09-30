@@ -21,7 +21,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
-import { getFirestore, writeBatch } from 'firebase/firestore';
+import { finishGameAndRecordStats } from '@/app/actions';
+
 
 interface GameBlock {
   id: number;
@@ -247,12 +248,14 @@ export default function GamePage() {
           const totalBlocks = totalQuestions + mysteryBlockCount;
           const allAnswered = Object.keys(newGameState).length >= totalBlocks;
 
-
-          updateDoc(roomRef, { 
-              gameState: newGameState,
-              currentTurn: nextTurnUID,
-              ...(allAnswered && { status: 'finished' })
-          });
+          if (allAnswered) {
+            finishGameAndRecordStats(gameRoomId, [...(gameRoom.answerLogs || [])]);
+          } else {
+             updateDoc(roomRef, { 
+                gameState: newGameState,
+                currentTurn: nextTurnUID,
+            });
+          }
           return;
       }
       
@@ -319,8 +322,6 @@ setShowMysteryBoxPopup(true);
     const currentQuestion = currentQuestionInfo.question;
 
     setIsSubmitting(true);
-    const firestoreDb = getFirestore();
-    const batch = writeBatch(firestoreDb);
 
     const isCorrect = (currentQuestion.type === 'subjective' && userAnswer.trim().toLowerCase() === currentQuestion.answer?.trim().toLowerCase())
       || (currentQuestion.type !== 'subjective' && userAnswer === currentQuestion.correctAnswer);
@@ -351,45 +352,19 @@ setShowMysteryBoxPopup(true);
         const mysteryBlockCount = gameRoom.mysteryBoxEnabled ? Math.round(totalQuestions * 0.3) : 0;
         const totalBlocks = totalQuestions + mysteryBlockCount;
         const allAnswered = Object.keys(newGameState).length >= totalBlocks;
-
-        const nextTurnUID = getNextTurnUID();
-
-        const updateData: Partial<GameRoom> = {
-            answerLogs: newAnswerLogs,
-            gameState: newGameState,
-            currentTurn: nextTurnUID,
-        };
-
-        if (allAnswered) {
-          updateData.status = 'finished';
-
-          const finalPlayers = calculateScoresFromLogs({ ...gameRoom, answerLogs: newAnswerLogs });
-
-          finalPlayers.forEach(player => {
-            const playerRef = doc(db, 'users', player.uid);
-            const xpGained = player.score;
-            if(xpGained > 0) {
-              batch.update(playerRef, { xp: player.xp + xpGained });
-            }
-          });
-
-          newAnswerLogs.forEach(log => {
-            if (!log.isCorrect) {
-              const incorrectAnswerRef = doc(db, 'users', log.userId, 'incorrect-answers', log.id);
-              batch.set(incorrectAnswerRef, {
-                  userId: log.userId,
-                  gameSetId: log.gameSetId,
-                  gameSetTitle: log.gameSetTitle,
-                  question: log.question,
-                  userAnswer: log.userAnswer || '',
-                  timestamp: log.timestamp,
-              });
-            }
-          });
-        }
         
-        batch.update(roomRef, updateData as any);
-        await batch.commit();
+        if (allAnswered) {
+            // Let the server handle the final state update and recording
+            await finishGameAndRecordStats(gameRoomId, newAnswerLogs);
+        } else {
+             const nextTurnUID = getNextTurnUID();
+             const updateData: Partial<GameRoom> = {
+                answerLogs: newAnswerLogs,
+                gameState: newGameState,
+                currentTurn: nextTurnUID,
+            };
+            await updateDoc(roomRef, updateData as any);
+        }
 
         if (isCorrect) {
             toast({
@@ -416,8 +391,6 @@ setShowMysteryBoxPopup(true);
     if (!mysteryBoxEffect || !gameRoom || typeof gameRoomId !== 'string' || !gameSet || !user) return;
   
     setIsSubmitting(true);
-    const firestoreDb = getFirestore();
-    const batch = writeBatch(firestoreDb);
     
     const currentTurnUID = gameRoom.currentTurn;
     const currentFlippingBlock = Object.entries(gameRoom.gameState).find(([_, state]) => state === 'flipping');
@@ -486,44 +459,17 @@ setShowMysteryBoxPopup(true);
         const totalBlocks = totalQuestions + mysteryBlockCount;
         const allAnswered = Object.keys(newGameState).length >= totalBlocks;
 
-        const nextTurnUID = getNextTurnUID();
-
-        const updateData: Partial<GameRoom> = {
-            answerLogs: newAnswerLogs,
-            gameState: newGameState,
-            currentTurn: nextTurnUID,
-        };
-
         if (allAnswered) {
-          updateData.status = 'finished';
-
-          const finalPlayers = calculateScoresFromLogs({ ...gameRoom, answerLogs: newAnswerLogs });
-
-          finalPlayers.forEach(player => {
-            const playerRef = doc(db, 'users', player.uid);
-            const xpGained = player.score;
-             if(xpGained > 0) {
-              batch.update(playerRef, { xp: player.xp + xpGained });
-            }
-          });
-
-          newAnswerLogs.forEach(log => {
-            if (!log.isCorrect) {
-              const incorrectAnswerRef = doc(db, 'users', log.userId, 'incorrect-answers', log.id);
-              batch.set(incorrectAnswerRef, {
-                  userId: log.userId,
-                  gameSetId: log.gameSetId,
-                  gameSetTitle: log.gameSetTitle,
-                  question: log.question,
-                  userAnswer: log.userAnswer || '',
-                  timestamp: log.timestamp,
-              });
-            }
-          });
+             await finishGameAndRecordStats(gameRoomId, newAnswerLogs);
+        } else {
+            const nextTurnUID = getNextTurnUID();
+            const updateData: Partial<GameRoom> = {
+                answerLogs: newAnswerLogs,
+                gameState: newGameState,
+                currentTurn: nextTurnUID,
+            };
+            await updateDoc(roomRef, updateData as any);
         }
-
-        batch.update(roomRef, updateData as any);
-        await batch.commit();
 
     } catch (error: any) {
       console.error("Error applying mystery effect:", error);
