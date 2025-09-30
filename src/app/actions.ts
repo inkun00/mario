@@ -42,7 +42,7 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalLogsForX
             throw new Error("Game room not found.");
         }
         
-        const playerUIDs = Array.from(new Set(finalLogsForXp.map(log => log.userId).filter(Boolean))) as string[];
+        const playerUIDs = Array.from(new Set(finalLogsForXp.map(log => log.userId).filter(uid => uid && typeof uid === 'string')));
         
         const scores: Record<string, number> = {};
         playerUIDs.forEach(uid => scores[uid] = 0);
