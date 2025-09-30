@@ -2,41 +2,47 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users 컬렉션:
-    // 읽기(read): 로그인한 사용자는 모든 사용자의 정보를 읽을 수 있음.
-    // 쓰기(write): 자신의 문서만 수정할 수 있음.
+    // Users:
+    // - Authenticated users can read other users' public info (for leaderboards, lobby checks).
+    // - A user can only write to their own document.
+    // - The server action (with admin rights) bypasses these rules to update XP for all players.
     match /users/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth.uid == userId;
 
-      // Incorrect-answers 하위 컬렉션:
-      // 자신의 오답노트만 모든 작업(읽기, 쓰기, 삭제)을 할 수 있도록 명시적으로 허용.
+      // Incorrect-answers subcollection:
+      // - Only the owner can manage their incorrect answers.
+      // - The server action (with admin rights) bypasses this to create new records.
       match /incorrect-answers/{answerId} {
         allow read, write, delete: if request.auth.uid == userId;
       }
     }
 
-    // Game-sets 컬렉션:
-    // 생성/읽기: 로그인한 사용자만 가능.
-    // 삭제: 제작자만 가능.
-    // 업데이트: 제작자 또는 playCount 필드만 수정하는 경우 허용.
+    // Game-sets:
+    // - Authenticated users can read and create.
+    // - Only the creator can update or delete, with an exception for playCount.
     match /game-sets/{gameSetId} {
       allow read, create: if request.auth != null;
       allow delete: if request.auth.uid == resource.data.creatorId;
-      allow update: if request.auth.uid == resource.data.creatorId 
-                      || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playCount']));
+      // Allow creator to update, or any authenticated user to increment playCount.
+      allow update: if request.auth.uid == resource.data.creatorId ||
+                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playCount']) &&
+                       request.resource.data.playCount == resource.data.playCount + 1);
     }
 
-    // Game-rooms 컬렉션: 로그인한 사용자만 접근 가능하도록 각 권한을 명시.
+    // Game-rooms:
+    // - Authenticated users can manage game rooms.
+    // - The server action (with admin rights) will update the status to 'finished'.
     match /game-rooms/{roomId} {
       allow read, create, update, delete: if request.auth != null;
     }
 
-    // AnswerLogs 컬렉션 그룹:
-    // 자신의 답변 기록만 읽고 생성할 수 있음.
+    // AnswerLogs (Collection Group - Deprecated for direct client write):
+    // This rule is kept for reference but writes are now primarily handled by server actions.
+    // Reading own logs is allowed.
     match /{path=**}/answerLogs/{logId} {
-        allow create: if request.auth != null;
-        allow read: if request.auth.uid == resource.data.userId;
+      allow create: if request.auth.uid == request.resource.data.userId;
+      allow read: if request.auth.uid == resource.data.userId;
     }
   }
 }
