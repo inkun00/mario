@@ -516,10 +516,12 @@ export default function GamePage() {
     if (!gameRoom || typeof gameRoomId !== 'string') return;
     setIsFinishingGame(true);
     try {
-        const finalLogsForXp = (gameRoom.answerLogs || []).map(log => ({
-            userId: log.userId,
-            pointsAwarded: log.pointsAwarded
-        }));
+        const finalLogsForXp = (gameRoom.answerLogs || [])
+            .filter(log => log.userId && typeof log.userId === 'string')
+            .map(log => ({
+                userId: log.userId,
+                pointsAwarded: log.pointsAwarded
+            }));
         
         const result = await finishGameAndRecordStats(gameRoomId, finalLogsForXp);
 
@@ -534,8 +536,8 @@ export default function GamePage() {
 
     } catch(error: any) {
         toast({ variant: 'destructive', title: '치명적 오류', description: `결과 저장 중 예상치 못한 오류가 발생했습니다: ${error.message}` });
-        setIsFinishingGame(false);
         console.error("Critical error in handleFinishAndSave:", error);
+        setIsFinishingGame(false);
     }
   }
 
