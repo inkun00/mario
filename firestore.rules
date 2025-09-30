@@ -3,36 +3,40 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // Users 컬렉션:
-    // - 읽기(read): 로그인한 사용자라면 누구나 다른 사용자의 정보를 읽을 수 있음.
-    // - 쓰기(write): 자신의 문서만 수정할 수 있음.
+    // 읽기(read): 로그인한 사용자는 모든 사용자의 정보를 읽을 수 있음.
+    // 쓰기(write): 자신의 문서만 수정할 수 있음.
     match /users/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth.uid == userId;
 
-      // Incorrect-answers 하위 컬렉션: 자신의 문서 하위의 오답노트만 접근 가능
+      // Incorrect-answers 하위 컬렉션:
+      // 자신의 오답노트만 모든 작업(읽기, 쓰기, 삭제)을 할 수 있도록 명시적으로 허용.
       match /incorrect-answers/{answerId} {
         allow read, write, delete: if request.auth.uid == userId;
       }
     }
 
     // Game-sets 컬렉션:
+    // 생성/읽기: 로그인한 사용자만 가능.
+    // 삭제: 제작자만 가능.
+    // 업데이트: 제작자 또는 playCount 필드만 수정하는 경우 허용.
     match /game-sets/{gameSetId} {
       allow read, create: if request.auth != null;
-      allow delete: if request.auth.uid == resource.data.creatorId || request.auth.token.email in ['inkun00@han4.net'];
+      allow delete: if request.auth.uid == resource.data.creatorId;
       allow update: if request.auth.uid == resource.data.creatorId 
-                      || request.auth.token.email in ['inkun00@han4.net']
                       || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playCount']));
     }
 
-    // Game-rooms 컬렉션: 로그인한 사용자만 접근 가능하도록 각 권한을 명시
+    // Game-rooms 컬렉션: 로그인한 사용자만 접근 가능하도록 각 권한을 명시.
     match /game-rooms/{roomId} {
       allow read, create, update, delete: if request.auth != null;
     }
 
-    // AnswerLogs 컬렉션 그룹: 자신의 답변 기록만 읽고 생성할 수 있음
+    // AnswerLogs 컬렉션 그룹:
+    // 자신의 답변 기록만 읽고 생성할 수 있음.
     match /{path=**}/answerLogs/{logId} {
-      allow create: if request.auth != null;
-      allow read: if request.auth.uid == resource.data.userId;
+        allow create: if request.auth != null;
+        allow read: if request.auth.uid == resource.data.userId;
     }
   }
 }
