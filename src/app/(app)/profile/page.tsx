@@ -26,6 +26,16 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import Image from 'next/image';
 
+const todo_items = [
+  { label: '숙제 마무리하기', description: '오늘 배운 내용을 정리하고 숙제를 완성해요', reward: 50 },
+  { label: '복습 퀴즈 풀기', description: '틀렸던 문제를 다시 풀어보고 점수를 올려요', reward: 30 },
+  { label: '친구와 토론하기', description: '친구와 함께 문제를 토론하며 이해도를 높여요', reward: 20 },
+];
+
+function updateTodoItem(index: number, completed: boolean) {
+  console.log(`Todo item ${index} completed:`, completed);
+}
+
 interface ReviewQuestion extends IncorrectAnswer {
     userReviewAnswer?: string;
     isSubmitting?: boolean;

@@ -29,11 +29,30 @@ export async function recordIncorrectAnswer(incorrectLog: Omit<IncorrectAnswer, 
 }
 
 
+export async function grantXp(userId: string, xp: number) {
+    if (!userId || typeof xp !== 'number' || xp === 0) {
+        return { success: false, message: 'Invalid userId or xp amount.' };
+    }
+
+    try {
+        const userRef = adminDb.collection('users').doc(userId);
+        await userRef.update({ xp: FieldValue.increment(xp) });
+        return { success: true };
+    } catch (error) {
+        console.error('Error granting XP:', error);
+        return { success: false, message: 'Failed to grant XP.' };
+    }
+}
+
 /**
  * 트랜잭션을 Batched Write로 변경하여 극적으로 경량화된 최종 함수.
  * 디버깅을 위해 상세한 결과 객체를 반환합니다.
  */
-export async function finishGameAndRecordStats(gameRoomId: string, finalLogsForXp: { userId: string, pointsAwarded: number }[]): Promise<{ success: boolean; message: string; data?: any; error?: any;}> {
+export async function finishGameAndRecordStats(
+    gameRoomId: string,
+    finalLogsForXp: { userId: string, pointsAwarded: number }[],
+    options?: { skipXpUpdate?: boolean }
+): Promise<{ success: boolean; message: string; data?: any; error?: any;}> {
     try {
         const roomRef = adminDb.collection('game-rooms').doc(gameRoomId);
         const roomSnap = await roomRef.get();
@@ -44,6 +63,14 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalLogsForX
         
         const playerUIDs = Array.from(new Set(finalLogsForXp.map(log => log.userId).filter(uid => uid && typeof uid === 'string')));
         
+        if (options?.skipXpUpdate) {
+            return {
+                success: true,
+                message: `Game ${gameRoomId} finished. XP updates were skipped (handled in realtime).`,
+                data: { receivedData: finalLogsForXp }
+            };
+        }
+
         const scores: Record<string, number> = {};
         playerUIDs.forEach(uid => scores[uid] = 0);
 
