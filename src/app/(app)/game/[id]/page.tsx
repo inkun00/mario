@@ -164,6 +164,10 @@ export default function GamePage() {
                 return;
             }
 
+            if (roomData.hostId === user?.uid && roomData.mysteryBoxEnabled && !roomData.isMysterySettingDone) {
+              setShowMysterySettings(true);
+            }
+
             if (!gameSet && roomData.gameSetId) {
               const setRef = doc(db, 'game-sets', roomData.gameSetId);
               const setSnap = await getDoc(setRef);
@@ -197,12 +201,6 @@ export default function GamePage() {
   useEffect(() => {
     if (!gameRoom || loadingUser) return;
     
-    if (gameRoom.hostId === user?.uid && gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone) {
-        setShowMysterySettings(true);
-    } else {
-        setShowMysterySettings(false);
-    }
-
     const calculatedPlayers = calculateScoresFromLogs(gameRoom);
     setPlayers(calculatedPlayers);
     
