@@ -130,7 +130,6 @@ export default function GamePage() {
             }
 
             if (roomData.status === 'setting-mystery') {
-                // For local games, anyone can set it. For remote, only the host.
                 if (roomData.joinType === 'local' || (roomData.joinType === 'remote' && user?.uid === roomData.hostId)) {
                     setShowMysterySettings(true);
                 }
@@ -234,7 +233,7 @@ export default function GamePage() {
     }, 800);
   };
   
-  const handleMysteryBoxOpen = (blockId: number) => {
+  const handleMysteryBoxOpen = async (blockId: number) => {
       if (!gameRoom || typeof gameRoomId !== 'string' || !gameSet) return;
 
       const effects = gameRoom?.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
@@ -256,7 +255,7 @@ export default function GamePage() {
               ...log,
               timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : new Date(),
             }));
-            finishGameAndRecordStats(gameRoomId, finalLogs as any);
+            await finishGameAndRecordStats(gameRoomId, finalLogs as any);
           } else {
              updateDoc(roomRef, { 
                 gameState: newGameState,
@@ -291,7 +290,7 @@ export default function GamePage() {
               break;
       }
       setMysteryBoxEffect(effectDetails);
-setShowMysteryBoxPopup(true);
+      setShowMysteryBoxPopup(true);
   }
 
   const handleShowHint = () => {
@@ -337,7 +336,7 @@ setShowMysteryBoxPopup(true);
     const currentTurnUID = gameRoom.currentTurn;
 
     const answerLogId = uuidv4();
-    const answerLog: AnswerLog = {
+    const newAnswerLog: AnswerLog = {
         id: answerLogId,
         userId: currentTurnUID,
         gameSetId: gameSet.id,
@@ -346,13 +345,13 @@ setShowMysteryBoxPopup(true);
         userAnswer: userAnswer,
         isCorrect: isCorrect,
         pointsAwarded: pointsToAward,
-        timestamp: new Date(),
+        timestamp: new Date(), // Use JS Date object
     };
     
     try {
         const roomRef = doc(db, 'game-rooms', gameRoomId);
         
-        const newAnswerLogs = [...(gameRoom.answerLogs || []), answerLog];
+        const newAnswerLogs = [...(gameRoom.answerLogs || []), newAnswerLog];
         const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
         
         const totalQuestions = gameSet.questions.length;
@@ -362,8 +361,8 @@ setShowMysteryBoxPopup(true);
         
         if (allAnswered) {
              const finalLogs = newAnswerLogs.map(log => ({
-              ...log,
-              timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : new Date(log.timestamp as any),
+                ...log,
+                timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : new Date(log.timestamp as any),
             }));
             await finishGameAndRecordStats(gameRoomId, finalLogs as any);
         } else {
@@ -389,8 +388,8 @@ setShowMysteryBoxPopup(true);
             });
         }
         
-    } catch(error) {
-         toast({variant: 'destructive', title: '오류', description: '답변 제출 중 오류가 발생했습니다.'});
+    } catch(error: any) {
+         toast({variant: 'destructive', title: '오류', description: `답변 제출 중 오류가 발생했습니다: ${error.message}`});
     } finally {
         setIsSubmitting(false);
         handleCloseDialogs();
@@ -419,7 +418,7 @@ setShowMysteryBoxPopup(true);
       gameSetTitle: gameSet?.title || "미스터리 박스",
       question: { id: Date.now(), question: mysteryBoxEffect.title, type: 'subjective', points: 0 },
       isCorrect: true, 
-      timestamp: new Date(),
+      timestamp: new Date(), // Use JS Date object
     };
   
     try {
@@ -487,7 +486,7 @@ setShowMysteryBoxPopup(true);
 
     } catch (error: any) {
       console.error("Error applying mystery effect:", error);
-      toast({ variant: 'destructive', title: '오류', description: '미스터리 효과 적용 중 오류가 발생했습니다.'});
+      toast({ variant: 'destructive', title: '오류', description: `미스터리 효과 적용 중 오류가 발생했습니다: ${error.message}`});
     } finally {
       setIsSubmitting(false);
       handleCloseDialogs();
