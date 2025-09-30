@@ -21,7 +21,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
-import { finishGameAndRecordStats } from '@/app/actions';
+import { finishGameAndRecordStats, recordIncorrectAnswer } from '@/app/actions';
 
 
 interface GameBlock {
@@ -124,7 +124,7 @@ export default function GamePage() {
             const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
             setGameRoom(roomData);
              
-            if (roomData.status === 'finished') {
+            if (roomData.status === 'finished' && !showGameOverPopup) {
                 const finalPlayers = calculateScoresFromLogs(roomData);
                 setFinalScores(finalPlayers);
                 setShowGameOverPopup(true);
@@ -163,7 +163,7 @@ export default function GamePage() {
     return () => {
       unsubscribe();
     };
-  }, [gameRoomId, router, toast, user, loadingUser, gameSet]);
+  }, [gameRoomId, router, toast, user, loadingUser, gameSet, showGameOverPopup]);
   
   // Update player scores and turn status from gameRoom state
   useEffect(() => {
@@ -339,17 +339,41 @@ export default function GamePage() {
         userId: currentTurnUID,
         gameSetId: gameSet.id,
         gameSetTitle: gameSet.title,
-        question: currentQuestion,
+        question: currentQuestion, // This is for context in case we need it
         userAnswer: userAnswer,
         isCorrect: isCorrect,
         pointsAwarded: pointsToAward,
         timestamp: new Date(), // Use JS Date object
     };
     
+    // If incorrect, record it immediately via a lightweight server action
+    if (!isCorrect) {
+        try {
+            await recordIncorrectAnswer({
+                id: answerLogId,
+                userId: currentTurnUID,
+                gameSetId: gameSet.id,
+                gameSetTitle: gameSet.title,
+                question: currentQuestion,
+                userAnswer: userAnswer,
+                timestamp: new Date(),
+            });
+        } catch (error) {
+            console.error("Failed to record incorrect answer in real-time:", error);
+            // This failure is not critical, so we just log it and continue.
+        }
+    }
+
     try {
         const roomRef = doc(db, 'game-rooms', gameRoomId);
         
-        const newAnswerLogs = [...(gameRoom.answerLogs || []), newAnswerLog];
+        // We only need to log score-related info now
+        const lightAnswerLog = {
+          userId: newAnswerLog.userId,
+          pointsAwarded: newAnswerLog.pointsAwarded,
+        };
+        const newAnswerLogs = [...(gameRoom.answerLogs || []), lightAnswerLog];
+        
         const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
         
         const totalQuestions = gameSet.questions.length;
@@ -359,7 +383,7 @@ export default function GamePage() {
         
         const nextTurnUID = getNextTurnUID();
         const updateData: Partial<GameRoom> = {
-            answerLogs: newAnswerLogs,
+            answerLogs: newAnswerLogs as any, // Storing a lighter version
             gameState: newGameState,
             currentTurn: nextTurnUID,
         };
@@ -408,17 +432,12 @@ export default function GamePage() {
     }
   
     let newLogEntry: Partial<AnswerLog> = {
-      id: uuidv4(),
       userId: currentTurnUID,
-      gameSetId: gameRoom.gameSetId,
-      gameSetTitle: gameSet?.title || "미스터리 박스",
-      question: { id: Date.now(), question: mysteryBoxEffect.title, type: 'subjective', points: 0 },
-      isCorrect: true, 
-      timestamp: new Date(), // Use JS Date object
+      pointsAwarded: 0,
     };
   
     try {
-        const logsToPush: AnswerLog[] = [];
+        const logsToPush: Partial<AnswerLog>[] = [];
         let pointsChange = 0;
         
         const currentPlayersState = calculateScoresFromLogs(gameRoom);
@@ -427,15 +446,15 @@ export default function GamePage() {
             case 'bonus':
             case 'penalty':
                 pointsChange = mysteryBoxEffect.value || 0;
-                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange, userAnswer: 'effect', timestamp: new Date() } as AnswerLog);
+                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange });
                 break;
             case 'double':
                 pointsChange = currentPlayersState.find(p => p.uid === currentTurnUID)?.score || 0;
-                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange, userAnswer: 'effect', timestamp: new Date() } as AnswerLog);
+                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange });
                 break;
             case 'half':
                 pointsChange = -Math.floor((currentPlayersState.find(p => p.uid === currentTurnUID)?.score || 0) / 2);
-                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange, userAnswer: 'effect', timestamp: new Date() } as AnswerLog);
+                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange });
                 break;
             case 'swap':
                  if (!playerForSwap) {
@@ -449,8 +468,8 @@ export default function GamePage() {
                 const pointsDiffForCurrent = targetPlayerScore - currentPlayerScore;
                 const pointsDiffForTarget = currentPlayerScore - targetPlayerScore;
         
-                logsToPush.push({ ...newLogEntry, id: uuidv4(), userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent, userAnswer: 'effect', question: {...newLogEntry.question!, id: Date.now() + 1}, timestamp: new Date()} as AnswerLog);
-                logsToPush.push({ ...newLogEntry, id: uuidv4(), userId: playerForSwap, pointsAwarded: pointsDiffForTarget, userAnswer: 'effect', question: {...newLogEntry.question!, id: Date.now() + 2}, timestamp: new Date()} as AnswerLog);
+                logsToPush.push({ userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent });
+                logsToPush.push({ userId: playerForSwap, pointsAwarded: pointsDiffForTarget });
                 break;
         }
 
@@ -466,7 +485,7 @@ export default function GamePage() {
 
         const nextTurnUID = getNextTurnUID();
         const updateData: Partial<GameRoom> = {
-            answerLogs: newAnswerLogs,
+            answerLogs: newAnswerLogs as any,
             gameState: newGameState,
             currentTurn: nextTurnUID,
         };
@@ -506,14 +525,17 @@ export default function GamePage() {
   };
 
   const handleFinishAndSave = async () => {
-    if (!gameRoom || typeof gameRoomId !== 'string') return;
+    if (!gameRoom || typeof gameRoomId !== 'string' || !gameRoom.answerLogs) return;
     setIsFinishingGame(true);
     try {
-        const finalLogs = (gameRoom.answerLogs || []).map(log => ({
-            ...log,
-            timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : new Date(log.timestamp as any),
+        // The logs are now lightweight and safe to pass
+        const finalLogsForXp = (gameRoom.answerLogs || []).map(log => ({
+            userId: log.userId,
+            pointsAwarded: log.pointsAwarded
         }));
-        await finishGameAndRecordStats(gameRoomId, finalLogs as any);
+        
+        await finishGameAndRecordStats(gameRoomId, finalLogsForXp as any);
+
         toast({ title: "저장 완료!", description: "모든 게임 결과가 성공적으로 저장되었습니다." });
         router.push('/dashboard');
     } catch(error: any) {
