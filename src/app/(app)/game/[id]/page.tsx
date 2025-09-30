@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -334,17 +335,6 @@ export default function GamePage() {
     const currentTurnUID = gameRoom.currentTurn;
 
     const answerLogId = uuidv4();
-    const newAnswerLog: AnswerLog = {
-        id: answerLogId,
-        userId: currentTurnUID,
-        gameSetId: gameSet.id,
-        gameSetTitle: gameSet.title,
-        question: currentQuestion, // This is for context in case we need it
-        userAnswer: userAnswer,
-        isCorrect: isCorrect,
-        pointsAwarded: pointsToAward,
-        timestamp: new Date(), // Use JS Date object
-    };
     
     // If incorrect, record it immediately via a lightweight server action
     if (!isCorrect) {
@@ -367,10 +357,9 @@ export default function GamePage() {
     try {
         const roomRef = doc(db, 'game-rooms', gameRoomId);
         
-        // We only need to log score-related info now
         const lightAnswerLog = {
-          userId: newAnswerLog.userId,
-          pointsAwarded: newAnswerLog.pointsAwarded,
+          userId: currentTurnUID,
+          pointsAwarded: pointsToAward,
         };
         const newAnswerLogs = [...(gameRoom.answerLogs || []), lightAnswerLog];
         
@@ -383,7 +372,7 @@ export default function GamePage() {
         
         const nextTurnUID = getNextTurnUID();
         const updateData: Partial<GameRoom> = {
-            answerLogs: newAnswerLogs as any, // Storing a lighter version
+            answerLogs: newAnswerLogs as any, 
             gameState: newGameState,
             currentTurn: nextTurnUID,
         };
@@ -394,7 +383,6 @@ export default function GamePage() {
 
         await updateDoc(roomRef, updateData as any);
         
-
         if (isCorrect) {
             toast({
                 title: '정답입니다!',
@@ -525,22 +513,31 @@ export default function GamePage() {
   };
 
   const handleFinishAndSave = async () => {
-    if (!gameRoom || typeof gameRoomId !== 'string' || !gameRoom.answerLogs) return;
+    if (!gameRoom || typeof gameRoomId !== 'string') return;
     setIsFinishingGame(true);
     try {
-        // The logs are now lightweight and safe to pass
         const finalLogsForXp = (gameRoom.answerLogs || []).map(log => ({
             userId: log.userId,
             pointsAwarded: log.pointsAwarded
         }));
         
-        await finishGameAndRecordStats(gameRoomId, finalLogsForXp as any);
+        const result = await finishGameAndRecordStats(gameRoomId, finalLogsForXp as any);
 
-        toast({ title: "저장 완료!", description: "모든 게임 결과가 성공적으로 저장되었습니다." });
-        router.push('/dashboard');
+        console.log('Server Action Result:', result);
+
+        if (result.success) {
+            toast({ title: "저장 완료!", description: result.message });
+            router.push('/dashboard');
+        } else {
+            toast({ variant: 'destructive', title: '저장 오류', description: result.message });
+            console.error("Server Action Failed:", result.error, "Data:", result.data);
+            setIsFinishingGame(false);
+        }
+
     } catch(error: any) {
-        toast({ variant: 'destructive', title: '저장 오류', description: `결과 저장 중 오류가 발생했습니다: ${error.message}` });
+        toast({ variant: 'destructive', title: '치명적 오류', description: `결과 저장 중 예상치 못한 오류가 발생했습니다: ${error.message}` });
         setIsFinishingGame(false);
+        console.error("Critical error in handleFinishAndSave:", error);
     }
   }
 
