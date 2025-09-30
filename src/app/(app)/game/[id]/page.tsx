@@ -251,7 +251,7 @@ export default function GamePage() {
           if (allAnswered) {
              const finalLogs = (gameRoom.answerLogs || []).map(log => ({
               ...log,
-              timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : log.timestamp,
+              timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : new Date(),
             }));
             finishGameAndRecordStats(gameRoomId, finalLogs);
           } else {
@@ -360,7 +360,7 @@ setShowMysteryBoxPopup(true);
         if (allAnswered) {
              const finalLogs = newAnswerLogs.map(log => ({
               ...log,
-              timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : log.timestamp,
+              timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : (log.timestamp || new Date()),
             }));
             await finishGameAndRecordStats(gameRoomId, finalLogs);
         } else {
@@ -469,7 +469,7 @@ setShowMysteryBoxPopup(true);
         if (allAnswered) {
              const finalLogs = newAnswerLogs.map(log => ({
               ...log,
-              timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : log.timestamp,
+              timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : (log.timestamp || new Date()),
             }));
              await finishGameAndRecordStats(gameRoomId, finalLogs);
         } else {
