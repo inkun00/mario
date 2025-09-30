@@ -2,10 +2,10 @@
 
 import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
-import type { User, AnswerLog, Question } from '@/lib/types';
+import type { AnswerLog } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
-// Initialize Firebase Admin SDK. This must be done once per server instance.
+// Initialize Firebase Admin SDK.
 if (!getApps().length) {
   initializeApp();
 }
