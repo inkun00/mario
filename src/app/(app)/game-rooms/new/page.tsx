@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -60,6 +59,7 @@ function NewGameRoomPageContents() {
   const [password, setPassword] = useState('');
   const [usePassword, setUsePassword] = useState(false);
   const [joinType, setJoinType] = useState<JoinType>('local');
+  const [mysteryBoxEnabled, setMysteryBoxEnabled] = useState(true);
   
   useEffect(() => {
     if (!gameSetId) {
@@ -151,8 +151,8 @@ function NewGameRoomPageContents() {
             [user.uid]: hostPlayer
         },
         gameState: {},
-        mysteryBoxEnabled: true,
-        isMysterySettingDone: false, // Make sure this is explicitly false
+        mysteryBoxEnabled: mysteryBoxEnabled,
+        isMysterySettingDone: !mysteryBoxEnabled,
         joinType: joinType,
         ...(usePassword && password && { password }),
       };
@@ -242,7 +242,17 @@ function NewGameRoomPageContents() {
                     </div>
                   </RadioGroup>
               </div>
-
+              <div className="flex items-center justify-between">
+                <Label htmlFor="mystery-box" className="flex flex-col gap-1">
+                  <span>미스터리 박스 사용</span>
+                  <span className="text-xs text-muted-foreground">게임에 점수 획득/감소 등 랜덤 이벤트를 추가합니다.</span>
+                </Label>
+                <Switch
+                  id="mystery-box"
+                  checked={mysteryBoxEnabled}
+                  onCheckedChange={setMysteryBoxEnabled}
+                />
+              </div>
             </div>
           </div>
           

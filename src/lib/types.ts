@@ -84,7 +84,7 @@ export interface GameRoom {
   playerUIDs?: string[]; // ordered list of player UIDs for turn sequence
   gameState: Record<string, 'available' | 'flipping' | 'answered'>; // key is questionId
   mysteryBoxEnabled: boolean;
-  isMysterySettingDone?: boolean;
+  isMysterySettingDone: boolean;
   enabledMysteryEffects?: MysteryEffectType[];
   joinType: JoinType;
   createdAt: any;
