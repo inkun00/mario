@@ -32,7 +32,7 @@ import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe,
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState, useRef } from 'react';
-import { collection, onSnapshot, query, doc, deleteDoc, where, getDocs, QuerySnapshot, DocumentData, Unsubscribe } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { GameSet } from '@/lib/types';
 import { auth } from '@/lib/firebase';
@@ -54,8 +54,12 @@ interface GameSetDocument extends GameSet {
 export default function DashboardPage() {
   const [user, loadingUser] = useAuthState(auth);
   const router = useRouter();
+  
+  const [publicSets, setPublicSets] = useState<GameSetDocument[]>([]);
+  const [privateSets, setPrivateSets] = useState<GameSetDocument[]>([]);
   const [allGameSets, setAllGameSets] = useState<GameSetDocument[]>([]);
   const [filteredGameSets, setFilteredGameSets] = useState<GameSetDocument[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [selectedGameSet, setSelectedGameSet] = useState<GameSetDocument | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<GameSetDocument | null>(null);
@@ -70,95 +74,70 @@ export default function DashboardPage() {
   const [joinCode, setJoinCode] = useState('');
 
   const isAdmin = user ? ADMIN_EMAILS.includes(user.email || '') : false;
-
-  useEffect(() => {
-    if (loadingUser) {
-      setLoading(true);
-      return;
-    }
   
+  // Effect for setting up listeners
+  useEffect(() => {
     setLoading(true);
 
-    const publicQuery = query(
-      collection(db, 'game-sets'),
-      where('isPublic', '==', true)
-    );
+    const publicQuery = query(collection(db, 'game-sets'), where('isPublic', '==', true));
+    const publicUnsubscribe = onSnapshot(publicQuery, (snapshot) => {
+        const sets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSetDocument));
+        setPublicSets(sets);
+        setLoading(false);
+    }, (error) => {
+        console.error("Error fetching public game sets: ", error);
+        toast({ variant: "destructive", title: "오류", description: "공개 퀴즈 세트를 불러오는 중 오류가 발생했습니다." });
+        setLoading(false);
+    });
 
-    let publicUnsubscribe: Unsubscribe | null = null;
     let privateUnsubscribe: Unsubscribe | null = null;
-  
-    const handleSnapshots = (
-      publicSets: GameSetDocument[],
-      privateSets: GameSetDocument[] = []
-    ) => {
+    if (user) {
+        const privateQuery = query(
+            collection(db, 'game-sets'),
+            where('creatorId', '==', user.uid),
+            where('isPublic', '==', false)
+        );
+        privateUnsubscribe = onSnapshot(privateQuery, (snapshot) => {
+            const sets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSetDocument));
+            setPrivateSets(sets);
+        }, (error) => {
+            console.error("Error fetching private game sets: ", error);
+            toast({ variant: "destructive", title: "오류", description: "비공개 퀴즈 세트를 불러오는 중 오류가 발생했습니다." });
+        });
+    } else {
+        // Clear private sets if user logs out
+        setPrivateSets([]);
+    }
+
+    // Cleanup function
+    return () => {
+        publicUnsubscribe();
+        if (privateUnsubscribe) {
+            privateUnsubscribe();
+        }
+    };
+  }, [user, toast]);
+
+  // Effect for combining public and private sets
+  useEffect(() => {
       const combinedSets: Record<string, GameSetDocument> = {};
-  
+      
       publicSets.forEach(set => {
-        combinedSets[set.id] = set;
+          combinedSets[set.id] = set;
       });
-  
+      
       privateSets.forEach(set => {
-        combinedSets[set.id] = set;
+          combinedSets[set.id] = set;
       });
-  
+
       const finalSets = Object.values(combinedSets).sort(
         (a, b) => (b.playCount || 0) - (a.playCount || 0) || (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)
       );
-      
+
       setAllGameSets(finalSets);
-      setFilteredGameSets(finalSets);
-      setLoading(false);
-    };
-  
-    if (user) {
-      // User is logged in, set up both listeners
-      const privateQuery = query(
-        collection(db, 'game-sets'),
-        where('creatorId', '==', user.uid),
-        where('isPublic', '==', false)
-      );
-  
-      let publicSets: GameSetDocument[] = [];
-      let privateSets: GameSetDocument[] = [];
+      setFilteredGameSets(finalSets); // Initially, filtered is all
+  }, [publicSets, privateSets]);
 
-      publicUnsubscribe = onSnapshot(publicQuery, (snapshot) => {
-        publicSets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSetDocument));
-        handleSnapshots(publicSets, privateSets);
-      }, (error) => {
-        console.error("Error fetching public game sets: ", error);
-        toast({ variant: "destructive", title: "오류", description: "공개 퀴즈 세트를 불러오는 중 오류가 발생했습니다." });
-      });
-
-      privateUnsubscribe = onSnapshot(privateQuery, (snapshot) => {
-        privateSets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSetDocument));
-        handleSnapshots(publicSets, privateSets);
-      }, (error) => {
-        console.error("Error fetching private game sets: ", error);
-        toast({ variant: "destructive", title: "오류", description: "비공개 퀴즈 세트를 불러오는 중 오류가 발생했습니다." });
-      });
-
-    } else {
-      // User is not logged in, only listen to public sets
-      publicUnsubscribe = onSnapshot(publicQuery, (snapshot) => {
-        const publicSets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSetDocument));
-        handleSnapshots(publicSets);
-      }, (error) => {
-        console.error("Error fetching public game sets: ", error);
-        toast({ variant: "destructive", title: "오류", description: "퀴즈 세트를 불러오는 중 오류가 발생했습니다." });
-        setLoading(false);
-      });
-    }
-  
-    // Cleanup function
-    return () => {
-      if (publicUnsubscribe) {
-        publicUnsubscribe();
-      }
-      if (privateUnsubscribe) {
-        privateUnsubscribe();
-      }
-    };
-  }, [user, loadingUser, toast]);
 
   const handleDelete = async () => {
     if (!deleteCandidate) return;
@@ -340,7 +319,7 @@ export default function DashboardPage() {
             </div>
           </Card>
 
-          {loading ? (
+          {loading || loadingUser ? (
             <div className="text-center py-12">
               <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
               <p className="mt-2 text-muted-foreground">게임 세트를 불러오는 중...</p>
@@ -517,4 +496,5 @@ export default function DashboardPage() {
       </AlertDialog>
     </>
   );
-}
+
+    
