@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -71,18 +70,27 @@ export default function ProfilePage() {
       const [logsSnapshot, incorrectSnapshot] = await Promise.all([
         getDocs(answerLogsQuery),
         getDocs(query(incorrectAnswersRef, orderBy('timestamp', 'desc')))
-      ]);
+      ]).catch(err => {
+        console.error("Error fetching profile data:", err);
+        toast({ variant: 'destructive', title: '데이터 조회 오류', description: '프로필 데이터를 불러오는 중 오류가 발생했습니다. 보안 규칙을 확인해주세요.'});
+        return [null, null];
+      });
 
-      const logsData = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AnswerLog));
-      const incorrectData = incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer));
-
-      setAnswerLogs(logsData);
-      setReviewQuestions(incorrectData);
+      if(logsSnapshot) {
+        const logsData = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AnswerLog));
+        setAnswerLogs(logsData);
+      }
+      
+      if(incorrectSnapshot) {
+        const incorrectData = incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer));
+        setReviewQuestions(incorrectData);
+      }
+      
       setIsLoading(false);
     };
 
     fetchData();
-  }, [user]);
+  }, [user, toast]);
 
   const handleReviewAnswerChange = (index: number, value: string) => {
     const updatedQuestions = [...reviewQuestions];
@@ -122,14 +130,15 @@ export default function ProfilePage() {
                 
                 // Update user data locally to reflect XP change
                 const newXp = (userData?.xp || 0) + 10;
-                setUserData(prev => prev ? { ...prev, xp: newXp } : null);
-                
-                // Update level info if level up
-                const newLevelInfo = getLevelInfo(newXp);
-                if (newLevelInfo.level !== levelInfo?.level) {
-                  setLevelInfo(newLevelInfo);
-                  setNextLevelInfo(getNextLevelInfo(newLevelInfo.level));
-                }
+                setUserData(prev => {
+                    if (!prev) return null;
+                    const newLevelInfo = getLevelInfo(newXp);
+                    if (newLevelInfo.level !== levelInfo?.level) {
+                        setLevelInfo(newLevelInfo);
+                        setNextLevelInfo(getNextLevelInfo(newLevelInfo.level));
+                    }
+                    return { ...prev, xp: newXp };
+                });
 
                 toast({ title: '정답입니다!', description: '복습을 완료했습니다. 10 XP를 획득했습니다!' });
             } else {
@@ -364,5 +373,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    
