@@ -14,7 +14,7 @@ import { auth, db } from '@/lib/firebase';
 import { useEffect, useState } from 'react';
 import type { User, AnswerLog, IncorrectAnswer, Question } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, where, limit } from 'firebase/firestore';
-import { Loader2, FileWarning, Star, School, Trophy } from 'lucide-react';
+import { Loader2, FileWarning, School, Trophy } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -161,7 +161,7 @@ export default function ProfilePage() {
   };
 
 
-  const actualAnswerLogs = answerLogs.filter(log => log.question && log.question.type);
+  const actualAnswerLogs = answerLogs.filter(log => log.question && ['subjective', 'multipleChoice', 'ox'].includes(log.question.type));
   const totalQuestions = actualAnswerLogs.length;
   const correctCount = actualAnswerLogs.filter(log => log.isCorrect).length;
   const correctRate = totalQuestions > 0 ? ((correctCount / totalQuestions) * 100).toFixed(1) : '0.0';
