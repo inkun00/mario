@@ -164,15 +164,6 @@ export default function GamePage() {
                 return;
             }
 
-            // Show mystery settings only if they are enabled and not yet done.
-            if (roomData.mysteryBoxEnabled && !roomData.isMysterySettingDone) {
-                if (roomData.hostId === user?.uid) {
-                    setShowMysterySettings(true);
-                }
-            } else {
-                setShowMysterySettings(false);
-            }
-
             if (!gameSet && roomData.gameSetId) {
               const setRef = doc(db, 'game-sets', roomData.gameSetId);
               const setSnap = await getDoc(setRef);
@@ -205,6 +196,12 @@ export default function GamePage() {
   // Update player scores and turn status from gameRoom state
   useEffect(() => {
     if (!gameRoom || loadingUser) return;
+    
+    if (gameRoom.hostId === user?.uid && gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone) {
+        setShowMysterySettings(true);
+    } else {
+        setShowMysterySettings(false);
+    }
 
     const calculatedPlayers = calculateScoresFromLogs(gameRoom);
     setPlayers(calculatedPlayers);
@@ -841,5 +838,7 @@ setShowMysteryBoxPopup(true);
     </>
   );
 }
+
+    
 
     
