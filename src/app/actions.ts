@@ -6,6 +6,7 @@ import type { User, Player, AnswerLog, GameRoom, Question } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
 // Initialize Firebase Admin SDK for server-side execution.
+// This must be done once per server instance.
 if (!getApps().length) {
   initializeApp();
 }
@@ -84,7 +85,8 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLo
                 answerLogs: serverAnswerLogs,
             });
 
-            const playerUIDs = Object.keys(gameRoom.players);
+            const playerUIDs = Array.from(new Set(serverAnswerLogs.map(log => log.userId).filter(Boolean)));
+            
             const scores: Record<string, number> = {};
             playerUIDs.forEach(uid => scores[uid] = 0);
 
@@ -100,7 +102,6 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLo
             userSnaps.forEach(userSnap => {
                 if (userSnap.exists) {
                     const userRef = userSnap.ref;
-                    const userData = userSnap.data() as User;
                     const xpGained = scores[userSnap.id] || 0;
                     
                     if (xpGained > 0) {
