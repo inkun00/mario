@@ -450,7 +450,7 @@ export default function GamePage() {
                 const pointsDiffForTarget = currentPlayerScore - targetPlayerScore;
         
                 logsToPush.push({ ...newLogEntry, id: uuidv4(), userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent, userAnswer: 'effect', question: {...newLogEntry.question!, id: Date.now() + 1}, timestamp: new Date()} as AnswerLog);
-                logsToPush.push({ ...newLogEntry, id: uuidv4(), userId: playerForSwap, pointsAwarded: pointsDiffForTarget, userAnswer: 'effect', question: {...newLogEntry.question!, id: Date.now() + 2}, timestamp: new Date() } as AnswerLog);
+                logsToPush.push({ ...newLogEntry, id: uuidv4(), userId: playerForSwap, pointsAwarded: pointsDiffForTarget, userAnswer: 'effect', question: {...newLogEntry.question!, id: Date.now() + 2}, timestamp: new Date()} as AnswerLog);
                 break;
         }
 

@@ -20,24 +20,12 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLo
             if (!roomSnap.exists) {
                 throw new Error("Game room not found.");
             }
-
-            const gameRoom = roomSnap.data();
-
-            if (gameRoom?.status === 'finished') {
-                console.log("Game already finished. Aborting stat recording.");
-                return;
-            }
             
             const serverAnswerLogs = finalAnswerLogs.map(log => ({
                 ...log,
                 timestamp: AdminTimestamp.fromDate(new Date(log.timestamp)),
             }));
             
-            transaction.update(roomRef, { 
-                status: 'finished',
-                answerLogs: serverAnswerLogs,
-            });
-
             const playerUIDs = Array.from(new Set(serverAnswerLogs.map(log => log.userId).filter(Boolean))) as string[];
             
             const scores: Record<string, number> = {};
