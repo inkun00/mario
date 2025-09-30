@@ -37,6 +37,11 @@ export async function recordIncorrectAnswer(incorrectLog: Omit<IncorrectAnswer, 
  */
 export async function finishGameAndRecordStats(gameRoomId: string, finalLogsForXp: { userId: string, pointsAwarded: number }[]) {
     try {
+        // --- ▼▼▼ 디버깅 코드 추가 ▼▼▼ ---
+        console.log("--- finishGameAndRecordStats 실행 ---");
+        console.log("클라이언트로부터 받은 데이터:", JSON.stringify(finalLogsForXp, null, 2));
+        // --- ▲▲▲ 디버깅 코드 추가 ▲▲▲ ---
+
         // 1. 트랜잭션 없이 게임방 존재 여부만 빠르게 확인
         const roomRef = adminDb.collection('game-rooms').doc(gameRoomId);
         const roomSnap = await roomRef.get();
@@ -47,6 +52,11 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalLogsForX
         
         // 2. 메모리에서 점수 집계 (매우 빠름)
         const playerUIDs = Array.from(new Set(finalLogsForXp.map(log => log.userId).filter(Boolean))) as string[];
+        
+        // --- ▼▼▼ 디버깅 코드 추가 ▼▼▼ ---
+        console.log("XP를 업데이트할 필터링된 UID 목록:", playerUIDs);
+        // --- ▲▲▲ 디버깅 코드 추가 ▲▲▲ ---
+        
         const scores: Record<string, number> = {};
         playerUIDs.forEach(uid => scores[uid] = 0);
 
@@ -75,6 +85,10 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalLogsForX
 
     } catch (error) {
         console.error("Error in finishGameAndRecordStats:", error);
+        // --- ▼▼▼ 디버깅 코드 추가 ▼▼▼ ---
+        // 실제 Firestore에서 발생한 구체적인 에러 내용을 확인하기 위해 error 객체 전체를 로깅합니다.
+        console.error("발생한 전체 오류 객체:", error);
+        // --- ▲▲▲ 디버깅 코드 추가 ▲▲▲ ---
         throw new Error('Failed to finish game and record stats.');
     }
 }
