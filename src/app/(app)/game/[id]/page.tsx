@@ -129,8 +129,11 @@ export default function GamePage() {
                 return;
             }
 
-            if (roomData.status === 'setting-mystery' && user?.uid === roomData.hostId) {
-                setShowMysterySettings(true);
+            if (roomData.status === 'setting-mystery') {
+                // For local games, anyone can set it. For remote, only the host.
+                if (roomData.joinType === 'local' || (roomData.joinType === 'remote' && user?.uid === roomData.hostId)) {
+                    setShowMysterySettings(true);
+                }
             }
 
             if (!gameSet && roomData.gameSetId) {
