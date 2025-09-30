@@ -132,6 +132,7 @@ export default function GamePage() {
         });
 
         await updateScores({
+          gameSetId: room.gameSetId,
           players: finalPlayers,
           answerLogs: serializableAnswerLogs,
         });
@@ -219,7 +220,7 @@ export default function GamePage() {
   useEffect(() => {
     if (blocks.length > 0 || !gameSet || !gameRoom) return;
 
-    const canInitializeBoard = !gameRoom.mysteryBoxEnabled || gameRoom.isMysterySettingDone;
+    const canInitializeBoard = (gameRoom.mysteryBoxEnabled && gameRoom.isMysterySettingDone) || !gameRoom.mysteryBoxEnabled;
 
     if (canInitializeBoard) {
         const questionItems: GameBlock[] = gameSet.questions.map((q, i) => ({
@@ -559,7 +560,7 @@ setShowMysteryBoxPopup(true);
     );
   }
   
-  if (blocks.length === 0 && gameRoom.isMysterySettingDone) {
+  if (blocks.length === 0 && ((gameRoom.mysteryBoxEnabled && gameRoom.isMysterySettingDone) || !gameRoom.mysteryBoxEnabled)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
@@ -841,3 +842,4 @@ setShowMysteryBoxPopup(true);
   );
 }
 
+    
