@@ -253,7 +253,7 @@ export default function GamePage() {
               ...log,
               timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : new Date(),
             }));
-            finishGameAndRecordStats(gameRoomId, finalLogs);
+            finishGameAndRecordStats(gameRoomId, finalLogs as any);
           } else {
              updateDoc(roomRef, { 
                 gameState: newGameState,
@@ -360,9 +360,9 @@ setShowMysteryBoxPopup(true);
         if (allAnswered) {
              const finalLogs = newAnswerLogs.map(log => ({
               ...log,
-              timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : (log.timestamp || new Date()),
+              timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : new Date(log.timestamp as any),
             }));
-            await finishGameAndRecordStats(gameRoomId, finalLogs);
+            await finishGameAndRecordStats(gameRoomId, finalLogs as any);
         } else {
              const nextTurnUID = getNextTurnUID();
              const updateData: Partial<GameRoom> = {
@@ -429,15 +429,15 @@ setShowMysteryBoxPopup(true);
             case 'bonus':
             case 'penalty':
                 pointsChange = mysteryBoxEffect.value || 0;
-                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange, userAnswer: 'effect' } as AnswerLog);
+                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange, userAnswer: 'effect', timestamp: new Date() } as AnswerLog);
                 break;
             case 'double':
                 pointsChange = currentPlayersState.find(p => p.uid === currentTurnUID)?.score || 0;
-                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange, userAnswer: 'effect' } as AnswerLog);
+                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange, userAnswer: 'effect', timestamp: new Date() } as AnswerLog);
                 break;
             case 'half':
                 pointsChange = -Math.floor((currentPlayersState.find(p => p.uid === currentTurnUID)?.score || 0) / 2);
-                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange, userAnswer: 'effect' } as AnswerLog);
+                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange, userAnswer: 'effect', timestamp: new Date() } as AnswerLog);
                 break;
             case 'swap':
                  if (!playerForSwap) {
@@ -451,8 +451,8 @@ setShowMysteryBoxPopup(true);
                 const pointsDiffForCurrent = targetPlayerScore - currentPlayerScore;
                 const pointsDiffForTarget = currentPlayerScore - targetPlayerScore;
         
-                logsToPush.push({ ...newLogEntry, id: uuidv4(), userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent, userAnswer: 'effect', question: {...newLogEntry.question!, id: Date.now() + 1}} as AnswerLog);
-                logsToPush.push({ ...newLogEntry, id: uuidv4(), userId: playerForSwap, pointsAwarded: pointsDiffForTarget, userAnswer: 'effect', question: {...newLogEntry.question!, id: Date.now() + 2} } as AnswerLog);
+                logsToPush.push({ ...newLogEntry, id: uuidv4(), userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent, userAnswer: 'effect', question: {...newLogEntry.question!, id: Date.now() + 1}, timestamp: new Date()} as AnswerLog);
+                logsToPush.push({ ...newLogEntry, id: uuidv4(), userId: playerForSwap, pointsAwarded: pointsDiffForTarget, userAnswer: 'effect', question: {...newLogEntry.question!, id: Date.now() + 2}, timestamp: new Date() } as AnswerLog);
                 break;
         }
 
@@ -469,9 +469,9 @@ setShowMysteryBoxPopup(true);
         if (allAnswered) {
              const finalLogs = newAnswerLogs.map(log => ({
               ...log,
-              timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : (log.timestamp || new Date()),
+              timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : new Date(log.timestamp as any),
             }));
-             await finishGameAndRecordStats(gameRoomId, finalLogs);
+             await finishGameAndRecordStats(gameRoomId, finalLogs as any);
         } else {
             const nextTurnUID = getNextTurnUID();
             const updateData: Partial<GameRoom> = {

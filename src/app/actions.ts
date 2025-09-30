@@ -1,12 +1,11 @@
 'use server';
 
 import { initializeApp, getApps } from 'firebase-admin/app';
-import { getFirestore, FieldValue, Timestamp as AdminTimestamp, Transaction } from 'firebase-admin/firestore';
-import type { User, AnswerLog } from '@/lib/types';
+import { getFirestore, FieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
+import type { User, AnswerLog, Question } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
 // Initialize Firebase Admin SDK. This must be done once per server instance.
-// In environments like Firebase App Hosting, it automatically finds the service account.
 if (!getApps().length) {
   initializeApp();
 }
@@ -33,11 +32,11 @@ export async function checkUserId(userId: string): Promise<CheckUserResult> {
         }
 
         const userDoc = querySnapshot.docs[0];
-        const userData = userDoc.data() as User;
+        const userData = userDoc.data();
 
         return {
             exists: true,
-            uid: userData.uid,
+            uid: userDoc.id,
             nickname: userData.displayName || '이름없음',
         };
     } catch (error) {
@@ -53,11 +52,11 @@ export async function checkUserId(userId: string): Promise<CheckUserResult> {
  * This function is designed to be called when the game ends.
  * It uses a transaction to ensure atomic updates and prevent race conditions.
  * @param gameRoomId The ID of the game room.
- * @param finalAnswerLogs The final list of answer logs from the client.
+ * @param finalAnswerLogs The final list of answer logs from the client (as plain objects).
  */
-export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLogs: AnswerLog[]) {
+export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLogs: Omit<AnswerLog, 'timestamp'> & { timestamp: Date }[]) {
     try {
-        await db.runTransaction(async (transaction: Transaction) => {
+        await db.runTransaction(async (transaction) => {
             const roomRef = db.collection('game-rooms').doc(gameRoomId);
             const roomSnap = await transaction.get(roomRef);
 
@@ -67,26 +66,22 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLo
 
             const gameRoom = roomSnap.data();
 
-            // Prevent multiple executions for the same game
             if (gameRoom?.status === 'finished') {
                 console.log("Game already finished. Aborting stat recording.");
                 return;
             }
-
-            // Convert date objects from client back to Firestore Timestamps on the server
+            
             const serverAnswerLogs = finalAnswerLogs.map(log => ({
                 ...log,
-                timestamp: AdminTimestamp.fromDate(new Date(log.timestamp as any)),
+                timestamp: AdminTimestamp.fromDate(new Date(log.timestamp)),
             }));
-
-
-            // 1. Update GameRoom status to 'finished' and save the final logs
+            
             transaction.update(roomRef, { 
                 status: 'finished',
                 answerLogs: serverAnswerLogs,
             });
 
-            const playerUIDs = Array.from(new Set(serverAnswerLogs.map(log => log.userId).filter(Boolean)));
+            const playerUIDs = Array.from(new Set(serverAnswerLogs.map(log => log.userId).filter(Boolean))) as string[];
             
             const scores: Record<string, number> = {};
             playerUIDs.forEach(uid => scores[uid] = 0);
@@ -106,14 +101,12 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLo
                     const xpGained = scores[userSnap.id] || 0;
                     
                     if (xpGained > 0) {
-                        // 2. Update player XP
                         transaction.update(userRef, { xp: FieldValue.increment(xpGained) });
                     }
                 }
             });
 
-            // 3. Record incorrect answers
-            const incorrectLogs = serverAnswerLogs.filter(log => !log.isCorrect);
+            const incorrectLogs = serverAnswerLogs.filter(log => !log.isCorrect && log.question && ['subjective', 'multipleChoice', 'ox'].includes(log.question.type));
 
             for (const log of incorrectLogs) {
                 if(log.userId && log.question) {
@@ -133,7 +126,6 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLo
         console.log(`Successfully finished game and recorded stats for room ${gameRoomId}.`);
     } catch (error) {
         console.error("Error finishing game and recording stats:", error);
-        // We throw the error so the client can be notified
         throw new Error('게임 종료 및 기록 저장 중 오류가 발생했습니다.');
     }
 }
