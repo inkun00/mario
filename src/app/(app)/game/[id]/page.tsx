@@ -7,7 +7,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb } from 'lucide-react';
+import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb, Save } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 import { Progress } from '@/components/ui/progress';
@@ -110,6 +110,8 @@ export default function GamePage() {
   
   const [showGameOverPopup, setShowGameOverPopup] = useState(false);
   const [finalScores, setFinalScores] = useState<Player[]>([]);
+  const [isFinishingGame, setIsFinishingGame] = useState(false);
+
 
   // Fetch GameRoom and GameSet data
   useEffect(() => {
@@ -251,11 +253,7 @@ export default function GamePage() {
           const allAnswered = Object.keys(newGameState).length >= totalBlocks;
 
           if (allAnswered) {
-             const finalLogs = (gameRoom.answerLogs || []).map(log => ({
-              ...log,
-              timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : new Date(),
-            }));
-            await finishGameAndRecordStats(gameRoomId, finalLogs as any);
+             updateDoc(roomRef, { status: 'finished', gameState: newGameState });
           } else {
              updateDoc(roomRef, { 
                 gameState: newGameState,
@@ -359,21 +357,19 @@ export default function GamePage() {
         const totalBlocks = totalQuestions + mysteryBlockCount;
         const allAnswered = Object.keys(newGameState).length >= totalBlocks;
         
+        const nextTurnUID = getNextTurnUID();
+        const updateData: Partial<GameRoom> = {
+            answerLogs: newAnswerLogs,
+            gameState: newGameState,
+            currentTurn: nextTurnUID,
+        };
+
         if (allAnswered) {
-             const finalLogs = newAnswerLogs.map(log => ({
-                ...log,
-                timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : new Date(log.timestamp as any),
-            }));
-            await finishGameAndRecordStats(gameRoomId, finalLogs as any);
-        } else {
-             const nextTurnUID = getNextTurnUID();
-             const updateData: Partial<GameRoom> = {
-                answerLogs: newAnswerLogs,
-                gameState: newGameState,
-                currentTurn: nextTurnUID,
-            };
-            await updateDoc(roomRef, updateData as any);
+          updateData.status = 'finished';
         }
+
+        await updateDoc(roomRef, updateData as any);
+        
 
         if (isCorrect) {
             toast({
@@ -468,21 +464,19 @@ export default function GamePage() {
         const totalBlocks = totalQuestions + mysteryBlockCount;
         const allAnswered = Object.keys(newGameState).length >= totalBlocks;
 
+        const nextTurnUID = getNextTurnUID();
+        const updateData: Partial<GameRoom> = {
+            answerLogs: newAnswerLogs,
+            gameState: newGameState,
+            currentTurn: nextTurnUID,
+        };
+
         if (allAnswered) {
-             const finalLogs = newAnswerLogs.map(log => ({
-              ...log,
-              timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : new Date(log.timestamp as any),
-            }));
-             await finishGameAndRecordStats(gameRoomId, finalLogs as any);
-        } else {
-            const nextTurnUID = getNextTurnUID();
-            const updateData: Partial<GameRoom> = {
-                answerLogs: newAnswerLogs,
-                gameState: newGameState,
-                currentTurn: nextTurnUID,
-            };
-            await updateDoc(roomRef, updateData as any);
+            updateData.status = 'finished';
         }
+        
+        await updateDoc(roomRef, updateData as any);
+        
 
     } catch (error: any) {
       console.error("Error applying mystery effect:", error);
@@ -510,6 +504,23 @@ export default function GamePage() {
       setIsSubmitting(false);
     }
   };
+
+  const handleFinishAndSave = async () => {
+    if (!gameRoom || typeof gameRoomId !== 'string') return;
+    setIsFinishingGame(true);
+    try {
+        const finalLogs = (gameRoom.answerLogs || []).map(log => ({
+            ...log,
+            timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : new Date(log.timestamp as any),
+        }));
+        await finishGameAndRecordStats(gameRoomId, finalLogs as any);
+        toast({ title: "저장 완료!", description: "모든 게임 결과가 성공적으로 저장되었습니다." });
+        router.push('/dashboard');
+    } catch(error: any) {
+        toast({ variant: 'destructive', title: '저장 오류', description: `결과 저장 중 오류가 발생했습니다: ${error.message}` });
+        setIsFinishingGame(false);
+    }
+  }
 
 
   const currentTurnPlayer = players.find(p => p.uid === gameRoom?.currentTurn);
@@ -656,7 +667,7 @@ export default function GamePage() {
       </div>
 
       {/* Mystery Box Settings Popup */}
-      <Dialog open={showMysterySettings} onOpenChange={(isOpen) => !isOpen && setShowMysterySettings(false)}>
+      <Dialog open={showMysterySettings}>
         <DialogContent>
             <DialogHeader>
                 <DialogTitle className="font-headline text-2xl flex items-center gap-2"><Gift className="text-primary"/>미스터리 박스 설정</DialogTitle>
@@ -820,8 +831,9 @@ export default function GamePage() {
                   </div>
               </div>
               <DialogFooter className="sm:justify-center">
-                  <Button asChild>
-                      <Link href="/dashboard">돌아가기</Link>                 
+                  <Button onClick={handleFinishAndSave} disabled={isFinishingGame}>
+                      {isFinishingGame ? <Loader2 className="w-4 h-4 mr-2 animate-spin"/> : <Save className="w-4 h-4 mr-2" />}
+                      결과 저장 및 종료
                   </Button>
               </DialogFooter>
           </DialogContent>
