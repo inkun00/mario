@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -72,90 +71,91 @@ export default function DashboardPage() {
 
   const isAdmin = user ? ADMIN_EMAILS.includes(user.email || '') : false;
 
-  const publicUnsubscribe = useRef<Unsubscribe | null>(null);
-  const privateUnsubscribe = useRef<Unsubscribe | null>(null);
-
-
   useEffect(() => {
     if (loadingUser) {
+      setLoading(true);
       return;
     }
-    setLoading(true);
   
-    // Clean up previous listeners before setting new ones
-    if (publicUnsubscribe.current) {
-        publicUnsubscribe.current();
-    }
-    if (privateUnsubscribe.current) {
-        privateUnsubscribe.current();
-    }
-
-    const handleSnapshots = (
-      publicSnapshot: QuerySnapshot<DocumentData>, 
-      privateSnapshot?: QuerySnapshot<DocumentData>
-    ) => {
-      const publicSets = publicSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSetDocument));
-      
-      let finalSets = [...publicSets];
-      const publicSetIds = new Set(publicSets.map(s => s.id));
-
-      if (privateSnapshot) {
-          const privateSets = privateSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSetDocument));
-          privateSets.forEach(privateSet => {
-              if (!publicSetIds.has(privateSet.id)) {
-                  finalSets.push(privateSet);
-              }
-          });
-      }
-      
-      finalSets.sort((a, b) => (b.playCount || 0) - (a.playCount || 0) || (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
-      
-      setAllGameSets(finalSets);
-      setFilteredGameSets(finalSets);
-      setLoading(false);
-    }
+    setLoading(true);
 
     const publicQuery = query(
       collection(db, 'game-sets'),
       where('isPublic', '==', true)
     );
 
-    publicUnsubscribe.current = onSnapshot(publicQuery, (publicSnapshot) => {
-      if (!user) { // If user is not logged in, just show public sets
-        handleSnapshots(publicSnapshot);
-      }
-      // If user is logged in, we let the private listener handle the combined state
-    }, (error) => {
-      console.error("Error fetching public game sets: ", error);
-      toast({ variant: "destructive", title: "오류", description: "퀴즈 세트를 불러오는 중 오류가 발생했습니다." });
-      setLoading(false);
-    });
-
-    if (user) {
-      const privateQuery = query(
-          collection(db, 'game-sets'),
-          where('creatorId', '==', user.uid),
-          where('isPublic', '==', false)
+    let publicUnsubscribe: Unsubscribe | null = null;
+    let privateUnsubscribe: Unsubscribe | null = null;
+  
+    const handleSnapshots = (
+      publicSets: GameSetDocument[],
+      privateSets: GameSetDocument[] = []
+    ) => {
+      const combinedSets: Record<string, GameSetDocument> = {};
+  
+      publicSets.forEach(set => {
+        combinedSets[set.id] = set;
+      });
+  
+      privateSets.forEach(set => {
+        combinedSets[set.id] = set;
+      });
+  
+      const finalSets = Object.values(combinedSets).sort(
+        (a, b) => (b.playCount || 0) - (a.playCount || 0) || (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)
       );
       
-      privateUnsubscribe.current = onSnapshot(privateQuery, async (privateSnapshot) => {
-         const publicSnapshot = await getDocs(publicQuery); // fetch latest public sets
-         handleSnapshots(publicSnapshot, privateSnapshot);
-      }, (error) => {
-           console.error("Error fetching private game sets: ", error);
-           toast({ variant: "destructive", title: "오류", description: "비공개 퀴즈 세트를 불러오는 중 오류가 발생했습니다." });
-      });
-    } else { // No user, so no private sets to fetch
+      setAllGameSets(finalSets);
+      setFilteredGameSets(finalSets);
       setLoading(false);
-    }
+    };
+  
+    if (user) {
+      // User is logged in, set up both listeners
+      const privateQuery = query(
+        collection(db, 'game-sets'),
+        where('creatorId', '==', user.uid),
+        where('isPublic', '==', false)
+      );
+  
+      let publicSets: GameSetDocument[] = [];
+      let privateSets: GameSetDocument[] = [];
 
+      publicUnsubscribe = onSnapshot(publicQuery, (snapshot) => {
+        publicSets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSetDocument));
+        handleSnapshots(publicSets, privateSets);
+      }, (error) => {
+        console.error("Error fetching public game sets: ", error);
+        toast({ variant: "destructive", title: "오류", description: "공개 퀴즈 세트를 불러오는 중 오류가 발생했습니다." });
+      });
+
+      privateUnsubscribe = onSnapshot(privateQuery, (snapshot) => {
+        privateSets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSetDocument));
+        handleSnapshots(publicSets, privateSets);
+      }, (error) => {
+        console.error("Error fetching private game sets: ", error);
+        toast({ variant: "destructive", title: "오류", description: "비공개 퀴즈 세트를 불러오는 중 오류가 발생했습니다." });
+      });
+
+    } else {
+      // User is not logged in, only listen to public sets
+      publicUnsubscribe = onSnapshot(publicQuery, (snapshot) => {
+        const publicSets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSetDocument));
+        handleSnapshots(publicSets);
+      }, (error) => {
+        console.error("Error fetching public game sets: ", error);
+        toast({ variant: "destructive", title: "오류", description: "퀴즈 세트를 불러오는 중 오류가 발생했습니다." });
+        setLoading(false);
+      });
+    }
+  
     // Cleanup function
     return () => {
-      if (publicUnsubscribe.current) {
-        publicUnsubscribe.current();
+      if (publicUnsubscribe) {
+        publicUnsubscribe();
       }
-      if (privateUnsubscribe.current) {
-        privateUnsubscribe.current();
+      if (privateUnsubscribe) {
+        privateUnsubscribe();
       }
     };
   }, [user, loadingUser, toast]);
@@ -518,5 +518,3 @@ export default function DashboardPage() {
     </>
   );
 }
-
-    
