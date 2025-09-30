@@ -249,7 +249,11 @@ export default function GamePage() {
           const allAnswered = Object.keys(newGameState).length >= totalBlocks;
 
           if (allAnswered) {
-            finishGameAndRecordStats(gameRoomId, [...(gameRoom.answerLogs || [])]);
+             const finalLogs = (gameRoom.answerLogs || []).map(log => ({
+              ...log,
+              timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : log.timestamp,
+            }));
+            finishGameAndRecordStats(gameRoomId, finalLogs);
           } else {
              updateDoc(roomRef, { 
                 gameState: newGameState,
@@ -339,7 +343,7 @@ setShowMysteryBoxPopup(true);
         userAnswer: userAnswer,
         isCorrect: isCorrect,
         pointsAwarded: pointsToAward,
-        timestamp: Timestamp.now(),
+        timestamp: new Date(),
     };
     
     try {
@@ -354,8 +358,11 @@ setShowMysteryBoxPopup(true);
         const allAnswered = Object.keys(newGameState).length >= totalBlocks;
         
         if (allAnswered) {
-            // Let the server handle the final state update and recording
-            await finishGameAndRecordStats(gameRoomId, newAnswerLogs);
+             const finalLogs = newAnswerLogs.map(log => ({
+              ...log,
+              timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : log.timestamp,
+            }));
+            await finishGameAndRecordStats(gameRoomId, finalLogs);
         } else {
              const nextTurnUID = getNextTurnUID();
              const updateData: Partial<GameRoom> = {
@@ -409,7 +416,7 @@ setShowMysteryBoxPopup(true);
       gameSetTitle: gameSet?.title || "미스터리 박스",
       question: { id: Date.now(), question: mysteryBoxEffect.title, type: 'subjective', points: 0 },
       isCorrect: true, 
-      timestamp: Timestamp.now(),
+      timestamp: new Date(),
     };
   
     try {
@@ -460,7 +467,11 @@ setShowMysteryBoxPopup(true);
         const allAnswered = Object.keys(newGameState).length >= totalBlocks;
 
         if (allAnswered) {
-             await finishGameAndRecordStats(gameRoomId, newAnswerLogs);
+             const finalLogs = newAnswerLogs.map(log => ({
+              ...log,
+              timestamp: log.timestamp instanceof Timestamp ? log.timestamp.toDate() : log.timestamp,
+            }));
+             await finishGameAndRecordStats(gameRoomId, finalLogs);
         } else {
             const nextTurnUID = getNextTurnUID();
             const updateData: Partial<GameRoom> = {

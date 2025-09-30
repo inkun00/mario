@@ -2,7 +2,7 @@
 
 import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getFirestore, FieldValue, Timestamp as AdminTimestamp, Transaction } from 'firebase-admin/firestore';
-import type { User, Player, AnswerLog, GameRoom, GameSet, Question } from '@/lib/types';
+import type { User, Player, AnswerLog, GameRoom, Question } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
 // Initialize Firebase Admin SDK for server-side execution.
@@ -71,17 +71,24 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLo
                 return;
             }
 
+            // Convert date strings/objects back to Firestore Timestamps
+            const serverAnswerLogs = finalAnswerLogs.map(log => ({
+                ...log,
+                timestamp: AdminTimestamp.fromDate(new Date(log.timestamp as any)),
+            }));
+
+
             // 1. Update GameRoom status to 'finished' and save the final logs
             transaction.update(roomRef, { 
                 status: 'finished',
-                answerLogs: finalAnswerLogs,
+                answerLogs: serverAnswerLogs,
             });
 
             const playerUIDs = Object.keys(gameRoom.players);
             const scores: Record<string, number> = {};
             playerUIDs.forEach(uid => scores[uid] = 0);
 
-            finalAnswerLogs.forEach(log => {
+            serverAnswerLogs.forEach(log => {
                 if (log.userId && typeof log.pointsAwarded === 'number') {
                     scores[log.userId] = (scores[log.userId] || 0) + log.pointsAwarded;
                 }
@@ -104,7 +111,7 @@ export async function finishGameAndRecordStats(gameRoomId: string, finalAnswerLo
             });
 
             // 3. Record incorrect answers
-            const incorrectLogs = finalAnswerLogs.filter(log => !log.isCorrect);
+            const incorrectLogs = serverAnswerLogs.filter(log => !log.isCorrect);
 
             for (const log of incorrectLogs) {
                 if(log.userId && log.question) {
