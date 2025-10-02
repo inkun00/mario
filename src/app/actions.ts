@@ -1,7 +1,7 @@
 
 'use server';
 
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase-admin';
 import type { IncorrectAnswer } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
@@ -13,36 +13,26 @@ export async function recordIncorrectAnswer(incorrectLog: Omit<IncorrectAnswer, 
     try {
         const { userId, ...rest } = incorrectLog;
         if (!userId) {
-            return;
+            return { success: false, message: "User ID is missing." };
         }
         
         const incorrectAnswerRef = adminDb.collection('users').doc(userId).collection('incorrect-answers').doc(incorrectLog.id || uuidv4());
+        
+        // Convert JS Date to Firestore Timestamp for admin SDK
         await incorrectAnswerRef.set({
             ...rest,
             userId,
-            timestamp: incorrectLog.timestamp, 
+            timestamp: AdminTimestamp.fromDate(new Date(incorrectLog.timestamp)), 
         });
 
-    } catch (error) {
-        console.error("Error recording single incorrect answer:", error);
-    }
-}
-
-
-export async function grantXp(userId: string, xp: number) {
-    if (!userId || typeof xp !== 'number' || xp === 0) {
-        return { success: false, message: 'Invalid userId or xp amount.' };
-    }
-
-    try {
-        const userRef = adminDb.collection('users').doc(userId);
-        await userRef.update({ xp: FieldValue.increment(xp) });
         return { success: true };
-    } catch (error) {
-        console.error('Error granting XP:', error);
-        return { success: false, message: 'Failed to grant XP.' };
+
+    } catch (error: any) {
+        console.error("Error recording single incorrect answer:", error);
+        return { success: false, message: `Failed to record incorrect answer: ${error.message}` };
     }
 }
+
 
 /**
  * 트랜잭션을 Batched Write로 변경하여 극적으로 경량화된 최종 함수.
@@ -58,7 +48,13 @@ export async function finishGameAndRecordStats(
         const roomSnap = await roomRef.get();
 
         if (!roomSnap.exists) {
-            throw new Error("Game room not found.");
+            // Return a structured error if the game room is not found.
+            return { 
+                success: false, 
+                message: `Game room with ID "${gameRoomId}" not found.`,
+                error: { code: 'not-found' },
+                data: { gameRoomId }
+            };
         }
         
         const playerUIDs = Array.from(new Set(finalLogsForXp.map(log => log.userId).filter(uid => uid && typeof uid === 'string')));
@@ -66,7 +62,7 @@ export async function finishGameAndRecordStats(
         if (options?.skipXpUpdate) {
             return {
                 success: true,
-                message: `Game ${gameRoomId} finished. XP updates were skipped (handled in realtime).`,
+                message: `Game ${gameRoomId} finished. XP updates were skipped.`,
                 data: { receivedData: finalLogsForXp }
             };
         }
@@ -102,13 +98,13 @@ export async function finishGameAndRecordStats(
         console.error("Error in finishGameAndRecordStats:", error);
         return { 
             success: false, 
-            message: error.message,
+            message: error.message || 'An unknown error occurred on the server.',
             error: {
                 message: error.message,
                 stack: error.stack,
                 code: error.code,
             },
-            data: { receivedData: finalLogsForXp }
+            data: { gameRoomId, receivedData: finalLogsForXp }
         };
     }
 }

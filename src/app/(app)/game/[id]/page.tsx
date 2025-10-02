@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog } from '@/lib/types';
@@ -523,7 +523,7 @@ export default function GamePage() {
             toast({ title: "저장 완료!", description: result.message });
             router.push('/dashboard');
         } else {
-            toast({ variant: 'destructive', title: '저장 오류', description: result.message });
+            toast({ variant: "destructive", title: "저장 오류", description: result.message });
             console.error("Server Action Failed:", result.error, "Data:", result.data);
             setIsFinishingGame(false);
         }
