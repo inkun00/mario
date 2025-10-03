@@ -286,7 +286,7 @@ export default function ProfilePage() {
                         const question = item.question;
                         return (
                           <div key={item.id} className="p-4 border rounded-lg bg-background shadow-sm space-y-3">
-                              <p className="font-semibold text-base">{question.question}</p>
+                              <p className="font-semibold text-base whitespace-pre-wrap">{question.question}</p>
                               
                               {question.imageUrl && (
                                 <div className="mt-2 relative aspect-video">

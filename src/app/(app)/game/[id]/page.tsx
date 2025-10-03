@@ -743,7 +743,7 @@ export default function GamePage() {
                           <Image src={encodeURI(currentQuestion.imageUrl)} alt="Question Image" fill className="rounded-md object-contain" />
                       </div>
                   )}
-                  <p className="text-lg font-medium">{currentQuestion?.question}</p>
+                  <p className="text-lg font-medium whitespace-pre-wrap">{currentQuestion?.question}</p>
 
                   <div>
                       {currentQuestion?.type === 'subjective' && (

@@ -471,7 +471,7 @@ export default function DashboardPage() {
                     {selectedGameSet.questions.map((q, index) => (
                         <div key={index} className="p-4 rounded-md border bg-secondary/30">
                             <div className="flex justify-between items-start">
-                                <p className="font-semibold text-base">질문 {index + 1}. {q.question}</p>
+                                <p className="font-semibold text-base whitespace-pre-wrap">질문 {index + 1}. {q.question}</p>
                                 <div className="flex items-center gap-2 text-sm">
                                     <span className="flex items-center gap-1 font-semibold text-primary">
                                         <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
