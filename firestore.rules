@@ -1,48 +1,36 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users:
-    // - Authenticated users can read other users' public info (for leaderboards, lobby checks).
-    // - A user can only write to their own document.
-    // - The server action (with admin rights) bypasses these rules to update XP for all players.
+    // Users collection: Allow users to read/write their own data.
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth.uid == userId;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
 
-      // Incorrect-answers subcollection:
-      // - Only the owner can manage their incorrect answers.
-      // - The server action (with admin rights) bypasses this to create new records.
+      // playedGameSets subcollection: Allow users to manage their own played sets list.
+      match /playedGameSets/{playedId} {
+        allow read, list, create: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // incorrect-answers subcollection: Allow users to manage their own incorrect answers.
       match /incorrect-answers/{answerId} {
-        allow read, write, delete: if request.auth.uid == userId;
+        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
       }
     }
 
-    // Game-sets:
-    // - Authenticated users can read and create.
-    // - Only the creator can update or delete, with an exception for playCount.
+    // Game sets collection: Allow any authenticated user to read, but only creators to write.
     match /game-sets/{gameSetId} {
-      allow read, create: if request.auth != null;
-      allow delete: if request.auth.uid == resource.data.creatorId;
-      // Allow creator to update, or any authenticated user to increment playCount.
-      allow update: if request.auth.uid == resource.data.creatorId ||
-                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playCount']) &&
-                       request.resource.data.playCount == resource.data.playCount + 1);
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && resource.data.creatorId == request.auth.uid;
     }
 
-    // Game-rooms:
-    // - Authenticated users can manage game rooms.
-    // - The server action (with admin rights) will update the status to 'finished'.
+    // Game rooms collection:
     match /game-rooms/{roomId} {
-      allow read, create, update, delete: if request.auth != null;
-    }
-
-    // AnswerLogs (Collection Group - Deprecated for direct client write):
-    // This rule is kept for reference but writes are now primarily handled by server actions.
-    // Reading own logs is allowed.
-    match /{path=**}/answerLogs/{logId} {
-      allow create: if request.auth.uid == request.resource.data.userId;
-      allow read: if request.auth.uid == resource.data.userId;
+      // Allow any authenticated user to create a room.
+      allow create: if request.auth != null;
+      // Allow any authenticated user to read/write to a room (for joining, playing, etc.)
+      allow read, update: if request.auth != null;
     }
   }
 }
