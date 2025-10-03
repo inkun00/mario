@@ -67,16 +67,16 @@ function NewGameRoomPageContents() {
       return;
     }
     
-    if (loadingUser) return;
+    if (loadingUser || !user) return;
 
     const fetchGameData = async () => {
       setIsLoading(true);
       
-      const docRef = doc(db, 'game-sets', gameSetId);
-      const docSnap = await getDoc(docRef);
+      const setDocRef = doc(db, 'game-sets', gameSetId);
+      const setDocSnap = await getDoc(setDocRef);
 
-      if (docSnap.exists()) {
-        setGameSet({ id: docSnap.id, ...docSnap.data() } as GameSet);
+      if (setDocSnap.exists()) {
+        setGameSet({ id: setDocSnap.id, ...setDocSnap.data() } as GameSet);
       } else {
         toast({ variant: 'destructive', title: '오류', description: '게임 세트를 찾을 수 없습니다.' });
         router.push('/dashboard');
@@ -84,8 +84,23 @@ function NewGameRoomPageContents() {
         return;
       }
       
-      // Removed the logic that checks if user has played today to prevent index error.
-      // The hasPlayedToday state will remain false.
+      // Check if user has played this game set today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayTimestamp = Timestamp.fromDate(today);
+
+      const playsRef = collection(db, `users/${user.uid}/playedGameSets`);
+      const q = query(playsRef, where("gameSetId", "==", gameSetId), where("playedAt", ">=", todayTimestamp));
+      
+      try {
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          setHasPlayedToday(true);
+        }
+      } catch (e) {
+        // This might fail if the collection or subcollection doesn't exist yet, which is fine.
+        console.warn("Could not check played status, probably a new user.", e);
+      }
 
       setIsLoading(false);
     };
@@ -96,6 +111,15 @@ function NewGameRoomPageContents() {
   const handleCreateRoom = async () => {
     if (!user || !gameSet) return;
     
+    if (hasPlayedToday) {
+        toast({
+            variant: 'destructive',
+            title: '참여 제한',
+            description: '오늘 이미 플레이한 퀴즈 세트입니다. 다른 퀴즈를 즐겨보세요!',
+        });
+        return;
+    }
+
     setIsCreating(true);
 
     try {
@@ -142,6 +166,14 @@ function NewGameRoomPageContents() {
           id: newRoomId,
           createdAt: serverTimestamp(),
       });
+      
+      // Record the play
+      const playRecordRef = doc(collection(db, `users/${user.uid}/playedGameSets`));
+      await setDoc(playRecordRef, {
+        gameSetId: gameSet.id,
+        playedAt: serverTimestamp()
+      });
+
 
       // Increment play count for the game set
       const gameSetRef = doc(db, 'game-sets', gameSet.id);

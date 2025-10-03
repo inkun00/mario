@@ -44,8 +44,11 @@ import { Label } from '@/components/ui/label';
 import { useRouter } from 'next/navigation';
 import { ADMIN_EMAILS } from '@/lib/admins';
 import { cn } from '@/lib/utils';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
+
 
 const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '음악', '미술', '체육', '영어', '창체'];
+const ITEMS_PER_PAGE = 10;
 
 interface GameSetDocument extends GameSet {
   id: string;
@@ -59,6 +62,7 @@ export default function DashboardPage() {
   const [privateSets, setPrivateSets] = useState<GameSetDocument[]>([]);
   const [allGameSets, setAllGameSets] = useState<GameSetDocument[]>([]);
   const [filteredGameSets, setFilteredGameSets] = useState<GameSetDocument[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const [loading, setLoading] = useState(true);
   const [selectedGameSet, setSelectedGameSet] = useState<GameSetDocument | null>(null);
@@ -196,6 +200,7 @@ export default function DashboardPage() {
       sets = sets.filter(s => s.subject === searchSubject);
     }
     setFilteredGameSets(sets);
+    setCurrentPage(1); // Reset to first page on new search
   };
   
   const handleResetSearch = () => {
@@ -204,6 +209,18 @@ export default function DashboardPage() {
     setSearchSemester('');
     setSearchSubject('');
     setFilteredGameSets(allGameSets);
+    setCurrentPage(1);
+  };
+
+  const indexOfLastItem = currentPage * ITEMS_PER_PAGE;
+  const indexOfFirstItem = indexOfLastItem - ITEMS_PER_PAGE;
+  const currentItems = filteredGameSets.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredGameSets.length / ITEMS_PER_PAGE);
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
   };
 
   return (
@@ -324,7 +341,7 @@ export default function DashboardPage() {
               <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
               <p className="mt-2 text-muted-foreground">게임 세트를 불러오는 중...</p>
             </div>
-          ) : filteredGameSets.length === 0 ? (
+          ) : currentItems.length === 0 ? (
               <div className="text-center py-12 border-2 border-dashed rounded-lg">
                   <p className="text-muted-foreground">{allGameSets.length > 0 ? '검색 결과가 없습니다.' : '아직 만들어진 게임 세트가 없습니다.'}</p>
                   {allGameSets.length === 0 && (
@@ -334,10 +351,11 @@ export default function DashboardPage() {
                   )}
               </div>
           ) : (
+            <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredGameSets.map((set, index) => {
+              {currentItems.map((set, index) => {
                 const isCreator = user ? set.creatorId === user.uid : false;
-                const isTop5 = index < 5;
+                const isTopSet = filteredGameSets.indexOf(set) < 5;
                 
                 let createRoomButton;
                 if (isCreator && !isAdmin) {
@@ -368,7 +386,7 @@ export default function DashboardPage() {
                 }
 
                 return (
-                <Card key={set.id} className={cn("hover:shadow-lg transition-shadow flex flex-col", isTop5 && "border-yellow-400 border-2 shadow-lg shadow-yellow-400/50")}>
+                <Card key={set.id} className={cn("hover:shadow-lg transition-shadow flex flex-col", isTopSet && "border-yellow-400 border-2 shadow-lg shadow-yellow-400/50")}>
                   <CardHeader>
                     <div className="flex items-start justify-between">
                         <div>
@@ -413,6 +431,26 @@ export default function DashboardPage() {
                 </Card>
               )})}
             </div>
+            {totalPages > 1 && (
+                <Pagination className="mt-8">
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); handlePageChange(currentPage - 1); }} />
+                    </PaginationItem>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                      <PaginationItem key={page}>
+                        <PaginationLink href="#" onClick={(e) => { e.preventDefault(); handlePageChange(page); }} isActive={currentPage === page}>
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+                    <PaginationItem>
+                      <PaginationNext href="#" onClick={(e) => { e.preventDefault(); handlePageChange(currentPage + 1); }} />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              )}
+            </>
           )}
         </div>
       </div>

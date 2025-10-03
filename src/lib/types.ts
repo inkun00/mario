@@ -114,3 +114,8 @@ export interface IncorrectAnswer {
     userAnswer: string;
     timestamp: any;
 }
+
+export interface PlayedGameSet {
+  gameSetId: string;
+  playedAt: any; // Firestore Timestamp
+}

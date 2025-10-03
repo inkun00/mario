@@ -3,7 +3,7 @@
 
 import { FieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase-admin';
-import type { IncorrectAnswer } from '@/lib/types';
+import type { IncorrectAnswer, PlayedGameSet } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -40,8 +40,7 @@ export async function recordIncorrectAnswer(incorrectLog: Omit<IncorrectAnswer, 
  */
 export async function finishGameAndRecordStats(
     gameRoomId: string,
-    finalLogsForXp: { userId: string, pointsAwarded: number }[],
-    options?: { skipXpUpdate?: boolean }
+    finalLogsForXp: { userId: string, pointsAwarded: number }[]
 ): Promise<{ success: boolean; message: string; data?: any; error?: any;}> {
     try {
         const roomRef = adminDb.collection('game-rooms').doc(gameRoomId);
@@ -59,14 +58,6 @@ export async function finishGameAndRecordStats(
         
         const playerUIDs = Array.from(new Set(finalLogsForXp.map(log => log.userId).filter(uid => uid && typeof uid === 'string')));
         
-        if (options?.skipXpUpdate) {
-            return {
-                success: true,
-                message: `Game ${gameRoomId} finished. XP updates were skipped.`,
-                data: { receivedData: finalLogsForXp }
-            };
-        }
-
         const scores: Record<string, number> = {};
         playerUIDs.forEach(uid => scores[uid] = 0);
 
