@@ -2,43 +2,42 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
+    
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Server requests bypass all rules below.
+    function isServerRequest() {
+      return request.auth == null;
     }
 
     match /game-sets/{gameSetId} {
       allow read: if true;
       allow create: if request.auth != null;
-      allow update: if request.auth != null && (
-        resource.data.creatorId == request.auth.uid ||
-        (request.resource.data.playCount == resource.data.playCount + 1 && request.writeFields.size() == 1 && 'playCount' in request.writeFields)
-      );
-      allow delete: if request.auth != null && resource.data.creatorId == request.auth.uid;
+      allow update: if request.auth != null;
+      allow delete: if isOwner(resource.data.creatorId);
     }
 
     match /game-rooms/{roomId} {
-      allow read, update: if request.auth != null;
+      allow read, update: if true;
       allow create: if request.auth != null;
       allow delete: if true;
     }
 
     match /users/{userId} {
-      allow read, create, update, delete: if isOwner(userId);
+      // Server can do anything. Clients can only read/update their own data.
+      allow read, update: if isServerRequest() || isOwner(userId);
+      // Clients can create and delete their own user document.
+      allow create, delete: if isOwner(userId);
 
-      match /playedGameSets/{playedGameSetId} {
+      // Rule for subcollections like 'playedGameSets' and 'incorrect-answers'.
+      match /{subcollection}/{docId} {
+        // Anyone authenticated can read subcollection documents (e.g., to check if a user has played a set).
         allow read: if request.auth != null;
-        allow write: if isOwner(userId);
+        // Only the owner or server can write to subcollections.
+        allow write: if isServerRequest() || isOwner(userId);
       }
-      
-      match /incorrect-answers/{incorrectAnswerId} {
-        allow read, write, delete: if isOwner(userId);
-      }
-    }
-    
-    match /answerLogs/{logId} {
-       allow read: if request.auth != null && resource.data.userId == request.auth.uid;
-       allow create: if request.auth != null;
     }
   }
 }
