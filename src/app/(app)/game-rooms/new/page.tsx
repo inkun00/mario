@@ -16,7 +16,7 @@ import { db, auth } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, JoinType, AnswerLog, MysteryEffectType } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, Timestamp, updateDoc, increment, collectionGroup } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, Timestamp, updateDoc, increment, collectionGroup, limit } from 'firebase/firestore';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
 import { Smartphone, Lock, Users, Loader2, Gift } from 'lucide-react';
@@ -54,7 +54,7 @@ function NewGameRoomPageContents() {
   const [gameSet, setGameSet] = useState<GameSet | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
-  const [hasPlayedToday, setHasPlayedToday] = useState(false);
+  const [hasPlayed, setHasPlayed] = useState(false);
   
   const [password, setPassword] = useState('');
   const [usePassword, setUsePassword] = useState(false);
@@ -84,18 +84,14 @@ function NewGameRoomPageContents() {
         return;
       }
       
-      // Check if user has played this game set today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayTimestamp = Timestamp.fromDate(today);
-
+      // Check if user has ever played this game set
       const playsRef = collection(db, `users/${user.uid}/playedGameSets`);
-      const q = query(playsRef, where("gameSetId", "==", gameSetId), where("playedAt", ">=", todayTimestamp));
+      const q = query(playsRef, where("gameSetId", "==", gameSetId), limit(1));
       
       try {
         const querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
-          setHasPlayedToday(true);
+          setHasPlayed(true);
         }
       } catch (e) {
         // This might fail if the collection or subcollection doesn't exist yet, which is fine.
@@ -111,11 +107,11 @@ function NewGameRoomPageContents() {
   const handleCreateRoom = async () => {
     if (!user || !gameSet) return;
     
-    if (hasPlayedToday) {
+    if (hasPlayed) {
         toast({
             variant: 'destructive',
             title: '참여 제한',
-            description: '오늘 이미 플레이한 퀴즈 세트입니다. 다른 퀴즈를 즐겨보세요!',
+            description: '이미 참여한 퀴즈 세트입니다. 다른 퀴즈를 즐겨보세요!',
         });
         return;
     }
@@ -284,11 +280,11 @@ function NewGameRoomPageContents() {
             </Tooltip>
           </TooltipProvider>
 
-          <Button onClick={handleCreateRoom} disabled={isCreating || hasPlayedToday} className="w-full font-headline" size="lg">
-            {isCreating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>방 만드는 중...</> : hasPlayedToday ? '오늘 이미 플레이한 게임입니다' : <><Users className="mr-2 h-5 w-5" /> 게임방 만들기</>}
+          <Button onClick={handleCreateRoom} disabled={isCreating || hasPlayed} className="w-full font-headline" size="lg">
+            {isCreating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>방 만드는 중...</> : hasPlayed ? '이미 참여한 퀴즈 세트입니다' : <><Users className="mr-2 h-5 w-5" /> 게임방 만들기</>}
           </Button>
-          {hasPlayedToday && (
-            <p className="text-sm text-center text-muted-foreground">내일 다시 시도해주세요.</p>
+          {hasPlayed && (
+            <p className="text-sm text-center text-muted-foreground">다른 퀴즈를 플레이해 보세요!</p>
           )}
 
         </CardContent>
