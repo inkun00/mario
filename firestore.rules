@@ -3,39 +3,48 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Game sets can be created/read by authenticated users.
-    // They can only be updated/deleted by the creator, with an exception for 'playCount'.
-    match /game-sets/{gameSetId} {
-      allow read: if request.auth != null;
-      allow create: if request.auth != null;
-      allow delete: if request.auth.uid == resource.data.creatorId;
-      allow update: if request.auth.uid == resource.data.creatorId || 
-                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playCount']));
+    // Helper functions
+    function isOwner(userId) {
+      return request.auth.uid == userId;
     }
 
-    // Game rooms can be created/read/updated by any authenticated user.
-    match /game-rooms/{roomId} {
-      allow read, write: if request.auth != null;
-    }
-
-    // Users can read any user's profile, but can only write to their own.
+    // AUTH: Anyone can create a user doc on signup.
+    // Users can read other user profiles, but only write to their own.
     match /users/{userId} {
       allow read: if request.auth != null;
-      allow write: if request.auth.uid == userId;
+      allow write: if isOwner(userId);
 
-      // Users can only manage their own subcollections.
-      match /playedGameSets/{playedId} {
-        allow read, write: if request.auth.uid == userId;
+      // Sub-collection for played games
+      // Allow any authenticated user to READ, but only owner can WRITE.
+      match /playedGameSets/{gameSetId} {
+        allow read: if request.auth != null;
+        allow write: if isOwner(userId);
       }
+      
+      // Sub-collection for incorrect answers
       match /incorrect-answers/{answerId} {
-        allow read, write: if request.auth.uid == userId;
+        allow read, write, delete: if isOwner(userId);
       }
     }
     
-    // Users can read their own answer logs to calculate stats.
+    // GAME SETS: Must be authenticated to create. Creator can update/delete.
+    // Anyone can read. Special rule for updating playCount.
+    match /game-sets/{gameSetId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow delete: if resource.data.creatorId == request.auth.uid;
+      allow update: if resource.data.creatorId == request.auth.uid || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playCount']);
+    }
+
+    // GAME ROOMS: Must be authenticated.
+    match /game-rooms/{roomId} {
+       allow read, write: if request.auth != null;
+    }
+    
+    // ANSWER LOGS: Users can only read their own answer logs.
     match /answerLogs/{logId} {
         allow read: if request.auth != null && resource.data.userId == request.auth.uid;
-        allow write: if request.auth != null; // Game server needs to write logs
+        allow write: if request.auth != null; // Server-side actions handle this
     }
   }
 }
