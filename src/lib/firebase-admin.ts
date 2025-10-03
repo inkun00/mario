@@ -1,3 +1,4 @@
+
 import { initializeApp, getApps, App } from 'firebase-admin/app';
 import { getFirestore, Firestore } from 'firebase-admin/firestore';
 
@@ -8,6 +9,8 @@ let adminDb: Firestore;
 // This robust singleton pattern ensures Firebase is initialized only once.
 if (getApps().length === 0) {
   initializeApp({
+    // Explicitly set the service account to ensure stable authentication in App Hosting.
+    serviceAccountId: process.env.APP_HOSTING_SERVICE_ACCOUNT,
     // Explicitly set the projectId to match the client-side configuration.
     // This ensures the Admin SDK connects to the correct database in any environment.
     projectId: "studio-3737899036-7f9e4"
