@@ -63,7 +63,7 @@ export const CheckReviewAnswerInputSchema = z.object({
         options: z.array(z.string()).optional(),
         grade: z.string().optional(),
         semester: z.string().optional(),
-        subject: z_string().optional(),
+        subject: z.string().optional(),
         unit: z.string().optional(),
     }),
     reviewQuestion: z.string(),
