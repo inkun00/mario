@@ -24,6 +24,7 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { Checkbox } from '@/components/ui/checkbox';
+import Link from 'next/link';
 
 
 function generateRoomId() {
@@ -163,14 +164,6 @@ function NewGameRoomPageContents() {
           createdAt: serverTimestamp(),
       });
       
-      // Record the play
-      const playRecordRef = doc(collection(db, `users/${user.uid}/playedGameSets`));
-      await setDoc(playRecordRef, {
-        gameSetId: gameSet.id,
-        playedAt: serverTimestamp()
-      });
-
-
       // Increment play count for the game set
       const gameSetRef = doc(db, 'game-sets', gameSet.id);
       await updateDoc(gameSetRef, {
@@ -284,7 +277,11 @@ function NewGameRoomPageContents() {
             {isCreating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>방 만드는 중...</> : hasPlayed ? '이미 참여한 퀴즈 세트입니다' : <><Users className="mr-2 h-5 w-5" /> 게임방 만들기</>}
           </Button>
           {hasPlayed && (
-            <p className="text-sm text-center text-muted-foreground">다른 퀴즈를 플레이해 보세요!</p>
+            <p className="text-sm text-center text-muted-foreground">
+              <Link href="/dashboard" className="hover:underline text-primary">
+                다른 퀴즈를 플레이해 보세요!
+              </Link>
+            </p>
           )}
 
         </CardContent>

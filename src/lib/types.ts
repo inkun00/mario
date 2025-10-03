@@ -90,7 +90,7 @@ export interface GameRoom {
   joinType: JoinType;
   createdAt: any;
   localPlayers?: LocalPlayer[];
-  answerLogs?: AnswerLog[];
+  answerLogs?: Partial<AnswerLog>[];
 }
 
 export interface CorrectAnswer {
@@ -118,4 +118,10 @@ export interface IncorrectAnswer {
 export interface PlayedGameSet {
   gameSetId: string;
   playedAt: any; // Firestore Timestamp
+}
+
+export interface FinishGamePayload {
+    gameRoomId: string;
+    gameSetId: string;
+    playerUIDs: string[];
 }

@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog } from '@/lib/types';
@@ -507,17 +507,11 @@ export default function GamePage() {
   };
 
   const handleFinishAndSave = async () => {
-    if (!gameRoom || typeof gameRoomId !== 'string') return;
+    if (!gameRoom || typeof gameRoomId !== 'string' || !gameSet) return;
     setIsFinishingGame(true);
     try {
-        const finalLogsForXp = (gameRoom.answerLogs || [])
-            .filter(log => log.userId && typeof log.userId === 'string')
-            .map(log => ({
-                userId: log.userId,
-                pointsAwarded: log.pointsAwarded
-            }));
-        
-        const result = await finishGameAndRecordStats(gameRoomId, finalLogsForXp);
+        const playerUIDs = gameRoom.playerUIDs || [];
+        const result = await finishGameAndRecordStats({ gameRoomId, gameSetId: gameSet.id, playerUIDs });
 
         if (result.success) {
             toast({ title: "저장 완료!", description: result.message });

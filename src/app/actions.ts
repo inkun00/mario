@@ -3,7 +3,7 @@
 
 import { FieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase-admin';
-import type { IncorrectAnswer, PlayedGameSet } from '@/lib/types';
+import type { IncorrectAnswer, PlayedGameSet, FinishGamePayload } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -39,15 +39,14 @@ export async function recordIncorrectAnswer(incorrectLog: Omit<IncorrectAnswer, 
  * 디버깅을 위해 상세한 결과 객체를 반환합니다.
  */
 export async function finishGameAndRecordStats(
-    gameRoomId: string,
-    finalLogsForXp: { userId: string, pointsAwarded: number }[]
+    payload: FinishGamePayload
 ): Promise<{ success: boolean; message: string; data?: any; error?: any;}> {
+    const { gameRoomId, gameSetId, playerUIDs } = payload;
     try {
         const roomRef = adminDb.collection('game-rooms').doc(gameRoomId);
         const roomSnap = await roomRef.get();
 
         if (!roomSnap.exists) {
-            // Return a structured error if the game room is not found.
             return { 
                 success: false, 
                 message: `Game room with ID "${gameRoomId}" not found.`,
@@ -56,13 +55,14 @@ export async function finishGameAndRecordStats(
             };
         }
         
-        const playerUIDs = Array.from(new Set(finalLogsForXp.map(log => log.userId).filter(uid => uid && typeof uid === 'string')));
+        const gameRoomData = roomSnap.data();
+        const finalLogsForXp = gameRoomData?.answerLogs || [];
         
         const scores: Record<string, number> = {};
         playerUIDs.forEach(uid => scores[uid] = 0);
 
-        finalLogsForXp.forEach(log => {
-            if (log.userId && typeof log.pointsAwarded === 'number') {
+        finalLogsForXp.forEach((log: { userId: string, pointsAwarded: number }) => {
+            if (log.userId && typeof log.pointsAwarded === 'number' && playerUIDs.includes(log.userId)) {
                 scores[log.userId] = (scores[log.userId] || 0) + log.pointsAwarded;
             }
         });
@@ -74,16 +74,24 @@ export async function finishGameAndRecordStats(
         const batch = adminDb.batch();
 
         playerUIDs.forEach(uid => {
+            // Update XP
             const xpGained = scores[uid] || 0;
             if (xpGained !== 0) {
                 const userRef = adminDb.collection('users').doc(uid);
                 batch.update(userRef, { xp: FieldValue.increment(xpGained) });
             }
+
+            // Record that the user has played this game set
+            const playRecordRef = adminDb.collection('users').doc(uid).collection('playedGameSets').doc(gameSetId);
+            batch.set(playRecordRef, {
+                gameSetId: gameSetId,
+                playedAt: AdminTimestamp.now()
+            });
         });
 
         await batch.commit();
 
-        return { success: true, message: `Successfully finished game and updated XP for room ${gameRoomId}.` };
+        return { success: true, message: `Successfully finished game and updated stats for room ${gameRoomId}.` };
 
     } catch (error: any) {
         console.error("Error in finishGameAndRecordStats:", error);
@@ -95,7 +103,7 @@ export async function finishGameAndRecordStats(
                 stack: error.stack,
                 code: error.code,
             },
-            data: { gameRoomId, receivedData: finalLogsForXp }
+            data: { gameRoomId, gameSetId, playerUIDs }
         };
     }
 }

@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, getDocs, limit, arrayUnion } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import type { GameRoom, GameSet, Player } from '@/lib/types';
+import type { GameRoom, GameSet, Player, PlayedGameSet } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -147,33 +147,50 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
 
         try {
             const usersRef = collection(db, 'users');
-            const q = query(usersRef, where('email', '==', userId), limit(1));
-            const querySnapshot = await getDocs(q);
+            const qUser = query(usersRef, where('email', '==', userId), limit(1));
+            const userSnapshot = await getDocs(qUser);
 
-            if (!querySnapshot.empty) {
-                const userDoc = querySnapshot.docs[0];
-                const userData = userDoc.data();
-                const result = {
-                    exists: true,
-                    uid: userDoc.id,
-                    nickname: userData.displayName || '이름없음',
-                };
-                
-                const isDuplicate = players.some(p => p.uid === result.uid);
-                if (isDuplicate) {
-                    toast({ variant: 'destructive', title: '중복 참여', description: `"${result.nickname}" 님은 이미 참여 중입니다.`});
-                    newPlayers[index].userId = '';
-                } else if (gameSet && gameSet.creatorId === result.uid && !isAdmin) {
-                    toast({ variant: 'destructive', title: '참여 불가', description: `제작자(${result.nickname})는 자신이 만든 퀴즈에 참여할 수 없습니다.`});
-                } else {
-                    newPlayers[index].confirmed = true;
-                    newPlayers[index].nickname = result.nickname;
-                    newPlayers[index].uid = result.uid;
-                    toast({ title: '성공', description: `"${result.nickname}" 님이 확인되었습니다.`});
-                }
-            } else {
-                toast({ variant: 'destructive', title: '오류', description: `"${userId}" 님을 찾을 수 없습니다.`});
+            if (userSnapshot.empty) {
+                 toast({ variant: 'destructive', title: '오류', description: `"${userId}" 님을 찾을 수 없습니다.`});
+                 newPlayers[index].isChecking = false;
+                 setPlayers(newPlayers);
+                 return;
             }
+
+            const userDoc = userSnapshot.docs[0];
+            const userData = userDoc.data();
+            const playerUid = userDoc.id;
+
+            const isDuplicate = players.some(p => p.uid === playerUid);
+            if (isDuplicate) {
+                toast({ variant: 'destructive', title: '중복 참여', description: `"${userData.displayName}" 님은 이미 참여 중입니다.`});
+                newPlayers[index].userId = '';
+                newPlayers[index].isChecking = false;
+                setPlayers(newPlayers);
+                return;
+            }
+
+            if (gameSet && gameSet.creatorId === playerUid && !isAdmin) {
+                toast({ variant: 'destructive', title: '참여 불가', description: `제작자(${userData.displayName})는 자신이 만든 퀴즈에 참여할 수 없습니다.`});
+                newPlayers[index].isChecking = false;
+                setPlayers(newPlayers);
+                return;
+            }
+            
+            // Check if player has already played this set
+            const playedRef = collection(db, `users/${playerUid}/playedGameSets`);
+            const qPlayed = query(playedRef, where("gameSetId", "==", gameSet?.id), limit(1));
+            const playedSnapshot = await getDocs(qPlayed);
+
+            if (!playedSnapshot.empty) {
+                toast({ variant: 'destructive', title: '참여 제한', description: `"${userData.displayName}" 님은 이미 이 퀴즈를 완료했습니다.`});
+            } else {
+                newPlayers[index].confirmed = true;
+                newPlayers[index].nickname = userData.displayName || '이름없음';
+                newPlayers[index].uid = playerUid;
+                toast({ title: '성공', description: `"${userData.displayName}" 님이 확인되었습니다.`});
+            }
+
         } catch (error: any) {
             toast({ variant: 'destructive', title: '오류', description: error.message || '사용자 확인 중 오류가 발생했습니다.' });
         }
