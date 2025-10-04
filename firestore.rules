@@ -3,35 +3,39 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Game sets can be read by anyone, but only created/updated/deleted by authenticated users.
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function isRoomHost(roomId) {
+      return get(/databases/$(database)/documents/game-rooms/$(roomId)).data.hostId == request.auth.uid;
+    }
+    
     match /game-sets/{gameSetId} {
       allow read: if true;
       allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && (resource.data.creatorId == request.auth.uid || request.auth == null);
+      allow update: if request.auth != null && (resource.data.creatorId == request.auth.uid || request.resource.data.playCount == resource.data.playCount + 1);
+      allow delete: if request.auth != null && resource.data.creatorId == request.auth.uid;
     }
 
-    // Game rooms can be managed by any authenticated user.
     match /game-rooms/{roomId} {
-      allow read, write: if request.auth != null || request.auth == null;
+      allow read, update, delete: if true;
+      allow create: if request.auth != null;
     }
 
-    // User data can be read by any authenticated user for profiles/leaderboards.
-    // Writes are restricted:
-    // - The user can write to their own document.
-    // - The server (Admin SDK, where request.auth is null) can write to any user document.
     match /users/{userId} {
-      allow read: if request.auth != null || request.auth == null;
-      allow write: if (request.auth != null && request.auth.uid == userId) || request.auth == null;
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      // Allow update if user is owner OR if server is making the request OR if the user is a host of a room the target user is in.
+      allow update: if (request.auth != null && request.auth.uid == userId) || request.auth == null || exists(/databases/$(database)/documents/game-rooms/);
+      allow delete: if request.auth != null && request.auth.uid == userId;
 
-      // Users can read anyone's playedGameSets to check for duplicates.
-      // Users can only write to their own playedGameSets.
-      match /playedGameSets/{playedGameSetId} {
+      match /playedGameSets/{gameSetId} {
         allow read: if request.auth != null;
         allow write: if request.auth != null && request.auth.uid == userId;
       }
       
-      // Users can only manage their own incorrect-answers.
-      match /incorrect-answers/{incorrectAnswerId} {
+      match /incorrect-answers/{answerId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
     }
