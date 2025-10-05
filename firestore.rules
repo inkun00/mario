@@ -2,50 +2,54 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Helper functions
+
+    // Helper function to check ownership
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
-    
-    function isServer() {
-      return request.auth == null;
-    }
 
-    // `users` collection rules
+    // Rules for the 'users' collection
     match /users/{userId} {
-      // Allow authenticated users to read other users' profiles (for searching, etc.)
+      // Any authenticated user can read user profiles (to find players)
       allow read: if request.auth != null;
-      // Allow users to update their own document, or allow server to update any
-      allow update: if isOwner(userId) || isServer();
-      // Allow users to create their own document, and allow server to create any
-      allow create: if isOwner(userId) || isServer();
-      // Only allow users to delete their own account
-      allow delete: if isOwner(userId);
+      
+      // Only the owner or the server can write/update/delete user data
+      allow write: if isOwner(userId) || request.auth == null;
 
-      // `playedGameSets` subcollection rules
+      // Rules for the 'playedGameSets' subcollection
       match /playedGameSets/{gameSetId} {
-        // Allow any authenticated user to check if another has played a set
+        // Any authenticated user can read play history (to check for duplicates)
         allow read: if request.auth != null;
-        // Only allow a user to write to their own played history
+        // Only the owner can write to their own play history
         allow write: if isOwner(userId);
       }
-      
-      // `incorrect-answers` subcollection rules
+
+      // Rules for 'incorrect-answers' subcollection
       match /incorrect-answers/{answerId} {
-      	// Only allow owner to read/write their own incorrect answers
-      	allow read, write: if isOwner(userId);
+        // Only the owner can manage their incorrect answers
+        allow read, write, delete: if isOwner(userId);
       }
     }
-    
-    // `game-sets` collection rules
+
+    // Rules for 'game-sets' collection
     match /game-sets/{gameSetId} {
+      // Any authenticated user can read, create, and update game sets
       allow read, create, update: if request.auth != null;
+      // Deletion is restricted to the creator
+      allow delete: if request.auth != null && resource.data.creatorId == request.auth.uid;
     }
 
-    // `game-rooms` collection rules
+    // Rules for 'game-rooms' collection
     match /game-rooms/{roomId} {
-      allow create, update: if request.auth != null;
+       // Any authenticated user can create, read, and update game rooms.
+      allow read, create, update: if request.auth != null;
+      // Only the host can delete the room
+      allow delete: if request.auth != null && resource.data.hostId == request.auth.uid;
+    }
+
+    // Deprecated: answerLogs are now subcollections of game-rooms
+    match /answerLogs/{logId} {
+      allow read, write: if request.auth != null;
     }
   }
 }
