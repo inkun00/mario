@@ -33,16 +33,6 @@ import {
 } from "@/components/ui/accordion"
 
 
-const todo_items = [
-  { label: '숙제 마무리하기', description: '오늘 배운 내용을 정리하고 숙제를 완성해요', reward: 50 },
-  { label: '복습 퀴즈 풀기', description: '틀렸던 문제를 다시 풀어보고 점수를 올려요', reward: 30 },
-  { label: '친구와 토론하기', description: '친구와 함께 문제를 토론하며 이해도를 높여요', reward: 20 },
-];
-
-function updateTodoItem(index: number, completed: boolean) {
-  console.log(`Todo item ${index} completed:`, completed);
-}
-
 interface ReviewQuestion extends IncorrectAnswer {
     userReviewAnswer?: string;
     isSubmitting?: boolean;
@@ -90,11 +80,11 @@ export default function ProfilePage() {
         setNextLevelInfo(getNextLevelInfo(currentLevel.level));
       }
 
+      // 복합 색인 오류를 피하기 위해 orderBy를 제거하고 클라이언트에서 정렬합니다.
       const answerLogsQuery = query(
           collection(db, 'answerLogs'), 
           where('userId', '==', user.uid),
-          orderBy('timestamp', 'desc'), 
-          limit(300) // Fetch more logs for better analysis
+          limit(300)
       );
       const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
       
@@ -109,6 +99,12 @@ export default function ProfilePage() {
 
       if(logsSnapshot) {
         const logsData = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AnswerLog));
+        // 클라이언트 측에서 timestamp를 기준으로 내림차순 정렬
+        logsData.sort((a, b) => {
+            const timeA = a.timestamp?.toMillis() || 0;
+            const timeB = b.timestamp?.toMillis() || 0;
+            return timeB - timeA;
+        });
         setAnswerLogs(logsData);
       }
       
@@ -127,9 +123,8 @@ export default function ProfilePage() {
     const data: AchievementData = {};
 
     answerLogs.forEach(log => {
-      // Ensure question and subject are present
-      if (!log.question || !log.question.subject) return;
-      const subject = log.question.subject;
+      if (!log.question) return;
+      const subject = log.question.subject || '기타';
       const unit = log.question.unit || '기타';
 
       if (!data[subject]) {
