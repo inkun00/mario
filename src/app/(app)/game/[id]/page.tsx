@@ -353,7 +353,7 @@ export default function GamePage() {
     try {
         const roomRef = doc(db, 'game-rooms', gameRoomId);
         
-        const newLogEntry: Partial<AnswerLog> = {
+        const newLogEntry: AnswerLog = {
             id: uuidv4(),
             userId: currentTurnUID,
             gameSetId: gameSet.id,
@@ -518,10 +518,20 @@ export default function GamePage() {
         const fullAnswerLogs = (gameRoom.answerLogs || [])
             .filter(log => log.userId && log.question) as AnswerLog[];
 
+        // Convert Firebase Timestamps to JS Date objects before sending to server action
+        const serializableLogs = fullAnswerLogs.map(log => {
+            const { timestamp, ...rest } = log;
+            const plainLog: any = { ...rest };
+            if (timestamp && typeof timestamp.toDate === 'function') {
+                plainLog.timestamp = timestamp.toDate();
+            }
+            return plainLog as Omit<AnswerLog, 'timestamp'> & { timestamp: Date };
+        });
+
         await finishGameAndRecordStats({
             gameRoomId: gameRoomId,
             gameSetId: gameSet.id,
-            answerLogs: fullAnswerLogs,
+            answerLogs: serializableLogs,
         });
 
         toast({ title: "저장 완료!", description: "게임 결과가 성공적으로 저장되었습니다." });

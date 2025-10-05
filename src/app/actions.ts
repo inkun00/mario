@@ -42,17 +42,19 @@ export async function finishGameAndRecordStats(payload: FinishGamePayload) {
     const batch = adminDb.batch();
     
     const xpGains: Record<string, number> = {};
-    const playerUIDs = Array.from(new Set(answerLogs.map(log => log.userId)));
 
     answerLogs.forEach(log => {
       // 1. Save the full answer log to the 'answerLogs' collection
       if (log.userId && log.question) {
         const logRef = adminDb.collection('answerLogs').doc(log.id || uuidv4());
-        const logData = {
+        
+        // Convert JS Date back to Firestore Timestamp for admin SDK
+        const logDataWithTimestamp = {
             ...log,
-            timestamp: AdminTimestamp.now(), // Use server timestamp for consistency
+            timestamp: AdminTimestamp.fromDate(new Date(log.timestamp)),
         };
-        batch.set(logRef, logData);
+
+        batch.set(logRef, logDataWithTimestamp);
       }
       
       // 2. Aggregate XP gains for each user
@@ -60,13 +62,15 @@ export async function finishGameAndRecordStats(payload: FinishGamePayload) {
         xpGains[log.userId] = (xpGains[log.userId] || 0) + log.pointsAwarded;
       }
     });
+    
+    const playerUIDs = Object.keys(xpGains);
 
     // 3. Update user XP and playedGameSets
     for (const uid of playerUIDs) {
         if (uid) {
             const userRef = adminDb.collection('users').doc(uid);
             const xpGained = xpGains[uid] || 0;
-            if (xpGained > 0) {
+            if (xpGained !== 0) { // Also record negative changes
                 batch.update(userRef, { xp: FieldValue.increment(xpGained) });
             }
 
