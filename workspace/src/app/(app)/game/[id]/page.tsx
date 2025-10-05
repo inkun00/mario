@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc, Timestamp, writeBatch } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog } from '@/lib/types';
@@ -22,7 +22,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
-import { finishGameAndRecordStats, recordIncorrectAnswer } from '@/app/actions';
+import { recordIncorrectAnswer, finishGameAndRecordStats } from '@/app/actions';
 
 
 interface GameBlock {
@@ -418,17 +418,6 @@ export default function GamePage() {
       return;
     }
   
-    let newLogEntry: Partial<AnswerLog> = {
-      id: uuidv4(),
-      gameSetId: gameSet.id,
-      gameSetTitle: gameSet.title,
-      question: {id: -1, question: `미스터리박스: ${mysteryBoxEffect.title}`, points: 0, type: 'subjective'},
-      isCorrect: true, // Mystery effects aren't 'wrong'
-      userId: currentTurnUID,
-      pointsAwarded: 0,
-      timestamp: Timestamp.now(),
-    };
-  
     try {
         const logsToPush: Partial<AnswerLog>[] = [];
         let pointsChange = 0;
@@ -439,15 +428,15 @@ export default function GamePage() {
             case 'bonus':
             case 'penalty':
                 pointsChange = mysteryBoxEffect.value || 0;
-                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange });
+                logsToPush.push({ userId: currentTurnUID, pointsAwarded: pointsChange });
                 break;
             case 'double':
                 pointsChange = currentPlayersState.find(p => p.uid === currentTurnUID)?.score || 0;
-                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange });
+                logsToPush.push({ userId: currentTurnUID, pointsAwarded: pointsChange });
                 break;
             case 'half':
                 pointsChange = -Math.floor((currentPlayersState.find(p => p.uid === currentTurnUID)?.score || 0) / 2);
-                logsToPush.push({ ...newLogEntry, pointsAwarded: pointsChange });
+                logsToPush.push({ userId: currentTurnUID, pointsAwarded: pointsChange });
                 break;
             case 'swap':
                  if (!playerForSwap) {
@@ -461,8 +450,8 @@ export default function GamePage() {
                 const pointsDiffForCurrent = targetPlayerScore - currentPlayerScore;
                 const pointsDiffForTarget = currentPlayerScore - targetPlayerScore;
         
-                logsToPush.push({ ...newLogEntry, userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent });
-                logsToPush.push({ ...newLogEntry, id: uuidv4(), userId: playerForSwap, pointsAwarded: pointsDiffForTarget });
+                logsToPush.push({ userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent });
+                logsToPush.push({ userId: playerForSwap, pointsAwarded: pointsDiffForTarget });
                 break;
         }
 
@@ -518,14 +507,14 @@ export default function GamePage() {
   };
 
   const handleFinishAndSave = async () => {
-    if (!gameRoom || typeof gameRoomId !== 'string') return;
+    if (!gameRoom || typeof gameRoomId !== 'string' || !gameSet) return;
     setIsFinishingGame(true);
     try {
         const finalLogsForXp = (gameRoom.answerLogs || [])
-            .filter(log => log.userId && typeof log.userId === 'string')
+            .filter(log => log.userId && typeof log.userId === 'string' && typeof log.pointsAwarded === 'number')
             .map(log => ({
-                userId: log.userId,
-                pointsAwarded: log.pointsAwarded
+                uid: log.userId!,
+                xp: log.pointsAwarded!
             }));
         
         await finishGameAndRecordStats(gameRoomId, finalLogsForXp);
@@ -748,7 +737,7 @@ export default function GamePage() {
                           <Image src={encodeURI(currentQuestion.imageUrl)} alt="Question Image" fill className="rounded-md object-contain" />
                       </div>
                   )}
-                  <p className="text-lg font-medium">{currentQuestion?.question}</p>
+                  <p className="text-lg font-medium whitespace-pre-wrap">{currentQuestion?.question}</p>
 
                   <div>
                       {currentQuestion?.type === 'subjective' && (
@@ -825,13 +814,13 @@ export default function GamePage() {
 
       {/* Game Over Popup */}
       <Dialog open={showGameOverPopup}>
-          <DialogContent className="max-w-md text-center">
+          <DialogContent className="max-w-md text-center" aria-describedby="game-over-description">
               <DialogHeader>
                   <div className="flex flex-col items-center gap-2">
                       <Crown className="w-20 h-20 text-yellow-400 fill-yellow-300" />
                       <DialogTitle className="font-headline text-3xl">게임 종료!</DialogTitle>
                       {winner && (
-                          <DialogDescription className="text-base">
+                          <DialogDescription id="game-over-description" className="text-base">
                             우승자는 <span className="font-bold text-primary">{winner.nickname}</span> 님 입니다!
                           </DialogDescription>
                       )}
