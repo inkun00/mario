@@ -22,7 +22,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
-import { recordIncorrectAnswer } from '@/app/actions';
+import { recordIncorrectAnswer, finishGameAndRecordStats } from '@/app/actions';
 
 
 interface GameBlock {
@@ -334,7 +334,7 @@ export default function GamePage() {
 
     const pointsToAward = isCorrect ? currentPoints : 0;
     const currentTurnUID = gameRoom.currentTurn;
-
+    
     // If incorrect, record it immediately via a lightweight server action
     if (!isCorrect) {
         try {
@@ -510,49 +510,17 @@ export default function GamePage() {
     if (!gameRoom || typeof gameRoomId !== 'string' || !gameSet) return;
     setIsFinishingGame(true);
     try {
-      const playerUIDs = gameRoom.playerUIDs || [];
-      if (playerUIDs.length === 0) {
-        toast({ title: "저장 완료!", description: "플레이어가 없어 업데이트할 점수가 없습니다." });
+        const finalLogsForXp = (gameRoom.answerLogs || [])
+            .filter(log => log.userId && typeof log.userId === 'string' && typeof log.pointsAwarded === 'number')
+            .map(log => ({
+                uid: log.userId!,
+                xp: log.pointsAwarded!
+            }));
+        
+        await finishGameAndRecordStats(gameRoomId, finalLogsForXp);
+
+        toast({ title: "저장 완료!", description: "게임 결과가 성공적으로 저장되었습니다." });
         router.push('/dashboard');
-        return;
-      }
-
-      // Calculate final scores from logs
-      const finalPlayers = calculateScoresFromLogs(gameRoom);
-      const scores: Record<string, number> = {};
-      finalPlayers.forEach(p => {
-        scores[p.uid] = p.score;
-      });
-
-      const batch = writeBatch(db);
-
-      for (const uid of playerUIDs) {
-        const userDocRef = doc(db, 'users', uid);
-        const userSnap = await getDoc(userDocRef);
-        if (userSnap.exists()) {
-          const currentXp = userSnap.data().xp || 0;
-          const newXp = currentXp + (scores[uid] || 0);
-          
-          // The update data must include gameRoomId for the security rule
-          batch.update(userDocRef, {
-            xp: newXp,
-            gameRoomId: gameRoomId 
-          });
-
-          // Record that the user has played this game set
-          const playRecordRef = doc(db, 'users', uid, 'playedGameSets', gameSet.id);
-          batch.set(playRecordRef, {
-              gameSetId: gameSet.id,
-              playedAt: Timestamp.now(),
-              gameRoomId: gameRoomId
-          });
-        }
-      }
-
-      await batch.commit();
-
-      toast({ title: "저장 완료!", description: "게임 결과가 성공적으로 저장되었습니다." });
-      router.push('/dashboard');
 
     } catch(error: any) {
         toast({ variant: 'destructive', title: '치명적 오류', description: `결과 저장 중 예상치 못한 오류가 발생했습니다: ${error.message}` });
@@ -880,3 +848,4 @@ export default function GamePage() {
     </>
   );
 }
+
