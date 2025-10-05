@@ -68,10 +68,10 @@ export interface AnswerLog {
     gameSetId: string;
     gameSetTitle: string;
     question: Question;
-    userAnswer?: string;
+    userAnswer: string;
     isCorrect: boolean;
     pointsAwarded: number;
-    timestamp?: any;
+    timestamp: any;
 }
 
 
@@ -124,5 +124,5 @@ export interface PlayedGameSet {
 export interface FinishGamePayload {
     gameRoomId: string;
     gameSetId: string;
-    answerLogs: AnswerLog[];
+    answerLogs: (Omit<AnswerLog, 'gameSetId' | 'gameSetTitle' | 'question'> & { question: Partial<Question> })[];
 }

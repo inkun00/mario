@@ -2,13 +2,13 @@
 
 import { FieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase-admin';
-import type { IncorrectAnswer, AnswerLog, FinishGamePayload } from '@/lib/types';
+import type { AnswerLog, FinishGamePayload, GameSet } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
  * 실시간으로 오답 1건을 기록하는 가벼운 서버 액션
  */
-export async function recordIncorrectAnswer(incorrectLog: Omit<IncorrectAnswer, 'timestamp'> & { timestamp: Date }) {
+export async function recordIncorrectAnswer(incorrectLog: Omit<AnswerLog, 'isCorrect' | 'pointsAwarded' | 'timestamp'> & { timestamp: Date }) {
     try {
         const { userId, ...rest } = incorrectLog;
         if (!userId) {
@@ -21,6 +21,7 @@ export async function recordIncorrectAnswer(incorrectLog: Omit<IncorrectAnswer, 
         await incorrectAnswerRef.set({
             ...rest,
             userId,
+            isCorrect: false, // Explicitly set for context
             timestamp: AdminTimestamp.fromDate(new Date(incorrectLog.timestamp)), 
         });
 
@@ -34,43 +35,62 @@ export async function recordIncorrectAnswer(incorrectLog: Omit<IncorrectAnswer, 
 
 
 /**
- * 게임 종료 시 플레이어들의 점수를 업데이트하고 게임 상태를 변경하는 서버 액션
+ * 게임 종료 시 플레이어들의 점수를 업데이트하고 완전한 학습 로그를 기록하는 서버 액션
  */
 export async function finishGameAndRecordStats(payload: FinishGamePayload) {
   const { gameRoomId, gameSetId, answerLogs } = payload;
   try {
     const batch = adminDb.batch();
     
+    // 1. Get GameSet metadata
+    const gameSetRef = adminDb.collection('game-sets').doc(gameSetId);
+    const gameSetSnap = await gameSetRef.get();
+    if (!gameSetSnap.exists) {
+        throw new Error(`GameSet with id ${gameSetId} not found.`);
+    }
+    const gameSetData = gameSetSnap.data() as GameSet;
+
     const xpGains: Record<string, number> = {};
 
     answerLogs.forEach(log => {
-      // 1. Save the full answer log to the 'answerLogs' collection
+      // 2. Enrich log with GameSet metadata and save to 'answerLogs' collection
       if (log.userId && log.question) {
         const logRef = adminDb.collection('answerLogs').doc(log.id || uuidv4());
         
-        // Convert JS Date back to Firestore Timestamp for admin SDK
-        const logDataWithTimestamp = {
-            ...log,
-            timestamp: AdminTimestamp.fromDate(new Date(log.timestamp)),
+        const enrichedQuestion = {
+          ...log.question,
+          subject: log.question.subject || gameSetData.subject,
+          unit: log.question.unit || gameSetData.unit,
+          grade: log.question.grade || gameSetData.grade,
+          semester: log.question.semester || gameSetData.semester,
         };
 
-        batch.set(logRef, logDataWithTimestamp);
-      }
-      
-      // 2. Aggregate XP gains for each user
-      if (log.userId && typeof log.pointsAwarded === 'number') {
-        xpGains[log.userId] = (xpGains[log.userId] || 0) + log.pointsAwarded;
+        const completeLog: AnswerLog = {
+          ...log,
+          id: log.id || uuidv4(),
+          gameSetId: gameSetId,
+          gameSetTitle: gameSetData.title,
+          question: enrichedQuestion,
+          isCorrect: log.isCorrect,
+          pointsAwarded: log.pointsAwarded,
+          timestamp: AdminTimestamp.fromDate(new Date(log.timestamp as any)),
+        };
+
+        batch.set(logRef, completeLog);
+
+        // 3. Aggregate XP gains for each user
+        if (typeof log.pointsAwarded === 'number') {
+          xpGains[log.userId] = (xpGains[log.userId] || 0) + log.pointsAwarded;
+        }
       }
     });
     
-    const playerUIDs = Object.keys(xpGains);
-
-    // 3. Update user XP and playedGameSets
-    for (const uid of playerUIDs) {
-        if (uid) {
+    // 4. Update user XP and playedGameSets
+    for (const uid in xpGains) {
+        if (Object.prototype.hasOwnProperty.call(xpGains, uid)) {
             const userRef = adminDb.collection('users').doc(uid);
             const xpGained = xpGains[uid] || 0;
-            if (xpGained !== 0) { // Also record negative changes
+            if (xpGained !== 0) {
                 batch.update(userRef, { xp: FieldValue.increment(xpGained) });
             }
 
@@ -83,7 +103,7 @@ export async function finishGameAndRecordStats(payload: FinishGamePayload) {
         }
     }
     
-    // 4. Finally, mark the game room as finished
+    // 5. Finally, mark the game room as finished
     const gameRoomRef = adminDb.collection('game-rooms').doc(gameRoomId);
     batch.update(gameRoomRef, { status: 'finished' });
 

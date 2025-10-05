@@ -336,7 +336,7 @@ export default function GamePage() {
     
     if (!isCorrect) {
         try {
-            await recordIncorrectAnswer({
+             await recordIncorrectAnswer({
                 id: uuidv4(),
                 userId: currentTurnUID,
                 gameSetId: gameSet.id,
@@ -353,11 +353,9 @@ export default function GamePage() {
     try {
         const roomRef = doc(db, 'game-rooms', gameRoomId);
         
-        const newLogEntry: AnswerLog = {
+        const newLogEntry: Partial<AnswerLog> = {
             id: uuidv4(),
             userId: currentTurnUID,
-            gameSetId: gameSet.id,
-            gameSetTitle: gameSet.title,
             question: currentQuestion,
             userAnswer: userAnswer,
             isCorrect: isCorrect,
@@ -516,7 +514,7 @@ export default function GamePage() {
     setIsFinishingGame(true);
     try {
         const fullAnswerLogs = (gameRoom.answerLogs || [])
-            .filter(log => log.userId && log.question) as AnswerLog[];
+            .filter(log => log.userId && log.question) as (Omit<AnswerLog, 'gameSetId' | 'gameSetTitle' | 'question'> & { question: Partial<Question> })[];
 
         // Convert Firebase Timestamps to JS Date objects before sending to server action
         const serializableLogs = fullAnswerLogs.map(log => {
@@ -524,8 +522,10 @@ export default function GamePage() {
             const plainLog: any = { ...rest };
             if (timestamp && typeof timestamp.toDate === 'function') {
                 plainLog.timestamp = timestamp.toDate();
+            } else {
+                plainLog.timestamp = new Date(); // Fallback for logs without a proper timestamp
             }
-            return plainLog as Omit<AnswerLog, 'timestamp'> & { timestamp: Date };
+            return plainLog;
         });
 
         await finishGameAndRecordStats({

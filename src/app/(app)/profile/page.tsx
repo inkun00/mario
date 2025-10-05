@@ -94,7 +94,7 @@ export default function ProfilePage() {
           collection(db, 'answerLogs'), 
           where('userId', '==', user.uid),
           orderBy('timestamp', 'desc'), 
-          limit(100)
+          limit(300) // Fetch more logs for better analysis
       );
       const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
       
@@ -127,8 +127,9 @@ export default function ProfilePage() {
     const data: AchievementData = {};
 
     answerLogs.forEach(log => {
+      // Ensure question and subject are present
       if (!log.question || !log.question.subject) return;
-      const subject = log.question.subject || '기타';
+      const subject = log.question.subject;
       const unit = log.question.unit || '기타';
 
       if (!data[subject]) {
@@ -215,10 +216,14 @@ export default function ProfilePage() {
   };
 
 
-  const actualAnswerLogs = answerLogs.filter(log => log.question && typeof log.isCorrect === 'boolean');
-  const totalQuestions = actualAnswerLogs.length;
-  const correctCount = actualAnswerLogs.filter(log => log.isCorrect).length;
-  const correctRate = totalQuestions > 0 ? ((correctCount / totalQuestions) * 100).toFixed(1) : '0.0';
+  const { totalQuestions, correctRate } = useMemo(() => {
+    const validLogs = answerLogs.filter(log => log.question && typeof log.isCorrect === 'boolean');
+    const total = validLogs.length;
+    if (total === 0) return { totalQuestions: 0, correctRate: '0.0' };
+    const correct = validLogs.filter(log => log.isCorrect).length;
+    const rate = ((correct / total) * 100).toFixed(1);
+    return { totalQuestions: total, correctRate: rate };
+  }, [answerLogs]);
   
   const xpForNextLevel = nextLevelInfo ? nextLevelInfo.xpThreshold - (levelInfo?.xpThreshold || 0) : 0;
   const currentXpProgress = userData ? userData.xp - (levelInfo?.xpThreshold || 0) : 0;
@@ -326,7 +331,7 @@ export default function ProfilePage() {
                 </div>
             ) : (
               <Accordion type="single" collapsible className="w-full">
-                {Object.entries(achievementBySubject).map(([subject, subjectData]) => {
+                {Object.entries(achievementBySubject).sort(([a], [b]) => a.localeCompare(b)).map(([subject, subjectData]) => {
                   const subjectRate = subjectData.total > 0 ? (subjectData.correct / subjectData.total) * 100 : 0;
                   return (
                     <AccordionItem value={subject} key={subject}>
@@ -339,11 +344,11 @@ export default function ProfilePage() {
                       </AccordionTrigger>
                       <AccordionContent>
                         <div className="space-y-3 pl-4 pr-2 py-2 bg-secondary/30 rounded-md">
-                          {Object.entries(subjectData.units).map(([unit, unitData]) => {
+                          {Object.entries(subjectData.units).sort(([a], [b]) => a.localeCompare(b)).map(([unit, unitData]) => {
                             const unitRate = unitData.total > 0 ? (unitData.correct / unitData.total) * 100 : 0;
                              return (
                               <div key={unit} className="flex items-center gap-4 text-sm">
-                                <p className="flex-1 truncate" title={unit}>{unit}</p>
+                                <p className="flex-1 truncate" title={unit}>{unit || '기타'}</p>
                                 <Progress value={unitRate} className="w-24 h-1.5" />
                                 <span className="font-semibold text-muted-foreground w-16 text-right">{unitRate.toFixed(1)}%</span>
                               </div>
