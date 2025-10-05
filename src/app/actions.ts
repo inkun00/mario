@@ -3,7 +3,7 @@
 
 import { FieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase-admin';
-import type { IncorrectAnswer, PlayedGameSet, FinishGamePayload } from '@/lib/types';
+import type { IncorrectAnswer, FinishGamePayload, Player } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -35,18 +35,53 @@ export async function recordIncorrectAnswer(incorrectLog: Omit<IncorrectAnswer, 
 
 
 /**
- * 이 함수는 이제 클라이언트 측 로직으로 이동하여 더 이상 사용되지 않습니다.
- * 서버 액션은 오답 기록과 같이 신뢰성이 덜 중요한 가벼운 작업에만 사용됩니다.
+ * 게임 종료 시 플레이어들의 점수를 업데이트하고 게임 상태를 변경하는 서버 액션
  */
-export async function finishGameAndRecordStats(
-    payload: FinishGamePayload
-): Promise<{ success: boolean; message: string; data?: any; error?: any;}> {
-    // This server action is deprecated and its logic has been moved to the client-side
-    // to properly leverage the Firestore security rules you have defined.
-    // It is kept here to avoid breaking imports, but it will not be called.
-    console.warn("finishGameAndRecordStats server action is deprecated and should not be called.");
-    return {
-        success: false,
-        message: 'This server action is deprecated. Game finishing logic is now handled on the client.'
-    };
+export async function finishGameAndRecordStats(payload: FinishGamePayload) {
+    try {
+        const { gameRoomId, gameSetId, playerUIDs } = payload;
+        const gameRoomRef = adminDb.collection('game-rooms').doc(gameRoomId);
+        
+        // Use a transaction to read the final scores and update player XPs
+        await adminDb.runTransaction(async (transaction) => {
+            const roomSnap = await transaction.get(gameRoomRef);
+            if (!roomSnap.exists) {
+                throw new Error("Game room not found");
+            }
+            const gameRoom = roomSnap.data();
+            if (!gameRoom) {
+                throw new Error("Game room data is empty");
+            }
+
+            const scores: Record<string, number> = {};
+            playerUIDs.forEach(uid => scores[uid] = 0);
+
+            gameRoom.answerLogs?.forEach((log: { userId: string, pointsAwarded: number }) => {
+                if (log.userId && typeof log.pointsAwarded === 'number') {
+                    scores[log.userId] = (scores[log.userId] || 0) + log.pointsAwarded;
+                }
+            });
+
+            for (const uid of playerUIDs) {
+                const userRef = adminDb.collection('users').doc(uid);
+                const playedGameSetRef = userRef.collection('playedGameSets').doc(gameSetId);
+                const xpGained = scores[uid] || 0;
+
+                if (xpGained !== 0) {
+                     transaction.update(userRef, { xp: FieldValue.increment(xpGained), gameRoomId: gameRoomId });
+                }
+                
+                transaction.set(playedGameSetRef, {
+                    gameSetId: gameSetId,
+                    playedAt: AdminTimestamp.now(),
+                    gameRoomId: gameRoomId,
+                });
+            }
+        });
+        
+        return { success: true, message: "게임 결과가 성공적으로 저장되었습니다." };
+    } catch (error: any) {
+        console.error("Critical error in finishGameAndRecordStats:", error);
+        return { success: false, message: `결과 저장 중 오류가 발생했습니다: ${error.message}`, error: error.stack };
+    }
 }
