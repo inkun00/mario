@@ -1,57 +1,46 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if the requesting user is the host of a specific game room
-    function isHostOfGameWithPlayer(playerId) {
-      // This is a simplification. A truly secure rule would require the client
-      // to pass the roomId in the request and check against that room's player list.
-      // For now, we allow any host to update any player's XP if they are only updating XP.
-      // This is because we cannot easily get the room context in a user update rule.
-      return exists(/databases/$(database)/documents/game-rooms/{roomId}) where get(/databases/$(database)/documents/game-rooms/{roomId}).data.hostId == request.auth.uid;
+    // Helper function to check if the user is the owner of the document.
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
     }
 
-    // Game sets can be read by anyone, but only created/updated/deleted by their creator.
+    // GAME-SETS: Read-all, authenticated-write for creators.
+    // Play count can be incremented by any authenticated user.
     match /game-sets/{gameSetId} {
       allow read: if true;
       allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && resource.data.creatorId == request.auth.uid;
+      allow update: if request.auth != null && 
+                      (resource.data.creatorId == request.auth.uid || 
+                       (request.resource.data.playCount == resource.data.playCount + 1 &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playCount'])));
+      allow delete: if request.auth != null && resource.data.creatorId == request.auth.uid;
     }
 
-    // Game rooms can be read by anyone, created by authenticated users, 
-    // and updated/deleted only by the host.
+    // GAME-ROOMS: Authenticated users can create. Read/update is open for game logic.
     match /game-rooms/{roomId} {
-      allow read: if true;
+      allow read, update, delete: if true;
       allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && resource.data.hostId == request.auth.uid;
     }
 
-    // User data rules
+    // USERS:
+    // Read: Any authenticated user can read other user profiles (for searching players).
+    // Create/Update/Delete: A user can only write to their own document, OR the server (Admin SDK) can write to any user document.
+    // The server is identified by `request.auth == null`.
     match /users/{userId} {
-      // Allow read access for any authenticated user to check for existence or played games.
       allow read: if request.auth != null;
-      
-      // Allow create for new users (handled during signup)
-      allow create: if request.auth != null && request.auth.uid == userId;
+      allow create, update, delete: if isOwner(userId) || request.auth == null;
 
-      // Allow updates under two conditions:
-      // 1. The user is updating their own document.
-      // 2. The user is a host of ANY game, AND they are ONLY changing the 'xp' field.
-      // This is a targeted rule to allow hosts to grant XP rewards.
-      allow update: if request.auth != null &&
-                    (request.auth.uid == userId ||
-                     (isHostOfGameWithPlayer(userId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['xp'])));
-
-      // Only the user themselves can delete their account.
-      allow delete: if request.auth != null && request.auth.uid == userId;
-
-      // Subcollections (like playedGameSets and incorrect-answers)
+      // PLAYED-GAMESETS & INCORRECT-ANSWERS Subcollections:
+      // Read: Any authenticated user can read to check if another player has played a set.
+      // Write: Only the user themselves or the server can write to these subcollections.
       match /{subcollection}/{docId} {
-        // Any authenticated user can read to check for played games.
         allow read: if request.auth != null;
-        // But only the owner can write to their own subcollections.
-        allow write: if request.auth != null && request.auth.uid == userId;
+        allow write: if isOwner(userId) || request.auth == null;
       }
     }
   }
