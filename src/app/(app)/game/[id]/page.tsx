@@ -356,11 +356,19 @@ export default function GamePage() {
     try {
         const roomRef = doc(db, 'game-rooms', gameRoomId);
         
-        const lightAnswerLog = {
-          userId: currentTurnUID,
-          pointsAwarded: pointsToAward,
+        const newLogEntry: Partial<AnswerLog> = {
+            id: uuidv4(),
+            userId: currentTurnUID,
+            gameSetId: gameSet.id,
+            gameSetTitle: gameSet.title,
+            question: currentQuestion,
+            userAnswer: userAnswer,
+            isCorrect: isCorrect,
+            pointsAwarded: pointsToAward,
+            timestamp: Timestamp.now(),
         };
-        const newAnswerLogs = [...(gameRoom.answerLogs || []), lightAnswerLog];
+
+        const newAnswerLogs = [...(gameRoom.answerLogs || []), newLogEntry];
         
         const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
         
@@ -510,14 +518,14 @@ export default function GamePage() {
     if (!gameRoom || typeof gameRoomId !== 'string' || !gameSet) return;
     setIsFinishingGame(true);
     try {
-        const finalLogsForXp = (gameRoom.answerLogs || [])
-            .filter(log => log.userId && typeof log.userId === 'string' && typeof log.pointsAwarded === 'number')
-            .map(log => ({
-                uid: log.userId!,
-                xp: log.pointsAwarded!
-            }));
-        
-        await finishGameAndRecordStats(gameRoomId, finalLogsForXp);
+        const fullAnswerLogs = (gameRoom.answerLogs || [])
+            .filter(log => log.userId && log.question);
+
+        await finishGameAndRecordStats({
+            gameRoomId: gameRoomId,
+            gameSetId: gameSet.id,
+            answerLogs: fullAnswerLogs as AnswerLog[],
+        });
 
         toast({ title: "저장 완료!", description: "게임 결과가 성공적으로 저장되었습니다." });
         router.push('/dashboard');
@@ -848,4 +856,3 @@ export default function GamePage() {
     </>
   );
 }
-
