@@ -128,7 +128,7 @@ export default function ProfilePage() {
     const data: AchievementData = {};
 
     answerLogs.forEach(log => {
-      if (!log.question) return;
+      if (!log.question || !log.question.subject) return;
       const subject = log.question.subject || '기타';
       const unit = log.question.unit || '기타';
 
@@ -180,17 +180,15 @@ export default function ProfilePage() {
     
     try {
         if (user) {
-            // Delete the question from incorrect-answers regardless of the outcome
             await deleteDoc(doc(db, 'users', user.uid, 'incorrect-answers', reviewItem.id));
 
             if (isCorrect) {
                 const userRef = doc(db, 'users', user.uid);
                 await updateDoc(userRef, { xp: increment(10) });
                 
-                // Update user data locally to reflect XP change
-                const newXp = (userData?.xp || 0) + 10;
                 setUserData(prev => {
                     if (!prev) return null;
+                    const newXp = prev.xp + 10;
                     const newLevelInfo = getLevelInfo(newXp);
                     if (newLevelInfo.level !== levelInfo?.level) {
                         setLevelInfo(newLevelInfo);
@@ -205,12 +203,10 @@ export default function ProfilePage() {
             }
         }
         
-        // Remove the question from the list in the UI
         setReviewQuestions(prev => prev.filter((_, i) => i !== index));
 
     } catch (error: any) {
         toast({ variant: 'destructive', title: '오류', description: `답변 제출 중 오류가 발생했습니다: ${error.message}` });
-        // If submission fails, revert the submitting state
         const revertedQuestions = [...reviewQuestions];
         if (revertedQuestions[index]) {
             revertedQuestions[index].isSubmitting = false;
@@ -220,7 +216,7 @@ export default function ProfilePage() {
   };
 
 
-  const actualAnswerLogs = answerLogs.filter(log => log.question && ['subjective', 'multipleChoice', 'ox'].includes(log.question.type));
+  const actualAnswerLogs = answerLogs.filter(log => log.question && log.question.type);
   const totalQuestions = actualAnswerLogs.length;
   const correctCount = actualAnswerLogs.filter(log => log.isCorrect).length;
   const correctRate = totalQuestions > 0 ? ((correctCount / totalQuestions) * 100).toFixed(1) : '0.0';

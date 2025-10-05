@@ -335,7 +335,6 @@ export default function GamePage() {
     const pointsToAward = isCorrect ? currentPoints : 0;
     const currentTurnUID = gameRoom.currentTurn;
     
-    // If incorrect, record it immediately via a lightweight server action
     if (!isCorrect) {
         try {
             await recordIncorrectAnswer({
@@ -349,7 +348,6 @@ export default function GamePage() {
             });
         } catch (error) {
             console.error("Failed to record incorrect answer in real-time:", error);
-            // This failure is not critical, so we just log it and continue.
         }
     }
 

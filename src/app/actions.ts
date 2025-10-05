@@ -43,40 +43,44 @@ export async function finishGameAndRecordStats(payload: FinishGamePayload) {
     const batch = adminDb.batch();
     
     const xpGains: Record<string, number> = {};
+    const playerUIDs = Array.from(new Set(answerLogs.map(log => log.userId)));
 
     answerLogs.forEach(log => {
       if (log.userId && typeof log.pointsAwarded === 'number') {
         xpGains[log.userId] = (xpGains[log.userId] || 0) + log.pointsAwarded;
       }
       
-      // Save each answer log to the top-level collection
       const logRef = adminDb.collection('answerLogs').doc(log.id || uuidv4());
-      // Convert client-side Timestamp to admin Timestamp if needed, or use serverTimestamp
       const logData = {
           ...log,
-          timestamp: AdminTimestamp.now(),
+          timestamp: AdminTimestamp.now(), // Use server timestamp for consistency
       };
       batch.set(logRef, logData);
     });
 
     // Update user XP
     for (const uid in xpGains) {
-        if (xpGains[uid] > 0) {
+        if (xpGains[uid] > 0) { // Only update if there's a change
             const userRef = adminDb.collection('users').doc(uid);
             batch.update(userRef, { xp: FieldValue.increment(xpGains[uid]) });
         }
     }
     
     // Mark the game set as played for each user
-    const playerUIDs = Array.from(new Set(answerLogs.map(log => log.userId)));
     playerUIDs.forEach(uid => {
-      const playedGameSetRef = adminDb.collection('users').doc(uid).collection('playedGameSets').doc(gameSetId);
-      batch.set(playedGameSetRef, {
-        gameSetId: gameSetId,
-        playedAt: AdminTimestamp.now(),
-        gameRoomId: gameRoomId,
-      });
+      if (uid) {
+        const playedGameSetRef = adminDb.collection('users').doc(uid).collection('playedGameSets').doc(gameSetId);
+        batch.set(playedGameSetRef, {
+          gameSetId: gameSetId,
+          playedAt: AdminTimestamp.now(),
+          gameRoomId: gameRoomId,
+        });
+      }
     });
+
+    // Finally, mark the game room as finished
+    const gameRoomRef = adminDb.collection('game-rooms').doc(gameRoomId);
+    batch.update(gameRoomRef, { status: 'finished' });
 
     await batch.commit();
 

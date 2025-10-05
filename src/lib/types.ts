@@ -1,3 +1,4 @@
+
 export interface User {
   uid: string;
   email: string | null;
@@ -123,5 +124,5 @@ export interface PlayedGameSet {
 export interface FinishGamePayload {
     gameRoomId: string;
     gameSetId: string;
-    playerUIDs: string[];
+    answerLogs: AnswerLog[];
 }
