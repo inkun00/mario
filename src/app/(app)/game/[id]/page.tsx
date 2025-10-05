@@ -531,7 +531,6 @@ export default function GamePage() {
         const userSnap = await getDoc(userDocRef);
         if (userSnap.exists()) {
           const currentXp = userSnap.data().xp || 0;
-          const xpGained = (scores[uid] || 0) - (gameRoom.players[uid]?.score || 0); // This logic might be flawed, let's use final scores directly
           const newXp = currentXp + (scores[uid] || 0);
           
           // The update data must include gameRoomId for the security rule
