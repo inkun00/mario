@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -517,12 +516,12 @@ export default function GamePage() {
     setIsFinishingGame(true);
     try {
         const fullAnswerLogs = (gameRoom.answerLogs || [])
-            .filter(log => log.userId && log.question);
+            .filter(log => log.userId && log.question) as AnswerLog[];
 
         await finishGameAndRecordStats({
             gameRoomId: gameRoomId,
             gameSetId: gameSet.id,
-            answerLogs: fullAnswerLogs as AnswerLog[],
+            answerLogs: fullAnswerLogs,
         });
 
         toast({ title: "저장 완료!", description: "게임 결과가 성공적으로 저장되었습니다." });

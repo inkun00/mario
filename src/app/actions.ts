@@ -1,4 +1,3 @@
-
 'use server';
 
 import { FieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
@@ -46,39 +45,41 @@ export async function finishGameAndRecordStats(payload: FinishGamePayload) {
     const playerUIDs = Array.from(new Set(answerLogs.map(log => log.userId)));
 
     answerLogs.forEach(log => {
+      // 1. Save the full answer log to the 'answerLogs' collection
+      if (log.userId && log.question) {
+        const logRef = adminDb.collection('answerLogs').doc(log.id || uuidv4());
+        const logData = {
+            ...log,
+            timestamp: AdminTimestamp.now(), // Use server timestamp for consistency
+        };
+        batch.set(logRef, logData);
+      }
+      
+      // 2. Aggregate XP gains for each user
       if (log.userId && typeof log.pointsAwarded === 'number') {
         xpGains[log.userId] = (xpGains[log.userId] || 0) + log.pointsAwarded;
       }
-      
-      const logRef = adminDb.collection('answerLogs').doc(log.id || uuidv4());
-      const logData = {
-          ...log,
-          timestamp: AdminTimestamp.now(), // Use server timestamp for consistency
-      };
-      batch.set(logRef, logData);
     });
 
-    // Update user XP
-    for (const uid in xpGains) {
-        if (xpGains[uid] > 0) { // Only update if there's a change
+    // 3. Update user XP and playedGameSets
+    for (const uid of playerUIDs) {
+        if (uid) {
             const userRef = adminDb.collection('users').doc(uid);
-            batch.update(userRef, { xp: FieldValue.increment(xpGains[uid]) });
+            const xpGained = xpGains[uid] || 0;
+            if (xpGained > 0) {
+                batch.update(userRef, { xp: FieldValue.increment(xpGained) });
+            }
+
+            const playedGameSetRef = userRef.collection('playedGameSets').doc(gameSetId);
+            batch.set(playedGameSetRef, {
+                gameSetId: gameSetId,
+                playedAt: AdminTimestamp.now(),
+                gameRoomId: gameRoomId,
+            });
         }
     }
     
-    // Mark the game set as played for each user
-    playerUIDs.forEach(uid => {
-      if (uid) {
-        const playedGameSetRef = adminDb.collection('users').doc(uid).collection('playedGameSets').doc(gameSetId);
-        batch.set(playedGameSetRef, {
-          gameSetId: gameSetId,
-          playedAt: AdminTimestamp.now(),
-          gameRoomId: gameRoomId,
-        });
-      }
-    });
-
-    // Finally, mark the game room as finished
+    // 4. Finally, mark the game room as finished
     const gameRoomRef = adminDb.collection('game-rooms').doc(gameRoomId);
     batch.update(gameRoomRef, { status: 'finished' });
 

@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -216,7 +215,7 @@ export default function ProfilePage() {
   };
 
 
-  const actualAnswerLogs = answerLogs.filter(log => log.question && log.question.type);
+  const actualAnswerLogs = answerLogs.filter(log => log.question && typeof log.isCorrect === 'boolean');
   const totalQuestions = actualAnswerLogs.length;
   const correctCount = actualAnswerLogs.filter(log => log.isCorrect).length;
   const correctRate = totalQuestions > 0 ? ((correctCount / totalQuestions) * 100).toFixed(1) : '0.0';
