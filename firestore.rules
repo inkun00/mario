@@ -8,38 +8,43 @@ service cloud.firestore {
     }
 
     function isRoomHost(roomId) {
-      return request.auth.uid == get(/databases/$(database)/documents/game-rooms/$(roomId)).data.hostId;
+      return get(/databases/$(database)/documents/game-rooms/$(roomId)).data.hostId == request.auth.uid;
     }
 
     match /users/{userId} {
       allow read: if request.auth != null;
-      allow create: if request.auth.uid == userId;
-      allow update: if isOwner(userId)
-        || request.auth == null
-        || (
-            request.resource.data.gameRoomId != null
-            && isRoomHost(request.resource.data.gameRoomId)
-            && userId in get(/databases/$(database)/documents/game-rooms/$(request.resource.data.gameRoomId)).data.playerUIDs
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['xp', 'gameRoomId'])
-        );
+      allow create: if request.auth != null;
       
+      allow update: if request.auth != null && (
+        isOwner(userId) ||
+        (
+          request.auth == null
+        ) ||
+        (
+          'gameRoomId' in request.resource.data &&
+          isRoomHost(request.resource.data.gameRoomId) &&
+          request.resource.data.keys().hasOnly(['xp', 'gameRoomId'])
+        )
+      );
+
       match /playedGameSets/{gameSetId} {
-        allow read, write: if isOwner(userId);
-        allow create: if request.auth != null && isRoomHost(request.resource.data.gameRoomId);
+        allow write: if request.auth != null &&
+          (isOwner(userId) || 
+          ('gameRoomId' in request.resource.data && isRoomHost(request.resource.data.gameRoomId)));
       }
-
-      match /incorrect-answers/{answerId} {
-          allow read, write: if isOwner(userId);
-      }
-    }
-
-    match /game-sets/{gameSetId} {
-        allow read: if request.auth != null;
-        allow create, update: if request.auth != null;
     }
 
     match /game-rooms/{roomId} {
-        allow read, create, update: if request.auth != null;
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+    }
+
+    match /game-sets/{gameSetId} {
+      allow read: if request.auth != null;
+      allow update: if request.auth != null;
+      allow create: if request.auth != null;
+      allow delete: if request.auth != null && (resource.data.creatorId == request.auth.uid);
     }
   }
 }
