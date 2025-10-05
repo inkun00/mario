@@ -2,59 +2,50 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
+  
+    // Helper functions
     function isOwner(userId) {
-      return request.auth.uid == userId;
+      return request.auth != null && request.auth.uid == userId;
     }
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // Server has all access
+    
     function isServer() {
       return request.auth == null;
     }
 
+    // `users` collection rules
     match /users/{userId} {
-      // Read: Any signed-in user can read another user's profile and played games list
-      allow read: if isSignedIn();
+      // Allow authenticated users to read other users' profiles (for searching, etc.)
+      allow read: if request.auth != null;
+      // Allow users to update their own document, or allow server to update any
+      allow update: if isOwner(userId) || isServer();
+      // Allow users to create their own document, and allow server to create any
+      allow create: if isOwner(userId) || isServer();
+      // Only allow users to delete their own account
+      allow delete: if isOwner(userId);
 
-      // Write: You can only write to your own document, OR if the server is making the request,
-      // OR if you are the host of a game room and are updating the xp.
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || isServer() || (
-        get(/databases/$(database)/documents/game-rooms/$(request.resource.data.gameRoomId)).data.hostId == request.auth.uid
-      );
-
-      match /playedGameSets/{playedGameSetId} {
-        allow read: if isSignedIn();
-        allow write: if isOwner(userId) || (
-          // Allow host to write to playedGameSets of players in their room
-          exists(/databases/$(database)/documents/game-rooms/$(request.resource.data.gameRoomId)) &&
-          get(/databases/$(database)/documents/game-rooms/$(request.resource.data.gameRoomId)).data.hostId == request.auth.uid
-        );
+      // `playedGameSets` subcollection rules
+      match /playedGameSets/{gameSetId} {
+        // Allow any authenticated user to check if another has played a set
+        allow read: if request.auth != null;
+        // Only allow a user to write to their own played history
+        allow write: if isOwner(userId);
       }
       
+      // `incorrect-answers` subcollection rules
       match /incorrect-answers/{answerId} {
-         allow read, write, delete: if isOwner(userId) || isServer();
+      	// Only allow owner to read/write their own incorrect answers
+      	allow read, write: if isOwner(userId);
       }
     }
-
+    
+    // `game-sets` collection rules
     match /game-sets/{gameSetId} {
-      allow read: if isSignedIn();
-      // Allow creating new sets, or updating if you are the creator or server
-      allow create: if isSignedIn();
-      allow update: if isServer() || (isSignedIn() && resource.data.creatorId == request.auth.uid);
-      allow delete: if isServer() || (isSignedIn() && resource.data.creatorId == request.auth.uid);
+      allow read, create, update: if request.auth != null;
     }
 
+    // `game-rooms` collection rules
     match /game-rooms/{roomId} {
-      // Any signed-in user can create a room.
-      // Any signed-in user can read a room to join.
-      // Only players in the room or the server can update it.
-      allow read, create: if isSignedIn();
-      allow update: if isServer() || (isSignedIn() && request.auth.uid in resource.data.players);
+      allow create, update: if request.auth != null;
     }
   }
 }
