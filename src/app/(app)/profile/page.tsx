@@ -128,8 +128,9 @@ export default function ProfilePage() {
     const data: AchievementData = {};
 
     answerLogs.forEach(log => {
-      const subject = log.question?.subject || '기타';
-      const unit = log.question?.unit || '기타';
+      if (!log.question) return;
+      const subject = log.question.subject || '기타';
+      const unit = log.question.unit || '기타';
 
       if (!data[subject]) {
         data[subject] = { total: 0, correct: 0, units: {} };
@@ -477,5 +478,4 @@ export default function ProfilePage() {
 
     </div>
   );
-
-    
+}
