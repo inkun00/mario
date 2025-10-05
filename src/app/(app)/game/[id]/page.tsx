@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, getDoc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc, Timestamp, writeBatch } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog } from '@/lib/types';
@@ -22,7 +22,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
-import { finishGameAndRecordStats, recordIncorrectAnswer } from '@/app/actions';
+import { recordIncorrectAnswer } from '@/app/actions';
 
 
 interface GameBlock {
@@ -510,17 +510,50 @@ export default function GamePage() {
     if (!gameRoom || typeof gameRoomId !== 'string' || !gameSet) return;
     setIsFinishingGame(true);
     try {
-        const playerUIDs = gameRoom.playerUIDs || [];
-        const result = await finishGameAndRecordStats({ gameRoomId, gameSetId: gameSet.id, playerUIDs });
+      const playerUIDs = gameRoom.playerUIDs || [];
+      if (playerUIDs.length === 0) {
+        toast({ title: "저장 완료!", description: "플레이어가 없어 업데이트할 점수가 없습니다." });
+        router.push('/dashboard');
+        return;
+      }
 
-        if (result.success) {
-            toast({ title: "저장 완료!", description: result.message });
-            router.push('/dashboard');
-        } else {
-            toast({ variant: "destructive", title: "저장 오류", description: result.message });
-            console.error("Server Action Failed:", result.error, "Data:", result.data);
-            setIsFinishingGame(false);
+      // Calculate final scores from logs
+      const finalPlayers = calculateScoresFromLogs(gameRoom);
+      const scores: Record<string, number> = {};
+      finalPlayers.forEach(p => {
+        scores[p.uid] = p.score;
+      });
+
+      const batch = writeBatch(db);
+
+      for (const uid of playerUIDs) {
+        const userDocRef = doc(db, 'users', uid);
+        const userSnap = await getDoc(userDocRef);
+        if (userSnap.exists()) {
+          const currentXp = userSnap.data().xp || 0;
+          const xpGained = (scores[uid] || 0) - (gameRoom.players[uid]?.score || 0); // This logic might be flawed, let's use final scores directly
+          const newXp = currentXp + (scores[uid] || 0);
+          
+          // The update data must include gameRoomId for the security rule
+          batch.update(userDocRef, {
+            xp: newXp,
+            gameRoomId: gameRoomId 
+          });
+
+          // Record that the user has played this game set
+          const playRecordRef = doc(db, 'users', uid, 'playedGameSets', gameSet.id);
+          batch.set(playRecordRef, {
+              gameSetId: gameSet.id,
+              playedAt: Timestamp.now(),
+              gameRoomId: gameRoomId
+          });
         }
+      }
+
+      await batch.commit();
+
+      toast({ title: "저장 완료!", description: "게임 결과가 성공적으로 저장되었습니다." });
+      router.push('/dashboard');
 
     } catch(error: any) {
         toast({ variant: 'destructive', title: '치명적 오류', description: `결과 저장 중 예상치 못한 오류가 발생했습니다: ${error.message}` });

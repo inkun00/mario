@@ -35,88 +35,18 @@ export async function recordIncorrectAnswer(incorrectLog: Omit<IncorrectAnswer, 
 
 
 /**
- * 트랜잭션을 Batched Write로 변경하여 극적으로 경량화된 최종 함수.
- * 디버깅을 위해 상세한 결과 객체를 반환합니다.
+ * 이 함수는 이제 클라이언트 측 로직으로 이동하여 더 이상 사용되지 않습니다.
+ * 서버 액션은 오답 기록과 같이 신뢰성이 덜 중요한 가벼운 작업에만 사용됩니다.
  */
 export async function finishGameAndRecordStats(
     payload: FinishGamePayload
 ): Promise<{ success: boolean; message: string; data?: any; error?: any;}> {
-    const { gameRoomId, gameSetId, playerUIDs } = payload;
-    try {
-        const roomRef = adminDb.collection('game-rooms').doc(gameRoomId);
-        const roomSnap = await roomRef.get();
-
-        if (!roomSnap.exists) {
-            return { 
-                success: false, 
-                message: `Game room with ID "${gameRoomId}" not found.`,
-                error: { code: 'not-found' },
-                data: { gameRoomId }
-            };
-        }
-        
-        const gameRoomData = roomSnap.data();
-        if (!gameRoomData) {
-            return { 
-                success: false, 
-                message: `Game room data for ID "${gameRoomId}" is empty.`,
-                error: { code: 'no-data' },
-                data: { gameRoomId }
-            };
-        }
-        
-        const finalLogsForXp = gameRoomData.answerLogs || [];
-        
-        const scores: Record<string, number> = {};
-        playerUIDs.forEach(uid => scores[uid] = 0);
-
-        finalLogsForXp.forEach((log: { userId: string, pointsAwarded: number }) => {
-            if (log.userId && typeof log.pointsAwarded === 'number' && playerUIDs.includes(log.userId)) {
-                scores[log.userId] = (scores[log.userId] || 0) + log.pointsAwarded;
-            }
-        });
-        
-        if (playerUIDs.length === 0) {
-            return { success: true, message: 'No players to update XP for.', data: { receivedData: finalLogsForXp } };
-        }
-        
-        const batch = adminDb.batch();
-
-        for (const uid of playerUIDs) {
-            const xpGained = scores[uid] || 0;
-            if (xpGained !== 0) {
-                const userRef = adminDb.collection('users').doc(uid);
-                // Firestore 보안 규칙 검증을 위해 xp 업데이트 시 gameRoomId를 포함합니다.
-                batch.update(userRef, { 
-                    xp: FieldValue.increment(xpGained),
-                    gameRoomId: gameRoomId 
-                });
-            }
-
-            // Record that the user has played this game set
-            const playRecordRef = adminDb.collection('users').doc(uid).collection('playedGameSets').doc(gameSetId);
-            batch.set(playRecordRef, {
-                gameSetId: gameSetId,
-                playedAt: AdminTimestamp.now(),
-                gameRoomId: gameRoomId
-            });
-        }
-
-        await batch.commit();
-
-        return { success: true, message: `Successfully finished game and updated stats for room ${gameRoomId}.` };
-
-    } catch (error: any) {
-        console.error("Error in finishGameAndRecordStats:", error);
-        return { 
-            success: false, 
-            message: error.message || 'An unknown error occurred on the server.',
-            error: {
-                message: error.message,
-                stack: error.stack,
-                code: error.code,
-            },
-            data: { gameRoomId, gameSetId, playerUIDs }
-        };
-    }
+    // This server action is deprecated and its logic has been moved to the client-side
+    // to properly leverage the Firestore security rules you have defined.
+    // It is kept here to avoid breaking imports, but it will not be called.
+    console.warn("finishGameAndRecordStats server action is deprecated and should not be called.");
+    return {
+        success: false,
+        message: 'This server action is deprecated. Game finishing logic is now handled on the client.'
+    };
 }
