@@ -3,8 +3,14 @@
 
 import { FieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase-admin';
-import type { IncorrectAnswer, FinishGamePayload, Player } from '@/lib/types';
+import type { IncorrectAnswer, Question } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
+
+type PlayerStat = {
+  uid: string;
+  xp: number;
+};
+
 
 /**
  * 실시간으로 오답 1건을 기록하는 가벼운 서버 액션
@@ -37,51 +43,51 @@ export async function recordIncorrectAnswer(incorrectLog: Omit<IncorrectAnswer, 
 /**
  * 게임 종료 시 플레이어들의 점수를 업데이트하고 게임 상태를 변경하는 서버 액션
  */
-export async function finishGameAndRecordStats(payload: FinishGamePayload) {
-    try {
-        const { gameRoomId, gameSetId, playerUIDs } = payload;
-        const gameRoomRef = adminDb.collection('game-rooms').doc(gameRoomId);
-        
-        // Use a transaction to read the final scores and update player XPs
-        await adminDb.runTransaction(async (transaction) => {
-            const roomSnap = await transaction.get(gameRoomRef);
-            if (!roomSnap.exists) {
-                throw new Error("Game room not found");
-            }
-            const gameRoom = roomSnap.data();
-            if (!gameRoom) {
-                throw new Error("Game room data is empty");
-            }
+export async function finishGameAndRecordStats(
+  gameRoomId: string,
+  finalLogsForXp: PlayerStat[]
+) {
+  try {
+    const batch = adminDb.batch();
 
-            const scores: Record<string, number> = {};
-            playerUIDs.forEach(uid => scores[uid] = 0);
-
-            gameRoom.answerLogs?.forEach((log: { userId: string, pointsAwarded: number }) => {
-                if (log.userId && typeof log.pointsAwarded === 'number') {
-                    scores[log.userId] = (scores[log.userId] || 0) + log.pointsAwarded;
-                }
-            });
-
-            for (const uid of playerUIDs) {
-                const userRef = adminDb.collection('users').doc(uid);
-                const playedGameSetRef = userRef.collection('playedGameSets').doc(gameSetId);
-                const xpGained = scores[uid] || 0;
-
-                if (xpGained !== 0) {
-                     transaction.update(userRef, { xp: FieldValue.increment(xpGained), gameRoomId: gameRoomId });
-                }
-                
-                transaction.set(playedGameSetRef, {
-                    gameSetId: gameSetId,
-                    playedAt: AdminTimestamp.now(),
-                    gameRoomId: gameRoomId,
-                });
-            }
+    // 1. 모든 플레이어의 XP를 업데이트합니다.
+    finalLogsForXp.forEach(playerStat => {
+      if (playerStat.uid && playerStat.xp > 0) {
+        const userRef = adminDb.collection('users').doc(playerStat.uid);
+        // 호스트 권한으로 업데이트하기 위해 gameRoomId를 데이터에 포함합니다.
+        batch.update(userRef, {
+          xp: FieldValue.increment(playerStat.xp),
+          gameRoomId: gameRoomId 
         });
-        
-        return { success: true, message: "게임 결과가 성공적으로 저장되었습니다." };
-    } catch (error: any) {
-        console.error("Critical error in finishGameAndRecordStats:", error);
-        return { success: false, message: `결과 저장 중 오류가 발생했습니다: ${error.message}`, error: error.stack };
+      }
+    });
+    
+    const gameSetId = (await adminDb.collection('game-rooms').doc(gameRoomId).get()).data()?.gameSetId;
+    if (gameSetId) {
+        const playerUIDs = Array.from(new Set(finalLogsForXp.map(p => p.uid)));
+        playerUIDs.forEach(uid => {
+            const playedGameSetRef = adminDb.collection('users').doc(uid).collection('playedGameSets').doc(gameSetId);
+            batch.set(playedGameSetRef, {
+                gameSetId: gameSetId,
+                playedAt: AdminTimestamp.now(),
+                gameRoomId: gameRoomId,
+            });
+        });
     }
+
+
+    // 2. 게임방 상태를 'finished'로 변경합니다. (이 작업은 이제 클라이언트에서 처리되므로 주석 처리하거나 제거할 수 있습니다.)
+    // const gameRoomRef = adminDb.collection('game-rooms').doc(gameRoomId);
+    // batch.update(gameRoomRef, { status: 'finished' });
+
+    // 3. 배치 작업을 한번에 실행합니다.
+    await batch.commit();
+
+    return { success: true, message: "게임 결과가 성공적으로 저장되었습니다." };
+
+  } catch (error) {
+    console.error("Error in finishGameAndRecordStats:", error);
+    // 실제 오류 메시지를 반환하여 디버깅을 돕습니다.
+    return { success: false, message: "결과 저장 중 오류가 발생했습니다.", error: (error as Error).message };
+  }
 }
