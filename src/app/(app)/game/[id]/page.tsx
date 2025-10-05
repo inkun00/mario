@@ -507,11 +507,11 @@ export default function GamePage() {
   };
 
   const handleFinishAndSave = async () => {
-    if (!gameRoom || typeof gameRoomId !== 'string' || !gameSet) return;
+    if (!gameRoom || typeof gameRoomId !== 'string') return;
     setIsFinishingGame(true);
     try {
         const finalLogsForXp = (gameRoom.answerLogs || [])
-            .filter(log => log.userId && typeof log.userId === 'string' && typeof log.pointsAwarded === 'number')
+            .filter(log => log.userId && typeof log.pointsAwarded === 'number')
             .map(log => ({
                 uid: log.userId!,
                 xp: log.pointsAwarded!
@@ -849,3 +849,4 @@ export default function GamePage() {
   );
 }
 
+    
