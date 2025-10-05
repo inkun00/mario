@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -11,10 +12,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import type { User, AnswerLog, IncorrectAnswer, Question } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, where, limit } from 'firebase/firestore';
-import { Loader2, FileWarning, School, Trophy } from 'lucide-react';
+import { Loader2, FileWarning, School, Trophy, BookOpen } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,6 +26,13 @@ import { cn } from '@/lib/utils';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import Image from 'next/image';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
+
 
 const todo_items = [
   { label: '숙제 마무리하기', description: '오늘 배운 내용을 정리하고 숙제를 완성해요', reward: 50 },
@@ -40,6 +48,20 @@ interface ReviewQuestion extends IncorrectAnswer {
     userReviewAnswer?: string;
     isSubmitting?: boolean;
 }
+
+interface AchievementData {
+  [subject: string]: {
+    total: number;
+    correct: number;
+    units: {
+      [unit: string]: {
+        total: number;
+        correct: number;
+      };
+    };
+  };
+}
+
 
 export default function ProfilePage() {
   const [user] = useAuthState(auth);
@@ -101,6 +123,32 @@ export default function ProfilePage() {
 
     fetchData();
   }, [user, toast]);
+
+  const achievementBySubject = useMemo(() => {
+    const data: AchievementData = {};
+
+    answerLogs.forEach(log => {
+      const subject = log.question?.subject || '기타';
+      const unit = log.question?.unit || '기타';
+
+      if (!data[subject]) {
+        data[subject] = { total: 0, correct: 0, units: {} };
+      }
+      if (!data[subject].units[unit]) {
+        data[subject].units[unit] = { total: 0, correct: 0 };
+      }
+
+      data[subject].total++;
+      data[subject].units[unit].total++;
+      if (log.isCorrect) {
+        data[subject].correct++;
+        data[subject].units[unit].correct++;
+      }
+    });
+
+    return data;
+  }, [answerLogs]);
+
 
   const handleReviewAnswerChange = (index: number, value: string) => {
     const updatedQuestions = [...reviewQuestions];
@@ -270,6 +318,53 @@ export default function ProfilePage() {
       
       <Card>
           <CardHeader>
+            <CardTitle className="font-headline flex items-center gap-2">
+                <BookOpen className="text-primary"/> 과목별 성취도
+            </CardTitle>
+            <CardDescription>과목별, 단원별 정답률을 확인하고 약점을 보완해보세요.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {Object.keys(achievementBySubject).length === 0 ? (
+                <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                    <p className="text-muted-foreground">아직 학습 기록이 없습니다.</p>
+                </div>
+            ) : (
+              <Accordion type="single" collapsible className="w-full">
+                {Object.entries(achievementBySubject).map(([subject, subjectData]) => {
+                  const subjectRate = subjectData.total > 0 ? (subjectData.correct / subjectData.total) * 100 : 0;
+                  return (
+                    <AccordionItem value={subject} key={subject}>
+                      <AccordionTrigger className="hover:no-underline">
+                        <div className="flex items-center gap-4 w-full pr-4">
+                          <span className="font-semibold text-lg flex-1 text-left">{subject}</span>
+                          <Progress value={subjectRate} className="w-32 h-2" />
+                          <span className="font-bold text-primary w-20 text-right">{subjectRate.toFixed(1)}%</span>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent>
+                        <div className="space-y-3 pl-4 pr-2 py-2 bg-secondary/30 rounded-md">
+                          {Object.entries(subjectData.units).map(([unit, unitData]) => {
+                            const unitRate = unitData.total > 0 ? (unitData.correct / unitData.total) * 100 : 0;
+                             return (
+                              <div key={unit} className="flex items-center gap-4 text-sm">
+                                <p className="flex-1 truncate" title={unit}>{unit}</p>
+                                <Progress value={unitRate} className="w-24 h-1.5" />
+                                <span className="font-semibold text-muted-foreground w-16 text-right">{unitRate.toFixed(1)}%</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  )
+                })}
+              </Accordion>
+            )}
+          </CardContent>
+      </Card>
+      
+      <Card>
+          <CardHeader>
               <CardTitle className="font-headline flex items-center gap-2">
                   <FileWarning className="text-primary"/> 오답노트
               </CardTitle>
@@ -382,4 +477,5 @@ export default function ProfilePage() {
 
     </div>
   );
-}
+
+    
