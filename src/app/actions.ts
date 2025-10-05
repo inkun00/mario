@@ -81,15 +81,16 @@ export async function finishGameAndRecordStats(
         }
         
         const batch = adminDb.batch();
-        const hostId = gameRoomData.hostId;
 
         for (const uid of playerUIDs) {
             const xpGained = scores[uid] || 0;
             if (xpGained !== 0) {
                 const userRef = adminDb.collection('users').doc(uid);
-                // Ensure the update call is made by the host on behalf of the server
-                // This call will be validated by Firestore rules
-                 batch.update(userRef, { xp: FieldValue.increment(xpGained) });
+                // Firestore 보안 규칙 검증을 위해 xp 업데이트 시 gameRoomId를 포함합니다.
+                batch.update(userRef, { 
+                    xp: FieldValue.increment(xpGained),
+                    gameRoomId: gameRoomId 
+                });
             }
 
             // Record that the user has played this game set
@@ -97,7 +98,7 @@ export async function finishGameAndRecordStats(
             batch.set(playRecordRef, {
                 gameSetId: gameSetId,
                 playedAt: AdminTimestamp.now(),
-                gameRoomId: gameRoomId // Pass gameRoomId for rule validation
+                gameRoomId: gameRoomId
             });
         }
 
