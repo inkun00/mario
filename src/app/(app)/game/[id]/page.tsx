@@ -848,5 +848,3 @@ export default function GamePage() {
     </>
   );
 }
-
-    
