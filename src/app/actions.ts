@@ -56,7 +56,16 @@ export async function finishGameAndRecordStats(
         }
         
         const gameRoomData = roomSnap.data();
-        const finalLogsForXp = gameRoomData?.answerLogs || [];
+        if (!gameRoomData) {
+            return { 
+                success: false, 
+                message: `Game room data for ID "${gameRoomId}" is empty.`,
+                error: { code: 'no-data' },
+                data: { gameRoomId }
+            };
+        }
+        
+        const finalLogsForXp = gameRoomData.answerLogs || [];
         
         const scores: Record<string, number> = {};
         playerUIDs.forEach(uid => scores[uid] = 0);
@@ -72,22 +81,25 @@ export async function finishGameAndRecordStats(
         }
         
         const batch = adminDb.batch();
+        const hostId = gameRoomData.hostId;
 
-        playerUIDs.forEach(uid => {
-            // Update XP
+        for (const uid of playerUIDs) {
             const xpGained = scores[uid] || 0;
             if (xpGained !== 0) {
                 const userRef = adminDb.collection('users').doc(uid);
-                batch.update(userRef, { xp: FieldValue.increment(xpGained) });
+                // Ensure the update call is made by the host on behalf of the server
+                // This call will be validated by Firestore rules
+                 batch.update(userRef, { xp: FieldValue.increment(xpGained) });
             }
 
             // Record that the user has played this game set
             const playRecordRef = adminDb.collection('users').doc(uid).collection('playedGameSets').doc(gameSetId);
             batch.set(playRecordRef, {
                 gameSetId: gameSetId,
-                playedAt: AdminTimestamp.now()
+                playedAt: AdminTimestamp.now(),
+                gameRoomId: gameRoomId // Pass gameRoomId for rule validation
             });
-        });
+        }
 
         await batch.commit();
 

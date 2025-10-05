@@ -4,43 +4,62 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if the user is the owner of the document.
+    // Helper functions
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
 
-    // GAME-SETS: Read-all, authenticated-write for creators.
-    // Play count can be incremented by any authenticated user.
+    // Function to check if the requester is the host of a specific game room.
+    // This function expects the gameRoomId to be passed in the written data.
+    function isHostOfGame(gameRoomId) {
+      return request.auth != null && get(/databases/$(database)/documents/game-rooms/$(gameRoomId)).data.hostId == request.auth.uid;
+    }
+
+    // Game sets can be read by anyone, but only created/updated by authenticated users.
     match /game-sets/{gameSetId} {
       allow read: if true;
       allow create: if request.auth != null;
-      allow update: if request.auth != null && 
-                      (resource.data.creatorId == request.auth.uid || 
-                       (request.resource.data.playCount == resource.data.playCount + 1 &&
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playCount'])));
+      // Allow update if the user is the creator OR if they are only incrementing playCount.
+      allow update: if request.auth != null && (
+                      resource.data.creatorId == request.auth.uid ||
+                      (request.resource.data.playCount == resource.data.playCount + 1 &&
+                       request.resource.data.keys().hasOnly(['playCount']))
+                    );
       allow delete: if request.auth != null && resource.data.creatorId == request.auth.uid;
     }
 
-    // GAME-ROOMS: Authenticated users can create. Read/update is open for game logic.
+    // Game rooms can be read/updated by any authenticated user.
     match /game-rooms/{roomId} {
-      allow read, update, delete: if true;
+      allow read, update: if request.auth != null;
       allow create: if request.auth != null;
+      allow delete: if request.auth != null && resource.data.hostId == request.auth.uid;
     }
 
-    // USERS:
-    // Read: Any authenticated user can read other user profiles (for searching players).
-    // Create/Update/Delete: A user can only write to their own document, OR the server (Admin SDK) can write to any user document.
-    // The server is identified by `request.auth == null`.
+    // Rules for the users collection
     match /users/{userId} {
+      allow create: if request.auth != null;
       allow read: if request.auth != null;
-      allow create, update, delete: if isOwner(userId) || request.auth == null;
 
-      // PLAYED-GAMESETS & INCORRECT-ANSWERS Subcollections:
-      // Read: Any authenticated user can read to check if another player has played a set.
-      // Write: Only the user themselves or the server can write to these subcollections.
-      match /{subcollection}/{docId} {
+      // Allow update if the user is updating their own document,
+      // OR if the request is coming from the server (for admin tasks),
+      // OR if the requester is a host updating ONLY the 'xp' field of a player in their game.
+      allow update: if isOwner(userId) || request.auth == null || 
+                      (isHostOfGame(request.resource.data.gameRoomId) && 
+                      request.resource.data.keys().hasAll(['xp']) && 
+                      !request.resource.data.keys().hasAny(['email', 'displayName', 'level', 'schoolName']));
+                      
+      allow delete: if isOwner(userId);
+
+      // Users can read anyone's playedGameSets to check for duplicates.
+      // But they can only write to their own.
+      match /playedGameSets/{docId} {
         allow read: if request.auth != null;
-        allow write: if isOwner(userId) || request.auth == null;
+        allow write: if isOwner(userId);
+      }
+      
+      // Users can only manage their own incorrect answers.
+      match /incorrect-answers/{docId} {
+        allow read, write, delete: if isOwner(userId);
       }
     }
   }
