@@ -2,53 +2,44 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
+
     function isOwner(userId) {
-      return request.auth != null && request.auth.uid == userId;
-    }
-    
-    function isSignedIn() {
-      return request.auth != null;
+      return request.auth.uid == userId;
     }
 
     function isRoomHost(roomId) {
-      return isSignedIn() && get(/databases/$(database)/documents/game-rooms/$(roomId)).data.hostId == request.auth.uid;
+      return request.auth.uid == get(/databases/$(database)/documents/game-rooms/$(roomId)).data.hostId;
     }
 
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow create: if isOwner(userId);
-      allow update: if isOwner(userId) || (
-        // Allow a room host to update only the 'xp' of another user.
-        // This relies on the client sending the gameRoomId in the update payload,
-        // which we are not currently doing, but this rule structure is what's needed.
-        // For now, let's trust the server action's logic and allow wider server-side updates.
-        // The most robust solution is to check if the request is from the server (Admin SDK).
-        request.auth == null
-      );
-      allow delete: if isOwner(userId);
-
-      match /playedGameSets/{gameSetId} {
-        allow read: if isSignedIn();
-        allow write: if isOwner(userId);
-      }
+      allow read: if request.auth != null;
+      allow create: if request.auth.uid == userId;
+      allow update: if isOwner(userId)
+        || request.auth == null
+        || (
+            request.resource.data.gameRoomId != null
+            && isRoomHost(request.resource.data.gameRoomId)
+            && userId in get(/databases/$(database)/documents/game-rooms/$(request.resource.data.gameRoomId)).data.playerUIDs
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['xp', 'gameRoomId'])
+        );
       
+      match /playedGameSets/{gameSetId} {
+        allow read, write: if isOwner(userId);
+        allow create: if request.auth != null && isRoomHost(request.resource.data.gameRoomId);
+      }
+
       match /incorrect-answers/{answerId} {
-        allow read, write, delete: if isOwner(userId) || request.auth == null;
+          allow read, write: if isOwner(userId);
       }
     }
 
     match /game-sets/{gameSetId} {
-      allow read: if isSignedIn();
-      // Allow any signed-in user to create a game set or update its playCount.
-      allow create, update: if isSignedIn();
-      allow delete: if resource.data.creatorId == request.auth.uid;
+        allow read: if request.auth != null;
+        allow create, update: if request.auth != null;
     }
 
     match /game-rooms/{roomId} {
-      allow read, update: if isSignedIn();
-      allow create: if isSignedIn();
-      allow delete: if resource.data.hostId == request.auth.uid;
+        allow read, create, update: if request.auth != null;
     }
   }
 }
