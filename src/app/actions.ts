@@ -113,6 +113,7 @@ export async function finishGameAndRecordStats(payload: FinishGamePayload) {
 
   } catch (error) {
     console.error("Error in finishGameAndRecordStats:", error);
-    return { success: false, message: "결과 저장 중 오류가 발생했습니다.", error: (error as Error).message };
+    // Return a more specific error to the client
+    return { success: false, message: "결과 저장 중 서버에서 오류가 발생했습니다.", error: (error as Error).message };
   }
 }

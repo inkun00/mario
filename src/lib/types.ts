@@ -119,6 +119,7 @@ export interface IncorrectAnswer {
 export interface PlayedGameSet {
   gameSetId: string;
   playedAt: any; // Firestore Timestamp
+  gameRoomId: string;
 }
 
 export interface FinishGamePayload {
