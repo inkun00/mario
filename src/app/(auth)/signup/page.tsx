@@ -30,7 +30,7 @@ import { useState } from 'react';
 
 const formSchema = z.object({
   email: z.string().email({ message: '유효한 이메일을 입력해주세요.' }),
-  nickname: z.string().min(2, { message: '닉네임은 2자 이상이어야 합니다.' }).max(20, { message: '닉네임은 20자를 넘을 수 없습니다.' }),
+  nickname: z.string().min(2, { message: '닉네임은 2자 이상이어야 합니다.' }).max(6, { message: '닉네임은 6자 이내여야 합니다.' }),
   password: z.string().min(6, { message: '비밀번호는 6자 이상이어야 합니다.' }),
   schoolName: z.string().min(1, '학교 이름을 입력해주세요.'),
 });
