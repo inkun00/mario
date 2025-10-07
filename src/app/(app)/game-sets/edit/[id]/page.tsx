@@ -51,9 +51,10 @@ const questionSchema = z.object({
   answer: z.string().optional(),
   options: z.array(z.string()).optional(),
   correctAnswer: z.string().optional(),
-  // These fields will be populated from the parent form
   subject: z.string().optional(),
   unit: z.string().optional(),
+  grade: z.string().optional(),
+  semester: z.string().optional(),
 }).refine(data => data.type !== 'subjective' || (data.answer && data.answer.length > 0), {
     message: '주관식 정답을 입력해주세요.',
     path: ['answer'],
@@ -74,14 +75,14 @@ const gameSetSchema = z.object({
   grade: z.string().optional(),
   semester: z.string().optional(),
   subject: z.string().optional(),
-  unit: zstring().optional(),
+  unit: z.string().optional(),
   isPublic: z.boolean(),
   questions: z.array(questionSchema).min(5, '최소 5개 이상의 질문이 필요합니다.'),
 });
 
 type GameSetFormValues = z.infer<typeof gameSetSchema>;
 
-const defaultQuestion: Omit<z.infer<typeof questionSchema>, 'subject' | 'unit'> = {
+const defaultQuestion: Omit<z.infer<typeof questionSchema>, 'subject' | 'unit' | 'grade' | 'semester'> = {
   question: '',
   points: 10,
   type: 'subjective',

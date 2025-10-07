@@ -854,7 +854,9 @@ export default function GamePage() {
                   <div className="flex flex-col items-center gap-4">
                       {mysteryBoxEffect?.icon}
                       <DialogTitle className="font-headline text-3xl">{mysteryBoxEffect?.title}</DialogTitle>
-                      <DialogDescription className="text-base">{mysteryBoxEffect?.description}</DialogDescription>
+                      <DialogDescription>
+                        {mysteryBoxEffect?.description}
+                      </DialogDescription>
                   </div>
               </DialogHeader>
               <div className="py-4">
@@ -916,9 +918,3 @@ export default function GamePage() {
     </>
   );
 }
-
-    
-
-    
-
-    

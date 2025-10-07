@@ -332,7 +332,7 @@ export default function ProfilePage() {
                             ))}
                         </SelectContent>
                     </Select>
-                     <Select value={selectedUnit} onValueChange={setSelectedUnit}>
+                     <Select value={selectedUnit} onValueChange={setSelectedUnit} >
                         <SelectTrigger>
                             <SelectValue placeholder="단원 선택" />
                         </SelectTrigger>

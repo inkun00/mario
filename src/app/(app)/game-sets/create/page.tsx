@@ -50,9 +50,10 @@ const questionSchema = z.object({
   answer: z.string().optional(),
   options: z.array(z.string()).optional(),
   correctAnswer: z.string().optional(),
-  // These fields will be populated from the parent form
   subject: z.string().optional(),
   unit: z.string().optional(),
+  grade: z.string().optional(),
+  semester: z.string().optional(),
 }).refine(data => {
     if (data.type === 'subjective') {
         return data.answer && data.answer.length > 0;
@@ -102,7 +103,7 @@ const gameSetSchema = z.object({
 
 type GameSetFormValues = z.infer<typeof gameSetSchema>;
 
-const defaultQuestion: Omit<z.infer<typeof questionSchema>, 'subject' | 'unit'> = {
+const defaultQuestion: Omit<z.infer<typeof questionSchema>, 'subject' | 'unit' | 'grade' | 'semester'> = {
   question: '',
   points: 10,
   type: 'subjective',
