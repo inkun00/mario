@@ -2,7 +2,7 @@
 
 import { FieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase-admin';
-import type { FinishGamePayload, IncorrectAnswer } from '@/lib/types';
+import type { FinishGamePayload, IncorrectAnswer, Question } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
@@ -10,15 +10,41 @@ import { v4 as uuidv4 } from 'uuid';
  */
 export async function recordIncorrectAnswer(incorrectLog: IncorrectAnswer) {
     try {
-        const { userId, ...rest } = incorrectLog;
+        const { userId, id, gameSetId, gameSetTitle, question, userAnswer, timestamp } = incorrectLog;
+        
         if (!userId) {
             console.warn("User ID is missing in recordIncorrectAnswer.");
             return;
         }
         
-        const incorrectAnswerRef = adminDb.collection('users').doc(userId).collection('incorrect-answers').doc(incorrectLog.id || uuidv4());
+        const incorrectAnswerRef = adminDb.collection('users').doc(userId).collection('incorrect-answers').doc(id || uuidv4());
         
-        await incorrectAnswerRef.set({ ...rest, userId });
+        // Construct the object to be saved explicitly to prevent data loss from nested objects.
+        const dataToSave = {
+            id,
+            userId,
+            gameSetId,
+            gameSetTitle,
+            question: { // Ensure all fields of the Question object are included
+                id: question.id,
+                question: question.question,
+                points: question.points,
+                type: question.type,
+                imageUrl: question.imageUrl || '',
+                hint: question.hint || '',
+                answer: question.answer || '',
+                options: question.options || [],
+                correctAnswer: question.correctAnswer || '',
+                grade: question.grade || '',
+                semester: question.semester || '',
+                subject: question.subject || '',
+                unit: question.unit || '',
+            },
+            userAnswer,
+            timestamp: timestamp,
+        };
+
+        await incorrectAnswerRef.set(dataToSave);
 
     } catch (error: any) {
         console.error("Error recording single incorrect answer:", error);
