@@ -122,9 +122,6 @@ export default function GamePage() {
   const [finalScores, setFinalScores] = useState<Player[]>([]);
   const [isFinishingGame, setIsFinishingGame] = useState(false);
 
-  const [incorrectAnswerData, setIncorrectAnswerData] = useState<IncorrectAnswer | null>(null);
-
-
   // Fetch GameRoom and GameSet data
   useEffect(() => {
     if (!gameRoomId || typeof gameRoomId !== 'string' || loadingUser) return;
@@ -343,24 +340,6 @@ export default function GamePage() {
     const isCorrect = (currentQuestion.type === 'subjective' && userAnswer.trim().toLowerCase() === currentQuestion.answer?.trim().toLowerCase())
       || (currentQuestion.type !== 'subjective' && userAnswer === currentQuestion.correctAnswer);
 
-    if (isCorrect) {
-        await proceedWithAnswer(true);
-    } else {
-        const incorrectLogData: IncorrectAnswer = {
-            id: uuidv4(),
-            userId: gameRoom.currentTurn,
-            question: currentQuestion,
-            userAnswer: userAnswer,
-            timestamp: new Date(),
-        };
-        setIncorrectAnswerData(incorrectLogData);
-    }
-  };
-
-  const proceedWithAnswer = async (isCorrect: boolean) => {
-    if (!currentQuestionInfo || !gameRoom || !userAnswer || !gameSet || typeof gameRoomId !== 'string' || !user) return;
-    
-    const currentQuestion = currentQuestionInfo.question;
     const pointsToAward = isCorrect ? currentPoints : 0;
     const currentTurnUID = gameRoom.currentTurn;
 
@@ -394,9 +373,16 @@ export default function GamePage() {
             currentTurn: nextTurnUID,
         };
         
-        if (!isCorrect && incorrectAnswerData) {
-          const incorrectLogRef = doc(db, 'users', currentTurnUID, 'incorrect-answers', incorrectAnswerData.id);
-          batch.set(incorrectLogRef, incorrectAnswerData);
+        if (!isCorrect) {
+          const incorrectLogData: IncorrectAnswer = {
+              id: uuidv4(),
+              userId: gameRoom.currentTurn,
+              question: currentQuestion,
+              userAnswer: userAnswer,
+              timestamp: new Date(),
+          };
+          const incorrectLogRef = doc(db, 'users', currentTurnUID, 'incorrect-answers', incorrectLogData.id);
+          batch.set(incorrectLogRef, incorrectLogData);
         }
         
         if (allAnswered) {
@@ -425,7 +411,6 @@ export default function GamePage() {
     } finally {
         setIsSubmitting(false);
         handleCloseDialogs();
-        setIncorrectAnswerData(null);
     }
   }
 
@@ -940,27 +925,7 @@ export default function GamePage() {
               </DialogFooter>
           </DialogContent>
       </Dialog>
-
-      {/* Incorrect Answer Data Popup */}
-      <AlertDialog open={!!incorrectAnswerData} onOpenChange={(isOpen) => !isOpen && setIncorrectAnswerData(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>오답 데이터 저장</AlertDialogTitle>
-            <AlertDialogDescription>
-              다음 데이터가 오답 노트에 저장됩니다. 내용이 올바른지, 특히 'unit'과 'subject' 필드가 포함되어 있는지 확인해주세요.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <pre className="mt-2 w-full rounded-md bg-slate-950 p-4">
-            <code className="text-white">{JSON.stringify(incorrectAnswerData, null, 2)}</code>
-          </pre>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => proceedWithAnswer(false)}>확인 및 계속</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
     </>
   );
 }
 
-    
