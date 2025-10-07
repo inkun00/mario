@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -98,15 +97,25 @@ export default function ProfilePage() {
     fetchData();
   }, [user, toast]);
   
-  const { totalCorrect, totalIncorrect, accuracy } = useMemo(() => {
+  const { overallAccuracy } = useMemo(() => {
+    let totalCorrect = 0;
+    let totalIncorrect = 0;
+    subjectStats.forEach(stat => {
+      totalCorrect += stat.totalCorrect || 0;
+      totalIncorrect += stat.totalIncorrect || 0;
+    });
+    const total = totalCorrect + totalIncorrect;
+    const acc = total > 0 ? ((totalCorrect / total) * 100).toFixed(1) : '0.0';
+    return { overallAccuracy: acc };
+  }, [subjectStats]);
+
+  const { filteredCorrect, filteredIncorrect, filteredAccuracy } = useMemo(() => {
     let correct = 0;
     let incorrect = 0;
-
-    let statsToUse = subjectStats;
-
-    if (selectedSubject !== 'all') {
-      statsToUse = subjectStats.filter(s => s.id === selectedSubject);
-    }
+    
+    const statsToUse = selectedSubject === 'all' 
+      ? subjectStats 
+      : subjectStats.filter(s => s.id === selectedSubject);
 
     if (selectedUnit === 'all') {
       statsToUse.forEach(stat => {
@@ -124,8 +133,8 @@ export default function ProfilePage() {
 
     const total = correct + incorrect;
     const acc = total > 0 ? ((correct / total) * 100).toFixed(1) : '0.0';
-
-    return { totalCorrect: correct, totalIncorrect: incorrect, accuracy: acc };
+    
+    return { filteredCorrect: correct, filteredIncorrect: incorrect, filteredAccuracy: acc };
   }, [subjectStats, selectedSubject, selectedUnit]);
 
 
@@ -290,7 +299,7 @@ export default function ProfilePage() {
               <p className="text-sm text-muted-foreground">누적 포인트</p>
             </div>
             <div>
-              <p className="text-2xl font-bold">{accuracy}%</p>
+              <p className="text-2xl font-bold">{overallAccuracy}%</p>
               <p className="text-sm text-muted-foreground">전체 정답률</p>
             </div>
           </div>
@@ -337,15 +346,15 @@ export default function ProfilePage() {
                   </div>
                   <div className="grid grid-cols-3 gap-4 text-center p-4 bg-secondary/50 rounded-lg">
                     <div>
-                        <p className="text-2xl font-bold text-blue-600">{totalCorrect}</p>
+                        <p className="text-2xl font-bold text-blue-600">{filteredCorrect}</p>
                         <p className="text-sm text-muted-foreground">정답</p>
                     </div>
                      <div>
-                        <p className="text-2xl font-bold text-red-600">{totalIncorrect}</p>
+                        <p className="text-2xl font-bold text-red-600">{filteredIncorrect}</p>
                         <p className="text-sm text-muted-foreground">오답</p>
                     </div>
                     <div>
-                        <p className="text-2xl font-bold text-primary">{accuracy}%</p>
+                        <p className="text-2xl font-bold text-primary">{filteredAccuracy}%</p>
                         <p className="text-sm text-muted-foreground">정답률</p>
                     </div>
                   </div>
@@ -469,5 +478,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    
