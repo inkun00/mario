@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { PlusCircle, Trash2 } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Save } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
@@ -42,6 +42,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useRouter, useParams } from 'next/navigation';
 import type { GameSet } from '@/lib/types';
 import { useAuthState } from 'react-firebase-hooks/auth';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 const questionSchema = z.object({
   question: z.string().min(1, '질문을 입력해주세요.'),
@@ -74,7 +75,7 @@ const gameSetSchema = z.object({
   title: z.string().min(1, '제목을 입력해주세요.'),
   description: z.string().optional(),
   grade: z.string().min(1, '학년을 선택해주세요.'),
-  semester: z.string().optional(),
+  semester: z.string().min(1, "학기를 선택해주세요."),
   subject: z.string().min(1, '과목을 선택해주세요.'),
   unit: z.string().min(1, '단원을 입력해주세요.'),
   isPublic: z.boolean(),
@@ -118,6 +119,7 @@ export default function EditGameSetPage() {
       isPublic: true,
       questions: [],
     },
+    mode: "onChange",
   });
 
   useEffect(() => {
@@ -183,15 +185,14 @@ export default function EditGameSetPage() {
 
     try {
       const gameSetRef = doc(db, 'game-sets', gameSetId);
-      // Construct the update object from the form data to prevent issues.
       const updateData = {
         ...data,
         questions: data.questions.map(q => ({
-            ...q,
-            subject: data.subject,
-            unit: data.unit,
-            grade: data.grade,
-            semester: data.semester,
+          ...q,
+          subject: data.subject,
+          unit: data.unit,
+          grade: data.grade,
+          semester: data.semester,
         }))
       };
 
@@ -219,6 +220,14 @@ export default function EditGameSetPage() {
     return <div className="container mx-auto py-8">퀴즈 세트 정보를 불러오는 중...</div>;
   }
   
+  const { isValid, errors } = form.formState;
+
+  const submitButton = (
+      <Button type="submit" size="lg" className="font-headline" disabled={isLoading || !isValid}>
+        {isLoading ? '저장 중...' : <><Save className="mr-2 h-4 w-4" /> 퀴즈 세트 업데이트</>}
+      </Button>
+  );
+
   return (
     <div className="container mx-auto py-8">
       <Card>
@@ -648,9 +657,27 @@ export default function EditGameSetPage() {
 
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="ghost" onClick={() => router.back()}>취소</Button>
-                  <Button type="submit" size="lg" className="font-headline" disabled={isLoading}>
-                    {isLoading ? '저장 중...' : '퀴즈 세트 업데이트'}
-                  </Button>
+                  
+                  {isValid ? (
+                    submitButton
+                  ) : (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                           <span tabIndex={0}>
+                              {submitButton}
+                           </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>
+                            {errors.questions
+                              ? '최소 5개 이상의 질문이 필요합니다.'
+                              : '모든 필수 항목을 입력해주세요.'}
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                 </div>
               </fieldset>
             </form>
