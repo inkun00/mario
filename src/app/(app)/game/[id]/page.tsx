@@ -22,7 +22,6 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
-import { finishGameAndRecordStats } from '@/app/actions';
 
 
 interface GameBlock {
@@ -376,15 +375,14 @@ export default function GamePage() {
             userAnswer: userAnswer,
             timestamp: new Date(),
           };
-          // This is a separate write, not part of the batch to avoid complexity with client/server Timestamps
-          await setDoc(incorrectLogRef, incorrectLogData);
+          batch.set(incorrectLogRef, incorrectLogData);
         }
         
         if (allAnswered) {
           updateData.status = 'finished';
         }
 
-        batch.update(roomRef, updateData);
+        batch.update(roomRef, updateData as any);
 
         if (isCorrect) {
             const userRef = doc(db, 'users', currentTurnUID);
@@ -488,7 +486,7 @@ export default function GamePage() {
             updateData.status = 'finished';
         }
         
-        batch.update(roomRef, updateData);
+        batch.update(roomRef, updateData as any);
         
         const userRef = doc(db, 'users', currentTurnUID);
         batch.update(userRef, { xp: increment(pointsChange) });
@@ -523,20 +521,88 @@ export default function GamePage() {
   };
 
   const handleFinishAndSave = async () => {
-    if (!gameRoom || typeof gameRoomId !== 'string' || !gameSet) return;
+    if (!gameRoom || typeof gameRoomId !== 'string' || !gameSet || !user) return;
     setIsFinishingGame(true);
     try {
-        // Prepare detailed answer logs for the server action
-        const detailedAnswerLogs = (gameRoom.answerLogs || []).map(log => ({
-            ...log,
-            // Ensure timestamp is serializable if it's a Firestore Timestamp
-            timestamp: log.timestamp?.toDate ? log.timestamp.toDate() : new Date(),
-        }));
-        
-        await finishGameAndRecordStats({
-            gameRoomId: gameRoomId,
-            answerLogs: detailedAnswerLogs,
+        const batch = writeBatch(db);
+
+        // 1. Aggregate XP and subject stats from answerLogs
+        const xpUpdates: { [uid: string]: number } = {};
+        const subjectStatsUpdate: { [uid: string]: { [subject: string]: any } } = {};
+        const playerUIDs = Array.from(new Set((gameRoom.answerLogs || []).map(log => log.userId)));
+
+        playerUIDs.forEach(uid => (xpUpdates[uid] = 0));
+
+        (gameRoom.answerLogs || []).forEach(log => {
+            if (!log.userId) return;
+
+            // Aggregate XP
+            xpUpdates[log.userId] += log.pointsAwarded;
+
+            // Aggregate subject stats
+            const { userId, isCorrect, subject, unit } = log;
+            if (subject) {
+                if (!subjectStatsUpdate[userId]) subjectStatsUpdate[userId] = {};
+                if (!subjectStatsUpdate[userId][subject]) {
+                    subjectStatsUpdate[userId][subject] = { totalCorrect: 0, totalIncorrect: 0, units: {} };
+                }
+
+                const stat = subjectStatsUpdate[userId][subject];
+                const countField = isCorrect ? 'totalCorrect' : 'totalIncorrect';
+                
+                stat[countField] = (stat[countField] || 0) + 1;
+
+                if (unit) {
+                    if (!stat.units[unit]) {
+                        stat.units[unit] = { totalCorrect: 0, totalIncorrect: 0 };
+                    }
+                    stat.units[unit][countField] = (stat.units[unit][countField] || 0) + 1;
+                }
+            }
         });
+
+        // 2. Batch update user documents for XP and playedGameSets
+        playerUIDs.forEach(uid => {
+            const userRef = doc(db, 'users', uid);
+            if (xpUpdates[uid] > 0) {
+                batch.update(userRef, { xp: increment(xpUpdates[uid]) });
+            }
+
+            const playedGameSetRef = doc(db, 'users', uid, 'playedGameSets', gameRoomId);
+            batch.set(playedGameSetRef, {
+                gameSetId: gameSet.id,
+                playedAt: Timestamp.now(),
+                gameRoomId: gameRoomId,
+            });
+        });
+        
+        // 3. Batch update subject stats
+        for (const uid in subjectStatsUpdate) {
+            for (const subject in subjectStatsUpdate[uid]) {
+                const statRef = doc(db, "users", uid, "subjectStats", subject);
+                const stats = subjectStatsUpdate[uid][subject];
+
+                const updatePayload: { [key: string]: any } = {
+                    totalCorrect: increment(stats.totalCorrect),
+                    totalIncorrect: increment(stats.totalIncorrect),
+                };
+
+                for (const unit in stats.units) {
+                    const unitStats = stats.units[unit];
+                    updatePayload[`units.${unit}.totalCorrect`] = increment(unitStats.totalCorrect);
+                    updatePayload[`units.${unit}.totalIncorrect`] = increment(unitStats.totalIncorrect);
+                }
+                
+                batch.set(statRef, updatePayload, { merge: true });
+            }
+        }
+
+        // 4. Finally, mark the game room as finished in the batch
+        const gameRoomRef = doc(db, 'game-rooms', gameRoomId);
+        batch.update(gameRoomRef, { status: 'finished' });
+
+        // 5. Commit all batched writes
+        await batch.commit();
 
         toast({ title: "저장 완료!", description: "게임 결과가 성공적으로 저장되었습니다." });
         router.push('/dashboard');
