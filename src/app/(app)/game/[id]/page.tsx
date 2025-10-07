@@ -516,7 +516,6 @@ export default function GamePage() {
     try {
         const batch = writeBatch(db);
 
-        // 1. Aggregate XP and subject stats from answerLogs
         const xpUpdates: { [uid: string]: number } = {};
         const subjectStatsUpdate: { [uid: string]: { [subject: string]: any } } = {};
         const playerUIDs = Array.from(new Set((gameRoom.answerLogs || []).map(log => log.userId).filter(Boolean))) as string[];
@@ -525,11 +524,10 @@ export default function GamePage() {
 
         (gameRoom.answerLogs || []).forEach(log => {
             if (!log.userId) return;
-
-            // Aggregate XP
-            xpUpdates[log.userId] = (xpUpdates[log.userId] || 0) + log.pointsAwarded;
+            if(typeof log.pointsAwarded === 'number') {
+              xpUpdates[log.userId] = (xpUpdates[log.userId] || 0) + log.pointsAwarded;
+            }
             
-            // Aggregate subject stats only if subject exists
             if (log.question && log.question.subject) {
               const { userId, isCorrect } = log;
               const { subject, unit } = log.question;
@@ -553,7 +551,6 @@ export default function GamePage() {
             }
         });
 
-        // 2. Batch update user documents for XP and playedGameSets
         playerUIDs.forEach(uid => {
             const userRef = doc(db, 'users', uid);
             if (xpUpdates[uid] && xpUpdates[uid] !== 0) {
@@ -568,7 +565,6 @@ export default function GamePage() {
             });
         });
         
-        // 3. Batch update subject stats
         for (const uid in subjectStatsUpdate) {
             for (const subject in subjectStatsUpdate[uid]) {
                 const statRef = doc(db, "users", uid, "subjectStats", subject);
@@ -589,11 +585,9 @@ export default function GamePage() {
             }
         }
 
-        // 4. Finally, mark the game room as finished in the batch
         const gameRoomRef = doc(db, 'game-rooms', gameRoomId);
         batch.update(gameRoomRef, { status: 'finished' });
 
-        // 5. Commit all batched writes
         await batch.commit();
 
         toast({ title: "저장 완료!", description: "게임 결과가 성공적으로 저장되었습니다." });
@@ -613,7 +607,6 @@ export default function GamePage() {
   const isClickDisabled = (block: GameBlock) => {
     if (!gameRoom || showGameOverPopup || gameRoom.status !== 'playing') return true;
 
-    // Board not ready if settings are pending
     if (gameRoom.mysteryBoxEnabled && !gameRoom.isMysterySettingDone) {
         return true;
     }
@@ -623,12 +616,10 @@ export default function GamePage() {
         return true;
     }
     
-    // For local games, it's always "your turn".
     if (gameRoom.joinType === 'local') {
         return !!currentQuestionInfo || !!showMysteryBoxPopup;
     }
     
-    // For remote games, check turn.
     return !isMyTurn || !!currentQuestionInfo || !!showMysteryBoxPopup;
   };
   
@@ -925,6 +916,8 @@ export default function GamePage() {
     </>
   );
 }
+
+    
 
     
 
