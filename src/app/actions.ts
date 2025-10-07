@@ -20,8 +20,7 @@ export async function recordIncorrectAnswer(incorrectLog: IncorrectAnswer) {
         
         const incorrectAnswerRef = adminDb.collection('users').doc(userId).collection('incorrect-answers').doc(id || uuidv4());
         
-        // Firestore Admin SDK는 Date 객체를 자동으로 Timestamp로 변환하지만, 명시적으로 변환하여 안정성을 높입니다.
-        const firestoreTimestamp = (timestamp.toDate) ? AdminTimestamp.fromMillis(timestamp.toDate().getTime()) : timestamp;
+        const firestoreTimestamp = AdminTimestamp.fromDate(new Date(timestamp));
 
         // question 객체의 모든 필드를 명시적으로 저장하여 데이터 유실을 방지합니다.
         const dataToSave = {

@@ -380,7 +380,7 @@ export default function GamePage() {
             gameSetTitle: gameSet.title,
             question: currentQuestion,
             userAnswer: userAnswer,
-            timestamp: Timestamp.now(),
+            timestamp: new Date(),
           };
           recordIncorrectAnswer(incorrectLog);
         } else {
