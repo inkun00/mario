@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, getDoc, updateDoc, Timestamp, writeBatch, increment, collection, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc, Timestamp, writeBatch, increment, collection, setDoc, deleteDoc } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer } from '@/lib/types';
@@ -336,19 +336,18 @@ export default function GamePage() {
     const currentTurnUID = gameRoom.currentTurn;
     
     try {
-        const batch = writeBatch(db);
         const roomRef = doc(db, 'game-rooms', gameRoomId);
         
         const newLogEntry: AnswerLog = {
             id: uuidv4(),
             userId: currentTurnUID,
-            gameSetId: gameSet.id,
-            gameSetTitle: gameSet.title,
             question: currentQuestion,
             userAnswer: userAnswer,
             isCorrect: isCorrect,
             pointsAwarded: pointsToAward,
             timestamp: Timestamp.now(),
+            subject: gameSet.subject,
+            unit: gameSet.unit,
         };
 
         const newAnswerLogs = [...(gameRoom.answerLogs || []), newLogEntry];
@@ -366,28 +365,31 @@ export default function GamePage() {
             gameState: newGameState,
             currentTurn: nextTurnUID,
         };
-
+        
+        // Handle incorrect answers on the client-side
+        if (!isCorrect) {
+          const incorrectLogRef = doc(db, 'users', currentTurnUID, 'incorrect-answers', newLogEntry.id);
+          const incorrectLogData: IncorrectAnswer = {
+            id: newLogEntry.id,
+            userId: currentTurnUID,
+            question: currentQuestion,
+            userAnswer: userAnswer,
+            timestamp: new Date(), // Use JS Date for client-side
+          };
+          // We can't batch client-side and server-side writes.
+          // This is a separate, non-blocking write.
+          setDoc(incorrectLogRef, incorrectLogData).catch(error => {
+            console.error("Failed to write incorrect answer log on client:", error);
+          });
+        }
+        
         if (allAnswered) {
           updateData.status = 'finished';
         }
 
         batch.update(roomRef, updateData);
 
-        if (!isCorrect) {
-          const incorrectLog: IncorrectAnswer = {
-            id: uuidv4(),
-            userId: currentTurnUID,
-            gameSetId: gameSet.id,
-            gameSetTitle: gameSet.title,
-            question: currentQuestion,
-            userAnswer: userAnswer,
-            timestamp: new Date(),
-          };
-          // Record incorrect answer directly on the client
-          const incorrectAnswerRef = doc(db, 'users', currentTurnUID, 'incorrect-answers', incorrectLog.id);
-          batch.set(incorrectAnswerRef, incorrectLog);
-
-        } else {
+        if (isCorrect) {
             const userRef = doc(db, 'users', currentTurnUID);
             batch.update(userRef, { xp: increment(pointsToAward) });
         }
@@ -443,15 +445,15 @@ export default function GamePage() {
             case 'bonus':
             case 'penalty':
                 pointsChange = mysteryBoxEffect.value || 0;
-                logsToPush.push({ userId: currentTurnUID, pointsAwarded: pointsChange, timestamp: Timestamp.now() });
+                logsToPush.push({ id: uuidv4(), userId: currentTurnUID, pointsAwarded: pointsChange, timestamp: Timestamp.now(), isCorrect: true, question: {} as Question, userAnswer: '미스터리' });
                 break;
             case 'double':
                 pointsChange = currentPlayersState.find(p => p.uid === currentTurnUID)?.score || 0;
-                logsToPush.push({ userId: currentTurnUID, pointsAwarded: pointsChange, timestamp: Timestamp.now() });
+                logsToPush.push({ id: uuidv4(), userId: currentTurnUID, pointsAwarded: pointsChange, timestamp: Timestamp.now(), isCorrect: true, question: {} as Question, userAnswer: '미스터리' });
                 break;
             case 'half':
                 pointsChange = -Math.floor((currentPlayersState.find(p => p.uid === currentTurnUID)?.score || 0) / 2);
-                logsToPush.push({ userId: currentTurnUID, pointsAwarded: pointsChange, timestamp: Timestamp.now() });
+                logsToPush.push({ id: uuidv4(), userId: currentTurnUID, pointsAwarded: pointsChange, timestamp: Timestamp.now(), isCorrect: false, question: {} as Question, userAnswer: '미스터리' });
                 break;
             case 'swap':
                  if (!playerForSwap) {
@@ -465,8 +467,8 @@ export default function GamePage() {
                 const pointsDiffForCurrent = targetPlayerScore - currentPlayerScore;
                 const pointsDiffForTarget = currentPlayerScore - targetPlayerScore;
         
-                logsToPush.push({ userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent, timestamp: Timestamp.now() });
-                logsToPush.push({ userId: playerForSwap, pointsAwarded: pointsDiffForTarget, timestamp: Timestamp.now() });
+                logsToPush.push({ id: uuidv4(), userId: currentTurnUID, pointsAwarded: pointsDiffForCurrent, timestamp: Timestamp.now(), isCorrect: true, question: {} as Question, userAnswer: '미스터리' });
+                logsToPush.push({ id: uuidv4(), userId: playerForSwap, pointsAwarded: pointsDiffForTarget, timestamp: Timestamp.now(), isCorrect: true, question: {} as Question, userAnswer: '미스터리' });
                 break;
         }
 
@@ -480,7 +482,7 @@ export default function GamePage() {
 
         const nextTurnUID = getNextTurnUID();
         const updateData: Partial<GameRoom> = {
-            answerLogs: newAnswerLogs,
+            answerLogs: newAnswerLogs as AnswerLog[],
             gameState: newGameState,
             currentTurn: nextTurnUID,
         };
@@ -527,10 +529,16 @@ export default function GamePage() {
     if (!gameRoom || typeof gameRoomId !== 'string' || !gameSet) return;
     setIsFinishingGame(true);
     try {
+        // Prepare detailed answer logs for the server action
+        const detailedAnswerLogs = (gameRoom.answerLogs || []).map(log => ({
+            ...log,
+            // Ensure timestamp is serializable if it's a Firestore Timestamp
+            timestamp: log.timestamp?.toDate ? log.timestamp.toDate() : new Date(),
+        }));
+        
         await finishGameAndRecordStats({
             gameRoomId: gameRoomId,
-            gameSetId: gameSet.id,
-            playerUIDs: gameRoom.playerUIDs || Object.keys(gameRoom.players)
+            answerLogs: detailedAnswerLogs,
         });
 
         toast({ title: "저장 완료!", description: "게임 결과가 성공적으로 저장되었습니다." });

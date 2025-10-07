@@ -64,13 +64,14 @@ export type MysteryEffectType = 'bonus' | 'double' | 'penalty' | 'half' | 'swap'
 export interface AnswerLog {
     id: string; // Unique ID for each log entry
     userId: string;
-    gameSetId: string;
-    gameSetTitle: string;
     question: Question;
     userAnswer: string;
     isCorrect: boolean;
     pointsAwarded: number;
-    timestamp: any;
+    timestamp: any; // Can be Date for client, converted to Timestamp for server
+    // Added for subject stats
+    subject?: string;
+    unit?: string;
 }
 
 
@@ -108,8 +109,6 @@ export interface CorrectAnswer {
 export interface IncorrectAnswer {
     id: string;
     userId: string;
-    gameSetId: string;
-    gameSetTitle: string;
     question: Question;
     userAnswer: string;
     timestamp: any;
@@ -123,6 +122,17 @@ export interface PlayedGameSet {
 
 export interface FinishGamePayload {
     gameRoomId: string;
-    gameSetId: string;
-    playerUIDs: string[];
+    answerLogs: AnswerLog[];
+}
+
+export interface SubjectStat {
+    id: string; // subject name
+    totalCorrect: number;
+    totalIncorrect: number;
+    units: {
+        [unitName: string]: {
+            totalCorrect: number;
+            totalIncorrect: number;
+        }
+    }
 }

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -9,12 +10,19 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo } from 'react';
-import type { User, AnswerLog, IncorrectAnswer, Question } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, where, limit } from 'firebase/firestore';
-import { Loader2, FileWarning, School, Trophy, BookOpen } from 'lucide-react';
+import type { User, IncorrectAnswer, Question, SubjectStat } from '@/lib/types';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy } from 'firebase/firestore';
+import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,12 +33,6 @@ import { cn } from '@/lib/utils';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import Image from 'next/image';
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion"
 
 
 interface ReviewQuestion extends IncorrectAnswer {
@@ -41,13 +43,17 @@ interface ReviewQuestion extends IncorrectAnswer {
 export default function ProfilePage() {
   const [user] = useAuthState(auth);
   const [userData, setUserData] = useState<User | null>(null);
-  const [answerLogs, setAnswerLogs] = useState<AnswerLog[]>([]);
   const [reviewQuestions, setReviewQuestions] = useState<ReviewQuestion[]>([]);
+  const [subjectStats, setSubjectStats] = useState<SubjectStat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
   const [nextLevelInfo, setNextLevelInfo] = useState<LevelInfo | null>(null);
+
+  // State for subject achievement dropdowns
+  const [selectedSubject, setSelectedSubject] = useState<string>('all');
+  const [selectedUnit, setSelectedUnit] = useState<string>('all');
 
   useEffect(() => {
     if (!user) return;
@@ -67,17 +73,23 @@ export default function ProfilePage() {
       }
       
       const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
+      const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
       
-      const [incorrectSnapshot] = await Promise.all([
-        getDocs(query(incorrectAnswersRef, orderBy('timestamp', 'desc')))
-      ]).catch(err => {
-        console.error("Error fetching profile data:", err);
-        return [null];
-      });
+      try {
+        const [incorrectSnapshot, subjectStatsSnapshot] = await Promise.all([
+          getDocs(query(incorrectAnswersRef, orderBy('timestamp', 'desc'))),
+          getDocs(subjectStatsRef),
+        ]);
       
-      if(incorrectSnapshot) {
         const incorrectData = incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer));
         setReviewQuestions(incorrectData);
+
+        const statsData = subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat));
+        setSubjectStats(statsData);
+
+      } catch (err) {
+         console.error("Error fetching profile data:", err);
+         toast({ variant: 'destructive', title: '오류', description: '프로필 데이터를 불러오는 중 오류가 발생했습니다.'});
       }
       
       setIsLoading(false);
@@ -86,14 +98,42 @@ export default function ProfilePage() {
     fetchData();
   }, [user, toast]);
   
-  const { totalQuestions, correctRate } = useMemo(() => {
-    const validLogs = answerLogs.filter(log => log.question && typeof log.isCorrect === 'boolean');
-    const total = validLogs.length;
-    if (total === 0) return { totalQuestions: 0, correctRate: '0.0' };
-    const correct = validLogs.filter(log => log.isCorrect).length;
-    const rate = ((correct / total) * 100).toFixed(1);
-    return { totalQuestions: total, correctRate: rate };
-  }, [answerLogs]);
+  const { totalCorrect, totalIncorrect, accuracy } = useMemo(() => {
+    let correct = 0;
+    let incorrect = 0;
+    
+    let statsToUse = subjectStats;
+
+    if (selectedSubject !== 'all') {
+      statsToUse = subjectStats.filter(s => s.id === selectedSubject);
+    }
+    
+    statsToUse.forEach(stat => {
+        if (selectedUnit === 'all' || !stat.units) {
+            correct += stat.totalCorrect || 0;
+            incorrect += stat.totalIncorrect || 0;
+        } else if (stat.units && stat.units[selectedUnit]) {
+            correct += stat.units[selectedUnit].totalCorrect || 0;
+            incorrect += stat.units[selectedUnit].totalIncorrect || 0;
+        }
+    });
+
+    const total = correct + incorrect;
+    const acc = total > 0 ? ((correct / total) * 100).toFixed(1) : '0.0';
+
+    return { totalCorrect: correct, totalIncorrect: incorrect, accuracy: acc };
+
+  }, [subjectStats, selectedSubject, selectedUnit]);
+
+  const availableUnits = useMemo(() => {
+    if (selectedSubject === 'all') return [];
+    const subject = subjectStats.find(s => s.id === selectedSubject);
+    return subject?.units ? Object.keys(subject.units) : [];
+  }, [subjectStats, selectedSubject]);
+
+  useEffect(() => {
+    setSelectedUnit('all');
+  }, [selectedSubject]);
 
 
   const handleReviewAnswerChange = (index: number, value: string) => {
@@ -246,11 +286,68 @@ export default function ProfilePage() {
               <p className="text-sm text-muted-foreground">누적 포인트</p>
             </div>
             <div>
-              <p className="text-2xl font-bold">{correctRate}%</p>
-              <p className="text-sm text-muted-foreground">정답률</p>
+              <p className="text-2xl font-bold">{accuracy}%</p>
+              <p className="text-sm text-muted-foreground">전체 정답률</p>
             </div>
           </div>
         </CardContent>
+      </Card>
+
+      <Card>
+          <CardHeader>
+              <CardTitle className="font-headline flex items-center gap-2">
+                  <BarChart2 className="text-primary"/> 과목별 성취도
+              </CardTitle>
+              <CardDescription>과목 및 단원별 정답률을 확인하고 약점을 보완해보세요.</CardDescription>
+          </CardHeader>
+          <CardContent>
+             {subjectStats.length === 0 ? (
+                <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                    <p className="text-muted-foreground">아직 학습 기록이 없습니다. 퀴즈를 풀고 다시 확인해주세요!</p>
+                </div>
+             ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="과목 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">전체 과목</SelectItem>
+                            {subjectStats.map(stat => (
+                                <SelectItem key={stat.id} value={stat.id}>{stat.id}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                     <Select value={selectedUnit} onValueChange={setSelectedUnit} disabled={selectedSubject === 'all' || availableUnits.length === 0}>
+                        <SelectTrigger>
+                            <SelectValue placeholder="단원 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">전체 단원</SelectItem>
+                            {availableUnits.map(unit => (
+                                <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4 text-center p-4 bg-secondary/50 rounded-lg">
+                    <div>
+                        <p className="text-2xl font-bold text-blue-600">{totalCorrect}</p>
+                        <p className="text-sm text-muted-foreground">정답</p>
+                    </div>
+                     <div>
+                        <p className="text-2xl font-bold text-red-600">{totalIncorrect}</p>
+                        <p className="text-sm text-muted-foreground">오답</p>
+                    </div>
+                    <div>
+                        <p className="text-2xl font-bold text-primary">{accuracy}%</p>
+                        <p className="text-sm text-muted-foreground">정답률</p>
+                    </div>
+                  </div>
+                </div>
+             )}
+          </CardContent>
       </Card>
       
       <Card>
