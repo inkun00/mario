@@ -1,4 +1,3 @@
-
 export interface User {
   uid: string;
   email: string | null;
@@ -91,7 +90,7 @@ export interface GameRoom {
   joinType: JoinType;
   createdAt: any;
   localPlayers?: LocalPlayer[];
-  answerLogs?: Partial<AnswerLog>[];
+  answerLogs?: AnswerLog[];
 }
 
 export interface CorrectAnswer {
@@ -125,5 +124,5 @@ export interface PlayedGameSet {
 export interface FinishGamePayload {
     gameRoomId: string;
     gameSetId: string;
-    answerLogs: (Omit<AnswerLog, 'gameSetId' | 'gameSetTitle' | 'question'> & { question: Partial<Question> })[];
+    playerUIDs: string[];
 }

@@ -38,20 +38,6 @@ interface ReviewQuestion extends IncorrectAnswer {
     isSubmitting?: boolean;
 }
 
-interface AchievementData {
-  [subject: string]: {
-    total: number;
-    correct: number;
-    units: {
-      [unit: string]: {
-        total: number;
-        correct: number;
-      };
-    };
-  };
-}
-
-
 export default function ProfilePage() {
   const [user] = useAuthState(auth);
   const [userData, setUserData] = useState<User | null>(null);
@@ -79,34 +65,15 @@ export default function ProfilePage() {
         setLevelInfo(currentLevel);
         setNextLevelInfo(getNextLevelInfo(currentLevel.level));
       }
-
-      // 복합 색인 오류를 피하기 위해 orderBy를 제거하고 클라이언트에서 정렬합니다.
-      const answerLogsQuery = query(
-          collection(db, 'answerLogs'), 
-          where('userId', '==', user.uid),
-          limit(300)
-      );
+      
       const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
       
-      const [logsSnapshot, incorrectSnapshot] = await Promise.all([
-        getDocs(answerLogsQuery),
+      const [incorrectSnapshot] = await Promise.all([
         getDocs(query(incorrectAnswersRef, orderBy('timestamp', 'desc')))
       ]).catch(err => {
         console.error("Error fetching profile data:", err);
-        toast({ variant: 'destructive', title: '데이터 조회 오류', description: '프로필 데이터를 불러오는 중 오류가 발생했습니다. 보안 규칙을 확인해주세요.'});
-        return [null, null];
+        return [null];
       });
-
-      if(logsSnapshot) {
-        const logsData = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AnswerLog));
-        // 클라이언트 측에서 timestamp를 기준으로 내림차순 정렬
-        logsData.sort((a, b) => {
-            const timeA = a.timestamp?.toMillis() || 0;
-            const timeB = b.timestamp?.toMillis() || 0;
-            return timeB - timeA;
-        });
-        setAnswerLogs(logsData);
-      }
       
       if(incorrectSnapshot) {
         const incorrectData = incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer));
@@ -118,31 +85,14 @@ export default function ProfilePage() {
 
     fetchData();
   }, [user, toast]);
-
-  const achievementBySubject = useMemo(() => {
-    const data: AchievementData = {};
-
-    answerLogs.forEach(log => {
-      if (!log.question) return;
-      const subject = log.question.subject || '기타';
-      const unit = log.question.unit || '기타';
-
-      if (!data[subject]) {
-        data[subject] = { total: 0, correct: 0, units: {} };
-      }
-      if (!data[subject].units[unit]) {
-        data[subject].units[unit] = { total: 0, correct: 0 };
-      }
-
-      data[subject].total++;
-      data[subject].units[unit].total++;
-      if (log.isCorrect) {
-        data[subject].correct++;
-        data[subject].units[unit].correct++;
-      }
-    });
-
-    return data;
+  
+  const { totalQuestions, correctRate } = useMemo(() => {
+    const validLogs = answerLogs.filter(log => log.question && typeof log.isCorrect === 'boolean');
+    const total = validLogs.length;
+    if (total === 0) return { totalQuestions: 0, correctRate: '0.0' };
+    const correct = validLogs.filter(log => log.isCorrect).length;
+    const rate = ((correct / total) * 100).toFixed(1);
+    return { totalQuestions: total, correctRate: rate };
   }, [answerLogs]);
 
 
@@ -210,15 +160,6 @@ export default function ProfilePage() {
     }
   };
 
-
-  const { totalQuestions, correctRate } = useMemo(() => {
-    const validLogs = answerLogs.filter(log => log.question && typeof log.isCorrect === 'boolean');
-    const total = validLogs.length;
-    if (total === 0) return { totalQuestions: 0, correctRate: '0.0' };
-    const correct = validLogs.filter(log => log.isCorrect).length;
-    const rate = ((correct / total) * 100).toFixed(1);
-    return { totalQuestions: total, correctRate: rate };
-  }, [answerLogs]);
   
   const xpForNextLevel = nextLevelInfo ? nextLevelInfo.xpThreshold - (levelInfo?.xpThreshold || 0) : 0;
   const currentXpProgress = userData ? userData.xp - (levelInfo?.xpThreshold || 0) : 0;
@@ -310,53 +251,6 @@ export default function ProfilePage() {
             </div>
           </div>
         </CardContent>
-      </Card>
-      
-      <Card>
-          <CardHeader>
-            <CardTitle className="font-headline flex items-center gap-2">
-                <BookOpen className="text-primary"/> 과목별 성취도
-            </CardTitle>
-            <CardDescription>과목별, 단원별 정답률을 확인하고 약점을 보완해보세요.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {Object.keys(achievementBySubject).length === 0 ? (
-                <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                    <p className="text-muted-foreground">아직 학습 기록이 없습니다.</p>
-                </div>
-            ) : (
-              <Accordion type="single" collapsible className="w-full">
-                {Object.entries(achievementBySubject).sort(([a], [b]) => a.localeCompare(b)).map(([subject, subjectData]) => {
-                  const subjectRate = subjectData.total > 0 ? (subjectData.correct / subjectData.total) * 100 : 0;
-                  return (
-                    <AccordionItem value={subject} key={subject}>
-                      <AccordionTrigger className="hover:no-underline">
-                        <div className="flex items-center gap-4 w-full pr-4">
-                          <span className="font-semibold text-lg flex-1 text-left">{subject}</span>
-                          <Progress value={subjectRate} className="w-32 h-2" />
-                          <span className="font-bold text-primary w-20 text-right">{subjectRate.toFixed(1)}%</span>
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent>
-                        <div className="space-y-3 pl-4 pr-2 py-2 bg-secondary/30 rounded-md">
-                          {Object.entries(subjectData.units).sort(([a], [b]) => a.localeCompare(b)).map(([unit, unitData]) => {
-                            const unitRate = unitData.total > 0 ? (unitData.correct / unitData.total) * 100 : 0;
-                             return (
-                              <div key={unit} className="flex items-center gap-4 text-sm">
-                                <p className="flex-1 truncate" title={unit}>{unit || '기타'}</p>
-                                <Progress value={unitRate} className="w-24 h-1.5" />
-                                <span className="font-semibold text-muted-foreground w-16 text-right">{unitRate.toFixed(1)}%</span>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  )
-                })}
-              </Accordion>
-            )}
-          </CardContent>
       </Card>
       
       <Card>

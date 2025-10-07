@@ -2,108 +2,51 @@
 
 import { FieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
 import { adminDb } from '@/lib/firebase-admin';
-import type { AnswerLog, FinishGamePayload, GameSet } from '@/lib/types';
+import type { FinishGamePayload, IncorrectAnswer } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
  * 실시간으로 오답 1건을 기록하는 가벼운 서버 액션
  */
-export async function recordIncorrectAnswer(incorrectLog: Omit<AnswerLog, 'isCorrect' | 'pointsAwarded' | 'timestamp'> & { timestamp: Date }) {
+export async function recordIncorrectAnswer(incorrectLog: IncorrectAnswer) {
     try {
         const { userId, ...rest } = incorrectLog;
         if (!userId) {
-            return { success: false, message: "User ID is missing." };
+            console.warn("User ID is missing in recordIncorrectAnswer.");
+            return;
         }
         
         const incorrectAnswerRef = adminDb.collection('users').doc(userId).collection('incorrect-answers').doc(incorrectLog.id || uuidv4());
         
-        // Convert JS Date to Firestore Timestamp for admin SDK
-        await incorrectAnswerRef.set({
-            ...rest,
-            userId,
-            isCorrect: false, // Explicitly set for context
-            timestamp: AdminTimestamp.fromDate(new Date(incorrectLog.timestamp)), 
-        });
-
-        return { success: true };
+        await incorrectAnswerRef.set({ ...rest, userId });
 
     } catch (error: any) {
         console.error("Error recording single incorrect answer:", error);
-        return { success: false, message: `Failed to record incorrect answer: ${error.message}` };
     }
 }
 
 
 /**
- * 게임 종료 시 플레이어들의 점수를 업데이트하고 완전한 학습 로그를 기록하는 서버 액션
+ * 게임 종료 시 플레이어들의 게임 참여 기록을 남기고, 게임 방 상태를 업데이트하는 서버 액션
  */
 export async function finishGameAndRecordStats(payload: FinishGamePayload) {
-  const { gameRoomId, gameSetId, answerLogs } = payload;
+  const { gameRoomId, gameSetId, playerUIDs } = payload;
   try {
     const batch = adminDb.batch();
     
-    // 1. Get GameSet metadata
-    const gameSetRef = adminDb.collection('game-sets').doc(gameSetId);
-    const gameSetSnap = await gameSetRef.get();
-    if (!gameSetSnap.exists) {
-        throw new Error(`GameSet with id ${gameSetId} not found.`);
-    }
-    const gameSetData = gameSetSnap.data() as GameSet;
-
-    const xpGains: Record<string, number> = {};
-
-    answerLogs.forEach(log => {
-      // 2. Enrich log with GameSet metadata and save to 'answerLogs' collection
-      if (log.userId && log.question) {
-        const logRef = adminDb.collection('answerLogs').doc(log.id || uuidv4());
-        
-        const enrichedQuestion = {
-          ...log.question,
-          subject: log.question.subject || gameSetData.subject,
-          unit: log.question.unit || gameSetData.unit,
-          grade: log.question.grade || gameSetData.grade,
-          semester: log.question.semester || gameSetData.semester,
-        };
-
-        const completeLog: AnswerLog = {
-          ...log,
-          id: log.id || uuidv4(),
-          gameSetId: gameSetId,
-          gameSetTitle: gameSetData.title,
-          question: enrichedQuestion,
-          isCorrect: log.isCorrect,
-          pointsAwarded: log.pointsAwarded,
-          timestamp: AdminTimestamp.fromDate(new Date(log.timestamp as any)),
-        };
-
-        batch.set(logRef, completeLog);
-
-        // 3. Aggregate XP gains for each user
-        if (typeof log.pointsAwarded === 'number') {
-          xpGains[log.userId] = (xpGains[log.userId] || 0) + log.pointsAwarded;
-        }
-      }
-    });
-    
-    // 4. Update user XP and playedGameSets
-    for (const uid in xpGains) {
-        if (Object.prototype.hasOwnProperty.call(xpGains, uid)) {
-            const userRef = adminDb.collection('users').doc(uid);
-            const xpGained = xpGains[uid] || 0;
-            if (xpGained !== 0) {
-                batch.update(userRef, { xp: FieldValue.increment(xpGained) });
-            }
-
-            const playedGameSetRef = userRef.collection('playedGameSets').doc(gameSetId);
-            batch.set(playedGameSetRef, {
-                gameSetId: gameSetId,
-                playedAt: AdminTimestamp.now(),
-                gameRoomId: gameRoomId,
-            });
-        }
+    // 1. Update playedGameSets for each user
+    if (playerUIDs && playerUIDs.length > 0) {
+      playerUIDs.forEach(uid => {
+          const playedGameSetRef = adminDb.collection('users').doc(uid).collection('playedGameSets').doc(gameSetId);
+          batch.set(playedGameSetRef, {
+              gameSetId: gameSetId,
+              playedAt: AdminTimestamp.now(),
+              gameRoomId: gameRoomId,
+          });
+      });
     }
     
-    // 5. Finally, mark the game room as finished
+    // 2. Finally, mark the game room as finished
     const gameRoomRef = adminDb.collection('game-rooms').doc(gameRoomId);
     batch.update(gameRoomRef, { status: 'finished' });
 
@@ -113,7 +56,6 @@ export async function finishGameAndRecordStats(payload: FinishGamePayload) {
 
   } catch (error) {
     console.error("Error in finishGameAndRecordStats:", error);
-    // Return a more specific error to the client
     return { success: false, message: "결과 저장 중 서버에서 오류가 발생했습니다.", error: (error as Error).message };
   }
 }
