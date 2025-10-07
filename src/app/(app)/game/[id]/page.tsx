@@ -383,11 +383,6 @@ export default function GamePage() {
         }
 
         batch.update(roomRef, updateData as any);
-
-        if (isCorrect) {
-            const userRef = doc(db, 'users', currentTurnUID);
-            batch.update(userRef, { xp: increment(pointsToAward) });
-        }
         
         await batch.commit();
 
@@ -488,9 +483,6 @@ export default function GamePage() {
         
         batch.update(roomRef, updateData as any);
         
-        const userRef = doc(db, 'users', currentTurnUID);
-        batch.update(userRef, { xp: increment(pointsChange) });
-
         await batch.commit();
 
     } catch (error: any) {
@@ -529,7 +521,7 @@ export default function GamePage() {
         // 1. Aggregate XP and subject stats from answerLogs
         const xpUpdates: { [uid: string]: number } = {};
         const subjectStatsUpdate: { [uid: string]: { [subject: string]: any } } = {};
-        const playerUIDs = Array.from(new Set((gameRoom.answerLogs || []).map(log => log.userId)));
+        const playerUIDs = Array.from(new Set((gameRoom.answerLogs || []).map(log => log.userId).filter(Boolean))) as string[];
 
         playerUIDs.forEach(uid => (xpUpdates[uid] = 0));
 
@@ -537,7 +529,7 @@ export default function GamePage() {
             if (!log.userId) return;
 
             // Aggregate XP
-            xpUpdates[log.userId] += log.pointsAwarded;
+            xpUpdates[log.userId] = (xpUpdates[log.userId] || 0) + log.pointsAwarded;
 
             // Aggregate subject stats
             const { userId, isCorrect, subject, unit } = log;
@@ -564,7 +556,7 @@ export default function GamePage() {
         // 2. Batch update user documents for XP and playedGameSets
         playerUIDs.forEach(uid => {
             const userRef = doc(db, 'users', uid);
-            if (xpUpdates[uid] > 0) {
+            if (xpUpdates[uid] && xpUpdates[uid] !== 0) {
                 batch.update(userRef, { xp: increment(xpUpdates[uid]) });
             }
 
@@ -583,14 +575,14 @@ export default function GamePage() {
                 const stats = subjectStatsUpdate[uid][subject];
 
                 const updatePayload: { [key: string]: any } = {
-                    totalCorrect: increment(stats.totalCorrect),
-                    totalIncorrect: increment(stats.totalIncorrect),
+                    totalCorrect: increment(stats.totalCorrect || 0),
+                    totalIncorrect: increment(stats.totalIncorrect || 0),
                 };
 
                 for (const unit in stats.units) {
                     const unitStats = stats.units[unit];
-                    updatePayload[`units.${unit}.totalCorrect`] = increment(unitStats.totalCorrect);
-                    updatePayload[`units.${unit}.totalIncorrect`] = increment(unitStats.totalIncorrect);
+                    updatePayload[`units.${unit}.totalCorrect`] = increment(unitStats.totalCorrect || 0);
+                    updatePayload[`units.${unit}.totalIncorrect`] = increment(unitStats.totalIncorrect || 0);
                 }
                 
                 batch.set(statRef, updatePayload, { merge: true });
