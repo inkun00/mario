@@ -346,8 +346,6 @@ export default function GamePage() {
             isCorrect: isCorrect,
             pointsAwarded: pointsToAward,
             timestamp: Timestamp.now(),
-            subject: gameSet.subject,
-            unit: gameSet.unit,
         };
 
         const newAnswerLogs = [...(gameRoom.answerLogs || []), newLogEntry];
@@ -532,7 +530,9 @@ export default function GamePage() {
             xpUpdates[log.userId] = (xpUpdates[log.userId] || 0) + log.pointsAwarded;
 
             // Aggregate subject stats
-            const { userId, isCorrect, subject, unit } = log;
+            const { userId, isCorrect } = log;
+            const { subject, unit } = log.question; // Get subject/unit from the question within the log
+
             if (subject) {
                 if (!subjectStatsUpdate[userId]) subjectStatsUpdate[userId] = {};
                 if (!subjectStatsUpdate[userId][subject]) {

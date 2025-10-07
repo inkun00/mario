@@ -69,9 +69,6 @@ export interface AnswerLog {
     isCorrect: boolean;
     pointsAwarded: number;
     timestamp: any; // Can be Date for client, converted to Timestamp for server
-    // Added for subject stats
-    subject?: string;
-    unit?: string;
 }
 
 

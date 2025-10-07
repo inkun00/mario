@@ -50,6 +50,9 @@ const questionSchema = z.object({
   answer: z.string().optional(),
   options: z.array(z.string()).optional(),
   correctAnswer: z.string().optional(),
+  // These fields will be populated from the parent form
+  subject: z.string().optional(),
+  unit: z.string().optional(),
 }).refine(data => {
     if (data.type === 'subjective') {
         return data.answer && data.answer.length > 0;
@@ -99,7 +102,7 @@ const gameSetSchema = z.object({
 
 type GameSetFormValues = z.infer<typeof gameSetSchema>;
 
-const defaultQuestion: z.infer<typeof questionSchema> = {
+const defaultQuestion: Omit<z.infer<typeof questionSchema>, 'subject' | 'unit'> = {
   question: '',
   points: 10,
   type: 'subjective',
@@ -156,8 +159,19 @@ export default function CreateGameSetPage() {
     }
 
     try {
-      await addDoc(collection(db, 'game-sets'), {
+      const finalData = {
         ...data,
+        questions: data.questions.map(q => ({
+          ...q,
+          subject: data.subject,
+          unit: data.unit,
+          grade: data.grade,
+          semester: data.semester,
+        }))
+      };
+
+      await addDoc(collection(db, 'game-sets'), {
+        ...finalData,
         creatorId: user.uid,
         creatorNickname: user.displayName || '이름없음',
         createdAt: serverTimestamp(),
@@ -605,7 +619,7 @@ export default function CreateGameSetPage() {
                     type="button"
                     variant="outline"
                     className="mt-6"
-                    onClick={() => append(defaultQuestion)}
+                    onClick={() => append(defaultQuestion as any)}
                   >
                     <PlusCircle className="mr-2 h-4 w-4" />
                     질문 추가

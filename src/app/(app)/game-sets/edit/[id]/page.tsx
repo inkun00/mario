@@ -51,6 +51,9 @@ const questionSchema = z.object({
   answer: z.string().optional(),
   options: z.array(z.string()).optional(),
   correctAnswer: z.string().optional(),
+  // These fields will be populated from the parent form
+  subject: z.string().optional(),
+  unit: z.string().optional(),
 }).refine(data => data.type !== 'subjective' || (data.answer && data.answer.length > 0), {
     message: '주관식 정답을 입력해주세요.',
     path: ['answer'],
@@ -71,14 +74,14 @@ const gameSetSchema = z.object({
   grade: z.string().optional(),
   semester: z.string().optional(),
   subject: z.string().optional(),
-  unit: z.string().optional(),
+  unit: zstring().optional(),
   isPublic: z.boolean(),
   questions: z.array(questionSchema).min(5, '최소 5개 이상의 질문이 필요합니다.'),
 });
 
 type GameSetFormValues = z.infer<typeof gameSetSchema>;
 
-const defaultQuestion: z.infer<typeof questionSchema> = {
+const defaultQuestion: Omit<z.infer<typeof questionSchema>, 'subject' | 'unit'> = {
   question: '',
   points: 10,
   type: 'subjective',
@@ -182,18 +185,15 @@ export default function EditGameSetPage() {
       const updateData = {
         ...data,
         questions: data.questions.map(q => ({
-            question: q.question,
-            points: q.points,
-            type: q.type,
-            imageUrl: q.imageUrl || '',
-            hint: q.hint || '',
-            answer: q.answer || '',
-            options: q.options || ['', '', '', ''],
-            correctAnswer: q.correctAnswer || '',
+            ...q,
+            subject: data.subject,
+            unit: data.unit,
+            grade: data.grade,
+            semester: data.semester,
         }))
       };
 
-      await updateDoc(gameSetRef, updateData);
+      await updateDoc(gameSetRef, updateData as any);
 
       toast({
         title: '성공!',
@@ -637,7 +637,7 @@ export default function EditGameSetPage() {
                     type="button"
                     variant="outline"
                     className="mt-6"
-                    onClick={() => append(defaultQuestion)}
+                    onClick={() => append(defaultQuestion as any)}
                   >
                     <PlusCircle className="mr-2 h-4 w-4" />
                     질문 추가
