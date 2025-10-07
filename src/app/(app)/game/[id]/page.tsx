@@ -523,15 +523,15 @@ export default function GamePage() {
         playerUIDs.forEach(uid => (xpUpdates[uid] = 0));
 
         (gameRoom.answerLogs || []).forEach(log => {
-            if (!log.userId) return;
+            if (!log.userId || !log.question) return;
             if(typeof log.pointsAwarded === 'number') {
               xpUpdates[log.userId] = (xpUpdates[log.userId] || 0) + log.pointsAwarded;
             }
             
-            if (log.question && log.question.subject) {
-              const { userId, isCorrect } = log;
-              const { subject, unit } = log.question;
+            const { userId, isCorrect } = log;
+            const { subject, unit } = log.question;
 
+            if (subject) {
               if (!subjectStatsUpdate[userId]) subjectStatsUpdate[userId] = {};
               if (!subjectStatsUpdate[userId][subject]) {
                   subjectStatsUpdate[userId][subject] = { totalCorrect: 0, totalIncorrect: 0, units: {} };
@@ -849,12 +849,12 @@ export default function GamePage() {
 
       {/* Mystery Box Popup */}
       <Dialog open={showMysteryBoxPopup} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
-          <DialogContent className="max-w-md text-center">
+          <DialogContent className="max-w-md text-center" aria-describedby="mystery-box-description">
               <DialogHeader>
                   <div className="flex flex-col items-center gap-4">
                       {mysteryBoxEffect?.icon}
                       <DialogTitle className="font-headline text-3xl">{mysteryBoxEffect?.title}</DialogTitle>
-                      <DialogDescription>
+                      <DialogDescription id="mystery-box-description">
                         {mysteryBoxEffect?.description}
                       </DialogDescription>
                   </div>
