@@ -528,28 +528,28 @@ export default function GamePage() {
 
             // Aggregate XP
             xpUpdates[log.userId] = (xpUpdates[log.userId] || 0) + log.pointsAwarded;
+            
+            // Aggregate subject stats only if subject exists
+            if (log.question && log.question.subject) {
+              const { userId, isCorrect } = log;
+              const { subject, unit } = log.question;
 
-            // Aggregate subject stats
-            const { userId, isCorrect } = log;
-            const { subject, unit } = log.question; // Get subject/unit from the question within the log
+              if (!subjectStatsUpdate[userId]) subjectStatsUpdate[userId] = {};
+              if (!subjectStatsUpdate[userId][subject]) {
+                  subjectStatsUpdate[userId][subject] = { totalCorrect: 0, totalIncorrect: 0, units: {} };
+              }
 
-            if (subject) {
-                if (!subjectStatsUpdate[userId]) subjectStatsUpdate[userId] = {};
-                if (!subjectStatsUpdate[userId][subject]) {
-                    subjectStatsUpdate[userId][subject] = { totalCorrect: 0, totalIncorrect: 0, units: {} };
-                }
+              const stat = subjectStatsUpdate[userId][subject];
+              const countField = isCorrect ? 'totalCorrect' : 'totalIncorrect';
+              
+              stat[countField] = (stat[countField] || 0) + 1;
 
-                const stat = subjectStatsUpdate[userId][subject];
-                const countField = isCorrect ? 'totalCorrect' : 'totalIncorrect';
-                
-                stat[countField] = (stat[countField] || 0) + 1;
-
-                if (unit) {
-                    if (!stat.units[unit]) {
-                        stat.units[unit] = { totalCorrect: 0, totalIncorrect: 0 };
-                    }
-                    stat.units[unit][countField] = (stat.units[unit][countField] || 0) + 1;
-                }
+              if (unit) {
+                  if (!stat.units[unit]) {
+                      stat.units[unit] = { totalCorrect: 0, totalIncorrect: 0 };
+                  }
+                  stat.units[unit][countField] = (stat.units[unit][countField] || 0) + 1;
+              }
             }
         });
 
@@ -925,5 +925,7 @@ export default function GamePage() {
     </>
   );
 }
+
+    
 
     
