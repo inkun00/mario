@@ -591,7 +591,7 @@ export default function GamePage() {
                     updatePayload[`units.${unit}.totalIncorrect`] = increment(unitStats.totalIncorrect || 0);
                 }
                 
-                batch.update(statRef, updatePayload);
+                batch.set(statRef, updatePayload, { merge: true });
             }
         }
 
@@ -930,5 +930,7 @@ export default function GamePage() {
 }
 
 
+
+    
 
     
