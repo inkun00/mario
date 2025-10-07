@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useFieldArray, useForm, Controller } from 'react-hook-form';
@@ -72,10 +73,10 @@ const questionSchema = z.object({
 const gameSetSchema = z.object({
   title: z.string().min(1, '제목을 입력해주세요.'),
   description: z.string().optional(),
-  grade: z.string().optional(),
+  grade: z.string().min(1, '학년을 선택해주세요.'),
   semester: z.string().optional(),
-  subject: z.string().optional(),
-  unit: z.string().optional(),
+  subject: z.string().min(1, '과목을 선택해주세요.'),
+  unit: z.string().min(1, '단원을 입력해주세요.'),
   isPublic: z.boolean(),
   questions: z.array(questionSchema).min(5, '최소 5개 이상의 질문이 필요합니다.'),
 });
@@ -659,3 +660,5 @@ export default function EditGameSetPage() {
     </div>
   );
 }
+
+    
