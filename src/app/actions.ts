@@ -1,3 +1,4 @@
+
 'use server';
 
 import { FieldValue, Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
@@ -51,6 +52,8 @@ export async function recordIncorrectAnswer(incorrectLog: IncorrectAnswer) {
 
     } catch (error: any) {
         console.error("Error recording single incorrect answer:", error);
+        // Throwing the error can help in debugging on the server side if needed
+        throw new Error(`Failed to record incorrect answer: ${error.message}`);
     }
 }
 
