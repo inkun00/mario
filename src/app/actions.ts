@@ -6,56 +6,6 @@ import { adminDb } from '@/lib/firebase-admin';
 import type { FinishGamePayload, IncorrectAnswer, Question } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 
-/**
- * 실시간으로 오답 1건을 기록하는 가벼운 서버 액션
- */
-export async function recordIncorrectAnswer(incorrectLog: IncorrectAnswer) {
-    try {
-        const { userId, id, gameSetId, gameSetTitle, question, userAnswer, timestamp } = incorrectLog;
-        
-        if (!userId) {
-            console.warn("User ID is missing in recordIncorrectAnswer.");
-            return;
-        }
-        
-        const incorrectAnswerRef = adminDb.collection('users').doc(userId).collection('incorrect-answers').doc(id || uuidv4());
-        
-        const firestoreTimestamp = AdminTimestamp.fromDate(new Date(timestamp));
-
-        // question 객체의 모든 필드를 명시적으로 저장하여 데이터 유실을 방지합니다.
-        const dataToSave = {
-            id: id || uuidv4(),
-            userId,
-            gameSetId,
-            gameSetTitle,
-            question: {
-                id: question.id,
-                question: question.question,
-                points: question.points,
-                type: question.type,
-                imageUrl: question.imageUrl || '',
-                hint: question.hint || '',
-                answer: question.answer || '',
-                options: question.options || [],
-                correctAnswer: question.correctAnswer || '',
-                grade: question.grade || '',
-                semester: question.semester || '',
-                subject: question.subject || '',
-                unit: question.unit || '',
-            },
-            userAnswer,
-            timestamp: firestoreTimestamp,
-        };
-
-        await incorrectAnswerRef.set(dataToSave);
-
-    } catch (error: any) {
-        console.error("Error recording single incorrect answer:", error);
-        // Throwing the error can help in debugging on the server side if needed
-        throw new Error(`Failed to record incorrect answer: ${error.message}`);
-    }
-}
-
 
 /**
  * 게임 종료 시 플레이어들의 게임 참여 기록을 남기고, 게임 방 상태를 업데이트하는 서버 액션

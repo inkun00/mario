@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, getDoc, updateDoc, Timestamp, writeBatch, increment, collection } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc, Timestamp, writeBatch, increment, collection, setDoc } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer } from '@/lib/types';
@@ -21,7 +22,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
-import { recordIncorrectAnswer, finishGameAndRecordStats } from '@/app/actions';
+import { finishGameAndRecordStats } from '@/app/actions';
 
 
 interface GameBlock {
@@ -382,7 +383,10 @@ export default function GamePage() {
             userAnswer: userAnswer,
             timestamp: new Date(),
           };
-          recordIncorrectAnswer(incorrectLog);
+          // Record incorrect answer directly on the client
+          const incorrectAnswerRef = doc(db, 'users', currentTurnUID, 'incorrect-answers', incorrectLog.id);
+          batch.set(incorrectAnswerRef, incorrectLog);
+
         } else {
             const userRef = doc(db, 'users', currentTurnUID);
             batch.update(userRef, { xp: increment(pointsToAward) });
