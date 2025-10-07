@@ -101,29 +101,33 @@ export default function ProfilePage() {
   const { totalCorrect, totalIncorrect, accuracy } = useMemo(() => {
     let correct = 0;
     let incorrect = 0;
-    
+
     let statsToUse = subjectStats;
 
     if (selectedSubject !== 'all') {
       statsToUse = subjectStats.filter(s => s.id === selectedSubject);
     }
-    
-    statsToUse.forEach(stat => {
-        if (selectedUnit === 'all' || !stat.units) {
-            correct += stat.totalCorrect || 0;
-            incorrect += stat.totalIncorrect || 0;
-        } else if (stat.units && stat.units[selectedUnit]) {
-            correct += stat.units[selectedUnit].totalCorrect || 0;
-            incorrect += stat.units[selectedUnit].totalIncorrect || 0;
+
+    if (selectedUnit === 'all') {
+      statsToUse.forEach(stat => {
+        correct += stat.totalCorrect || 0;
+        incorrect += stat.totalIncorrect || 0;
+      });
+    } else {
+      statsToUse.forEach(stat => {
+        if (stat.units && stat.units[selectedUnit]) {
+          correct += stat.units[selectedUnit].totalCorrect || 0;
+          incorrect += stat.units[selectedUnit].totalIncorrect || 0;
         }
-    });
+      });
+    }
 
     const total = correct + incorrect;
     const acc = total > 0 ? ((correct / total) * 100).toFixed(1) : '0.0';
 
     return { totalCorrect: correct, totalIncorrect: incorrect, accuracy: acc };
-
   }, [subjectStats, selectedSubject, selectedUnit]);
+
 
   const availableUnits = useMemo(() => {
     if (selectedSubject === 'all') return [];
@@ -465,3 +469,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    
