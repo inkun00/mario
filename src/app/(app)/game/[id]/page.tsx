@@ -336,6 +336,7 @@ export default function GamePage() {
     const currentTurnUID = gameRoom.currentTurn;
     
     try {
+        const batch = writeBatch(db);
         const roomRef = doc(db, 'game-rooms', gameRoomId);
         
         const newLogEntry: AnswerLog = {
@@ -366,7 +367,6 @@ export default function GamePage() {
             currentTurn: nextTurnUID,
         };
         
-        // Handle incorrect answers on the client-side
         if (!isCorrect) {
           const incorrectLogRef = doc(db, 'users', currentTurnUID, 'incorrect-answers', newLogEntry.id);
           const incorrectLogData: IncorrectAnswer = {
@@ -374,13 +374,10 @@ export default function GamePage() {
             userId: currentTurnUID,
             question: currentQuestion,
             userAnswer: userAnswer,
-            timestamp: new Date(), // Use JS Date for client-side
+            timestamp: new Date(),
           };
-          // We can't batch client-side and server-side writes.
-          // This is a separate, non-blocking write.
-          setDoc(incorrectLogRef, incorrectLogData).catch(error => {
-            console.error("Failed to write incorrect answer log on client:", error);
-          });
+          // This is a separate write, not part of the batch to avoid complexity with client/server Timestamps
+          await setDoc(incorrectLogRef, incorrectLogData);
         }
         
         if (allAnswered) {
