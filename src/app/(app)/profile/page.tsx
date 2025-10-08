@@ -543,7 +543,7 @@ export default function ProfilePage() {
               {incorrectAnswersToShow.length > 0 ? (
                 incorrectAnswersToShow.map(item => (
                   <div key={item.id} className="p-4 rounded-md border bg-secondary/30 space-y-2">
-                    <p className="font-semibold">{item.question.question}</p>
+                    <p className="font-semibold whitespace-pre-wrap">{item.question.question}</p>
                     <div className="text-sm space-y-1">
                       <div className="flex items-center gap-2">
                           <CheckCircle className="w-4 h-4 text-green-600" />
