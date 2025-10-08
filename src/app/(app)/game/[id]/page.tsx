@@ -536,12 +536,13 @@ export default function GamePage() {
 
         // 2. Prepare stats updates by reading existing data first
         const userStatsToUpdate: { [uid: string]: { [subject: string]: SubjectStat } } = {};
+        
+        const allSubjects = Array.from(new Set(gameRoom.answerLogs?.map(l => l.question?.subject).filter(Boolean) as string[]));
         const playerUIDs = Array.from(new Set((gameRoom.answerLogs || []).map(log => log.userId).filter(Boolean))) as string[];
 
         // Pre-fetch all necessary stats documents
         const statsPromises = playerUIDs.flatMap(uid => 
-            Array.from(new Set(gameRoom.answerLogs?.map(l => l.question.subject).filter(Boolean) as string[]))
-            .map(subject => getDoc(doc(db, "users", uid, "subjectStats", subject)))
+            allSubjects.map(subject => getDoc(doc(db, "users", uid, "subjectStats", subject)))
         );
 
         const statsSnapshots = await Promise.all(statsPromises);
@@ -566,7 +567,6 @@ export default function GamePage() {
 
             if (!userStatsToUpdate[userId]) userStatsToUpdate[userId] = {};
             
-            // Initialize with existing data or new object
             if (!userStatsToUpdate[userId][subject]) {
                 const existing = existingStats[`${userId}-${subject}`];
                 userStatsToUpdate[userId][subject] = existing ? JSON.parse(JSON.stringify(existing)) : {
@@ -583,6 +583,7 @@ export default function GamePage() {
             stat[countField] = (stat[countField] || 0) + 1;
 
             if (unit) {
+                if (!stat.units) stat.units = {};
                 if (!stat.units[unit]) {
                     stat.units[unit] = { totalCorrect: 0, totalIncorrect: 0 };
                 }
@@ -950,10 +951,3 @@ export default function GamePage() {
     </>
   );
 }
-
-
-
-    
-
-    
-

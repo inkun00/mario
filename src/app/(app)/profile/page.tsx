@@ -51,9 +51,9 @@ export default function ProfilePage() {
   const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
   const [nextLevelInfo, setNextLevelInfo] = useState<LevelInfo | null>(null);
 
-  // State for subject achievement dropdowns
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [selectedUnit, setSelectedUnit] = useState<string>('all');
+  const [availableUnits, setAvailableUnits] = useState<string[]>([]);
   
   useEffect(() => {
     if (!user) return;
@@ -96,12 +96,19 @@ export default function ProfilePage() {
     };
 
     fetchData();
-  }, [user]);
+  }, [user, toast]);
 
-  // Effect to reset unit selection when subject changes
   useEffect(() => {
+    if (selectedSubject === 'all') {
+      setAvailableUnits([]);
+      setSelectedUnit('all');
+      return;
+    }
+    const subject = subjectStats.find(s => s.id === selectedSubject);
+    const units = subject?.units ? Object.keys(subject.units) : [];
+    setAvailableUnits(units);
     setSelectedUnit('all');
-  }, [selectedSubject]);
+  }, [selectedSubject, subjectStats]);
   
   const overallAccuracy = useMemo(() => {
     let totalCorrect = 0;
@@ -143,12 +150,6 @@ export default function ProfilePage() {
     
     return { filteredCorrect: correct, filteredIncorrect: incorrect, filteredAccuracy: acc };
   }, [subjectStats, selectedSubject, selectedUnit]);
-
-  const availableUnits = useMemo(() => {
-    if (selectedSubject === 'all') return [];
-    const subject = subjectStats.find(s => s.id === selectedSubject);
-    return subject?.units ? Object.keys(subject.units) : [];
-  }, [subjectStats, selectedSubject]);
 
 
   const handleReviewAnswerChange = (index: number, value: string) => {
