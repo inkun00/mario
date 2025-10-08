@@ -87,7 +87,6 @@ export default function ProfilePage() {
         const statsData = subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat));
         setSubjectStats(statsData);
 
-        // Debugging: Show all fetched stats data in a toast
         toast({
           title: "Fetched Subject Stats Data",
           description: <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4"><code className="text-white">{JSON.stringify(statsData, null, 2)}</code></pre>,
@@ -486,5 +485,6 @@ export default function ProfilePage() {
 
     </div>
   );
+}
 
     
