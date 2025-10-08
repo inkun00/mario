@@ -146,11 +146,25 @@ export default function ProfilePage() {
   }, [subjectStats, selectedSubject]);
 
   useEffect(() => {
-    // When a new subject is selected, reset the unit selection to 'all'.
-    // This state update triggers a re-render, which allows the 'availableUnits'
-    // to be recalculated and the dropdown to be correctly enabled/disabled.
     setSelectedUnit('all');
-  }, [selectedSubject]);
+
+    if (selectedSubject !== 'all') {
+      const subject = subjectStats.find(s => s.id === selectedSubject);
+      const units = subject?.units ? Object.keys(subject.units) : [];
+      if (units.length > 0) {
+        toast({
+          title: `[디버그] '${selectedSubject}' 과목 단원 목록`,
+          description: `[${units.join(', ')}]`,
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: `[디버그] 데이터 없음`,
+          description: `'${selectedSubject}' 과목에 연결된 단원 데이터가 없습니다.`,
+        });
+      }
+    }
+  }, [selectedSubject, subjectStats, toast]);
 
 
   const handleReviewAnswerChange = (index: number, value: string) => {
