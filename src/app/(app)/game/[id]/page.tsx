@@ -7,11 +7,11 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer, SubjectStat } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb, Save } from 'lucide-react';
+import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb, Save, StopCircle } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 import { Progress } from '@/components/ui/progress';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -120,6 +120,7 @@ export default function GamePage() {
   const [showGameOverPopup, setShowGameOverPopup] = useState(false);
   const [finalScores, setFinalScores] = useState<Player[]>([]);
   const [isFinishingGame, setIsFinishingGame] = useState(false);
+  const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
 
   // Fetch GameRoom and GameSet data
   useEffect(() => {
@@ -519,6 +520,19 @@ export default function GamePage() {
     }
   };
 
+  const handleEndGameEarly = async () => {
+    if (!gameRoom || typeof gameRoomId !== 'string') return;
+    try {
+        const roomRef = doc(db, 'game-rooms', gameRoomId);
+        await updateDoc(roomRef, { status: 'finished' });
+        setShowEndGameConfirm(false);
+        toast({ title: '게임 종료', description: '게임이 조기 종료되었습니다.' });
+    } catch (error) {
+        console.error("Error ending game early: ", error);
+        toast({ variant: 'destructive', title: '오류', description: '게임 종료 중 오류가 발생했습니다.' });
+    }
+  };
+
   const handleFinishAndSave = async () => {
     if (!gameRoom || typeof gameRoomId !== 'string' || !gameSet || !user) return;
     setIsFinishingGame(true);
@@ -674,7 +688,7 @@ export default function GamePage() {
   }
 
   const scoreboardPlayers = players;
-
+  const isHost = user?.uid === gameRoom.hostId;
   const winner = finalScores.length > 0 ? finalScores[0] : null;
 
   return (
@@ -769,6 +783,14 @@ export default function GamePage() {
                       </div>
                   ))}
               </div>
+              {isHost && (
+                <CardFooter className="p-4 border-t">
+                  <Button variant="destructive" className="w-full" onClick={() => setShowEndGameConfirm(true)}>
+                    <StopCircle className="w-4 h-4 mr-2" />
+                    게임 종료
+                  </Button>
+                </CardFooter>
+              )}
           </Card>
         </aside>
       </div>
@@ -947,6 +969,22 @@ export default function GamePage() {
               </DialogFooter>
           </DialogContent>
       </Dialog>
+      
+      {/* End Game Confirmation Dialog */}
+      <AlertDialog open={showEndGameConfirm} onOpenChange={setShowEndGameConfirm}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>정말 게임을 종료하시겠습니까?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    아직 모든 문제를 풀지 않았습니다. 지금 게임을 종료하면 현재 점수를 기준으로 순위가 결정됩니다. 이 작업은 되돌릴 수 없습니다.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>취소</AlertDialogCancel>
+                <AlertDialogAction onClick={handleEndGameEarly} className="bg-destructive hover:bg-destructive/90">종료</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
