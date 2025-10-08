@@ -146,6 +146,9 @@ export default function ProfilePage() {
   }, [subjectStats, selectedSubject]);
 
   useEffect(() => {
+    // When a new subject is selected, reset the unit selection to 'all'.
+    // This state update triggers a re-render, which allows the 'availableUnits'
+    // to be recalculated and the dropdown to be correctly enabled/disabled.
     setSelectedUnit('all');
   }, [selectedSubject]);
 
@@ -479,5 +482,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    
