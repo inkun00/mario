@@ -759,16 +759,14 @@ export default function GamePage() {
         </div>
 
         {/* Scoreboard & Info */}
-        <aside className="w-full lg:w-80 xl:w-96 flex-shrink-0 flex flex-col gap-4">
+        <aside className="w-full lg:w-80 xl:w-96 flex flex-col gap-4">
             <Card className="flex flex-col">
               <div className="p-4 border-b flex justify-between items-center">
                 <h2 className="font-headline text-xl font-bold">스코어보드</h2>
-                 {isHost && (
                   <Button variant="destructive" size="sm" onClick={() => setShowEndGameConfirm(true)}>
                     <StopCircle className="w-4 h-4 mr-2" />
                     게임 종료
                   </Button>
-                )}
               </div>
               <div className="flex-grow p-4 space-y-4 overflow-y-auto">
                 {scoreboardPlayers.map((player, index) => (
