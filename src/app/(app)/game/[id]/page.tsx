@@ -760,41 +760,39 @@ export default function GamePage() {
 
         {/* Scoreboard & Info */}
         <aside className="w-full lg:w-80 xl:w-96 flex-shrink-0 flex flex-col gap-4">
-          <Card className="flex flex-col">
+            <Card className="flex flex-col">
               <div className="p-4 border-b">
-                  <h2 className="font-headline text-xl font-bold text-center">스코어보드</h2>
+                <h2 className="font-headline text-xl font-bold text-center">스코어보드</h2>
               </div>
               <div className="flex-grow p-4 space-y-4 overflow-y-auto">
-                  {scoreboardPlayers.map((player, index) => (
-                      <div key={player.uid} className={cn(
-                          "p-3 rounded-lg border-2 transition-all", 
-                          player.uid === gameRoom?.currentTurn ? 'border-primary shadow-lg bg-primary/10' : 'border-transparent'
-                      )}>
-                        <div className="flex items-center gap-3">
-                              <div className="font-bold text-lg w-6 text-center text-muted-foreground">
-                                  {index === 0 && player.score > 0 ? <Crown className="w-5 h-5 mx-auto text-yellow-500 fill-yellow-400" /> : index + 1}
-                              </div>
-                              <Image src={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageUrl || ''} alt={player.nickname} width={40} height={40} className="rounded-full" data-ai-hint={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageHint} />
-                              <div className="flex-grow">
-                                  <p className="font-semibold">{player.nickname}</p>
-                                  <Progress value={(player.score / 500) * 100} className="h-2 mt-1" />
-                              </div>
-                              <div className="font-bold text-primary text-lg w-12 text-right">{player.score}</div>
-                        </div>
+                {scoreboardPlayers.map((player, index) => (
+                  <div key={player.uid} className={cn(
+                      "p-3 rounded-lg border-2 transition-all", 
+                      player.uid === gameRoom?.currentTurn ? 'border-primary shadow-lg bg-primary/10' : 'border-transparent'
+                  )}>
+                    <div className="flex items-center gap-3">
+                      <div className="font-bold text-lg w-6 text-center text-muted-foreground">
+                        {index === 0 && player.score > 0 ? <Crown className="w-5 h-5 mx-auto text-yellow-500 fill-yellow-400" /> : index + 1}
                       </div>
-                  ))}
+                      <Image src={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageUrl || ''} alt={player.nickname} width={40} height={40} className="rounded-full" data-ai-hint={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageHint} />
+                      <div className="flex-grow">
+                        <p className="font-semibold">{player.nickname}</p>
+                        <Progress value={(player.score / 500) * 100} className="h-2 mt-1" />
+                      </div>
+                      <div className="font-bold text-primary text-lg w-12 text-right">{player.score}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
-          </Card>
-          {isHost && (
-            <Card>
-              <CardContent className="p-4">
-                <Button variant="destructive" className="w-full" onClick={() => setShowEndGameConfirm(true)}>
-                  <StopCircle className="w-4 h-4 mr-2" />
-                  게임 종료
-                </Button>
-              </CardContent>
+              {isHost && (
+                <div className="p-4 border-t">
+                  <Button variant="destructive" className="w-full" onClick={() => setShowEndGameConfirm(true)}>
+                    <StopCircle className="w-4 h-4 mr-2" />
+                    게임 종료
+                  </Button>
+                </div>
+              )}
             </Card>
-          )}
         </aside>
       </div>
 
