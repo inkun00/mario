@@ -39,6 +39,36 @@ interface ReviewQuestion extends IncorrectAnswer {
     isSubmitting?: boolean;
 }
 
+// Helper function to transform flat stats into a nested structure
+const transformStats = (flatStats: SubjectStat[]): SubjectStat[] => {
+  return flatStats.map(stat => {
+    const newStat: SubjectStat = {
+      id: stat.id,
+      totalCorrect: stat.totalCorrect || 0,
+      totalIncorrect: stat.totalIncorrect || 0,
+      units: {},
+    };
+
+    for (const key in stat) {
+      if (key.startsWith('units.')) {
+        const parts = key.split('.');
+        // parts[0] is "units"
+        const unitName = parts.slice(1, -1).join('.'); // Handle unit names with dots
+        const metric = parts[parts.length - 1]; // "totalCorrect" or "totalIncorrect"
+
+        if (unitName && (metric === 'totalCorrect' || metric === 'totalIncorrect')) {
+          if (!newStat.units![unitName]) {
+            newStat.units![unitName] = { totalCorrect: 0, totalIncorrect: 0 };
+          }
+          newStat.units![unitName][metric] = (stat[key] as number) || 0;
+        }
+      }
+    }
+    return newStat;
+  });
+};
+
+
 export default function ProfilePage() {
   const [user] = useAuthState(auth);
   const [userData, setUserData] = useState<User | null>(null);
@@ -52,7 +82,6 @@ export default function ProfilePage() {
 
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [selectedUnit, setSelectedUnit] = useState<string>('all');
-  const [availableUnits, setAvailableUnits] = useState<string[]>([]);
   
   useEffect(() => {
     if (!user) {
@@ -86,21 +115,9 @@ export default function ProfilePage() {
         const incorrectData = incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer));
         setReviewQuestions(incorrectData);
 
-        const statsData = subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat));
-        setSubjectStats(statsData);
-        
-        toast({
-          title: "Data Structure of Subject Stats",
-          duration: Infinity,
-          description: (
-            <textarea
-              readOnly
-              className="mt-2 w-full h-64 text-xs rounded-md bg-slate-950 text-white p-4"
-              value={JSON.stringify(statsData, null, 2)}
-            />
-          ),
-        });
-
+        const flatStatsData = subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat));
+        const nestedStatsData = transformStats(flatStatsData);
+        setSubjectStats(nestedStatsData);
 
       } catch (err) {
          console.error("Error fetching profile data:", err);
@@ -113,16 +130,18 @@ export default function ProfilePage() {
     fetchData();
   }, [user, toast]);
 
-  useEffect(() => {
+  const availableUnits = useMemo(() => {
     if (selectedSubject === 'all') {
-      setAvailableUnits([]);
-    } else {
-      const subject = subjectStats.find(s => s.id === selectedSubject);
-      const units = subject?.units ? Object.keys(subject.units) : [];
-      setAvailableUnits(units);
+      return [];
     }
-    setSelectedUnit('all');
+    const subject = subjectStats.find(s => s.id === selectedSubject);
+    const units = subject?.units ? Object.keys(subject.units) : [];
+    return units;
   }, [selectedSubject, subjectStats]);
+
+  useEffect(() => {
+    setSelectedUnit('all');
+  }, [selectedSubject]);
   
   const overallAccuracy = useMemo(() => {
     let totalCorrect = 0;
