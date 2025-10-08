@@ -34,10 +34,6 @@ const nextConfig = {
 
     return config;
   },
-  serverActions: {
-    allowedOrigins: ["localhost:9002", "*.firebase.app", "*.web.app"],
-    bodySizeLimit: '4.5mb',
-  },
 };
 
 module.exports = nextConfig;
