@@ -87,6 +87,14 @@ export default function ProfilePage() {
         const statsData = subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat));
         setSubjectStats(statsData);
 
+        // Debugging: Show all fetched stats data in a toast
+        toast({
+          title: "Fetched Subject Stats Data",
+          description: <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4"><code className="text-white">{JSON.stringify(statsData, null, 2)}</code></pre>,
+          duration: Infinity,
+        });
+
+
       } catch (err) {
          console.error("Error fetching profile data:", err);
          toast({ variant: 'destructive', title: '오류', description: '프로필 데이터를 불러오는 중 오류가 발생했습니다.'});
@@ -99,13 +107,11 @@ export default function ProfilePage() {
   }, [user, toast]);
 
   useEffect(() => {
-    if (selectedSubject === 'all') {
-      setAvailableUnits([]);
-      setSelectedUnit('all');
-      return;
-    }
-    const subject = subjectStats.find(s => s.id === selectedSubject);
-    const units = subject?.units ? Object.keys(subject.units) : [];
+    const units = selectedSubject === 'all'
+      ? []
+      : subjectStats.find(s => s.id === selectedSubject)?.units
+        ? Object.keys(subjectStats.find(s => s.id === selectedSubject)!.units!)
+        : [];
     setAvailableUnits(units);
     setSelectedUnit('all');
   }, [selectedSubject, subjectStats]);
@@ -480,4 +486,5 @@ export default function ProfilePage() {
 
     </div>
   );
-}
+
+    
