@@ -1,3 +1,4 @@
+
 export interface User {
   uid: string;
   email: string | null;
@@ -80,7 +81,7 @@ export interface GameRoom {
   hostId: string;
   currentTurn: string; // userId or nickname for local
   players: Record<string, Player>; // key is userId for remote, or nickname for local
-  playerUIDs?: string[]; // ordered list of player UIDs for turn sequence
+  playerUIDs?: string[]; // ordered list of player UIDIDs for turn sequence
   gameState: Record<string, 'available' | 'flipping' | 'answered'>; // key is questionId
   mysteryBoxEnabled: boolean;
   isMysterySettingDone: boolean;
@@ -134,4 +135,11 @@ export interface SubjectStat {
     }
     // Allow any other fields, which will be the flattened unit stats
     [key: string]: any;
+}
+
+export interface School {
+  name: string;
+  totalXp: number;
+  memberCount: number;
+  members: User[];
 }
