@@ -88,6 +88,17 @@ export default function ProfilePage() {
 
         const statsData = subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat));
         setSubjectStats(statsData);
+        
+        toast({
+          title: "Data Structure of Subject Stats",
+          duration: Infinity,
+          description: (
+            <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
+              <code className="text-white">{JSON.stringify(statsData, null, 2)}</code>
+            </pre>
+          ),
+        });
+
 
       } catch (err) {
          console.error("Error fetching profile data:", err);
