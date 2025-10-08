@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/card';
 import Link from 'next/link';
 import { auth, db } from '@/lib/firebase';
-import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, User } from 'firebase/auth';
+import { signInWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, User, AuthErrorCodes } from 'firebase/auth';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
 import { useState } from 'react';
@@ -32,6 +32,21 @@ const formSchema = z.object({
   email: z.string().email({ message: '유효한 이메일을 입력해주세요.' }),
   password: z.string().min(6, { message: '비밀번호는 6자 이상이어야 합니다.' }),
 });
+
+const getAuthErrorMessage = (errorCode: string): string => {
+  switch (errorCode) {
+    case AuthErrorCodes.INVALID_EMAIL:
+      return '유효하지 않은 이메일 주소입니다.';
+    case AuthErrorCodes.USER_DELETED:
+      return '존재하지 않는 계정입니다.';
+    case AuthErrorCodes.INVALID_PASSWORD:
+      return '잘못된 비밀번호입니다. 다시 확인해주세요.';
+    case AuthErrorCodes.TOO_MANY_ATTEMPTS_TRY_LATER:
+      return '너무 많은 로그인 시도를 했습니다. 잠시 후 다시 시도해주세요.';
+    default:
+      return '로그인에 실패했습니다. 이메일과 비밀번호를 확인해주세요.';
+  }
+};
 
 export default function LoginPage() {
   const router = useRouter();
@@ -75,7 +90,7 @@ export default function LoginPage() {
       toast({
         variant: 'destructive',
         title: '로그인 실패',
-        description: error.message,
+        description: getAuthErrorMessage(error.code),
       });
     } finally {
       setIsLoading(false);
@@ -93,7 +108,7 @@ export default function LoginPage() {
         toast({
             variant: "destructive",
             title: "Google 로그인 실패",
-            description: error.message,
+            description: getAuthErrorMessage(error.code),
         });
     } finally {
         setIsLoading(false);

@@ -760,35 +760,35 @@ export default function GamePage() {
 
         {/* Scoreboard & Info */}
         <aside className="w-full lg:w-80 xl:w-96 flex flex-col gap-4">
-            <Card className="flex flex-col">
-              <div className="p-4 border-b flex justify-between items-center">
-                <h2 className="font-headline text-xl font-bold">스코어보드</h2>
-                  <Button variant="destructive" size="sm" onClick={() => setShowEndGameConfirm(true)}>
-                    <StopCircle className="w-4 h-4 mr-2" />
-                    게임 종료
-                  </Button>
-              </div>
-              <div className="flex-grow p-4 space-y-4 overflow-y-auto">
-                {scoreboardPlayers.map((player, index) => (
-                  <div key={player.uid} className={cn(
-                      "p-3 rounded-lg border-2 transition-all", 
-                      player.uid === gameRoom?.currentTurn ? 'border-primary shadow-lg bg-primary/10' : 'border-transparent'
-                  )}>
-                    <div className="flex items-center gap-3">
-                      <div className="font-bold text-lg w-6 text-center text-muted-foreground">
-                        {index === 0 && player.score > 0 ? <Crown className="w-5 h-5 mx-auto text-yellow-500 fill-yellow-400" /> : index + 1}
-                      </div>
-                      <Image src={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageUrl || ''} alt={player.nickname} width={40} height={40} className="rounded-full" data-ai-hint={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageHint} />
-                      <div className="flex-grow">
-                        <p className="font-semibold">{player.nickname}</p>
-                        <Progress value={(player.score / 500) * 100} className="h-2 mt-1" />
-                      </div>
-                      <div className="font-bold text-primary text-lg w-12 text-right">{player.score}</div>
+          <Card className="flex flex-col">
+            <div className="p-4 border-b flex justify-between items-center">
+              <h2 className="font-headline text-xl font-bold">스코어보드</h2>
+              <Button variant="destructive" size="sm" onClick={() => setShowEndGameConfirm(true)}>
+                <StopCircle className="w-4 h-4 mr-2" />
+                게임 종료
+              </Button>
+            </div>
+            <div className="flex-grow p-4 space-y-4 overflow-y-auto">
+              {scoreboardPlayers.map((player, index) => (
+                <div key={player.uid} className={cn(
+                    "p-3 rounded-lg border-2 transition-all", 
+                    player.uid === gameRoom?.currentTurn ? 'border-primary shadow-lg bg-primary/10' : 'border-transparent'
+                )}>
+                  <div className="flex items-center gap-3">
+                    <div className="font-bold text-lg w-6 text-center text-muted-foreground">
+                      {index === 0 && player.score > 0 ? <Crown className="w-5 h-5 mx-auto text-yellow-500 fill-yellow-400" /> : index + 1}
                     </div>
+                    <Image src={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageUrl || ''} alt={player.nickname} width={40} height={40} className="rounded-full" data-ai-hint={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageHint} />
+                    <div className="flex-grow">
+                      <p className="font-semibold">{player.nickname}</p>
+                      <Progress value={(player.score / 500) * 100} className="h-2 mt-1" />
+                    </div>
+                    <div className="font-bold text-primary text-lg w-12 text-right">{player.score}</div>
                   </div>
-                ))}
-              </div>
-            </Card>
+                </div>
+              ))}
+            </div>
+          </Card>
         </aside>
       </div>
 
@@ -853,7 +853,7 @@ export default function GamePage() {
               <div className="py-4 space-y-6">
                   {currentQuestion?.imageUrl && (
                       <div className="relative aspect-video w-full">
-                          <Image src={encodeURI(currentQuestion.imageUrl)} alt="Question Image" fill className="rounded-md object-contain" unoptimized={true} />
+                          <Image src={encodeURI(currentQuestion.imageUrl)} alt="질문 이미지" fill className="rounded-md object-contain" unoptimized={true} />
                       </div>
                   )}
                   <p className="text-lg font-medium whitespace-pre-wrap">{currentQuestion?.question}</p>

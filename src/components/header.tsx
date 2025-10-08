@@ -115,7 +115,7 @@ export function Header() {
                             user.photoURL ||
                             `https://picsum.photos/seed/${user.uid}/100/100`
                         }
-                        alt={user.displayName || 'User'}
+                        alt={user.displayName || '사용자'}
                         />
                         <AvatarFallback>
                           {getInitials(user.displayName)}

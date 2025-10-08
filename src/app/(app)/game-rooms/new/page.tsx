@@ -96,7 +96,7 @@ function NewGameRoomPageContents() {
         }
       } catch (e) {
         // This might fail if the collection or subcollection doesn't exist yet, which is fine.
-        console.warn("Could not check played status, probably a new user.", e);
+        console.warn("이전 플레이 기록을 확인할 수 없습니다. (아마도 신규 사용자)", e);
       }
 
       setIsLoading(false);
@@ -132,7 +132,7 @@ function NewGameRoomPageContents() {
       }
 
       if (!newRoomId) {
-        throw new Error('Failed to generate a unique room ID.');
+        throw new Error('고유한 방 ID 생성에 실패했습니다.');
       }
 
       const hostPlayer: Player = {

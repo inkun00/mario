@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/card';
 import Link from 'next/link';
 import { auth, db } from '@/lib/firebase';
-import { createUserWithEmailAndPassword, updateProfile, User } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile, User, AuthErrorCodes } from 'firebase/auth';
 import { doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
@@ -34,6 +34,20 @@ const formSchema = z.object({
   password: z.string().min(6, { message: '비밀번호는 6자 이상이어야 합니다.' }),
   schoolName: z.string().min(1, '학교 이름을 입력해주세요.'),
 });
+
+const getAuthErrorMessage = (errorCode: string): string => {
+  switch (errorCode) {
+    case AuthErrorCodes.EMAIL_EXISTS:
+      return '이미 사용 중인 이메일 주소입니다.';
+    case AuthErrorCodes.INVALID_EMAIL:
+      return '유효하지 않은 이메일 형식입니다.';
+    case AuthErrorCodes.WEAK_PASSWORD:
+      return '비밀번호가 너무 약합니다. 6자 이상으로 설정해주세요.';
+    default:
+      return '알 수 없는 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+  }
+};
+
 
 export default function SignupPage() {
   const router = useRouter();
@@ -90,7 +104,7 @@ export default function SignupPage() {
        toast({
         variant: "destructive",
         title: "회원가입 실패",
-        description: error.message,
+        description: getAuthErrorMessage(error.code),
       });
     } finally {
         setIsLoading(false);

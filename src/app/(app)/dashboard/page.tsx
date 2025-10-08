@@ -398,7 +398,7 @@ export default function DashboardPage() {
                                     <Lock className="w-4 h-4 text-muted-foreground"/>
                                 )}
                             </div>
-                            <CardDescription className="mt-1">By {set.creatorNickname}</CardDescription>
+                            <CardDescription className="mt-1">만든 사람: {set.creatorNickname}</CardDescription>
                         </div>
                         <div className="flex flex-col items-end gap-2 text-sm text-muted-foreground">
                             <div className="flex items-center gap-2">
@@ -494,7 +494,7 @@ export default function DashboardPage() {
                             
                             {q.imageUrl && (
                                 <div className="mt-2 relative aspect-video">
-                                    <Image src={encodeURI(q.imageUrl)} alt={`Question ${index + 1} image`} fill className="rounded-md object-contain" unoptimized={true} />
+                                    <Image src={encodeURI(q.imageUrl)} alt={`질문 ${index + 1} 이미지`} fill className="rounded-md object-contain" unoptimized={true} />
                                 </div>
                             )}
 

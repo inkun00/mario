@@ -439,7 +439,7 @@ export default function ProfilePage() {
                               
                               {question.imageUrl && (
                                 <div className="mt-2 relative aspect-video">
-                                    <Image src={encodeURI(question.imageUrl)} alt={`Question ${index + 1} image`} fill className="rounded-md object-contain" unoptimized={true} />
+                                    <Image src={encodeURI(question.imageUrl)} alt={`질문 ${index + 1} 이미지`} fill className="rounded-md object-contain" unoptimized={true} />
                                 </div>
                               )}
 
