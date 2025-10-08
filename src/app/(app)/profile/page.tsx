@@ -16,12 +16,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo } from 'react';
 import type { User, IncorrectAnswer, Question, SubjectStat } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy } from 'firebase/firestore';
-import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2 } from 'lucide-react';
+import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -52,9 +54,8 @@ const transformStats = (flatStats: SubjectStat[]): SubjectStat[] => {
     for (const key in stat) {
       if (key.startsWith('units.')) {
         const parts = key.split('.');
-        // parts[0] is "units"
-        const unitName = parts.slice(1, -1).join('.'); // Handle unit names with dots
-        const metric = parts[parts.length - 1]; // "totalCorrect" or "totalIncorrect"
+        const unitName = parts.slice(1, -1).join('.');
+        const metric = parts[parts.length - 1]; 
 
         if (unitName && (metric === 'totalCorrect' || metric === 'totalIncorrect')) {
           if (!newStat.units![unitName]) {
@@ -82,6 +83,9 @@ export default function ProfilePage() {
 
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [selectedUnit, setSelectedUnit] = useState<string>('all');
+
+  const [showIncorrectAnswersDialog, setShowIncorrectAnswersDialog] = useState(false);
+  const [incorrectAnswersToShow, setIncorrectAnswersToShow] = useState<IncorrectAnswer[]>([]);
   
   useEffect(() => {
     if (!user) {
@@ -249,6 +253,20 @@ export default function ProfilePage() {
     }
   };
 
+  const handleShowIncorrectAnswers = () => {
+    let filtered = reviewQuestions;
+
+    if (selectedSubject !== 'all') {
+      filtered = filtered.filter(q => q.question.subject === selectedSubject);
+    }
+    if (selectedUnit !== 'all') {
+      filtered = filtered.filter(q => q.question.unit === selectedUnit);
+    }
+    
+    setIncorrectAnswersToShow(filtered);
+    setShowIncorrectAnswersDialog(true);
+  };
+
   
   const xpForNextLevel = nextLevelInfo ? nextLevelInfo.xpThreshold - (levelInfo?.xpThreshold || 0) : 0;
   const currentXpProgress = userData ? userData.xp - (levelInfo?.xpThreshold || 0) : 0;
@@ -385,7 +403,7 @@ export default function ProfilePage() {
                         <p className="text-2xl font-bold text-blue-600">{filteredCorrect}</p>
                         <p className="text-sm text-muted-foreground">정답</p>
                     </div>
-                     <div>
+                     <div className="cursor-pointer" onClick={handleShowIncorrectAnswers}>
                         <p className="text-2xl font-bold text-red-600">{filteredIncorrect}</p>
                         <p className="text-sm text-muted-foreground">오답</p>
                     </div>
@@ -510,7 +528,41 @@ export default function ProfilePage() {
             </TooltipProvider>
         </CardContent>
       </Card>
-
+      
+      <Dialog open={showIncorrectAnswersDialog} onOpenChange={setShowIncorrectAnswersDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>오답 문제 미리보기</DialogTitle>
+            <DialogDescription>
+              {selectedUnit !== 'all' ? `"${selectedUnit}" 단원에서 ` : selectedSubject !== 'all' ? `"${selectedSubject}" 과목에서 ` : '전체 과목에서 '}
+              틀린 문제 목록입니다.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-96 pr-4">
+            <div className="space-y-4">
+              {incorrectAnswersToShow.length > 0 ? (
+                incorrectAnswersToShow.map(item => (
+                  <div key={item.id} className="p-4 rounded-md border bg-secondary/30 space-y-2">
+                    <p className="font-semibold">{item.question.question}</p>
+                    <div className="text-sm space-y-1">
+                      <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                          <span>정답: <span className="font-medium">{item.question.answer || item.question.correctAnswer}</span></span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                          <XCircle className="w-4 h-4 text-red-600" />
+                          <span>내 답변: <span className="font-medium">{item.userAnswer}</span></span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-muted-foreground text-center py-8">이 범위에서 틀린 문제가 없습니다.</p>
+              )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
