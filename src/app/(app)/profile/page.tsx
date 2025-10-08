@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -56,43 +55,39 @@ export default function ProfilePage() {
   const [availableUnits, setAvailableUnits] = useState<string[]>([]);
   
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setIsLoading(false);
+      return;
+    };
 
     const fetchData = async () => {
       setIsLoading(true);
       
-      const userRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
-      if (userSnap.exists()) {
-        const fetchedUserData = userSnap.data() as User;
-        setUserData(fetchedUserData);
-        
-        const currentLevel = getLevelInfo(fetchedUserData.xp);
-        setLevelInfo(currentLevel);
-        setNextLevelInfo(getNextLevelInfo(currentLevel.level));
-      }
-      
-      const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
-      const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
-      
       try {
-        const [incorrectSnapshot, subjectStatsSnapshot] = await Promise.all([
+        const userRef = doc(db, 'users', user.uid);
+        const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
+        const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
+        
+        const [userSnap, incorrectSnapshot, subjectStatsSnapshot] = await Promise.all([
+          getDoc(userRef),
           getDocs(query(incorrectAnswersRef, orderBy('timestamp', 'desc'))),
           getDocs(subjectStatsRef),
         ]);
+
+        if (userSnap.exists()) {
+          const fetchedUserData = userSnap.data() as User;
+          setUserData(fetchedUserData);
+          
+          const currentLevel = getLevelInfo(fetchedUserData.xp);
+          setLevelInfo(currentLevel);
+          setNextLevelInfo(getNextLevelInfo(currentLevel.level));
+        }
       
         const incorrectData = incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer));
         setReviewQuestions(incorrectData);
 
         const statsData = subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat));
         setSubjectStats(statsData);
-
-        toast({
-          title: "Fetched Subject Stats Data",
-          description: <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4"><code className="text-white">{JSON.stringify(statsData, null, 2)}</code></pre>,
-          duration: Infinity,
-        });
-
 
       } catch (err) {
          console.error("Error fetching profile data:", err);
@@ -106,12 +101,13 @@ export default function ProfilePage() {
   }, [user, toast]);
 
   useEffect(() => {
-    const units = selectedSubject === 'all'
-      ? []
-      : subjectStats.find(s => s.id === selectedSubject)?.units
-        ? Object.keys(subjectStats.find(s => s.id === selectedSubject)!.units!)
-        : [];
-    setAvailableUnits(units);
+    if (selectedSubject === 'all') {
+      setAvailableUnits([]);
+    } else {
+      const subject = subjectStats.find(s => s.id === selectedSubject);
+      const units = subject?.units ? Object.keys(subject.units) : [];
+      setAvailableUnits(units);
+    }
     setSelectedUnit('all');
   }, [selectedSubject, subjectStats]);
   
@@ -486,5 +482,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    
