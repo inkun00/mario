@@ -93,9 +93,11 @@ export default function ProfilePage() {
           title: "Data Structure of Subject Stats",
           duration: Infinity,
           description: (
-            <pre className="mt-2 w-[340px] rounded-md bg-slate-950 p-4">
-              <code className="text-white">{JSON.stringify(statsData, null, 2)}</code>
-            </pre>
+            <textarea
+              readOnly
+              className="mt-2 w-full h-64 text-xs rounded-md bg-slate-950 text-white p-4"
+              value={JSON.stringify(statsData, null, 2)}
+            />
           ),
         });
 
