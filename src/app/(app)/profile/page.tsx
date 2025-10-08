@@ -54,8 +54,7 @@ export default function ProfilePage() {
   // State for subject achievement dropdowns
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [selectedUnit, setSelectedUnit] = useState<string>('all');
-  const [availableUnits, setAvailableUnits] = useState<string[]>([]);
-
+  
   useEffect(() => {
     if (!user) return;
 
@@ -87,14 +86,6 @@ export default function ProfilePage() {
 
         const statsData = subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat));
         setSubjectStats(statsData);
-        
-        // DEBUG: Show the fetched stats data in a toast
-        toast({
-          title: "Fetched Subject Stats Data",
-          description: `<pre class="mt-2 w-[340px] rounded-md bg-slate-950 p-4"><code class="text-white">${JSON.stringify(statsData, null, 2)}</code></pre>`,
-          duration: 30000,
-        })
-
 
       } catch (err) {
          console.error("Error fetching profile data:", err);
@@ -105,22 +96,14 @@ export default function ProfilePage() {
     };
 
     fetchData();
-  }, [user, toast]);
+  }, [user]);
 
-  // Effect to update available units when subject changes
+  // Effect to reset unit selection when subject changes
   useEffect(() => {
-    if (selectedSubject === 'all') {
-      setAvailableUnits([]);
-    } else {
-      const subject = subjectStats.find(s => s.id === selectedSubject);
-      const units = subject?.units ? Object.keys(subject.units) : [];
-      setAvailableUnits(units);
-    }
-    // Reset unit selection when subject changes
     setSelectedUnit('all');
-  }, [selectedSubject, subjectStats]);
+  }, [selectedSubject]);
   
-  const { overallAccuracy } = useMemo(() => {
+  const overallAccuracy = useMemo(() => {
     let totalCorrect = 0;
     let totalIncorrect = 0;
     subjectStats.forEach(stat => {
@@ -128,8 +111,7 @@ export default function ProfilePage() {
       totalIncorrect += stat.totalIncorrect || 0;
     });
     const total = totalCorrect + totalIncorrect;
-    const acc = total > 0 ? ((totalCorrect / total) * 100).toFixed(1) : '0.0';
-    return { overallAccuracy: acc };
+    return total > 0 ? ((totalCorrect / total) * 100).toFixed(1) : '0.0';
   }, [subjectStats]);
 
   const { filteredCorrect, filteredIncorrect, filteredAccuracy } = useMemo(() => {
@@ -161,6 +143,12 @@ export default function ProfilePage() {
     
     return { filteredCorrect: correct, filteredIncorrect: incorrect, filteredAccuracy: acc };
   }, [subjectStats, selectedSubject, selectedUnit]);
+
+  const availableUnits = useMemo(() => {
+    if (selectedSubject === 'all') return [];
+    const subject = subjectStats.find(s => s.id === selectedSubject);
+    return subject?.units ? Object.keys(subject.units) : [];
+  }, [subjectStats, selectedSubject]);
 
 
   const handleReviewAnswerChange = (index: number, value: string) => {
@@ -492,5 +480,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-    

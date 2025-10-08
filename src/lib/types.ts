@@ -126,7 +126,7 @@ export interface SubjectStat {
     id: string; // subject name
     totalCorrect: number;
     totalIncorrect: number;
-    units?: {
+    units: {
         [unitName: string]: {
             totalCorrect: number;
             totalIncorrect: number;

@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { doc, onSnapshot, getDoc, updateDoc, Timestamp, writeBatch, increment, collection, setDoc, deleteDoc } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer } from '@/lib/types';
+import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer, SubjectStat } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb, Save } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -526,78 +526,100 @@ export default function GamePage() {
     try {
         const batch = writeBatch(db);
 
+        // 1. Calculate XP updates
         const xpUpdates: { [uid: string]: number } = {};
-        const subjectStatsUpdate: { [uid: string]: { [subject: string]: any } } = {};
-        const playerUIDs = Array.from(new Set((gameRoom.answerLogs || []).map(log => log.userId).filter(Boolean))) as string[];
-
-        playerUIDs.forEach(uid => (xpUpdates[uid] = 0));
-
         (gameRoom.answerLogs || []).forEach(log => {
-            if (!log.userId || !log.question) return;
-            if(typeof log.pointsAwarded === 'number') {
-              xpUpdates[log.userId] = (xpUpdates[log.userId] || 0) + log.pointsAwarded;
-            }
-            
-            const { userId, isCorrect } = log;
-            const { subject, unit } = log.question;
-
-            if (subject) {
-              if (!subjectStatsUpdate[userId]) subjectStatsUpdate[userId] = {};
-              if (!subjectStatsUpdate[userId][subject]) {
-                  subjectStatsUpdate[userId][subject] = { totalCorrect: 0, totalIncorrect: 0, units: {} };
-              }
-
-              const stat = subjectStatsUpdate[userId][subject];
-              const countField = isCorrect ? 'totalCorrect' : 'totalIncorrect';
-              
-              stat[countField] = (stat[countField] || 0) + 1;
-
-              if (unit) {
-                  if (!stat.units[unit]) {
-                      stat.units[unit] = { totalCorrect: 0, totalIncorrect: 0 };
-                  }
-                  stat.units[unit][countField] = (stat.units[unit][countField] || 0) + 1;
-              }
+            if (log.userId && typeof log.pointsAwarded === 'number') {
+                xpUpdates[log.userId] = (xpUpdates[log.userId] || 0) + log.pointsAwarded;
             }
         });
 
+        // 2. Prepare stats updates by reading existing data first
+        const userStatsToUpdate: { [uid: string]: { [subject: string]: SubjectStat } } = {};
+        const playerUIDs = Array.from(new Set((gameRoom.answerLogs || []).map(log => log.userId).filter(Boolean))) as string[];
+
+        // Pre-fetch all necessary stats documents
+        const statsPromises = playerUIDs.flatMap(uid => 
+            Array.from(new Set(gameRoom.answerLogs?.map(l => l.question.subject).filter(Boolean) as string[]))
+            .map(subject => getDoc(doc(db, "users", uid, "subjectStats", subject)))
+        );
+
+        const statsSnapshots = await Promise.all(statsPromises);
+        const existingStats: { [key: string]: SubjectStat } = {};
+        statsSnapshots.forEach(snap => {
+            if (snap.exists()) {
+                const path = snap.ref.path.split('/');
+                const uid = path[1];
+                const subject = path[3];
+                if (!existingStats[`${uid}-${subject}`]) {
+                    existingStats[`${uid}-${subject}`] = { id: subject, ...snap.data() } as SubjectStat;
+                }
+            }
+        });
+
+        // Calculate new stats based on game logs
+        (gameRoom.answerLogs || []).forEach(log => {
+            if (!log.userId || !log.question?.subject || !log.question.unit) return;
+
+            const { userId, isCorrect } = log;
+            const { subject, unit } = log.question;
+
+            if (!userStatsToUpdate[userId]) userStatsToUpdate[userId] = {};
+            
+            // Initialize with existing data or new object
+            if (!userStatsToUpdate[userId][subject]) {
+                const existing = existingStats[`${userId}-${subject}`];
+                userStatsToUpdate[userId][subject] = existing ? JSON.parse(JSON.stringify(existing)) : {
+                    id: subject,
+                    totalCorrect: 0,
+                    totalIncorrect: 0,
+                    units: {},
+                };
+            }
+            
+            const stat = userStatsToUpdate[userId][subject];
+            const countField = isCorrect ? 'totalCorrect' : 'totalIncorrect';
+
+            stat[countField] = (stat[countField] || 0) + 1;
+
+            if (unit) {
+                if (!stat.units[unit]) {
+                    stat.units[unit] = { totalCorrect: 0, totalIncorrect: 0 };
+                }
+                stat.units[unit][countField] = (stat.units[unit][countField] || 0) + 1;
+            }
+        });
+
+        // 3. Batch write all updates
         playerUIDs.forEach(uid => {
+            // XP update
             const userRef = doc(db, 'users', uid);
             if (xpUpdates[uid] && xpUpdates[uid] !== 0) {
                 batch.update(userRef, { xp: increment(xpUpdates[uid]) });
             }
 
+            // Played game set record
             const playedGameSetRef = doc(db, 'users', uid, 'playedGameSets', gameRoomId);
             batch.set(playedGameSetRef, {
                 gameSetId: gameSet.id,
                 playedAt: Timestamp.now(),
                 gameRoomId: gameRoomId,
             });
-        });
-        
-        for (const uid in subjectStatsUpdate) {
-            for (const subject in subjectStatsUpdate[uid]) {
-                const statRef = doc(db, "users", uid, "subjectStats", subject);
-                const stats = subjectStatsUpdate[uid][subject];
 
-                const updatePayload: { [key: string]: any } = {
-                    totalCorrect: increment(stats.totalCorrect || 0),
-                    totalIncorrect: increment(stats.totalIncorrect || 0),
-                };
-
-                for (const unit in stats.units) {
-                    const unitStats = stats.units[unit];
-                    updatePayload[`units.${unit}.totalCorrect`] = increment(unitStats.totalCorrect || 0);
-                    updatePayload[`units.${unit}.totalIncorrect`] = increment(unitStats.totalIncorrect || 0);
+            // Subject stats update
+            if (userStatsToUpdate[uid]) {
+                for (const subject in userStatsToUpdate[uid]) {
+                    const statRef = doc(db, "users", uid, "subjectStats", subject);
+                    batch.set(statRef, userStatsToUpdate[uid][subject], { merge: true });
                 }
-                
-                batch.set(statRef, updatePayload, { merge: true });
             }
-        }
+        });
 
+        // Finalize game room status
         const gameRoomRef = doc(db, 'game-rooms', gameRoomId);
         batch.update(gameRoomRef, { status: 'finished' });
 
+        // 4. Commit batch
         await batch.commit();
 
         toast({ title: "저장 완료!", description: "게임 결과가 성공적으로 저장되었습니다." });
@@ -934,3 +956,4 @@ export default function GamePage() {
     
 
     
+
