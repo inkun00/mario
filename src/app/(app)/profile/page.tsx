@@ -54,6 +54,7 @@ export default function ProfilePage() {
   // State for subject achievement dropdowns
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [selectedUnit, setSelectedUnit] = useState<string>('all');
+  const [availableUnits, setAvailableUnits] = useState<string[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -97,6 +98,19 @@ export default function ProfilePage() {
 
     fetchData();
   }, [user, toast]);
+
+  // Effect to update available units when subject changes
+  useEffect(() => {
+    if (selectedSubject === 'all') {
+      setAvailableUnits([]);
+    } else {
+      const subject = subjectStats.find(s => s.id === selectedSubject);
+      const units = subject?.units ? Object.keys(subject.units) : [];
+      setAvailableUnits(units);
+    }
+    // Reset unit selection when subject changes
+    setSelectedUnit('all');
+  }, [selectedSubject, subjectStats]);
   
   const { overallAccuracy } = useMemo(() => {
     let totalCorrect = 0;
@@ -137,34 +151,6 @@ export default function ProfilePage() {
     
     return { filteredCorrect: correct, filteredIncorrect: incorrect, filteredAccuracy: acc };
   }, [subjectStats, selectedSubject, selectedUnit]);
-
-
-  const availableUnits = useMemo(() => {
-    if (selectedSubject === 'all') return [];
-    const subject = subjectStats.find(s => s.id === selectedSubject);
-    return subject?.units ? Object.keys(subject.units) : [];
-  }, [subjectStats, selectedSubject]);
-
-  useEffect(() => {
-    setSelectedUnit('all');
-
-    if (selectedSubject !== 'all') {
-      const subject = subjectStats.find(s => s.id === selectedSubject);
-      const units = subject?.units ? Object.keys(subject.units) : [];
-      if (units.length > 0) {
-        toast({
-          title: `[디버그] '${selectedSubject}' 과목 단원 목록`,
-          description: `[${units.join(', ')}]`,
-        });
-      } else {
-        toast({
-          variant: 'destructive',
-          title: `[디버그] 데이터 없음`,
-          description: `'${selectedSubject}' 과목에 연결된 단원 데이터가 없습니다.`,
-        });
-      }
-    }
-  }, [selectedSubject, subjectStats, toast]);
 
 
   const handleReviewAnswerChange = (index: number, value: string) => {
