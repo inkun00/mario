@@ -696,7 +696,7 @@ export default function GamePage() {
     <>
       <div className="container mx-auto flex h-full max-h-[calc(100vh-4rem)] flex-col lg:flex-row gap-6 p-4">
         {/* Game Board */}
-        <div className="flex-grow flex flex-col items-center justify-center p-6 bg-blue-100/50 dark:bg-blue-900/20 rounded-xl shadow-inner">
+        <div className="flex-grow flex flex-col items-center justify-center p-6 bg-blue-100 dark:bg-blue-900/20 rounded-xl shadow-inner">
           <Card className="w-full max-w-4xl p-4 sm:p-6 bg-background/70 backdrop-blur-sm">
             <div className="text-center mb-6">
                   <h2 className="text-2xl font-bold font-headline">
@@ -728,19 +728,20 @@ export default function GamePage() {
                           {/* Front of the card */}
                           <div className={cn(
                               "absolute inset-0 backface-hidden flex flex-col items-center justify-center rounded-lg shadow-md transition-all duration-300",
-                              "bg-yellow-400 border-b-8 border-yellow-600",
                               !isClickDisabled(block) && "hover:scale-105 hover:shadow-xl",
-                              isOpened ? 'opacity-30 bg-gray-300 border-gray-400' : ''
+                              isOpened 
+                                ? 'bg-stone-300 border-b-8 border-stone-400 opacity-50' 
+                                : 'bg-yellow-400 border-b-8 border-yellow-600'
                           )}>
                               <span className="text-4xl font-bold text-white" style={{ textShadow: '2px 2px 0px #b45309, 4px 4px 0px #854d0e' }}>
-                                  {index + 1}
+                                  ?
                               </span>
                           </div>
                           
                           {/* Back of the card */}
                           <div className="absolute inset-0 backface-hidden rotate-y-180 flex items-center justify-center bg-secondary rounded-lg">
                             {block.type === 'question' ? (
-                              <div className="flex flex-col items-center text-primary font-bold text-center p-1">
+                              <div className="flex flex-col items-center text-accent font-bold text-center p-1">
                                   <Star className="w-1/2 h-1/2 text-yellow-400 fill-yellow-400" />
                                   <span className="text-sm">{block.question?.points === -1 ? '랜덤' : `${block.question?.points}점`}</span>
                               </div>
@@ -760,7 +761,7 @@ export default function GamePage() {
 
         {/* Scoreboard & Info */}
         <aside className="w-full lg:w-80 xl:w-96 flex flex-col gap-4">
-          <Card className="flex flex-col">
+          <Card className="flex-grow flex flex-col">
             <div className="p-4 border-b flex justify-between items-center">
               <h2 className="font-headline text-xl font-bold">스코어보드</h2>
               <Button variant="destructive" size="sm" onClick={() => setShowEndGameConfirm(true)}>
