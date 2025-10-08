@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -759,7 +760,7 @@ export default function GamePage() {
 
         {/* Scoreboard & Info */}
         <aside className="w-full lg:w-80 xl:w-96 flex-shrink-0 flex flex-col gap-4">
-          <Card className="flex-grow flex flex-col">
+          <Card className="flex flex-col">
               <div className="p-4 border-b">
                   <h2 className="font-headline text-xl font-bold text-center">스코어보드</h2>
               </div>
