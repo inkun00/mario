@@ -87,6 +87,14 @@ export default function ProfilePage() {
 
         const statsData = subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat));
         setSubjectStats(statsData);
+        
+        // DEBUG: Show the fetched stats data in a toast
+        toast({
+          title: "Fetched Subject Stats Data",
+          description: `<pre class="mt-2 w-[340px] rounded-md bg-slate-950 p-4"><code class="text-white">${JSON.stringify(statsData, null, 2)}</code></pre>`,
+          duration: 30000,
+        })
+
 
       } catch (err) {
          console.error("Error fetching profile data:", err);
@@ -128,22 +136,24 @@ export default function ProfilePage() {
     let correct = 0;
     let incorrect = 0;
     
-    const statsToUse = selectedSubject === 'all' 
-      ? subjectStats 
-      : subjectStats.filter(s => s.id === selectedSubject);
-
-    if (selectedUnit === 'all') {
-      statsToUse.forEach(stat => {
+    if (selectedSubject === 'all') {
+      subjectStats.forEach(stat => {
         correct += stat.totalCorrect || 0;
         incorrect += stat.totalIncorrect || 0;
       });
     } else {
-      statsToUse.forEach(stat => {
-        if (stat.units && stat.units[selectedUnit]) {
-          correct += stat.units[selectedUnit].totalCorrect || 0;
-          incorrect += stat.units[selectedUnit].totalIncorrect || 0;
+      const subject = subjectStats.find(s => s.id === selectedSubject);
+      if (subject) {
+        if (selectedUnit === 'all') {
+          correct = subject.totalCorrect || 0;
+          incorrect = subject.totalIncorrect || 0;
+        } else {
+          if (subject.units && subject.units[selectedUnit]) {
+            correct = subject.units[selectedUnit].totalCorrect || 0;
+            incorrect = subject.units[selectedUnit].totalIncorrect || 0;
+          }
         }
-      });
+      }
     }
 
     const total = correct + incorrect;
@@ -482,3 +492,5 @@ export default function ProfilePage() {
     </div>
   );
 }
+
+    
