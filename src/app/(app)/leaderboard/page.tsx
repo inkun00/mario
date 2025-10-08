@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -23,10 +22,11 @@ import type { User, GameSet, School } from '@/lib/types';
 import { getLevelInfo } from '@/lib/level-system';
 import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
 import { Crown, Loader2, School as SchoolIcon, BookOpen } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
+import { Combobox } from '@/components/ui/combobox';
 
 async function getLeaderboardData(): Promise<User[]> {
   const usersRef = collection(db, 'users');
@@ -96,27 +96,30 @@ export default function LeaderboardPage() {
   const [user, loadingUser] = useAuthState(auth);
   const [leaderboardData, setLeaderboardData] = useState<User[]>([]);
   const [schoolLeaderboard, setSchoolLeaderboard] = useState<School[]>([]);
-  const [schoolPersonalLeaderboard, setSchoolPersonalLeaderboard] = useState<User[]>([]);
   const [popularGameSets, setPopularGameSets] = useState<GameSet[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTab, setCurrentTab] = useState('overall');
+  const [selectedSchool, setSelectedSchool] = useState<string>('');
 
   useEffect(() => {
     const fetchData = async () => {
         setIsLoading(true);
         if (currentTab === 'overall') {
             if (leaderboardData.length === 0) setLeaderboardData(await getLeaderboardData());
-        } else if (currentTab === 'school') {
+        } else if (currentTab === 'school' || currentTab === 'school-personal') {
             if (schoolLeaderboard.length === 0) {
               const schools = await getSchoolLeaderboardData();
               setSchoolLeaderboard(schools);
 
-              if (user) {
-                  const userDoc = (await getDocs(query(collection(db, 'users'), where('uid', '==', user.uid), limit(1)))).docs[0];
-                  const schoolName = userDoc?.data().schoolName;
-                  if (schoolName) {
-                      const userSchool = schools.find(s => s.name === schoolName);
-                      setSchoolPersonalLeaderboard(userSchool ? userSchool.members : []);
+              if (user && !selectedSchool) {
+                  const userDocQuery = query(collection(db, 'users'), where('uid', '==', user.uid), limit(1));
+                  const userDocSnapshot = await getDocs(userDocQuery);
+                  if (!userDocSnapshot.empty) {
+                      const userDoc = userDocSnapshot.docs[0];
+                      const schoolName = userDoc?.data().schoolName;
+                      if (schoolName) {
+                          setSelectedSchool(schoolName);
+                      }
                   }
               }
             }
@@ -126,7 +129,20 @@ export default function LeaderboardPage() {
         setIsLoading(false);
     };
     fetchData();
-  }, [currentTab, user, leaderboardData.length, schoolLeaderboard.length, popularGameSets.length]);
+  }, [currentTab, user, leaderboardData.length, schoolLeaderboard.length, popularGameSets.length, selectedSchool]);
+
+  const schoolPersonalLeaderboard = useMemo(() => {
+      if (!selectedSchool) return [];
+      const school = schoolLeaderboard.find(s => s.name === selectedSchool);
+      return school ? school.members : [];
+  }, [selectedSchool, schoolLeaderboard]);
+
+  const schoolOptions = useMemo(() => {
+      return schoolLeaderboard.map(school => ({
+          value: school.name,
+          label: school.name,
+      }));
+  }, [schoolLeaderboard]);
 
   return (
     <div className="container mx-auto">
@@ -220,10 +236,20 @@ export default function LeaderboardPage() {
                      )}
                 </TabsContent>
                 <TabsContent value="school-personal" className="mt-4">
-                    {isLoading ? <LeaderboardSkeleton /> : !loadingUser && !schoolPersonalLeaderboard.length ? (
+                    <div className="mb-4">
+                        <Combobox
+                            options={schoolOptions}
+                            value={selectedSchool}
+                            onValueChange={setSelectedSchool}
+                            placeholder="학교 선택..."
+                            searchPlaceholder="학교 검색..."
+                            notFoundMessage="해당 학교를 찾을 수 없습니다."
+                        />
+                    </div>
+                    {isLoading ? <LeaderboardSkeleton /> : !schoolPersonalLeaderboard.length ? (
                         <div className="text-center py-8 border-2 border-dashed rounded-lg">
                             <p className="text-muted-foreground">
-                                {user ? '소속된 학교의 랭킹 정보가 없습니다. 프로필에서 학교 정보를 업데이트해주세요.' : '로그인이 필요한 서비스입니다.'}
+                                {selectedSchool ? '해당 학교의 랭킹 정보가 없습니다.' : '학교를 선택하여 순위를 확인하세요.'}
                             </p>
                         </div>
                     ) : (
