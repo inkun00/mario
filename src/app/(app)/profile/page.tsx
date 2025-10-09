@@ -543,6 +543,11 @@ export default function ProfilePage() {
               {incorrectAnswersToShow.length > 0 ? (
                 incorrectAnswersToShow.map(item => (
                   <div key={item.id} className="p-4 rounded-md border bg-secondary/30 space-y-2">
+                    {item.question.imageUrl && (
+                        <div className="relative aspect-video">
+                            <Image src={encodeURI(item.question.imageUrl)} alt="질문 이미지" fill className="rounded-md object-contain" unoptimized={true} />
+                        </div>
+                    )}
                     <p className="font-semibold whitespace-pre-wrap">{item.question.question}</p>
                     <div className="text-sm space-y-1">
                       <div className="flex items-center gap-2">
