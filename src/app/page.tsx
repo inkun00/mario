@@ -26,28 +26,16 @@ export default function Home() {
         <section className="relative pt-16 h-[80vh] min-h-[600px] flex items-center justify-center text-center bg-gradient-to-br from-primary/10 via-background to-background">
           <div className="absolute inset-0 overflow-hidden">
             {/* Star Icon */}
-            <div className="absolute top-[20%] left-[15%] w-16 h-16 opacity-80 animate-blob animation-delay-1000">
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="#FFC700" stroke="#E6A200" strokeWidth="1"/>
-                </svg>
+            <div className="absolute top-[20%] left-[15%] text-6xl opacity-80 animate-blob animation-delay-1000">
+              ⭐️
             </div>
             {/* Mushroom Icon */}
-            <div className="absolute top-[60%] right-[20%] w-20 h-20 opacity-70 animate-blob animation-delay-2000">
-                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M 50 10 C 22.38 10 0 32.38 0 60 L 0 70 C 0 75.52 4.48 80 10 80 L 25 80 L 25 90 C 25 95.52 29.48 100 35 100 L 65 100 C 70.52 100 75 95.52 75 90 L 75 80 L 90 80 C 95.52 80 100 75.52 100 70 L 100 60 C 100 32.38 77.62 10 50 10 Z" fill="#E53935"/>
-                    <circle cx="25" cy="40" r="10" fill="white"/>
-                    <circle cx="75" cy="40" r="10" fill="white"/>
-                    <circle cx="50" cy="65" r="12" fill="white"/>
-                </svg>
+            <div className="absolute top-[60%] right-[20%] text-7xl opacity-70 animate-blob animation-delay-2000">
+              🍄
             </div>
             {/* Turtle Shell Icon */}
-            <div className="absolute bottom-[15%] left-[30%] w-24 h-24 opacity-60 animate-blob animation-delay-3000">
-              <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M50,10 C22.38,10 0,22.38 0,50 C0,77.62 22.38,100 50,100 C77.62,100 100,77.62 100,50 C100,22.38 77.62,10 50,10 Z" fill="#4CAF50" stroke="#388E3C" strokeWidth="3"/>
-                  <path d="M50,18 C78.41,18 95,33.59 95,50 C95,66.41 78.41,82 50,82 C21.59,82 5,66.41 5,50 C5,33.59 21.59,18 50,18 Z" fill="#FFFFFF" stroke="#CFD8DC" strokeWidth="2"/>
-                  <path d="M30 40 L 40 30 L 60 30 L 70 40 L 70 60 L 60 70 L 40 70 L 30 60 Z" fill="#4CAF50" stroke="#388E3C" strokeWidth="2"/>
-                  <path d="M50 30 L 50 20 M50 70 L 50 80 M30 50 L 20 50 M70 50 L 80 50" fill="none" stroke="#388E3C" strokeWidth="2"/>
-              </svg>
+            <div className="absolute bottom-[15%] left-[30%] text-7xl opacity-60 animate-blob animation-delay-3000">
+              🐢
             </div>
              {/* Pipe Icon */}
             <div className="absolute bottom-0 right-[10%] w-28 h-28 opacity-90">
