@@ -25,7 +25,8 @@ import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo } from 'react';
 import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp } from 'firebase/firestore';
-import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle } from 'lucide-react';
+import { updateProfile } from 'firebase/auth';
+import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -89,6 +90,10 @@ export default function ProfilePage() {
 
   const [showIncorrectAnswersDialog, setShowIncorrectAnswersDialog] = useState(false);
   const [incorrectAnswersToShow, setIncorrectAnswersToShow] = useState<SolvedIncorrectAnswer[]>([]);
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editNickname, setEditNickname] = useState('');
+  const [editSchoolName, setEditSchoolName] = useState('');
   
   useEffect(() => {
     if (!user) {
@@ -117,6 +122,8 @@ export default function ProfilePage() {
         if (userSnap.exists()) {
           const fetchedUserData = userSnap.data() as User;
           setUserData(fetchedUserData);
+          setEditNickname(fetchedUserData.displayName);
+          setEditSchoolName(fetchedUserData.schoolName || '');
           
           const currentLevel = getLevelInfo(fetchedUserData.xp);
           setLevelInfo(currentLevel);
@@ -143,6 +150,49 @@ export default function ProfilePage() {
 
     fetchData();
   }, [user, toast]);
+
+  const handleEdit = () => {
+    if (!userData) return;
+    setEditNickname(userData.displayName);
+    setEditSchoolName(userData.schoolName || '');
+    setIsEditing(true);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+  };
+
+  const handleSave = async () => {
+    if (!user || !userData) return;
+
+    if (!editNickname || editNickname.length < 2 || editNickname.length > 6) {
+      toast({ variant: 'destructive', title: '오류', description: '닉네임은 2자 이상 6자 이하로 입력해주세요.'});
+      return;
+    }
+    if (!editSchoolName) {
+      toast({ variant: 'destructive', title: '오류', description: '학교 이름을 입력해주세요.'});
+      return;
+    }
+
+    try {
+      // Update Firebase Auth profile
+      await updateProfile(user, { displayName: editNickname });
+
+      // Update Firestore document
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        displayName: editNickname,
+        schoolName: editSchoolName,
+      });
+
+      setUserData({ ...userData, displayName: editNickname, schoolName: editSchoolName });
+      setIsEditing(false);
+      toast({ title: '성공', description: '프로필이 성공적으로 업데이트되었습니다.' });
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: '오류', description: `프로필 업데이트 중 오류가 발생했습니다: ${error.message}`});
+    }
+  };
+
 
   const availableUnits = useMemo(() => {
     if (selectedSubject === 'all') {
@@ -334,20 +384,39 @@ export default function ProfilePage() {
     <div className="container mx-auto flex flex-col gap-8">
       <Card>
         <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-4">
             <div className="relative h-20 w-20 flex items-center justify-center rounded-full bg-secondary flex-shrink-0">
                 <span className="text-5xl">{levelInfo.icon}</span>
             </div>
-            <div>
-              <CardTitle className="font-headline text-3xl">{userData.displayName}</CardTitle>
-              <CardDescription>{levelInfo.title}</CardDescription>
-              {schoolInfo && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
-                    <School className="w-4 h-4"/>
-                    <span>{schoolInfo}</span>
+            <div className="flex-grow">
+              {isEditing ? (
+                <div className="space-y-2">
+                  <Input value={editNickname} onChange={(e) => setEditNickname(e.target.value)} placeholder="닉네임 (2-6자)" />
+                  <Input value={editSchoolName} onChange={(e) => setEditSchoolName(e.target.value)} placeholder="학교 이름" />
+                </div>
+              ) : (
+                <div>
+                  <CardTitle className="font-headline text-3xl">{userData.displayName}</CardTitle>
+                  <CardDescription>{levelInfo.title}</CardDescription>
+                  {schoolInfo && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                        <School className="w-4 h-4"/>
+                        <span>{schoolInfo}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
+            {isEditing ? (
+                <div className="flex gap-2">
+                    <Button size="icon" onClick={handleSave}><Save className="w-4 h-4"/></Button>
+                    <Button size="icon" variant="ghost" onClick={handleCancel}><X className="w-4 h-4"/></Button>
+                </div>
+            ) : (
+                <Button variant="ghost" size="icon" onClick={handleEdit}>
+                    <Pencil className="w-4 h-4" />
+                </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -594,3 +663,6 @@ export default function ProfilePage() {
   );
 }
 
+
+
+    

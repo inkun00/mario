@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import Link from 'next/link';
@@ -30,7 +31,7 @@ import { cn } from '@/lib/utils';
 import { Skeleton } from './ui/skeleton';
 import { useEffect, useState } from 'react';
 import type { User } from '@/lib/types';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { getLevelInfo, LevelInfo } from '@/lib/level-system';
 
 const navItems = [
@@ -48,15 +49,21 @@ export function Header() {
   const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setUserData(null);
+      setLevelInfo(null);
+      return;
+    }
     const userRef = doc(db, 'users', user.uid);
-    getDoc(userRef).then(userSnap => {
-      if (userSnap.exists()) {
-        const fetchedUserData = userSnap.data() as User;
+    const unsubscribe = onSnapshot(userRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const fetchedUserData = docSnap.data() as User;
         setUserData(fetchedUserData);
         setLevelInfo(getLevelInfo(fetchedUserData.xp));
       }
     });
+
+    return () => unsubscribe();
   }, [user]);
 
   const handleLogout = async () => {
@@ -115,10 +122,10 @@ export function Header() {
                             user.photoURL ||
                             `https://picsum.photos/seed/${user.uid}/100/100`
                         }
-                        alt={user.displayName || '사용자'}
+                        alt={userData?.displayName || '사용자'}
                         />
                         <AvatarFallback>
-                          {getInitials(user.displayName)}
+                          {getInitials(userData?.displayName)}
                         </AvatarFallback>
                       </>
                     )}
@@ -129,7 +136,7 @@ export function Header() {
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="text-sm font-medium leading-none">
-                      {user.displayName}
+                      {userData?.displayName || user.displayName}
                     </p>
                     <p className="text-xs leading-none text-muted-foreground">
                       {user.email}
@@ -160,3 +167,5 @@ export function Header() {
     </header>
   );
 }
+
+    
