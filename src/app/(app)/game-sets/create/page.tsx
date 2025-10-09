@@ -663,5 +663,3 @@ export default function CreateGameSetPage() {
     </div>
   );
 }
-
-    
