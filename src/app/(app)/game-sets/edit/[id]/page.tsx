@@ -595,7 +595,7 @@ export default function EditGameSetPage() {
                                                     <RadioGroupItem value="X" />
                                                 </FormControl>
                                                 <FormLabel className="font-normal">X</FormLabel>
-                                                </FormItem>
+                                                </Item>
                                             </RadioGroup>
                                             </FormControl>
                                             <FormMessage />
@@ -688,6 +688,3 @@ export default function EditGameSetPage() {
     </div>
   );
 }
-
-    
-    
