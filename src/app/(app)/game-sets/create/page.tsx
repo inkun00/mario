@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useFieldArray, useForm, Controller } from 'react-hook-form';
@@ -566,7 +567,7 @@ export default function CreateGameSetPage() {
                                                     <RadioGroupItem value="X" />
                                                 </FormControl>
                                                 <FormLabel className="font-normal">X</FormLabel>
-                                                </FormItem>
+                                                </Item>
                                             </RadioGroup>
                                             </FormControl>
                                             <FormMessage />
