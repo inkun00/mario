@@ -44,6 +44,8 @@ export interface GameSet {
   questions: Question[];
   createdAt: any;
   playCount?: number;
+  reportCount?: number;
+  isDisabled?: boolean;
 }
 
 export interface Player {
@@ -151,4 +153,3 @@ export interface School {
   memberCount: number;
   members: User[];
 }
-

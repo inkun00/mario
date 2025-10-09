@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -28,11 +30,11 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3 } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState, useRef } from 'react';
-import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe, updateDoc, increment } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { GameSet } from '@/lib/types';
 import { auth } from '@/lib/firebase';
@@ -49,6 +51,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 
 const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '음악', '미술', '체육', '영어', '창체'];
 const ITEMS_PER_PAGE = 10;
+const DEACTIVATION_PASSWORD = "dodam12";
 
 interface GameSetDocument extends GameSet {
   id: string;
@@ -67,6 +70,10 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [selectedGameSet, setSelectedGameSet] = useState<GameSetDocument | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<GameSetDocument | null>(null);
+  const [reportCandidate, setReportCandidate] = useState<GameSetDocument | null>(null);
+  const [deactivateCandidate, setDeactivateCandidate] = useState<GameSetDocument | null>(null);
+  const [deactivationPassword, setDeactivationPassword] = useState("");
+
   const { toast } = useToast();
   const [isJoining, setIsJoining] = useState(false);
 
@@ -79,7 +86,6 @@ export default function DashboardPage() {
 
   const isAdmin = user ? ADMIN_EMAILS.includes(user.email || '') : false;
   
-  // Effect for setting up listeners
   useEffect(() => {
     setLoading(true);
 
@@ -109,11 +115,9 @@ export default function DashboardPage() {
             toast({ variant: "destructive", title: "오류", description: "비공개 퀴즈 세트를 불러오는 중 오류가 발생했습니다." });
         });
     } else {
-        // Clear private sets if user logs out
         setPrivateSets([]);
     }
 
-    // Cleanup function
     return () => {
         publicUnsubscribe();
         if (privateUnsubscribe) {
@@ -122,7 +126,6 @@ export default function DashboardPage() {
     };
   }, [user, toast]);
 
-  // Effect for combining public and private sets
   useEffect(() => {
       const combinedSets: Record<string, GameSetDocument> = {};
       
@@ -139,7 +142,7 @@ export default function DashboardPage() {
       );
 
       setAllGameSets(finalSets);
-      setFilteredGameSets(finalSets); // Initially, filtered is all
+      setFilteredGameSets(finalSets);
   }, [publicSets, privateSets]);
 
 
@@ -155,31 +158,41 @@ export default function DashboardPage() {
     }
   };
 
-  const handleJoinGame = async () => {
-    if (!joinCode) {
-      toast({ variant: 'destructive', title: '오류', description: '참여 코드를 입력해주세요.' });
-      return;
-    }
-    if (!user) {
-      toast({ variant: 'destructive', title: '오류', description: '로그인이 필요합니다.' });
-      return;
-    }
-
-    setIsJoining(true);
-
+  const handleReport = async () => {
+    if (!reportCandidate) return;
     try {
-      // This is a placeholder for a 'joinGame' server action or API call
-      // For now, we simulate a failure as the backend logic isn't fully implemented
-      toast({ variant: 'destructive', title: '오류', description: '게임 참여 기능은 현재 개발 중입니다.'});
-
-    } catch (error: any) {
-      console.error("Error joining game:", error);
-      toast({ variant: 'destructive', title: '오류', description: error.message || '게임 참가 중 오류가 발생했습니다.'});
-    } finally {
-      setIsJoining(false);
+        const gameSetRef = doc(db, 'game-sets', reportCandidate.id);
+        const newReportCount = (reportCandidate.reportCount || 0) + 1;
+        const updateData: any = { reportCount: increment(1) };
+        if (newReportCount >= 5) {
+            updateData.isDisabled = true;
+        }
+        await updateDoc(gameSetRef, updateData);
+        toast({ title: "신고 완료", description: "퀴즈 세트가 신고되었습니다. 검토 후 조치하겠습니다."});
+        setReportCandidate(null);
+    } catch(e) {
+        toast({ variant: "destructive", title: "오류", description: "신고 처리 중 오류가 발생했습니다."});
     }
   };
 
+  const handleDeactivate = async () => {
+    if (!deactivateCandidate) return;
+
+    if (deactivationPassword !== DEACTIVATION_PASSWORD) {
+        toast({ variant: 'destructive', title: '실패', description: '비밀번호가 올바르지 않습니다.'});
+        return;
+    }
+
+    try {
+        const gameSetRef = doc(db, 'game-sets', deactivateCandidate.id);
+        await updateDoc(gameSetRef, { isDisabled: false, reportCount: 0 });
+        toast({ title: '성공', description: `"${deactivateCandidate.title}" 퀴즈 세트가 다시 활성화되었습니다.`});
+        setDeactivateCandidate(null);
+        setDeactivationPassword("");
+    } catch(e) {
+        toast({ variant: 'destructive', title: '오류', description: '퀴즈 세트 활성화 중 오류가 발생했습니다.'});
+    }
+  };
 
   const handleSearch = () => {
     let sets = [...allGameSets];
@@ -200,7 +213,7 @@ export default function DashboardPage() {
       sets = sets.filter(s => s.subject === searchSubject);
     }
     setFilteredGameSets(sets);
-    setCurrentPage(1); // Reset to first page on new search
+    setCurrentPage(1);
   };
   
   const handleResetSearch = () => {
@@ -353,12 +366,19 @@ export default function DashboardPage() {
           ) : (
             <>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {currentItems.map((set, index) => {
+              {currentItems.map((set) => {
                 const isCreator = user ? set.creatorId === user.uid : false;
-                const isTopSet = filteredGameSets.indexOf(set) < 5;
+                const isTopSet = !set.isDisabled && filteredGameSets.indexOf(set) < 5;
+                const isDisabled = set.isDisabled === true;
                 
                 let createRoomButton;
-                if (isCreator && !isAdmin) {
+                if (isDisabled) {
+                  createRoomButton = (
+                    <Button size="sm" disabled={true}>
+                      <Users className="mr-2 h-4 w-4" />비활성화됨
+                    </Button>
+                  );
+                } else if (isCreator && !isAdmin) {
                   createRoomButton = (
                     <TooltipProvider>
                       <Tooltip>
@@ -386,7 +406,11 @@ export default function DashboardPage() {
                 }
 
                 return (
-                <Card key={set.id} className={cn("hover:shadow-lg transition-shadow flex flex-col", isTopSet && "border-yellow-400 border-2 shadow-lg shadow-yellow-400/50")}>
+                <Card key={set.id} className={cn(
+                    "hover:shadow-lg transition-shadow flex flex-col", 
+                    isTopSet && "border-yellow-400 border-2 shadow-lg shadow-yellow-400/50",
+                    isDisabled && "bg-muted/50 opacity-60"
+                )}>
                   <CardHeader>
                     <div className="flex items-start justify-between">
                         <div>
@@ -399,6 +423,12 @@ export default function DashboardPage() {
                                 )}
                             </div>
                             <CardDescription className="mt-1">만든 사람: {set.creatorNickname}</CardDescription>
+                            {isDisabled && (
+                               <div className="mt-2 text-sm font-semibold text-destructive flex items-center gap-1">
+                                    <ShieldOff className="w-4 h-4"/>
+                                    <span>비활성화됨 (신고 {set.reportCount || 0}회)</span>
+                               </div>
+                            )}
                         </div>
                         <div className="flex flex-col items-end gap-2 text-sm text-muted-foreground">
                             <div className="flex items-center gap-2">
@@ -413,15 +443,20 @@ export default function DashboardPage() {
                     </div>
                   </CardHeader>
                   <CardFooter className="mt-auto flex justify-end items-center gap-2 p-4 pt-0 pr-4">
-                    <Button variant="secondary" size="sm" onClick={() => setSelectedGameSet(set)}>미리보기</Button>
+                    <Button variant="secondary" size="sm" onClick={() => setSelectedGameSet(set)} disabled={isDisabled}>미리보기</Button>
                     {(isCreator || isAdmin) && (
                       <>
-                        <Button variant="outline" size="sm" asChild>
+                        <Button variant="outline" size="sm" asChild disabled={isDisabled}>
                           <Link href={`/game-sets/edit/${set.id}`}><Pencil className="h-4 w-4" /> 수정</Link>
                         </Button>
                         <Button variant="destructive" size="sm" onClick={() => setDeleteCandidate(set)}>
                           <Trash2 className="h-4 w-4" /> 삭제
                         </Button>
+                        {isDisabled && isAdmin && (
+                            <Button variant="outline" size="sm" onClick={() => setDeactivateCandidate(set)}>
+                              <ShieldOff className="mr-2 h-4 w-4"/>해제
+                            </Button>
+                        )}
                       </>
                     )}
                     
@@ -514,6 +549,11 @@ export default function DashboardPage() {
                     ))}
                 </div>
             </ScrollArea>
+             <DialogFooter className="pt-4">
+                <Button variant="outline" onClick={() => { setReportCandidate(selectedGameSet); setSelectedGameSet(null);}}>
+                    <AlertTriangle className="mr-2 h-4 w-4"/> 신고하기
+                </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
@@ -529,6 +569,44 @@ export default function DashboardPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">삭제</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+       <AlertDialog open={!!reportCandidate} onOpenChange={(isOpen) => !isOpen && setReportCandidate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>퀴즈 세트를 신고하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{reportCandidate?.title}" 퀴즈에 부적절하거나 무의미한 내용이 있다고 판단되면 신고해주세요. 신고는 신중하게 해야 하며, 부당한 신고는 서비스 이용에 불이익을 초래할 수 있습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleReport} className="bg-destructive hover:bg-destructive/90">신고</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deactivateCandidate} onOpenChange={(isOpen) => !isOpen && setDeactivateCandidate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>비활성화 해제</AlertDialogTitle>
+            <AlertDialogDescription>
+             비활성화된 퀴즈 세트를 다시 활성화하려면 관리자 비밀번호를 입력해주세요.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Input 
+                type="password"
+                placeholder="비밀번호 입력"
+                value={deactivationPassword}
+                onChange={(e) => setDeactivationPassword(e.target.value)}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeactivationPassword("")}>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeactivate}>해제</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

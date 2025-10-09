@@ -177,6 +177,8 @@ export default function CreateGameSetPage() {
         creatorId: user.uid,
         creatorNickname: user.displayName || '이름없음',
         createdAt: serverTimestamp(),
+        reportCount: 0,
+        isDisabled: false,
       });
 
       toast({
@@ -633,9 +635,7 @@ export default function CreateGameSetPage() {
                     주의: 부정한 방법으로 점수를 올리기 위해 퀴즈를 생성하는 경우 계정이 삭제될 수 있습니다.
                   </p>
                   <div className="w-full sm:w-auto flex flex-col items-center">
-                    {isValid ? (
-                      submitButton
-                    ) : (
+                    {!isValid ? (
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -652,6 +652,8 @@ export default function CreateGameSetPage() {
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
+                    ) : (
+                      submitButton
                     )}
                   </div>
                 </div>

@@ -138,7 +138,6 @@ export default function EditGameSetPage() {
             return;
         }
         
-        // Ensure optional fields are not undefined
         const dataWithDefaults = {
             ...gameSetData,
             description: gameSetData.description || '',
@@ -194,7 +193,9 @@ export default function EditGameSetPage() {
           unit: data.unit,
           grade: data.grade,
           semester: data.semester,
-        }))
+        })),
+        reportCount: 0,
+        isDisabled: false,
       };
 
       await updateDoc(gameSetRef, updateData as any);
@@ -474,7 +475,6 @@ export default function EditGameSetPage() {
                                     <RadioGroup
                                     onValueChange={(value) => {
                                         field.onChange(value);
-                                        // Reset other type's answer when switching
                                         if (value === 'subjective') {
                                             form.setValue(`questions.${index}.options`, ['', '', '', '']);
                                             form.setValue(`questions.${index}.correctAnswer`, '');
@@ -659,7 +659,7 @@ export default function EditGameSetPage() {
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="ghost" onClick={() => router.back()}>취소</Button>
                   
-                  {isValid ? submitButton : (
+                  {!isValid ? (
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -676,6 +676,8 @@ export default function EditGameSetPage() {
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
+                  ) : (
+                    submitButton
                   )}
                 </div>
               </fieldset>
@@ -686,5 +688,3 @@ export default function EditGameSetPage() {
     </div>
   );
 }
-
-    
