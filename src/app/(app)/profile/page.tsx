@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -21,8 +22,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo } from 'react';
-import type { User, IncorrectAnswer, Question, SubjectStat } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy } from 'firebase/firestore';
+import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer } from '@/lib/types';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -74,6 +75,7 @@ export default function ProfilePage() {
   const [user] = useAuthState(auth);
   const [userData, setUserData] = useState<User | null>(null);
   const [reviewQuestions, setReviewQuestions] = useState<ReviewQuestion[]>([]);
+  const [solvedReviewQuestions, setSolvedReviewQuestions] = useState<SolvedIncorrectAnswer[]>([]);
   const [subjectStats, setSubjectStats] = useState<SubjectStat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
@@ -85,7 +87,7 @@ export default function ProfilePage() {
   const [selectedUnit, setSelectedUnit] = useState<string>('all');
 
   const [showIncorrectAnswersDialog, setShowIncorrectAnswersDialog] = useState(false);
-  const [incorrectAnswersToShow, setIncorrectAnswersToShow] = useState<IncorrectAnswer[]>([]);
+  const [incorrectAnswersToShow, setIncorrectAnswersToShow] = useState<SolvedIncorrectAnswer[]>([]);
   
   useEffect(() => {
     if (!user) {
@@ -99,11 +101,13 @@ export default function ProfilePage() {
       try {
         const userRef = doc(db, 'users', user.uid);
         const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
+        const solvedIncorrectAnswersRef = collection(db, 'users', user.uid, 'solved-incorrect-answers');
         const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
         
-        const [userSnap, incorrectSnapshot, subjectStatsSnapshot] = await Promise.all([
+        const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot] = await Promise.all([
           getDoc(userRef),
           getDocs(query(incorrectAnswersRef, orderBy('timestamp', 'desc'))),
+          getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
           getDocs(subjectStatsRef),
         ]);
 
@@ -118,6 +122,9 @@ export default function ProfilePage() {
       
         const incorrectData = incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer));
         setReviewQuestions(incorrectData);
+
+        const solvedIncorrectData = solvedIncorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer));
+        setSolvedReviewQuestions(solvedIncorrectData);
 
         const flatStatsData = subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat));
         const nestedStatsData = transformStats(flatStatsData);
@@ -206,7 +213,7 @@ export default function ProfilePage() {
     const updatedQuestions = [...reviewQuestions];
     const reviewItem = updatedQuestions[index];
 
-    if (!reviewItem.userReviewAnswer) {
+    if (!user || !reviewItem.userReviewAnswer) {
       toast({ variant: 'destructive', title: '오류', description: '답변을 입력하거나 선택해주세요.' });
       return;
     }
@@ -217,31 +224,39 @@ export default function ProfilePage() {
     const isCorrect = checkAnswer(reviewItem.question, reviewItem.userReviewAnswer);
     
     try {
-        if (user) {
-            await deleteDoc(doc(db, 'users', user.uid, 'incorrect-answers', reviewItem.id));
+        const solvedDocRef = doc(db, 'users', user.uid, 'solved-incorrect-answers', reviewItem.id);
+        const solvedData: SolvedIncorrectAnswer = {
+            ...reviewItem,
+            reviewAnswer: reviewItem.userReviewAnswer,
+            wasReviewCorrect: isCorrect,
+            reviewedAt: serverTimestamp(),
+        };
+        await setDoc(solvedDocRef, solvedData);
 
-            if (isCorrect) {
-                const userRef = doc(db, 'users', user.uid);
-                await updateDoc(userRef, { xp: increment(10) });
-                
-                setUserData(prev => {
-                    if (!prev) return null;
-                    const newXp = prev.xp + 10;
-                    const newLevelInfo = getLevelInfo(newXp);
-                    if (newLevelInfo.level !== levelInfo?.level) {
-                        setLevelInfo(newLevelInfo);
-                        setNextLevelInfo(getNextLevelInfo(newLevelInfo.level));
-                    }
-                    return { ...prev, xp: newXp };
-                });
+        await deleteDoc(doc(db, 'users', user.uid, 'incorrect-answers', reviewItem.id));
 
-                toast({ title: '정답입니다!', description: '복습을 완료했습니다. 10 XP를 획득했습니다!' });
-            } else {
-                 toast({ variant: 'destructive', title: '아쉽지만 오답입니다.', description: `정답은 "${reviewItem.question.answer || reviewItem.question.correctAnswer}" 입니다.` });
-            }
+        if (isCorrect) {
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, { xp: increment(10) });
+            
+            setUserData(prev => {
+                if (!prev) return null;
+                const newXp = prev.xp + 10;
+                const newLevelInfo = getLevelInfo(newXp);
+                if (newLevelInfo.level !== levelInfo?.level) {
+                    setLevelInfo(newLevelInfo);
+                    setNextLevelInfo(getNextLevelInfo(newLevelInfo.level));
+                }
+                return { ...prev, xp: newXp };
+            });
+
+            toast({ title: '정답입니다!', description: '복습을 완료했습니다. 10 XP를 획득했습니다!' });
+        } else {
+             toast({ variant: 'destructive', title: '아쉽지만 오답입니다.', description: `정답은 "${reviewItem.question.answer || reviewItem.question.correctAnswer}" 입니다.` });
         }
         
         setReviewQuestions(prev => prev.filter((_, i) => i !== index));
+        setSolvedReviewQuestions(prev => [solvedData, ...prev]);
 
     } catch (error: any) {
         toast({ variant: 'destructive', title: '오류', description: `답변 제출 중 오류가 발생했습니다: ${error.message}` });
@@ -254,7 +269,7 @@ export default function ProfilePage() {
   };
 
   const handleShowIncorrectAnswers = () => {
-    let filtered = reviewQuestions;
+    let filtered = solvedReviewQuestions;
 
     if (selectedSubject !== 'all') {
       filtered = filtered.filter(q => q.question.subject === selectedSubject);
@@ -556,13 +571,17 @@ export default function ProfilePage() {
                       </div>
                       <div className="flex items-center gap-2">
                           <XCircle className="w-4 h-4 text-red-600" />
-                          <span>내 답변: <span className="font-medium">{item.userAnswer}</span></span>
+                          <span>내 오답: <span className="font-medium">{item.userAnswer}</span></span>
                       </div>
+                       <div className="flex items-center gap-2">
+                            {item.wasReviewCorrect ? <CheckCircle className="w-4 h-4 text-blue-600" /> : <XCircle className="w-4 h-4 text-orange-500" />}
+                            <span>복습 시 답변: <span className="font-medium">{item.reviewAnswer}</span></span>
+                        </div>
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-muted-foreground text-center py-8">이 범위에서 틀린 문제가 없습니다.</p>
+                <p className="text-muted-foreground text-center py-8">이 범위에서 복습한 오답 기록이 없습니다.</p>
               )}
             </div>
           </ScrollArea>

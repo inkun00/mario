@@ -1,4 +1,5 @@
 
+
 export interface User {
   uid: string;
   email: string | null;
@@ -112,6 +113,13 @@ export interface IncorrectAnswer {
     timestamp: any;
 }
 
+export interface SolvedIncorrectAnswer extends IncorrectAnswer {
+  reviewAnswer: string;
+  wasReviewCorrect: boolean;
+  reviewedAt: any;
+}
+
+
 export interface PlayedGameSet {
   gameSetId: string;
   playedAt: any; // Firestore Timestamp
@@ -143,3 +151,4 @@ export interface School {
   memberCount: number;
   members: User[];
 }
+
