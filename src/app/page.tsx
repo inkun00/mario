@@ -43,9 +43,10 @@ export default function Home() {
             {/* Turtle Shell Icon */}
             <div className="absolute bottom-[15%] left-[30%] w-24 h-24 opacity-60 animate-blob animation-delay-3000">
               <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                <path d="M50,15 C25,15 10,30 10,50 C10,70 25,85 50,85 C75,85 90,70 90,50 C90,30 75,15 50,15 Z" fill="#4CAF50" stroke="#388E3C" strokeWidth="2"/>
-                <path d="M30 40 L 70 40 L 70 60 L 30 60 Z" fill="none" stroke="white" strokeWidth="3"/>
-                <path d="M50 25 L 50 75" fill="none" stroke="white" strokeWidth="3"/>
+                  <path d="M50,10 C22.38,10 0,22.38 0,50 C0,77.62 22.38,100 50,100 C77.62,100 100,77.62 100,50 C100,22.38 77.62,10 50,10 Z" fill="#4CAF50" stroke="#388E3C" strokeWidth="3"/>
+                  <path d="M50,18 C78.41,18 95,33.59 95,50 C95,66.41 78.41,82 50,82 C21.59,82 5,66.41 5,50 C5,33.59 21.59,18 50,18 Z" fill="#FFFFFF" stroke="#CFD8DC" strokeWidth="2"/>
+                  <path d="M30 40 L 40 30 L 60 30 L 70 40 L 70 60 L 60 70 L 40 70 L 30 60 Z" fill="#4CAF50" stroke="#388E3C" strokeWidth="2"/>
+                  <path d="M50 30 L 50 20 M50 70 L 50 80 M30 50 L 20 50 M70 50 L 80 50" fill="none" stroke="#388E3C" strokeWidth="2"/>
               </svg>
             </div>
              {/* Pipe Icon */}
