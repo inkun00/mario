@@ -32,6 +32,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
+import { getLevelInfo } from '@/lib/level-system';
 
 
 interface GameBlock {
@@ -770,24 +771,29 @@ export default function GamePage() {
               </Button>
             </div>
             <div className="flex-grow p-4 space-y-4 overflow-y-auto">
-              {scoreboardPlayers.map((player, index) => (
-                <div key={player.uid} className={cn(
-                    "p-3 rounded-lg border-2 transition-all", 
-                    player.uid === gameRoom?.currentTurn ? 'border-primary shadow-lg bg-primary/10' : 'border-transparent'
-                )}>
-                  <div className="flex items-center gap-3">
-                    <div className="font-bold text-lg w-6 text-center text-muted-foreground">
-                      {index === 0 && player.score > 0 ? <Crown className="w-5 h-5 mx-auto text-yellow-500 fill-yellow-400" /> : index + 1}
+              {scoreboardPlayers.map((player, index) => {
+                const levelInfo = getLevelInfo(player.score);
+                return (
+                  <div key={player.uid} className={cn(
+                      "p-3 rounded-lg border-2 transition-all", 
+                      player.uid === gameRoom?.currentTurn ? 'border-primary shadow-lg bg-primary/10' : 'border-transparent'
+                  )}>
+                    <div className="flex items-center gap-3">
+                      <div className="font-bold text-lg w-6 text-center text-muted-foreground">
+                        {index === 0 && player.score > 0 ? <Crown className="w-5 h-5 mx-auto text-yellow-500 fill-yellow-400" /> : index + 1}
+                      </div>
+                      <div className="h-10 w-10 flex items-center justify-center rounded-full bg-secondary text-2xl flex-shrink-0">
+                          {levelInfo.icon}
+                      </div>
+                      <div className="flex-grow">
+                        <p className="font-semibold">{player.nickname}</p>
+                        <Progress value={(player.score / 500) * 100} className="h-2 mt-1" />
+                      </div>
+                      <div className="font-bold text-primary text-lg w-12 text-right">{player.score}</div>
                     </div>
-                    <Image src={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageUrl || ''} alt={player.nickname} width={40} height={40} className="rounded-full" data-ai-hint={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageHint} />
-                    <div className="flex-grow">
-                      <p className="font-semibold">{player.nickname}</p>
-                      <Progress value={(player.score / 500) * 100} className="h-2 mt-1" />
-                    </div>
-                    <div className="font-bold text-primary text-lg w-12 text-right">{player.score}</div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </Card>
         </aside>
