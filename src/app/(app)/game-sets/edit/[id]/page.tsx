@@ -659,9 +659,7 @@ export default function EditGameSetPage() {
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="ghost" onClick={() => router.back()}>취소</Button>
                   
-                  {isValid ? (
-                    submitButton
-                  ) : (
+                  {isValid ? submitButton : (
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>

@@ -633,9 +633,7 @@ export default function CreateGameSetPage() {
                     주의: 부정한 방법으로 점수를 올리기 위해 퀴즈를 생성하는 경우 계정이 삭제될 수 있습니다.
                   </p>
                   <div className="w-full sm:w-auto flex flex-col items-center">
-                    {isValid ? (
-                      submitButton
-                    ) : (
+                    {isValid ? submitButton : (
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
