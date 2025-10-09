@@ -34,7 +34,7 @@ import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe,
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState, useRef } from 'react';
-import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe, updateDoc, increment } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe, updateDoc, increment, arrayUnion } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { GameSet } from '@/lib/types';
 import { auth } from '@/lib/firebase';
@@ -159,11 +159,22 @@ export default function DashboardPage() {
   };
 
   const handleReport = async () => {
-    if (!reportCandidate) return;
+    if (!reportCandidate || !user) return;
+    
+    if (reportCandidate.reportedBy?.includes(user.uid)) {
+        toast({ variant: "destructive", title: "중복 신고", description: "이미 신고한 퀴즈 세트입니다." });
+        setReportCandidate(null);
+        return;
+    }
+
     try {
         const gameSetRef = doc(db, 'game-sets', reportCandidate.id);
         const newReportCount = (reportCandidate.reportCount || 0) + 1;
-        const updateData: any = { reportCount: increment(1) };
+        const updateData: any = { 
+            reportCount: increment(1),
+            reportedBy: arrayUnion(user.uid)
+        };
+
         if (newReportCount >= 5) {
             updateData.isDisabled = true;
         }
@@ -613,3 +624,5 @@ export default function DashboardPage() {
     </>
   );
 }
+
+    

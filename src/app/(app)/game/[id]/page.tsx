@@ -541,7 +541,7 @@ export default function GamePage() {
     try {
         const batch = writeBatch(db);
 
-        // 1. Calculate XP updates
+        // 1. Calculate XP updates for players
         const xpUpdates: { [uid: string]: number } = {};
         (gameRoom.answerLogs || []).forEach(log => {
             if (log.userId && typeof log.pointsAwarded === 'number') {
@@ -608,7 +608,7 @@ export default function GamePage() {
 
         // 3. Batch write all updates
         playerUIDs.forEach(uid => {
-            // XP update
+            // XP update for players
             const userRef = doc(db, 'users', uid);
             if (xpUpdates[uid] && xpUpdates[uid] !== 0) {
                 batch.update(userRef, { xp: increment(xpUpdates[uid]) });
@@ -631,11 +631,19 @@ export default function GamePage() {
             }
         });
 
-        // Finalize game room status
+        // 4. Reward creator
+        if (gameSet.creatorId && !playerUIDs.includes(gameSet.creatorId)) {
+            const creatorRef = doc(db, 'users', gameSet.creatorId);
+            const rewardAmount = gameSet.questions.length; // 1 point per question
+            batch.update(creatorRef, { xp: increment(rewardAmount) });
+        }
+
+
+        // 5. Finalize game room status
         const gameRoomRef = doc(db, 'game-rooms', gameRoomId);
         batch.update(gameRoomRef, { status: 'finished' });
 
-        // 4. Commit batch
+        // 6. Commit batch
         await batch.commit();
 
         toast({ title: "저장 완료!", description: "게임 결과가 성공적으로 저장되었습니다." });
@@ -992,3 +1000,5 @@ export default function GamePage() {
     </>
   );
 }
+
+    
