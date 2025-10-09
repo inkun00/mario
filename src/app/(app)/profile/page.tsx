@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -23,7 +24,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo } from 'react';
 import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp } from 'firebase/firestore';
 import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -103,10 +104,12 @@ export default function ProfilePage() {
         const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
         const solvedIncorrectAnswersRef = collection(db, 'users', user.uid, 'solved-incorrect-answers');
         const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
+
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
         
         const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot] = await Promise.all([
           getDoc(userRef),
-          getDocs(query(incorrectAnswersRef, orderBy('timestamp', 'desc'))),
+          getDocs(query(incorrectAnswersRef, where('timestamp', '<=', oneDayAgo), orderBy('timestamp', 'asc'))),
           getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
           getDocs(subjectStatsRef),
         ]);
@@ -590,3 +593,4 @@ export default function ProfilePage() {
     </div>
   );
 }
+
