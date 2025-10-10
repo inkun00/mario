@@ -994,7 +994,7 @@ export default function GamePage() {
                   </div>
               </div>
               <DialogFooter className="sm:justify-center">
-                  <Button onClick={handleFinishAndSave} disabled={isFinishingGame}>
+                  <Button onClick={async () => await handleFinishAndSave()} disabled={isFinishingGame}>
                       {isFinishingGame ? <Loader2 className="w-4 h-4 mr-2 animate-spin"/> : <Save className="w-4 h-4 mr-2" />}
                       결과 저장 및 종료
                   </Button>
