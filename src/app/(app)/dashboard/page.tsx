@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -30,7 +31,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState, useRef } from 'react';
@@ -71,6 +72,7 @@ export default function DashboardPage() {
   const [selectedGameSet, setSelectedGameSet] = useState<GameSetDocument | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<GameSetDocument | null>(null);
   const [reportCandidate, setReportCandidate] = useState<GameSetDocument | null>(null);
+  const [oppositionCandidate, setOppositionCandidate] = useState<GameSetDocument | null>(null);
   const [deactivateCandidate, setDeactivateCandidate] = useState<GameSetDocument | null>(null);
   const [deactivationPassword, setDeactivationPassword] = useState("");
 
@@ -216,6 +218,34 @@ export default function DashboardPage() {
         toast({ variant: "destructive", title: "오류", description: "신고 처리 중 오류가 발생했습니다."});
     }
   };
+
+  const handleOpposeReport = async () => {
+    if (!oppositionCandidate) return;
+
+    try {
+        const gameSetRef = doc(db, 'game-sets', oppositionCandidate.id);
+        const currentOppositionCount = (oppositionCandidate.oppositionCount || 0) + 1;
+
+        if (currentOppositionCount >= 10) {
+            await updateDoc(gameSetRef, {
+                isDisabled: false,
+                reportCount: 0,
+                oppositionCount: 0,
+                reportedBy: [],
+            });
+            toast({ title: '퀴즈 세트 복구됨', description: `"${oppositionCandidate.title}" 퀴즈 세트가 여러 사용자의 지지를 받아 다시 활성화되었습니다.` });
+        } else {
+            await updateDoc(gameSetRef, {
+                oppositionCount: increment(1)
+            });
+            toast({ title: '신고 반대 완료', description: '신고에 반대 의견을 표시했습니다.' });
+        }
+        setOppositionCandidate(null);
+    } catch (e) {
+        toast({ variant: "destructive", title: "오류", description: "처리 중 오류가 발생했습니다." });
+    }
+  };
+
 
   const handleDeactivate = async () => {
     if (!deactivateCandidate) return;
@@ -516,25 +546,30 @@ export default function DashboardPage() {
                     </div>
                   </CardHeader>
                   <CardFooter className="mt-auto flex justify-end items-center gap-2 p-4 pt-0 pr-4">
-                    <Button variant="secondary" size="sm" onClick={() => setSelectedGameSet(set)} disabled={isDisabled}>미리보기</Button>
-                    {(isCreator || isAdmin) && (
+                    <Button variant="secondary" size="sm" onClick={() => setSelectedGameSet(set)}>미리보기</Button>
+                    {(isCreator || isAdmin) && !isDisabled && (
                       <>
-                        <Button variant="outline" size="sm" asChild disabled={isDisabled}>
+                        <Button variant="outline" size="sm" asChild>
                           <Link href={`/game-sets/edit/${set.id}`}><Pencil className="h-4 w-4" /> 수정</Link>
                         </Button>
                         <Button variant="destructive" size="sm" onClick={() => setDeleteCandidate(set)}>
                           <Trash2 className="h-4 w-4" /> 삭제
                         </Button>
-                        {isDisabled && isAdmin && (
+                      </>
+                    )}
+                     {isDisabled && (
+                        <>
+                          <Button variant="outline" size="sm" onClick={() => setOppositionCandidate(set)}>
+                            <ShieldCheck className="h-4 w-4 mr-2" /> 신고 반대
+                          </Button>
+                          {isAdmin && (
                             <Button variant="outline" size="sm" onClick={() => setDeactivateCandidate(set)}>
                               <ShieldOff className="mr-2 h-4 w-4"/>해제
                             </Button>
-                        )}
-                      </>
+                          )}
+                        </>
                     )}
-                    
-                    {createRoomButton}
-
+                    {!isDisabled && createRoomButton}
                   </CardFooter>
                 </Card>
               )})}
@@ -657,6 +692,21 @@ export default function DashboardPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>취소</AlertDialogCancel>
             <AlertDialogAction onClick={handleReport} className="bg-destructive hover:bg-destructive/90">신고</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!oppositionCandidate} onOpenChange={(isOpen) => !isOpen && setOppositionCandidate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>신고에 반대하시겠습니까?</AlertDialogTitle>
+            <AlertDialogDescription>
+              이 퀴즈 세트가 부당하게 비활성화되었다고 생각하시면 "신고 반대"를 눌러주세요. 많은 사용자가 반대하면 퀴즈는 다시 활성화될 수 있습니다.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleOpposeReport}>신고 반대</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -49,6 +49,7 @@ export interface GameSet {
   reportCount?: number;
   isDisabled?: boolean;
   reportedBy?: string[];
+  oppositionCount?: number;
 }
 
 export interface Player {
