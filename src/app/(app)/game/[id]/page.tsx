@@ -34,6 +34,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
 import { getLevelInfo } from '@/lib/level-system';
+import { MysteryBox } from '@/components/mystery-box';
 
 
 interface GameBlock {
@@ -737,7 +738,6 @@ export default function GamePage() {
   const scoreboardPlayers = players;
   const isHost = user?.uid === gameRoom.hostId;
   const winner = finalScores.length > 0 ? finalScores[0] : null;
-  const questionBlockImage = PlaceHolderImages.find(p => p.id === 'question-block');
 
 
   return (
@@ -775,15 +775,11 @@ export default function GamePage() {
                       )}>
                           {/* Front of the card */}
                           <div className={cn(
-                              "absolute inset-0 backface-hidden flex flex-col items-center justify-center rounded-lg shadow-md transition-all duration-300",
-                              !isClickDisabled(block) && "hover:scale-105 hover:shadow-xl",
-                              isOpened 
-                                ? 'bg-stone-300 border-b-8 border-stone-400 opacity-50' 
-                                : 'bg-yellow-400 border-b-8 border-yellow-600'
+                              "absolute inset-0 backface-hidden flex flex-col items-center justify-center transition-all duration-300",
+                              !isClickDisabled(block) && "hover:scale-105",
+                              isOpened && 'opacity-50'
                           )}>
-                              <span className="text-4xl font-bold text-white" style={{ textShadow: '2px 2px 0px #b45309, 4px 4px 0px #854d0e' }}>
-                                  ?
-                              </span>
+                              <MysteryBox />
                           </div>
                           
                           {/* Back of the card */}
@@ -855,17 +851,8 @@ export default function GamePage() {
           </DialogHeader>
           <div className="flex justify-center items-center gap-4 sm:gap-8 py-8">
             {mysteryOptions.map((option, index) => (
-              <div key={index} className="cursor-pointer hover:scale-110 transition-transform duration-300" onClick={() => handleMysteryBoxChoice(option)}>
-                {questionBlockImage && (
-                  <Image 
-                    src={questionBlockImage.imageUrl} 
-                    alt="Mystery Box" 
-                    width={150} 
-                    height={150} 
-                    className="aspect-square"
-                    data-ai-hint={questionBlockImage.imageHint}
-                  />
-                )}
+              <div key={index} className="w-32 h-32 cursor-pointer hover:scale-110 transition-transform duration-300" onClick={() => handleMysteryBoxChoice(option)}>
+                <MysteryBox />
               </div>
             ))}
           </div>
