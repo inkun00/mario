@@ -544,9 +544,11 @@ export default function GamePage() {
       const startTime = (gameRoom.gameStartedAt as Timestamp).toMillis();
       const endTime = Date.now();
       const duration = endTime - startTime;
-      const twoMinutesInMillis = 2 * 60 * 1000;
+      
+      const minMinutes = Math.ceil(gameSet.questions.length / 5);
+      const minDurationInMillis = minMinutes * 60 * 1000;
 
-      if (duration < twoMinutesInMillis) {
+      if (duration < minDurationInMillis) {
         toast({
           variant: "destructive",
           title: "점수 기록 불가",
@@ -771,7 +773,7 @@ export default function GamePage() {
                           <div className="absolute inset-0 backface-hidden rotate-y-180 flex items-center justify-center bg-secondary rounded-lg">
                             {block.type === 'question' ? (
                               <div className="flex flex-col items-center text-secondary-foreground font-bold text-center p-1">
-                                  <Star className="w-1/2 h-1/2 text-secondary-foreground fill-current" />
+                                  <Star className="w-1/2 h-1/2 fill-current" />
                                   <span className="text-sm">{block.question?.points === -1 ? '랜덤' : `${block.question?.points}점`}</span>
                               </div>
                             ) : (
