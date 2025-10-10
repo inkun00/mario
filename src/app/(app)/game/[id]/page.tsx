@@ -544,9 +544,9 @@ export default function GamePage() {
       const startTime = (gameRoom.gameStartedAt as Timestamp).toMillis();
       const endTime = Date.now();
       const duration = endTime - startTime;
-      const threeMinutesInMillis = 3 * 60 * 1000;
+      const twoMinutesInMillis = 2 * 60 * 1000;
 
-      if (duration < threeMinutesInMillis) {
+      if (duration < twoMinutesInMillis) {
         toast({
           variant: "destructive",
           title: "점수 기록 불가",
@@ -572,7 +572,7 @@ export default function GamePage() {
         // 2. Prepare stats updates by reading existing data first
         const userStatsToUpdate: { [uid: string]: { [subject: string]: SubjectStat } } = {};
         
-        const allSubjects = Array.from(new Set(gameRoom.answerLogs?.map(l => l.question?.subject).filter(Boolean) as string[]));
+        const allSubjects = Array.from(new Set((gameRoom.answerLogs || []).map(l => l.question?.subject).filter(Boolean) as string[]));
         const playerUIDs = Array.from(new Set((gameRoom.answerLogs || []).map(log => log.userId).filter(Boolean))) as string[];
 
         // Pre-fetch all necessary stats documents
