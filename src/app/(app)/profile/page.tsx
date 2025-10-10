@@ -505,12 +505,14 @@ export default function ProfilePage() {
       </Card>
       
       <Card>
-          <CardHeader>
-              <CardTitle className="font-headline flex items-center gap-2">
-                  <FileWarning className="text-primary"/> 오답노트
-              </CardTitle>
-              <CardDescription>틀렸던 문제들을 다시 풀어보고 점수를 만회하세요!</CardDescription>
-          </CardHeader>
+        <CardHeader>
+            <CardTitle className="font-headline flex items-center gap-2">
+                <FileWarning className="text-primary"/> 오답노트
+            </CardTitle>
+            <CardDescription>
+                틀렸던 문제들을 다시 풀어보고 점수를 만회하세요! 복습 효과를 높이기 위해 틀린 문제는 24시간 후에 공개됩니다.
+            </CardDescription>
+        </CardHeader>
           <CardContent>
               {reviewQuestions.length === 0 ? (
                   <div className="text-center py-8 border-2 border-dashed rounded-lg">
