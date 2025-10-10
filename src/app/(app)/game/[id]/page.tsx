@@ -749,12 +749,12 @@ export default function GamePage() {
                           {/* Front of the card */}
                            <div className={cn(
                               "absolute inset-0 backface-hidden flex items-center justify-center rounded-lg shadow-md transition-all duration-300",
-                              block.type === 'question' ? 'bg-yellow-400 border-b-8 border-yellow-600' : 'bg-pink-400 border-b-8 border-pink-600',
+                              'bg-yellow-400 border-b-8 border-yellow-600',
                               !isClickDisabled(block) && "hover:scale-105",
                               isOpened && 'opacity-50'
                           )}>
                               <span className="text-4xl sm:text-5xl font-bold text-white" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.2)' }}>
-                                  {block.type === 'question' ? '?' : <Gift />}
+                                  ?
                               </span>
                           </div>
                           
