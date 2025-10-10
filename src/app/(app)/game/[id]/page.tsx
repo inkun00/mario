@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -769,12 +770,12 @@ export default function GamePage() {
                           {/* Back of the card */}
                           <div className="absolute inset-0 backface-hidden rotate-y-180 flex items-center justify-center bg-secondary rounded-lg">
                             {block.type === 'question' ? (
-                              <div className="flex flex-col items-center text-accent font-bold text-center p-1">
-                                  <Star className="w-1/2 h-1/2 text-yellow-400 fill-yellow-400" />
+                              <div className="flex flex-col items-center text-secondary-foreground font-bold text-center p-1">
+                                  <Star className="w-1/2 h-1/2 text-secondary-foreground fill-current" />
                                   <span className="text-sm">{block.question?.points === -1 ? '랜덤' : `${block.question?.points}점`}</span>
                               </div>
                             ) : (
-                              <div className="flex flex-col items-center text-accent font-bold text-center p-1">
+                              <div className="flex flex-col items-center text-secondary-foreground font-bold text-center p-1">
                                   <Gift className="w-1/2 h-1/2" />
                                   <span className="text-sm">미스터리</span>
                               </div>
@@ -1019,5 +1020,3 @@ export default function GamePage() {
     </>
   );
 }
-
-    
