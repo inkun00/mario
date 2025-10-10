@@ -37,7 +37,7 @@ import Image from 'next/image';
 import { useEffect, useState, useRef } from 'react';
 import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe, updateDoc, increment, arrayUnion, getDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { GameSet, User as FsUser } from '@/lib/types';
+import type { GameSet, User as FsUser, GameRoom } from '@/lib/types';
 import { auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -82,7 +82,7 @@ export default function DashboardPage() {
   const [joinCode, setJoinCode] = useState('');
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [password, setPassword] = useState('');
-  const [targetRoom, setTargetRoom] = useState<GameSetDocument | null>(null);
+  const [targetRoom, setTargetRoom] = useState<GameRoom | null>(null);
 
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchGrade, setSearchGrade] = useState('');
@@ -314,7 +314,7 @@ export default function DashboardPage() {
             return;
         }
         
-        const roomData = roomSnap.data() as GameSetDocument;
+        const roomData = { id: roomSnap.id, ...roomSnap.data() } as GameRoom;
         if (roomData.password) {
             setTargetRoom(roomData);
             setShowPasswordDialog(true);
@@ -330,7 +330,9 @@ export default function DashboardPage() {
   const handlePasswordConfirm = () => {
       if (password === targetRoom?.password) {
           setShowPasswordDialog(false);
-          router.push(`/game/${targetRoom.id}/lobby`);
+          if (targetRoom?.id) {
+            router.push(`/game/${targetRoom.id}/lobby`);
+          }
       } else {
           toast({ variant: 'destructive', title: '오류', description: '비밀번호가 올바르지 않습니다.' });
       }
