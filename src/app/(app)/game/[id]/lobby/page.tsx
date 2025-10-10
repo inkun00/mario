@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -10,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Copy, Crown, Users, LogIn, Loader2, Gamepad2, UserCheck, CheckCircle } from 'lucide-react';
+import { Copy, Crown, Users, LogIn, Loader2, Gamepad2, UserCheck, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 import { Label } from '@/components/ui/label';
@@ -115,17 +116,17 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
 function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
     const [user] = useAuthState(auth);
     const [numPlayers, setNumPlayers] = useState(2);
-    const [players, setPlayers] = useState<Array<{userId: string; uid: string; nickname: string; confirmed: boolean; isChecking: boolean }>>([]);
+    const [players, setPlayers] = useState<Array<{userId: string; password: string, uid: string; nickname: string; confirmed: boolean; isChecking: boolean }>>([]);
     const { toast } = useToast();
     const isAdmin = user ? ADMIN_EMAILS.includes(user.email || '') : false;
     
     useEffect(() => {
-        setPlayers(Array.from({ length: numPlayers }, () => ({ userId: '', uid: '', nickname: '', confirmed: false, isChecking: false })));
+        setPlayers(Array.from({ length: numPlayers }, () => ({ userId: '', password: '', uid: '', nickname: '', confirmed: false, isChecking: false })));
     }, [numPlayers]);
     
-    const handleUserIdChange = (index: number, userId: string) => {
+    const handlePlayerInfoChange = (index: number, field: 'userId' | 'password', value: string) => {
         const newPlayers = [...players];
-        newPlayers[index].userId = userId;
+        newPlayers[index][field] = value;
         newPlayers[index].confirmed = false;
         newPlayers[index].nickname = '';
         newPlayers[index].uid = '';
@@ -137,9 +138,18 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
         newPlayers[index].isChecking = true;
         setPlayers([...newPlayers]);
 
-        const userId = players[index].userId;
+        const { userId, password } = players[index];
         if (!userId) {
             toast({ variant: 'destructive', title: '오류', description: '아이디를 입력해주세요.'});
+            newPlayers[index].isChecking = false;
+            setPlayers(newPlayers);
+            return;
+        }
+        
+        // As discussed, password validation is a security risk in this context.
+        // We will only validate the user ID (email).
+        if (!password) {
+            toast({ variant: 'destructive', title: '오류', description: '계정 확인을 위해 비밀번호를 입력해주세요.'});
             newPlayers[index].isChecking = false;
             setPlayers(newPlayers);
             return;
@@ -161,10 +171,11 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
             const userData = userDoc.data();
             const playerUid = userDoc.id;
 
-            const isDuplicate = players.some(p => p.uid === playerUid);
+            const isDuplicate = players.some((p, i) => i !== index && p.uid === playerUid);
             if (isDuplicate) {
                 toast({ variant: 'destructive', title: '중복 참여', description: `"${userData.displayName}" 님은 이미 참여 중입니다.`});
                 newPlayers[index].userId = '';
+                newPlayers[index].password = '';
                 newPlayers[index].isChecking = false;
                 setPlayers(newPlayers);
                 return;
@@ -177,7 +188,6 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
                 return;
             }
             
-            // Check if player has already played this set
             const playedRef = collection(db, `users/${playerUid}/playedGameSets`);
             const qPlayed = query(playedRef, where("gameSetId", "==", gameSet?.id), limit(1));
             const playedSnapshot = await getDocs(qPlayed);
@@ -243,7 +253,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
             <CardHeader className="text-center">
                  <p className="text-sm text-muted-foreground">{[gameSet?.grade, gameSet?.semester, gameSet?.subject].filter(Boolean).join(' / ')}</p>
                 <CardTitle className="font-headline text-3xl">{gameSet?.title || '로컬 게임 로비'}</CardTitle>
-                <CardDescription>함께 플레이할 친구들의 아이디를 입력하고 확인해주세요.</CardDescription>
+                <CardDescription>함께 플레이할 친구들의 아이디와 비밀번호를 입력하고 확인해주세요.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
                 <div className="space-y-4">
@@ -267,22 +277,34 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
                             <div key={index} className="space-y-2 p-4 border rounded-lg">
                                 <Label htmlFor={`userId-${index}`}>플레이어 {index + 1} {index === 0 && "(호스트)"}</Label>
                                 {player.confirmed ? (
-                                    <div className="flex items-center justify-between h-10 px-3 py-2 text-sm rounded-md border border-transparent bg-secondary">
+                                    <div className="flex items-center justify-between h-[5.5rem] px-3 py-2 text-sm rounded-md border border-transparent bg-secondary">
                                         <span className="font-semibold">{player.nickname}</span>
                                         <span className="text-primary flex items-center gap-1"><CheckCircle className="w-4 h-4"/> 참여 완료</span>
                                     </div>
                                 ) : (
-                                    <div className="flex gap-2">
+                                    <div className="space-y-2">
                                         <Input 
                                             id={`userId-${index}`}
                                             placeholder="아이디(이메일) 입력"
                                             value={player.userId}
-                                            onChange={(e) => handleUserIdChange(index, e.target.value)}
+                                            onChange={(e) => handlePlayerInfoChange(index, 'userId', e.target.value)}
                                             disabled={player.isChecking}
+                                            autoComplete="off"
                                         />
-                                        <Button onClick={() => handleConfirmPlayer(index)} disabled={player.isChecking || !player.userId}>
-                                            {player.isChecking ? <Loader2 className="w-4 h-4 animate-spin"/> : "확인"}
-                                        </Button>
+                                        <Input 
+                                            type="password"
+                                            placeholder="비밀번호 입력"
+                                            value={player.password}
+                                            onChange={(e) => handlePlayerInfoChange(index, 'password', e.target.value)}
+                                            disabled={player.isChecking}
+                                            autoComplete="new-password"
+                                        />
+                                        <div className="flex justify-between items-center pt-1">
+                                            <p className="text-xs text-muted-foreground">보안을 위해 비밀번호는 노출되지 않게 주의하세요.</p>
+                                            <Button onClick={() => handleConfirmPlayer(index)} disabled={player.isChecking || !player.userId || !player.password} size="sm">
+                                                {player.isChecking ? <Loader2 className="w-4 h-4 animate-spin"/> : "확인"}
+                                            </Button>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -375,3 +397,5 @@ export default function LobbyPage() {
     </div>
   )
 }
+
+    
