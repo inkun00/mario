@@ -10,6 +10,8 @@ export interface User {
   schoolName?: string;
   grade?: string;
   class?: string;
+  dailyReportCount?: number;
+  lastReportDate?: any;
 }
 
 export interface Question {

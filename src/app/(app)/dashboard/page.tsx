@@ -30,13 +30,13 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState, useRef } from 'react';
-import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe, updateDoc, increment, arrayUnion } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe, updateDoc, increment, arrayUnion, getDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { GameSet } from '@/lib/types';
+import type { GameSet, User as FsUser } from '@/lib/types';
 import { auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -75,14 +75,17 @@ export default function DashboardPage() {
   const [deactivationPassword, setDeactivationPassword] = useState("");
 
   const { toast } = useToast();
+  
   const [isJoining, setIsJoining] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [password, setPassword] = useState('');
+  const [targetRoom, setTargetRoom] = useState<GameSetDocument | null>(null);
 
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchGrade, setSearchGrade] = useState('');
   const [searchSemester, setSearchSemester] = useState('');
   const [searchSubject, setSearchSubject] = useState('');
-
-  const [joinCode, setJoinCode] = useState('');
 
   const isAdmin = user ? ADMIN_EMAILS.includes(user.email || '') : false;
   
@@ -161,24 +164,52 @@ export default function DashboardPage() {
   const handleReport = async () => {
     if (!reportCandidate || !user) return;
     
+    // Check if user has already reported this set
     if (reportCandidate.reportedBy?.includes(user.uid)) {
         toast({ variant: "destructive", title: "중복 신고", description: "이미 신고한 퀴즈 세트입니다." });
         setReportCandidate(null);
         return;
     }
+    
+    // Check daily report limit
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+    if (!userSnap.exists()) return;
+
+    const userData = userSnap.data() as FsUser;
+    const today = new Date().toISOString().split('T')[0];
+    const lastReportDay = userData.lastReportDate ? (userData.lastReportDate as Timestamp).toDate().toISOString().split('T')[0] : null;
+
+    let newReportCount = userData.dailyReportCount || 0;
+    
+    if (today !== lastReportDay) {
+      newReportCount = 0;
+    }
+
+    if (newReportCount >= 3) {
+      toast({ variant: "destructive", title: "신고 한도 초과", description: "하루 신고 횟수를 초과했습니다. 내일 다시 시도해주세요." });
+      setReportCandidate(null);
+      return;
+    }
 
     try {
         const gameSetRef = doc(db, 'game-sets', reportCandidate.id);
-        const newReportCount = (reportCandidate.reportCount || 0) + 1;
+        const currentReportCount = (reportCandidate.reportCount || 0) + 1;
         const updateData: any = { 
             reportCount: increment(1),
             reportedBy: arrayUnion(user.uid)
         };
 
-        if (newReportCount >= 5) {
+        if (currentReportCount >= 5) {
             updateData.isDisabled = true;
         }
         await updateDoc(gameSetRef, updateData);
+        
+        await updateDoc(userRef, {
+            dailyReportCount: newReportCount + 1,
+            lastReportDate: serverTimestamp(),
+        });
+
         toast({ title: "신고 완료", description: "퀴즈 세트가 신고되었습니다. 검토 후 조치하겠습니다."});
         setReportCandidate(null);
     } catch(e) {
@@ -196,7 +227,7 @@ export default function DashboardPage() {
 
     try {
         const gameSetRef = doc(db, 'game-sets', deactivateCandidate.id);
-        await updateDoc(gameSetRef, { isDisabled: false, reportCount: 0 });
+        await updateDoc(gameSetRef, { isDisabled: false, reportCount: 0, reportedBy: [] });
         toast({ title: '성공', description: `"${deactivateCandidate.title}" 퀴즈 세트가 다시 활성화되었습니다.`});
         setDeactivateCandidate(null);
         setDeactivationPassword("");
@@ -236,6 +267,45 @@ export default function DashboardPage() {
     setCurrentPage(1);
   };
 
+  const handleJoinGame = async () => {
+    if (!joinCode) {
+        toast({ variant: 'destructive', title: '오류', description: '참여 코드를 입력해주세요.' });
+        return;
+    }
+    setIsJoining(true);
+
+    try {
+        const roomRef = doc(db, 'game-rooms', joinCode.toUpperCase());
+        const roomSnap = await getDoc(roomRef);
+
+        if (!roomSnap.exists()) {
+            toast({ variant: 'destructive', title: '오류', description: '존재하지 않는 게임방입니다.' });
+            setIsJoining(false);
+            return;
+        }
+        
+        const roomData = roomSnap.data() as GameSetDocument;
+        if (roomData.password) {
+            setTargetRoom(roomData);
+            setShowPasswordDialog(true);
+        } else {
+            router.push(`/game/${joinCode.toUpperCase()}/lobby`);
+        }
+    } catch (error) {
+        toast({ variant: 'destructive', title: '오류', description: '게임방 확인 중 오류가 발생했습니다.' });
+    }
+    setIsJoining(false);
+  };
+  
+  const handlePasswordConfirm = () => {
+      if (password === targetRoom?.password) {
+          setShowPasswordDialog(false);
+          router.push(`/game/${targetRoom.id}/lobby`);
+      } else {
+          toast({ variant: 'destructive', title: '오류', description: '비밀번호가 올바르지 않습니다.' });
+      }
+  };
+
   const indexOfLastItem = currentPage * ITEMS_PER_PAGE;
   const indexOfFirstItem = indexOfLastItem - ITEMS_PER_PAGE;
   const currentItems = filteredGameSets.slice(indexOfFirstItem, indexOfLastItem);
@@ -256,34 +326,26 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div className="cursor-not-allowed">
-                  <Card className="opacity-50 pointer-events-none">
-                    <CardHeader>
-                      <CardTitle className="font-headline">게임 참여하기</CardTitle>
-                      <CardDescription>참여 코드를 입력하여 친구의 게임에 참여하세요.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex gap-2">
-                        <Input 
-                          placeholder="참여 코드 입력" 
-                          disabled
-                        />
-                        <Button disabled>
-                          참여
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>아직 개발 전입니다.</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline">게임 참여하기</CardTitle>
+                    <CardDescription>참여 코드를 입력하여 친구의 게임에 참여하세요.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex gap-2">
+                    <Input 
+                        placeholder="참여 코드 입력"
+                        value={joinCode}
+                        onChange={(e) => setJoinCode(e.target.value)}
+                        disabled={isJoining}
+                    />
+                    <Button onClick={handleJoinGame} disabled={isJoining}>
+                        {isJoining ? <Loader2 className="w-4 h-4 animate-spin"/> : <LogIn className="w-4 h-4" />}
+                        참여
+                    </Button>
+                    </div>
+                </CardContent>
+            </Card>
 
           <Card>
             <CardHeader>
@@ -619,6 +681,29 @@ export default function DashboardPage() {
             <AlertDialogCancel onClick={() => setDeactivationPassword("")}>취소</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeactivate}>해제</AlertDialogAction>
           </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      
+      <AlertDialog open={showPasswordDialog} onOpenChange={(isOpen) => { if (!isOpen) { setShowPasswordDialog(false); setPassword(''); setTargetRoom(null); }}}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>비밀번호 입력</AlertDialogTitle>
+                <AlertDialogDescription>
+                    이 게임방은 비밀번호가 설정되어 있습니다. 참여하려면 비밀번호를 입력해주세요.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <div className="py-2">
+                <Input 
+                    type="password"
+                    placeholder="비밀번호 입력"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                />
+            </div>
+            <AlertDialogFooter>
+                <AlertDialogCancel>취소</AlertDialogCancel>
+                <AlertDialogAction onClick={handlePasswordConfirm}>확인</AlertDialogAction>
+            </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </>

@@ -77,6 +77,7 @@ export default function SignupPage() {
             createdAt: serverTimestamp(),
             xp: 0,
             level: 1,
+            dailyReportCount: 0,
         });
     }
   };
