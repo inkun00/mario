@@ -621,7 +621,7 @@ export default function ProfilePage() {
       <Dialog open={showIncorrectAnswersDialog} onOpenChange={setShowIncorrectAnswersDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>오답 문제 미리보기</DialogTitle>
+            <DialogTitle>오답 기록 확인하기</DialogTitle>
             <DialogDescription>
               {selectedUnit !== 'all' ? `"${selectedUnit}" 단원에서 ` : selectedSubject !== 'all' ? `"${selectedSubject}" 과목에서 ` : '전체 과목에서 '}
               틀린 문제 목록입니다.
