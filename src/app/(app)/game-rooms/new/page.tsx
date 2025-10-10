@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -160,7 +161,6 @@ function NewGameRoomPageContents() {
 
       await setDoc(doc(db, "game-rooms", newRoomId), {
           ...newRoom,
-          id: newRoomId,
           createdAt: serverTimestamp(),
       });
       

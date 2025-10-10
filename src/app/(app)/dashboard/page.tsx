@@ -83,6 +83,8 @@ export default function DashboardPage() {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [password, setPassword] = useState('');
   const [targetRoom, setTargetRoom] = useState<GameRoom | null>(null);
+  const [targetRoomId, setTargetRoomId] = useState<string | null>(null);
+
 
   const [searchKeyword, setSearchKeyword] = useState('');
   const [searchGrade, setSearchGrade] = useState('');
@@ -314,9 +316,10 @@ export default function DashboardPage() {
             return;
         }
         
-        const roomData = { id: roomSnap.id, ...roomSnap.data() } as GameRoom;
+        const roomData = roomSnap.data() as GameRoom;
         if (roomData.password) {
             setTargetRoom(roomData);
+            setTargetRoomId(roomSnap.id);
             setShowPasswordDialog(true);
         } else {
             router.push(`/game/${joinCode.toUpperCase()}/lobby`);
@@ -330,8 +333,8 @@ export default function DashboardPage() {
   const handlePasswordConfirm = () => {
       if (password === targetRoom?.password) {
           setShowPasswordDialog(false);
-          if (targetRoom?.id) {
-            router.push(`/game/${targetRoom.id}/lobby`);
+          if (targetRoomId) {
+            router.push(`/game/${targetRoomId}/lobby`);
           }
       } else {
           toast({ variant: 'destructive', title: '오류', description: '비밀번호가 올바르지 않습니다.' });
@@ -358,26 +361,37 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="font-headline">게임 참여하기</CardTitle>
-                    <CardDescription>참여 코드를 입력하여 친구의 게임에 참여하세요.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex gap-2">
-                    <Input 
-                        placeholder="참여 코드 입력"
-                        value={joinCode}
-                        onChange={(e) => setJoinCode(e.target.value)}
-                        disabled={isJoining}
-                    />
-                    <Button onClick={handleJoinGame} disabled={isJoining}>
-                        {isJoining ? <Loader2 className="w-4 h-4 animate-spin"/> : <LogIn className="w-4 h-4" />}
-                        참여
-                    </Button>
-                    </div>
-                </CardContent>
-            </Card>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="cursor-not-allowed">
+                    <Card className="opacity-50 pointer-events-none">
+                        <CardHeader>
+                            <CardTitle className="font-headline">게임 참여하기</CardTitle>
+                            <CardDescription>참여 코드를 입력하여 친구의 게임에 참여하세요.</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex gap-2">
+                            <Input 
+                                placeholder="참여 코드 입력"
+                                value={joinCode}
+                                onChange={(e) => setJoinCode(e.target.value)}
+                                disabled={true}
+                            />
+                            <Button onClick={handleJoinGame} disabled={true}>
+                                <LogIn className="w-4 h-4" />
+                                참여
+                            </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>개발 중인 기능입니다.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
 
           <Card>
             <CardHeader>
