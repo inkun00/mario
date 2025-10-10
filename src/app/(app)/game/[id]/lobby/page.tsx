@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, getDocs, limit, arrayUnion } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, getDocs, limit, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, PlayedGameSet } from '@/lib/types';
@@ -41,6 +41,7 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
             await updateDoc(roomRef, { 
               status: gameRoom.mysteryBoxEnabled ? 'setting-mystery' : 'playing',
               playerUIDs: Object.keys(gameRoom.players),
+              gameStartedAt: serverTimestamp()
             });
             // The onSnapshot listener in the main component will handle the redirection
         } catch (error) {
@@ -239,7 +240,8 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
                 players: playerObjects,
                 playerUIDs: playerUIDs,
                 currentTurn: playerUIDs[0],
-                hostId: playerUIDs[0]
+                hostId: playerUIDs[0],
+                gameStartedAt: serverTimestamp()
             });
         } catch (error) {
             console.error("Error starting local game:", error);

@@ -94,6 +94,7 @@ export interface GameRoom {
   createdAt: any;
   localPlayers?: LocalPlayer[];
   answerLogs?: AnswerLog[];
+  gameStartedAt?: any;
 }
 
 export interface CorrectAnswer {
