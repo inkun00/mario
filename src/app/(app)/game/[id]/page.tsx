@@ -44,7 +44,7 @@ interface GameBlock {
 }
 
 interface MysteryEffect {
-    type: MysteryEffectType | 'dud';
+    type: MysteryEffectType;
     title: string;
     description: string;
     icon?: React.ReactNode;
@@ -229,36 +229,30 @@ export default function GamePage() {
   const handleMysteryBoxChoice = (chosenEffect: MysteryEffect) => {
     setShowMysteryChoicePopup(false);
 
-    if (chosenEffect.type === 'dud') {
-        setMysteryBoxEffect(chosenEffect);
-        setShowMysteryBoxPopup(true);
-    } else {
-        let effectDetails: MysteryEffect;
-        const randomPoints = (Math.floor(Math.random() * 5) + 1) * 10;
+    let effectDetails: MysteryEffect;
+    const randomPoints = (Math.floor(Math.random() * 5) + 1) * 10;
 
-        switch (chosenEffect.type) {
-            case 'bonus':
-                effectDetails = { type: 'bonus', title: '점수 보너스!', description: `축하합니다! ${randomPoints}점을 추가로 획득합니다.`, icon: <Star className="w-16 h-16 text-yellow-400"/>, value: randomPoints };
-                break;
-            case 'double':
-                effectDetails = { type: 'double', title: '점수 2배!', description: '행운의 주인공! 현재까지 누적된 모든 점수가 2배가 됩니다.', icon: <ChevronsRight className="w-16 h-16 text-green-500"/> };
-                break;
-            case 'penalty':
-                effectDetails = { type: 'penalty', title: '점수 감점...', description: `이런! ${randomPoints}점이 감점됩니다.`, icon: <Bomb className="w-16 h-16 text-destructive"/>, value: -randomPoints };
-                break;
-            case 'half':
-                effectDetails = { type: 'half', title: '점수 반감', description: '치명적인 실수! 현재까지 누적된 모든 점수가 절반으로 줄어듭니다.', icon: <TrendingDown className="w-16 h-16 text-orange-500"/> };
-                break;
-            case 'swap':
-                effectDetails = { type: 'swap', title: '점수 바꾸기!', description: '전략적 선택! 다른 플레이어와 점수를 바꿀 수 있습니다.', icon: <Repeat className="w-16 h-16 text-blue-500"/> };
-                break;
-            default:
-                // Should not happen, but as a fallback
-                effectDetails = { type: 'dud', title: '꽝!', description: '아무 일도 일어나지 않았습니다.' };
-        }
-        setMysteryBoxEffect(effectDetails);
-        setShowMysteryBoxPopup(true);
+    switch (chosenEffect.type) {
+        case 'bonus':
+            effectDetails = { type: 'bonus', title: '점수 보너스!', description: `축하합니다! ${randomPoints}점을 추가로 획득합니다.`, icon: <Star className="w-16 h-16 text-yellow-400"/>, value: randomPoints };
+            break;
+        case 'double':
+            effectDetails = { type: 'double', title: '점수 2배!', description: '행운의 주인공! 현재까지 누적된 모든 점수가 2배가 됩니다.', icon: <ChevronsRight className="w-16 h-16 text-green-500"/> };
+            break;
+        case 'penalty':
+            effectDetails = { type: 'penalty', title: '점수 감점...', description: `이런! ${randomPoints}점이 감점됩니다.`, icon: <Bomb className="w-16 h-16 text-destructive"/>, value: -randomPoints };
+            break;
+        case 'half':
+            effectDetails = { type: 'half', title: '점수 반감', description: '치명적인 실수! 현재까지 누적된 모든 점수가 절반으로 줄어듭니다.', icon: <TrendingDown className="w-16 h-16 text-orange-500"/> };
+            break;
+        case 'swap':
+            effectDetails = { type: 'swap', title: '점수 바꾸기!', description: '전략적 선택! 다른 플레이어와 점수를 바꿀 수 있습니다.', icon: <Repeat className="w-16 h-16 text-blue-500"/> };
+            break;
+        default:
+             effectDetails = { type: 'bonus', title: '점수 보너스!', description: `축하합니다! ${randomPoints}점을 추가로 획득합니다.`, icon: <Star className="w-16 h-16 text-yellow-400"/>, value: randomPoints };
     }
+    setMysteryBoxEffect(effectDetails);
+    setShowMysteryBoxPopup(true);
   };
   
   const handleBlockClick = (block: GameBlock) => {
@@ -289,29 +283,23 @@ export default function GamePage() {
 
   const prepareMysteryChoice = () => {
     if (!gameRoom) return;
-
+  
     const effects = gameRoom.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
-    let chosenEffectType: MysteryEffectType | 'dud';
-
-    if (effects.length === 0) {
-      chosenEffectType = 'dud';
-    } else {
-      chosenEffectType = effects[Math.floor(Math.random() * effects.length)];
-    }
-
-    const dudEffect: MysteryEffect = { type: 'dud', title: '꽝!', description: '아무 일도 일어나지 않았습니다.' };
     
-    let options: MysteryEffect[] = [dudEffect, dudEffect];
-    if (chosenEffectType !== 'dud') {
-        const originalEffect = allMysteryEffects.find(e => e.type === chosenEffectType);
-        if (originalEffect) {
-            options.push({ ...originalEffect, description: '' }); // description is revealed later
-        } else {
-            options.push(dudEffect);
-        }
-    } else {
-        options.push(dudEffect);
+    let options: MysteryEffect[] = [];
+    if (effects.length > 0) {
+      const shuffledEffects = shuffleArray(effects);
+      options = shuffledEffects.slice(0, 3).map(type => {
+        const originalEffect = allMysteryEffects.find(e => e.type === type);
+        return { ...originalEffect, description: '' } as MysteryEffect; // description is revealed later
+      });
     }
+
+    // Ensure we have 3 options, duplicating if necessary
+    while(options.length > 0 && options.length < 3) {
+      options.push(...options);
+    }
+    options = options.slice(0, 3);
     
     setMysteryOptions(shuffleArray(options));
     setShowMysteryChoicePopup(true);
@@ -457,8 +445,6 @@ export default function GamePage() {
         let pointsChange = 0;
 
         switch (mysteryBoxEffect.type) {
-            case 'dud':
-                break; // No points change
             case 'bonus':
             case 'penalty':
                 pointsChange = mysteryBoxEffect.value || 0;
@@ -555,31 +541,29 @@ export default function GamePage() {
   const handleFinishAndSave = async () => {
     if (!gameRoom || typeof gameRoomId !== 'string' || !gameSet || !user) return;
     
-    // Check game duration
     if (gameRoom.gameStartedAt) {
-      const startTime = (gameRoom.gameStartedAt as Timestamp).toMillis();
-      const endTime = Date.now();
-      const duration = endTime - startTime;
-      
-      const minMinutes = Math.ceil(gameSet.questions.length / 5);
-      const minDurationInMillis = minMinutes * 60 * 1000;
+        const startTime = (gameRoom.gameStartedAt as Timestamp).toMillis();
+        const endTime = Date.now();
+        const duration = endTime - startTime;
+        
+        const minMinutes = Math.ceil(gameSet.questions.length / 5);
+        const minDurationInMillis = minMinutes * 60 * 1000;
 
-      if (duration < minDurationInMillis) {
-        toast({
-          variant: "destructive",
-          title: "점수 기록 불가",
-          description: "부정행위로 보이는 활동이 감지되어 점수 기록이 되지 않습니다.",
-        });
-        router.push('/dashboard');
-        return;
-      }
+        if (duration < minDurationInMillis) {
+            toast({
+                variant: "destructive",
+                title: "점수 기록 불가",
+                description: "부정행위로 보이는 활동이 감지되어 점수 기록이 되지 않습니다.",
+            });
+            router.push('/dashboard');
+            return;
+        }
     }
 
     setIsFinishingGame(true);
     try {
         const batch = writeBatch(db);
 
-        // 1. Calculate XP updates for players
         const xpUpdates: { [uid: string]: number } = {};
         (gameRoom.answerLogs || []).forEach(log => {
             if (log.userId && typeof log.pointsAwarded === 'number') {
@@ -587,13 +571,11 @@ export default function GamePage() {
             }
         });
 
-        // 2. Prepare stats updates by reading existing data first
         const userStatsToUpdate: { [uid: string]: { [subject: string]: SubjectStat } } = {};
         
         const allSubjects = Array.from(new Set((gameRoom.answerLogs || []).map(l => l.question?.subject).filter(Boolean) as string[]));
         const playerUIDs = Array.from(new Set((gameRoom.answerLogs || []).map(log => log.userId).filter(Boolean))) as string[];
 
-        // Pre-fetch all necessary stats documents
         const statsPromises = playerUIDs.flatMap(uid => 
             allSubjects.map(subject => getDoc(doc(db, "users", uid, "subjectStats", subject)))
         );
@@ -611,7 +593,6 @@ export default function GamePage() {
             }
         });
 
-        // Calculate new stats based on game logs
         (gameRoom.answerLogs || []).forEach(log => {
             if (!log.userId || !log.question?.subject || !log.question.unit) return;
 
@@ -644,15 +625,12 @@ export default function GamePage() {
             }
         });
 
-        // 3. Batch write all updates
         playerUIDs.forEach(uid => {
-            // XP update for players
             const userRef = doc(db, 'users', uid);
             if (xpUpdates[uid] && xpUpdates[uid] !== 0) {
                 batch.update(userRef, { xp: increment(xpUpdates[uid]) });
             }
 
-            // Played game set record
             const playedGameSetRef = doc(db, 'users', uid, 'playedGameSets', gameRoomId);
             batch.set(playedGameSetRef, {
                 gameSetId: gameSet.id,
@@ -660,7 +638,6 @@ export default function GamePage() {
                 gameRoomId: gameRoomId,
             });
 
-            // Subject stats update
             if (userStatsToUpdate[uid]) {
                 for (const subject in userStatsToUpdate[uid]) {
                     const statRef = doc(db, "users", uid, "subjectStats", subject);
@@ -669,19 +646,15 @@ export default function GamePage() {
             }
         });
 
-        // 4. Reward creator
         if (gameSet.creatorId && !playerUIDs.includes(gameSet.creatorId)) {
             const creatorRef = doc(db, 'users', gameSet.creatorId);
-            const rewardAmount = gameSet.questions.length; // 1 point per question
+            const rewardAmount = gameSet.questions.length;
             batch.update(creatorRef, { xp: increment(rewardAmount) });
         }
 
-
-        // 5. Finalize game room status
         const gameRoomRef = doc(db, 'game-rooms', gameRoomId);
         batch.update(gameRoomRef, { status: 'finished' });
 
-        // 6. Commit batch
         await batch.commit();
 
         toast({ title: "저장 완료!", description: "게임 결과가 성공적으로 저장되었습니다." });
@@ -774,12 +747,15 @@ export default function GamePage() {
                           isClickDisabled(block) ? 'cursor-not-allowed' : 'cursor-pointer'
                       )}>
                           {/* Front of the card */}
-                          <div className={cn(
-                              "absolute inset-0 backface-hidden flex flex-col items-center justify-center transition-all duration-300",
+                           <div className={cn(
+                              "absolute inset-0 backface-hidden flex items-center justify-center rounded-lg shadow-md transition-all duration-300",
+                              block.type === 'question' ? 'bg-yellow-400 border-b-8 border-yellow-600' : 'bg-pink-400 border-b-8 border-pink-600',
                               !isClickDisabled(block) && "hover:scale-105",
                               isOpened && 'opacity-50'
                           )}>
-                              <MysteryBox />
+                              <span className="text-4xl sm:text-5xl font-bold text-white" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.2)' }}>
+                                  {block.type === 'question' ? '?' : <Gift />}
+                              </span>
                           </div>
                           
                           {/* Back of the card */}
@@ -995,7 +971,7 @@ export default function GamePage() {
                   )}
               </div>
               <Button className="w-full" onClick={handleMysteryEffect} disabled={isSubmitting || (mysteryBoxEffect?.type === 'swap' && !playerForSwap)}>
-                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : mysteryBoxEffect?.type === 'dud' ? '확인' : "효과 적용"}
+                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "효과 적용"}
               </Button>
           </DialogContent>
       </Dialog>
