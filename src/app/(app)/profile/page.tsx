@@ -47,6 +47,16 @@ interface ReviewQuestion extends IncorrectAnswer {
 // Helper function to transform flat stats into a nested structure
 const transformStats = (flatStats: SubjectStat[]): SubjectStat[] => {
   return flatStats.map(stat => {
+    // If units are already in the correct nested format, just ensure counts are initialized
+    if (stat.units && typeof stat.units === 'object' && !Array.isArray(stat.units)) {
+        return {
+            ...stat,
+            totalCorrect: stat.totalCorrect || 0,
+            totalIncorrect: stat.totalIncorrect || 0,
+        };
+    }
+
+    // Otherwise, handle the old flattened structure
     const newStat: SubjectStat = {
       id: stat.id,
       totalCorrect: stat.totalCorrect || 0,
