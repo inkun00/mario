@@ -1222,5 +1222,3 @@ export default function ProfilePage() {
     </>
   );
 }
-
-    
