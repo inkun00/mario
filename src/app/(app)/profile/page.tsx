@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -164,9 +165,7 @@ export default function ProfilePage() {
 
         const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
         
-        const [userSnap] = await Promise.all([
-          getDoc(userRef),
-        ]);
+        const userSnap = await getDoc(userRef);
 
         if (userSnap.exists()) {
           const fetchedUserData = userSnap.data() as User;
@@ -190,7 +189,7 @@ export default function ProfilePage() {
           setNextLevelInfo(getNextLevelInfo(currentLevel.level));
 
           let classmatesQuery;
-          if (fetchedUserData.role === 'teacher' && fetchedUserData.classCode) {
+          if (fetchedUserData.role === 'teacher') {
             classmatesQuery = query(collection(db, 'users'), where('classId', '==', user.uid));
           } else if (fetchedUserData.role === 'student' && fetchedUserData.classId) {
             classmatesQuery = query(collection(db, 'users'), where('classId', '==', fetchedUserData.classId));
@@ -744,14 +743,19 @@ export default function ProfilePage() {
               <p className="text-sm text-muted-foreground">누적 포인트</p>
             </div>
             <div className="flex flex-col items-center">
-              <p className="flex items-center justify-center text-2xl font-bold">
-                  <Gem className="w-5 h-5 mr-1 text-blue-500"/>
-                  {(userData.classPoints || 0).toLocaleString()}
-              </p>
-              <p className="text-sm text-muted-foreground">학급 포인트</p>
-              <Button 
-                variant="link" 
-                size="sm" 
+              <div 
+                className={cn("flex flex-col items-center", canSendPoints && "cursor-pointer hover:opacity-80")}
+                onClick={() => canSendPoints && setIsSendPointsDialogOpen(true)}
+              >
+                <p className="flex items-center justify-center text-2xl font-bold">
+                    <Gem className="w-5 h-5 mr-1 text-blue-500"/>
+                    {(userData.classPoints || 0).toLocaleString()}
+                </p>
+                <p className="text-sm text-muted-foreground">학급 포인트</p>
+              </div>
+              <Button
+                variant="link"
+                size="sm"
                 className="h-auto p-0 mt-1"
                 disabled={!canSendPoints}
                 onClick={() => setIsSendPointsDialogOpen(true)}
@@ -1217,3 +1221,5 @@ export default function ProfilePage() {
     </>
   );
 }
+
+    
