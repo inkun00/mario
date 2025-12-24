@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { User, ClassStoreItem } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +20,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useToast } from '@/hooks/use-toast';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const sellItemSchema = z.object({
   name: z.string().min(1, '상품명을 입력해주세요.').max(30, '상품명은 30자 이내로 입력해주세요.'),
@@ -37,7 +38,13 @@ export default function MyClassPage() {
   const [classMembers, setClassMembers] = useState<User[]>([]);
   const [teacher, setTeacher] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const [classStoreItems, setClassStoreItems] = useState<ClassStoreItem[]>([]);
+  const [isStoreLoading, setIsStoreLoading] = useState(true);
+
   const [isSellItemDialogOpen, setIsSellItemDialogOpen] = useState(false);
+  const [isBuyItemDialogOpen, setIsBuyItemDialogOpen] = useState(false);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -87,6 +94,21 @@ export default function MyClassPage() {
             }
 
             setClassMembers(members.sort((a, b) => b.xp - a.xp));
+            
+            // Fetch class store items
+            setIsStoreLoading(true);
+            const storeQuery = query(collection(db, 'class-store-items'), where('classId', '==', targetClassId));
+            const unsubscribe = onSnapshot(storeQuery, (snapshot) => {
+              const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClassStoreItem));
+              setClassStoreItems(items);
+              setIsStoreLoading(false);
+            }, (error) => {
+              console.error("Error fetching store items:", error);
+              toast({ variant: "destructive", title: "오류", description: "학급 매장 상품을 불러오는 중 오류가 발생했습니다."});
+              setIsStoreLoading(false);
+            });
+            
+            return () => unsubscribe();
         }
       }
 
@@ -94,7 +116,7 @@ export default function MyClassPage() {
     };
 
     fetchClassData();
-  }, [user]);
+  }, [user, toast]);
 
   async function handleSellItem(data: SellItemFormValues) {
     if (!user || !userData) return;
@@ -228,9 +250,55 @@ export default function MyClassPage() {
                         <CardDescription>학급 포인트를 사용하여 다양한 아이템을 구매하거나 판매할 수 있습니다.</CardDescription>
                     </CardHeader>
                     <CardContent className="flex flex-col sm:flex-row gap-4">
-                        <Button className="w-full" disabled>
-                            <ShoppingCart className="mr-2 h-4 w-4"/> 물건 사기 (개발 중)
-                        </Button>
+                       <Dialog open={isBuyItemDialogOpen} onOpenChange={setIsBuyItemDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button className="w-full">
+                                    <ShoppingCart className="mr-2 h-4 w-4"/> 물건 사기
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl">
+                                <DialogHeader>
+                                    <DialogTitle>학급 매점</DialogTitle>
+                                    <DialogDescription>판매 중인 물품 목록입니다.</DialogDescription>
+                                </DialogHeader>
+                                <ScrollArea className="h-96">
+                                  {isStoreLoading ? (
+                                    <div className="flex justify-center items-center h-full">
+                                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                                    </div>
+                                  ) : classStoreItems.length === 0 ? (
+                                    <div className="text-center py-12">
+                                      <p className="text-muted-foreground">아직 판매 중인 상품이 없습니다.</p>
+                                    </div>
+                                  ) : (
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow>
+                                          <TableHead>상품명</TableHead>
+                                          <TableHead>판매자</TableHead>
+                                          <TableHead className="text-center">수량</TableHead>
+                                          <TableHead className="text-right">가격 (포인트)</TableHead>
+                                          <TableHead className="w-[100px]"></TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {classStoreItems.map((item) => (
+                                          <TableRow key={item.id}>
+                                            <TableCell className="font-medium">{item.name}</TableCell>
+                                            <TableCell>{item.sellerNickname}</TableCell>
+                                            <TableCell className="text-center">{item.quantity}</TableCell>
+                                            <TableCell className="text-right font-bold text-primary">{item.price.toLocaleString()}</TableCell>
+                                            <TableCell>
+                                              <Button size="sm" disabled={item.sellerId === user.uid}>구매</Button>
+                                            </TableCell>
+                                          </TableRow>
+                                        ))}
+                                      </TableBody>
+                                    </Table>
+                                  )}
+                                </ScrollArea>
+                            </DialogContent>
+                        </Dialog>
                         <Dialog open={isSellItemDialogOpen} onOpenChange={setIsSellItemDialogOpen}>
                             <DialogTrigger asChild>
                                  <Button className="w-full" variant="secondary">
