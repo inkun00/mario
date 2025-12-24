@@ -152,7 +152,12 @@ export interface SubjectStat {
     id: string; // subject name
     totalCorrect: number;
     totalIncorrect: number;
-    // Allow any other fields, which will be the flattened unit stats
+    units: {
+        [unitName: string]: {
+            totalCorrect: number;
+            totalIncorrect: number;
+        };
+    };
     [key: string]: any;
 }
 
