@@ -147,7 +147,7 @@ export default function ProfilePage() {
   const [sendPointsRecipient, setSendPointsRecipient] = useState('');
   const [isSendingPoints, setIsSendingPoints] = useState(false);
 
-  const fetchProfileData = useCallback(async () => {
+  const fetchUserData = useCallback(async () => {
     if (!user) {
       setIsLoading(false);
       return;
@@ -193,51 +193,45 @@ export default function ProfilePage() {
     }
   }, [user, toast]);
 
-  useEffect(() => {
-    fetchProfileData();
-  }, [fetchProfileData]);
-
   const fetchClassmates = useCallback(async () => {
-    if (!user || !userData) {
-      return;
-    }
-  
-    // Determine the class ID based on the user's role
+    if (!user || !userData) return;
+
     const classId = userData.role === 'teacher' ? user.uid : userData.classId;
-  
     if (!classId) {
       setClassmates([]);
       return;
     }
-  
+
     try {
-      const classmatesQuery = query(
-        collection(db, 'users'),
-        where('classId', '==', classId)
-      );
+      const q = query(collection(db, 'users'), where('classId', '==', classId));
+      const querySnapshot = await getDocs(q);
       
-      const snapshot = await getDocs(classmatesQuery);
+      const members = querySnapshot.docs
+        .map((doc) => doc.data() as User)
+        .filter((member) => member.uid !== user.uid);
       
-      const members = snapshot.docs
-        .map(doc => doc.data() as User)
-        .filter(member => member.uid !== user.uid); // Filter out the current user
-        
       setClassmates(members.map(member => ({
         value: member.uid,
-        label: member.displayName,
+        label: `${member.displayName} ${member.role === 'teacher' ? '(선생님)' : ''}`.trim(),
       })));
-  
+
     } catch (error) {
       console.error("Error fetching classmates:", error);
       toast({ variant: 'destructive', title: '오류', description: '학급 친구 목록을 불러오는 데 실패했습니다.' });
     }
   }, [user, userData, toast]);
-  
+
+
   useEffect(() => {
-    if(userData) {
+    fetchUserData();
+  }, [fetchUserData]);
+
+  useEffect(() => {
+    if (userData) {
       fetchClassmates();
     }
   }, [userData, fetchClassmates]);
+
 
   const handleEdit = () => {
     if (!userData) return;
@@ -1065,9 +1059,9 @@ export default function ProfilePage() {
                       options={classmates}
                       value={sendPointsRecipient}
                       onValueChange={setSendPointsRecipient}
-                      placeholder="학급 친구 선택..."
+                      placeholder="학급 친구 또는 선생님 선택..."
                       searchPlaceholder="이름으로 검색..."
-                      notFoundMessage="해당하는 친구가 없습니다."
+                      notFoundMessage="해당하는 사용자가 없습니다."
                     />
                 </div>
                 <div className="space-y-2">
@@ -1207,5 +1201,3 @@ export default function ProfilePage() {
     </>
   );
 }
-
-    
