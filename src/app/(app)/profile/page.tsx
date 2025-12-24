@@ -147,7 +147,6 @@ export default function ProfilePage() {
   const [sendPointsRecipient, setSendPointsRecipient] = useState('');
   const [isSendingPoints, setIsSendingPoints] = useState(false);
 
-
   const fetchProfileData = useCallback(async () => {
     if (!user) {
       setIsLoading(false);
@@ -199,26 +198,35 @@ export default function ProfilePage() {
   }, [fetchProfileData]);
 
   const fetchClassmates = useCallback(async () => {
-    if (!user || !userData || !userData.classId) {
+    if (!user || !userData) {
+      return;
+    }
+  
+    // Determine the class ID based on the user's role
+    const classId = userData.role === 'teacher' ? user.uid : userData.classId;
+  
+    if (!classId) {
       setClassmates([]);
       return;
     }
-
+  
     try {
       const classmatesQuery = query(
         collection(db, 'users'),
-        where('classId', '==', userData.classId)
+        where('classId', '==', classId)
       );
-
+      
       const snapshot = await getDocs(classmatesQuery);
+      
       const members = snapshot.docs
         .map(doc => doc.data() as User)
-        .filter(member => member.uid !== user.uid && member.role === 'student'); 
+        .filter(member => member.uid !== user.uid); // Filter out the current user
         
       setClassmates(members.map(member => ({
         value: member.uid,
         label: member.displayName,
       })));
+  
     } catch (error) {
       console.error("Error fetching classmates:", error);
       toast({ variant: 'destructive', title: '오류', description: '학급 친구 목록을 불러오는 데 실패했습니다.' });
@@ -230,7 +238,6 @@ export default function ProfilePage() {
       fetchClassmates();
     }
   }, [userData, fetchClassmates]);
-
 
   const handleEdit = () => {
     if (!userData) return;
@@ -725,7 +732,7 @@ export default function ProfilePage() {
               <p className="text-sm text-muted-foreground">누적 포인트</p>
             </div>
             <div className="flex flex-col items-center">
-               <div className="cursor-pointer hover:opacity-80" onClick={canSendPoints ? handleOpenSendPointsDialog : undefined}>
+               <div className="hover:opacity-80">
                 <p className="flex items-center justify-center text-2xl font-bold">
                     <Gem className="w-5 h-5 mr-1 text-blue-500"/>
                     {(userData.classPoints || 0).toLocaleString()}
@@ -1200,3 +1207,5 @@ export default function ProfilePage() {
     </>
   );
 }
+
+    
