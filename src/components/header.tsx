@@ -8,6 +8,7 @@ import {
   Trophy,
   UserCircle,
   LogOut,
+  Users,
 } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { signOut } from 'firebase/auth';
@@ -36,6 +37,7 @@ const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: '참여하기' },
   { href: '/game-sets/create', icon: PlusSquare, label: '퀴즈 만들기' },
   { href: '/leaderboard', icon: Trophy, label: '리더보드' },
+  { href: '/my-class', icon: Users, label: '나의 학급' },
 ];
 
 export function Header() {
@@ -85,7 +87,7 @@ export function Header() {
       <div className="container flex h-16 items-center">
         <AppLogo href={logoHref}/>
         <nav className="ml-6 hidden md:flex items-center space-x-4 lg:space-x-6">
-          {navItems.map((item) => (
+          {user && navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}

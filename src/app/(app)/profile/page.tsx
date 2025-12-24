@@ -16,7 +16,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
@@ -24,7 +35,7 @@ import { useEffect, useState, useMemo } from 'react';
 import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
-import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X } from 'lucide-react';
+import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -42,19 +53,26 @@ interface ReviewQuestion extends IncorrectAnswer {
     isSubmitting?: boolean;
 }
 
-// Helper function to transform flat stats into a nested structure
 const transformStats = (flatStats: SubjectStat[]): SubjectStat[] => {
   return flatStats.map(stat => {
-    // If units are already in the correct nested format, just ensure counts are initialized
     if (stat.units && typeof stat.units === 'object' && !Array.isArray(stat.units)) {
-        return {
-            ...stat,
-            totalCorrect: stat.totalCorrect || 0,
-            totalIncorrect: stat.totalIncorrect || 0,
+      const sanitizedStat = {
+        ...stat,
+        totalCorrect: stat.totalCorrect || 0,
+        totalIncorrect: stat.totalIncorrect || 0,
+        units: { ...stat.units },
+      };
+      // Ensure nested unit stats have both counts
+      for (const unit in sanitizedStat.units) {
+        sanitizedStat.units[unit] = {
+          totalCorrect: sanitizedStat.units[unit].totalCorrect || 0,
+          totalIncorrect: sanitizedStat.units[unit].totalIncorrect || 0,
         };
+      }
+      return sanitizedStat;
     }
 
-    // Otherwise, handle the old flattened structure
+    // Handle old flattened structure
     const newStat: SubjectStat = {
       id: stat.id,
       totalCorrect: stat.totalCorrect || 0,
@@ -66,7 +84,7 @@ const transformStats = (flatStats: SubjectStat[]): SubjectStat[] => {
       if (key.startsWith('units.')) {
         const parts = key.split('.');
         const unitName = parts.slice(1, -1).join('.');
-        const metric = parts[parts.length - 1]; 
+        const metric = parts[parts.length - 1];
 
         if (unitName && (metric === 'totalCorrect' || metric === 'totalIncorrect')) {
           if (!newStat.units![unitName]) {
@@ -102,7 +120,17 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [editNickname, setEditNickname] = useState('');
   const [editSchoolName, setEditSchoolName] = useState('');
+
+  const [isTeacherDialog, setIsTeacherDialog] = useState(false);
+  const [teacherCode, setTeacherCode] = useState('');
+
+  const [isClassCodeDialog, setIsClassCodeDialog] = useState(false);
+  const [classCode, setClassCode] = useState('');
   
+  const [isJoinClassDialog, setIsJoinClassDialog] = useState(false);
+  const [joinClassCode, setJoinClassCode] = useState('');
+
+
   useEffect(() => {
     if (!user) {
       setIsLoading(false);
@@ -132,6 +160,9 @@ export default function ProfilePage() {
           setUserData(fetchedUserData);
           setEditNickname(fetchedUserData.displayName);
           setEditSchoolName(fetchedUserData.schoolName || '');
+          if (fetchedUserData.role === 'teacher') {
+            setClassCode(fetchedUserData.classCode || '');
+          }
           
           const currentLevel = getLevelInfo(fetchedUserData.xp);
           setLevelInfo(currentLevel);
@@ -156,7 +187,15 @@ export default function ProfilePage() {
       setIsLoading(false);
     };
 
+    const unsub = onSnapshot(doc(db, 'users', user.uid), (doc) => {
+        if(doc.exists()) {
+            setUserData(doc.data() as User);
+        }
+    });
+
     fetchData();
+
+    return () => unsub();
   }, [user, toast]);
 
   const handleEdit = () => {
@@ -183,10 +222,8 @@ export default function ProfilePage() {
     }
 
     try {
-      // Update Firebase Auth profile
       await updateProfile(user, { displayName: editNickname });
 
-      // Update Firestore document
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
         displayName: editNickname,
@@ -198,6 +235,63 @@ export default function ProfilePage() {
       toast({ title: '성공', description: '프로필이 성공적으로 업데이트되었습니다.' });
     } catch (error: any) {
       toast({ variant: 'destructive', title: '오류', description: `프로필 업데이트 중 오류가 발생했습니다: ${error.message}`});
+    }
+  };
+
+  const handleSwitchToTeacher = async () => {
+      if (teacherCode !== 'indischool') {
+          toast({ variant: 'destructive', title: '코드 오류', description: '코드가 올바르지 않습니다.'});
+          return;
+      }
+      if (user) {
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, { role: 'teacher' });
+        setUserData(prev => prev ? ({...prev, role: 'teacher'}) : null);
+        toast({ title: '성공', description: '교사 계정으로 전환되었습니다.'});
+        setIsTeacherDialog(false);
+        setTeacherCode('');
+      }
+  }
+
+  const handleSetClassCode = async () => {
+    if (!classCode || classCode.length < 4) {
+      toast({ variant: 'destructive', title: '오류', description: '학급 코드는 4자 이상이어야 합니다.' });
+      return;
+    }
+    if (user) {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, { classCode: classCode });
+      setUserData(prev => prev ? ({...prev, classCode: classCode}) : null);
+      toast({ title: '성공', description: '학급 코드가 설정되었습니다.' });
+      setIsClassCodeDialog(false);
+    }
+  }
+  
+  const handleJoinClass = async () => {
+    if (!joinClassCode) {
+      toast({ variant: 'destructive', title: '오류', description: '학급 코드를 입력해주세요.' });
+      return;
+    }
+
+    if (user) {
+        const q = query(collection(db, 'users'), where('classCode', '==', joinClassCode), where('role', '==', 'teacher'), limit(1));
+        const teacherSnapshot = await getDocs(q);
+
+        if (teacherSnapshot.empty) {
+            toast({ variant: 'destructive', title: '오류', description: '존재하지 않는 학급 코드입니다.' });
+            return;
+        }
+
+        const teacherDoc = teacherSnapshot.docs[0];
+
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, { classId: teacherDoc.id }); // Use teacher's UID as classId
+        
+        setUserData(prev => prev ? ({...prev, classId: teacherDoc.id}) : null);
+
+        toast({ title: '성공', description: `'${teacherDoc.data().displayName} 선생님'의 학급에 참여했습니다.` });
+        setIsJoinClassDialog(false);
+        setJoinClassCode('');
     }
   };
 
@@ -389,6 +483,7 @@ export default function ProfilePage() {
   }
 
   return (
+    <>
     <div className="container mx-auto flex flex-col gap-8">
       <Card>
         <CardHeader>
@@ -404,7 +499,10 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <div>
-                  <CardTitle className="font-headline text-3xl">{userData.displayName}</CardTitle>
+                  <CardTitle className="font-headline text-3xl flex items-center gap-2">
+                    {userData.displayName}
+                    {userData.role === 'teacher' && <span className="text-xs font-medium bg-primary text-primary-foreground px-2 py-1 rounded-full">교사</span>}
+                  </CardTitle>
                   <CardDescription>{levelInfo.title}</CardDescription>
                   {schoolInfo && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
@@ -452,6 +550,28 @@ export default function ProfilePage() {
               <p className="text-sm text-muted-foreground">전체 정답률</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+      
+      <Card>
+        <CardHeader>
+            <CardTitle className="font-headline flex items-center gap-2">계정 및 학급 설정</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {userData.role !== 'teacher' && (
+                <Button variant="outline" onClick={() => setIsJoinClassDialog(true)}>
+                    <Users className="mr-2 h-4 w-4"/> 학급 참여하기
+                </Button>
+            )}
+            {userData.role === 'teacher' ? (
+                <Button variant="outline" onClick={() => setIsClassCodeDialog(true)}>
+                   <Edit className="mr-2 h-4 w-4"/> 학급 코드 관리
+                </Button>
+            ) : (
+                <Button variant="outline" onClick={() => setIsTeacherDialog(true)}>
+                    <KeyRound className="mr-2 h-4 w-4"/> 교사 계정으로 전환
+                </Button>
+            )}
         </CardContent>
       </Card>
 
@@ -670,5 +790,73 @@ export default function ProfilePage() {
         </DialogContent>
       </Dialog>
     </div>
+
+    {/* Dialogs for class and teacher management */}
+    <AlertDialog open={isTeacherDialog} onOpenChange={setIsTeacherDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>교사 계정으로 전환</AlertDialogTitle>
+            <AlertDialogDescription>
+              교사 계정으로 전환하려면 관리자로부터 받은 코드를 입력하세요.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Input 
+                placeholder="전환 코드 입력"
+                value={teacherCode}
+                onChange={(e) => setTeacherCode(e.target.value)}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSwitchToTeacher}>전환하기</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+
+    <AlertDialog open={isClassCodeDialog} onOpenChange={setIsClassCodeDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>학급 코드 관리</AlertDialogTitle>
+            <AlertDialogDescription>
+              학생들이 학급에 참여할 수 있도록 코드를 설정하거나 변경하세요. (최소 4자 이상)
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Input 
+                placeholder="학급 코드 입력"
+                value={classCode}
+                onChange={(e) => setClassCode(e.target.value)}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSetClassCode}>저장하기</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+
+    <AlertDialog open={isJoinClassDialog} onOpenChange={setIsJoinClassDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>학급 참여하기</AlertDialogTitle>
+            <AlertDialogDescription>
+              선생님께 받은 학급 코드를 입력하여 학급에 참여하세요.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Input 
+                placeholder="학급 코드 입력"
+                value={joinClassCode}
+                onChange={(e) => setJoinClassCode(e.target.value)}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleJoinClass}>참여하기</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
