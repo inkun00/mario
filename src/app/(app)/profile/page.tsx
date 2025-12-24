@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -205,7 +206,7 @@ export default function ProfilePage() {
           if (classmatesSnapshot) {
             const classmatesData = classmatesSnapshot.docs
               .map(doc => ({ uid: doc.id, ...doc.data() } as User))
-              .filter(member => member.uid !== user.uid) // Filter out the current user
+              .filter(member => member.uid !== user.uid)
               .map(member => ({
                 value: member.uid,
                 label: member.displayName,
