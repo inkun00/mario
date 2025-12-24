@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -379,7 +377,7 @@ export default function DashboardPage() {
                                 disabled={true}
                             />
                             <Button onClick={handleJoinGame} disabled={true}>
-                                <LogIn className="w-4 h-4" />
+                                <LogIn className="w-4 h-4 mr-2" />
                                 참여
                             </Button>
                             </div>
@@ -527,18 +525,28 @@ export default function DashboardPage() {
                 return (
                 <Card key={set.id} className={cn(
                     "hover:shadow-lg transition-shadow flex flex-col", 
-                    isTopSet && "border-yellow-400 border-2 shadow-lg shadow-yellow-400/50",
+                    isTopSet && "border-primary/50 border-2 shadow-lg shadow-primary/20",
                     isDisabled && "bg-muted/50 opacity-60"
                 )}>
                   <CardHeader>
                     <div className="flex items-start justify-between">
                         <div>
                             <div className="flex items-center gap-2">
-                                <CardTitle className="font-headline text-lg">{set.title}</CardTitle>
+                                <CardTitle className="font-headline">{set.title}</CardTitle>
                                 {set.isPublic ? (
-                                    <Globe className="w-4 h-4 text-muted-foreground"/>
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger><Globe className="w-4 h-4 text-muted-foreground"/></TooltipTrigger>
+                                            <TooltipContent><p>공개</p></TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
                                 ) : (
-                                    <Lock className="w-4 h-4 text-muted-foreground"/>
+                                    <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger><Lock className="w-4 h-4 text-muted-foreground"/></TooltipTrigger>
+                                            <TooltipContent><p>비공개</p></TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
                                 )}
                             </div>
                             <CardDescription className="mt-1">만든 사람: {set.creatorNickname}</CardDescription>
@@ -628,7 +636,7 @@ export default function DashboardPage() {
             <ScrollArea className="h-96 pr-6">
                 <div className="space-y-4">
                     {selectedGameSet.questions.map((q, index) => (
-                        <div key={index} className="p-4 rounded-md border bg-secondary/30">
+                        <div key={index} className="p-4 rounded-md border bg-muted/50">
                             <div className="flex justify-between items-start">
                                 <p className="font-semibold text-base whitespace-pre-wrap">{`질문 ${index + 1}. ${q.question}`}</p>
                                 <div className="flex items-center gap-2 text-sm">
@@ -775,5 +783,3 @@ export default function DashboardPage() {
     </>
   );
 }
-
-    

@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -495,7 +493,7 @@ export default function ProfilePage() {
                         </SelectContent>
                     </Select>
                   </div>
-                  <div className="grid grid-cols-3 gap-4 text-center p-4 bg-secondary/50 rounded-lg">
+                  <div className="grid grid-cols-3 gap-4 text-center p-4 bg-secondary rounded-lg">
                     <div>
                         <p className="text-2xl font-bold text-blue-600">{filteredCorrect}</p>
                         <p className="text-sm text-muted-foreground">정답</p>
@@ -608,7 +606,7 @@ export default function ProfilePage() {
                             <TooltipTrigger asChild>
                                 <div className={cn(
                                     "group relative aspect-square flex items-center justify-center p-1 rounded-full transition-all duration-300",
-                                    'bg-secondary/70'
+                                    'bg-secondary'
                                 )}>
                                     <span className={cn(
                                         "text-4xl transition-all duration-300 group-hover:scale-110"
@@ -641,7 +639,7 @@ export default function ProfilePage() {
             <div className="space-y-4">
               {incorrectAnswersToShow.length > 0 ? (
                 incorrectAnswersToShow.map(item => (
-                  <div key={item.id} className="p-4 rounded-md border bg-secondary/30 space-y-2">
+                  <div key={item.id} className="p-4 rounded-md border bg-muted/50 space-y-2">
                     {item.question.imageUrl && (
                         <div className="relative aspect-video">
                             <Image src={encodeURI(item.question.imageUrl)} alt="질문 이미지" fill className="rounded-md object-contain" unoptimized={true} />
@@ -674,7 +672,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
-
-
-    

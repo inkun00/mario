@@ -78,15 +78,19 @@ module.exports = {
         'blob': {
           '0%': {
             transform: 'translate(0px, 0px) scale(1)',
+            filter: 'blur(5px)',
           },
           '33%': {
             transform: 'translate(30px, -50px) scale(1.1)',
+             filter: 'blur(0px)',
           },
           '66%': {
             transform: 'translate(-20px, 20px) scale(0.9)',
+             filter: 'blur(5px)',
           },
           '100%': {
             transform: 'translate(0px, 0px) scale(1)',
+             filter: 'blur(5px)',
           },
         },
       },
@@ -95,6 +99,9 @@ module.exports = {
         'accordion-up': 'accordion-up 0.2s ease-out',
         'blob': 'blob 7s infinite',
       },
+       boxShadow: {
+        '2xl-spread': '0 25px 50px 12px rgb(0 0 0 / 0.25)',
+      }
     },
   },
   plugins: [require('tailwindcss-animate')],

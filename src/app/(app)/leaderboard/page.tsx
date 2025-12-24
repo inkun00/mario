@@ -178,13 +178,13 @@ export default function LeaderboardPage() {
                                 const levelInfo = getLevelInfo(player.xp);
                                 const displayName = player.displayName || '이름없음';
                                 return (
-                                <TableRow key={player.uid} className={rank <= 3 ? 'bg-secondary/50' : ''}>
+                                <TableRow key={player.uid} className={rank <= 3 ? 'bg-secondary' : ''}>
                                     <TableCell className="font-bold text-center text-lg">
                                     {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
                                     </TableCell>
                                     <TableCell>
                                     <div className="flex items-center gap-3">
-                                        <Avatar className="flex items-center justify-center bg-secondary">
+                                        <Avatar className="flex items-center justify-center bg-muted">
                                         <span className="text-xl">{levelInfo.icon}</span>
                                         </Avatar>
                                         <span className="font-medium">{displayName}</span>
@@ -214,13 +214,13 @@ export default function LeaderboardPage() {
                                 {schoolLeaderboard.map((school, index) => {
                                     const rank = index + 1;
                                     return (
-                                        <TableRow key={school.name} className={rank <= 3 ? 'bg-secondary/50' : ''}>
+                                        <TableRow key={school.name} className={rank <= 3 ? 'bg-secondary' : ''}>
                                             <TableCell className="font-bold text-center text-lg">
                                                 {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-3">
-                                                    <Avatar className="flex items-center justify-center bg-secondary">
+                                                    <Avatar className="flex items-center justify-center bg-muted">
                                                         <SchoolIcon className="w-5 h-5 text-muted-foreground" />
                                                     </Avatar>
                                                     <span className="font-medium">{school.name}</span>
@@ -269,13 +269,13 @@ export default function LeaderboardPage() {
                                 const displayName = player.displayName || '이름없음';
 
                                 return (
-                                <TableRow key={player.uid} className={player.uid === user?.uid ? 'bg-primary/10' : (rank <= 3 ? 'bg-secondary/50' : '')}>
+                                <TableRow key={player.uid} className={player.uid === user?.uid ? 'bg-primary/10' : (rank <= 3 ? 'bg-secondary' : '')}>
                                     <TableCell className="font-bold text-center text-lg">
                                     {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
                                     </TableCell>
                                     <TableCell>
                                     <div className="flex items-center gap-3">
-                                        <Avatar className="flex items-center justify-center bg-secondary">
+                                        <Avatar className="flex items-center justify-center bg-muted">
                                         <span className="text-xl">{levelInfo.icon}</span>
                                         </Avatar>
                                         <span className="font-medium">{displayName}</span>
@@ -306,7 +306,7 @@ export default function LeaderboardPage() {
                                 {popularGameSets.map((gameSet, index) => {
                                     const rank = index + 1;
                                     return (
-                                        <TableRow key={gameSet.id} className={rank <= 3 ? 'bg-secondary/50' : ''}>
+                                        <TableRow key={gameSet.id} className={rank <= 3 ? 'bg-secondary' : ''}>
                                             <TableCell className="font-bold text-center text-lg">
                                                 {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
                                             </TableCell>

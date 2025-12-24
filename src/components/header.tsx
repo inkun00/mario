@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import Link from 'next/link';
@@ -84,9 +82,9 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-14 items-center">
+      <div className="container flex h-16 items-center">
         <AppLogo href={logoHref}/>
-        <nav className="ml-6 flex items-center space-x-4 lg:space-x-6">
+        <nav className="ml-6 hidden md:flex items-center space-x-4 lg:space-x-6">
           {navItems.map((item) => (
             <Link
               key={item.href}
@@ -94,7 +92,7 @@ export function Header() {
               className={cn(
                 'text-sm font-medium transition-colors hover:text-primary',
                 pathname.startsWith(item.href)
-                  ? 'text-primary'
+                  ? 'text-foreground'
                   : 'text-muted-foreground'
               )}
             >
@@ -120,7 +118,7 @@ export function Header() {
                         <AvatarImage
                         src={
                             user.photoURL ||
-                            `https://picsum.photos/seed/${user.uid}/100/100`
+                            `https://avatar.vercel.sh/${user.uid}`
                         }
                         alt={userData?.displayName || '사용자'}
                         />
@@ -167,5 +165,3 @@ export function Header() {
     </header>
   );
 }
-
-    

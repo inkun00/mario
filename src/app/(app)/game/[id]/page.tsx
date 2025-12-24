@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -717,7 +715,7 @@ export default function GamePage() {
     <>
       <div className="container mx-auto flex h-full max-h-[calc(100vh-4rem)] flex-col lg:flex-row gap-6 p-4">
         {/* Game Board */}
-        <div className="flex-grow flex flex-col items-center justify-center p-6 bg-blue-100 dark:bg-blue-900/20 rounded-xl shadow-inner">
+        <div className="flex-grow flex flex-col items-center justify-center p-6 bg-secondary/30 rounded-xl shadow-inner">
           <Card className="w-full max-w-4xl p-4 sm:p-6 bg-background/70 backdrop-blur-sm">
             <div className="text-center mb-6">
                   <h2 className="text-2xl font-bold font-headline">
@@ -749,7 +747,7 @@ export default function GamePage() {
                           {/* Front of the card */}
                            <div className={cn(
                               "absolute inset-0 backface-hidden flex items-center justify-center rounded-lg shadow-md transition-all duration-300",
-                              'bg-yellow-400 border-b-8 border-yellow-600',
+                              block.type === 'mystery' ? 'bg-yellow-400 border-b-8 border-yellow-600' : 'bg-blue-500 border-b-8 border-blue-700',
                               !isClickDisabled(block) && "hover:scale-105",
                               isOpened && 'opacity-50'
                           )}>

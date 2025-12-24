@@ -24,32 +24,15 @@ export default function Home() {
 
       <main className="flex-grow">
         <section className="relative pt-16 h-[80vh] min-h-[600px] flex items-center justify-center text-center bg-gradient-to-br from-primary/10 via-background to-background">
-          <div className="absolute inset-0 overflow-hidden">
-            {/* Star Icon */}
-            <div className="absolute top-[20%] left-[15%] text-6xl opacity-80 animate-blob animation-delay-1000">
-              ⭐️
-            </div>
-            {/* Mushroom Icon */}
-            <div className="absolute top-[60%] right-[20%] text-7xl opacity-70 animate-blob animation-delay-2000">
-              🍄
-            </div>
-            {/* Turtle Shell Icon */}
-            <div className="absolute bottom-[15%] left-[30%] text-7xl opacity-60 animate-blob animation-delay-3000">
-              🐢
-            </div>
-             {/* Pipe Icon */}
-            <div className="absolute bottom-0 right-[10%] w-28 h-28 opacity-90">
-                <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="0" y="0" width="100" height="20" fill="#2E7D32" />
-                    <rect x="10" y="20" width="80" height="80" fill="#4CAF50" />
-                </svg>
-            </div>
+           <div className="absolute inset-0 overflow-hidden">
+             <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary/5 rounded-full animate-blob animation-delay-1000" />
+             <div className="absolute -top-40 -right-40 w-80 h-80 bg-accent/5 rounded-full animate-blob animation-delay-2000" />
           </div>
           <div className="container relative px-4 md:px-6 z-10">
             <h1 className="font-headline text-4xl font-bold tracking-tighter text-primary sm:text-5xl md:text-6xl lg:text-7xl">
               마리오 게임
             </h1>
-            <p className="mx-auto max-w-[700px] text-foreground/80 md:text-xl mt-4">
+            <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl mt-4">
               학습을 게임으로, 교실을 모험으로! 나만의 퀴즈를 만들고 친구들과 함께 즐겨보세요.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
@@ -91,7 +74,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="py-12 md:py-24 lg:py-32 bg-secondary/50">
+        <section className="py-12 md:py-24 lg:py-32 bg-secondary">
           <div className="container grid items-center justify-center gap-4 px-4 text-center md:px-6">
             <div className="space-y-3">
               <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight font-headline">
@@ -118,7 +101,7 @@ export default function Home() {
 
 function FeatureCard({ icon, title, description }: { icon: React.ReactNode, title: string, description: string }) {
   return (
-    <Card className="text-center p-6 shadow-lg hover:shadow-xl hover:-translate-y-2 transition-all duration-300">
+    <Card className="text-center p-6 shadow-md hover:shadow-xl hover:-translate-y-2 transition-all duration-300">
       <CardHeader className="flex justify-center items-center mb-4">
         <div className="bg-primary/10 p-4 rounded-full">
           {icon}
