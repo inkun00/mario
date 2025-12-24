@@ -1,8 +1,9 @@
+
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe, runTransaction } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { User, ClassStoreItem } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,6 +47,7 @@ export default function MyClassPage() {
   const [isBuyItemDialogOpen, setIsBuyItemDialogOpen] = useState(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isBuying, setIsBuying] = useState<string | null>(null);
   const { toast } = useToast();
 
   const form = useForm<SellItemFormValues>({
@@ -155,6 +157,67 @@ export default function MyClassPage() {
     }
   }
 
+  const handleBuyItem = async (item: ClassStoreItem) => {
+    if (!user) return;
+    setIsBuying(item.id);
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const userRef = doc(db, 'users', user.uid);
+        const itemRef = doc(db, 'class-store-items', item.id);
+
+        const userDoc = await transaction.get(userRef);
+        const itemDoc = await transaction.get(itemRef);
+
+        if (!userDoc.exists()) {
+          throw "사용자 정보를 찾을 수 없습니다.";
+        }
+        if (!itemDoc.exists()) {
+          throw "상품 정보를 찾을 수 없거나 이미 판매되었습니다.";
+        }
+
+        const buyerData = userDoc.data() as User;
+        const itemData = itemDoc.data() as ClassStoreItem;
+        
+        if ((buyerData.classPoints || 0) < itemData.price) {
+          throw "학급 포인트가 부족합니다.";
+        }
+        
+        if (itemData.quantity <= 0) {
+            throw "상품의 재고가 없습니다.";
+        }
+
+        // 1. Decrement buyer's points
+        transaction.update(userRef, {
+          classPoints: (buyerData.classPoints || 0) - itemData.price,
+        });
+        
+        // 2. Add item to buyer's inventory
+        const newInventory = { ...buyerData.inventory };
+        const currentQuantity = newInventory[itemData.name]?.quantity || 0;
+        newInventory[itemData.name] = { quantity: currentQuantity + 1 };
+        transaction.update(userRef, { inventory: newInventory });
+
+
+        // 3. Decrement item quantity or delete
+        if (itemData.quantity > 1) {
+          transaction.update(itemRef, {
+            quantity: itemData.quantity - 1,
+          });
+        } else {
+          transaction.delete(itemRef);
+        }
+      });
+      
+      toast({ title: '구매 완료!', description: `'${item.name}' 상품을 구매했습니다.` });
+
+    } catch (error: any) {
+      console.error("Purchase failed: ", error);
+      toast({ variant: "destructive", title: "구매 실패", description: typeof error === 'string' ? error : "구매 중 오류가 발생했습니다."});
+    } finally {
+      setIsBuying(null);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -253,8 +316,13 @@ export default function MyClassPage() {
             <TabsContent value="store" className="mt-4">
                 <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><Store className="text-primary"/>학급 매점</CardTitle>
-                        <CardDescription>학급 포인트를 사용하여 다양한 아이템을 구매하거나 판매할 수 있습니다.</CardDescription>
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <CardTitle className="flex items-center gap-2"><Store className="text-primary"/>학급 매점</CardTitle>
+                                <CardDescription>학급 포인트를 사용하여 다양한 아이템을 구매하거나 판매할 수 있습니다.</CardDescription>
+                            </div>
+                            <div className="text-sm font-bold text-blue-500">내 포인트: {(userData.classPoints || 0).toLocaleString()}</div>
+                        </div>
                     </CardHeader>
                     <CardContent className="flex flex-col sm:flex-row gap-4">
                        <Dialog open={isBuyItemDialogOpen} onOpenChange={setIsBuyItemDialogOpen}>
@@ -296,7 +364,13 @@ export default function MyClassPage() {
                                             <TableCell className="text-center">{item.quantity}</TableCell>
                                             <TableCell className="text-right font-bold text-primary">{item.price.toLocaleString()}</TableCell>
                                             <TableCell>
-                                              <Button size="sm" disabled={item.sellerId === user.uid}>구매</Button>
+                                              <Button 
+                                                size="sm" 
+                                                disabled={item.sellerId === user.uid || !!isBuying}
+                                                onClick={() => handleBuyItem(item)}
+                                              >
+                                                {isBuying === item.id ? <Loader2 className="w-4 h-4 animate-spin"/> : '구매'}
+                                              </Button>
                                             </TableCell>
                                           </TableRow>
                                         ))}

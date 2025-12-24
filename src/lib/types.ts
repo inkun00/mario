@@ -16,6 +16,11 @@ export interface User {
   role?: 'student' | 'teacher';
   classId?: string; // 학생이 속한 학급 코드
   classCode?: string; // 교사가 생성한 학급 코드
+  inventory?: {
+    [itemName: string]: {
+      quantity: number;
+    }
+  }
 }
 
 export interface Question {

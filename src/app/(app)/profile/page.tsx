@@ -37,7 +37,7 @@ import { useEffect, useState, useMemo } from 'react';
 import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
-import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem } from 'lucide-react';
+import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -574,6 +574,28 @@ export default function ProfilePage() {
               <p className="text-sm text-muted-foreground">전체 정답률</p>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+            <CardTitle className="font-headline flex items-center gap-2"><Package className="text-primary"/>보유 상품</CardTitle>
+        </CardHeader>
+        <CardContent>
+            {userData.inventory && Object.keys(userData.inventory).length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {Object.entries(userData.inventory).map(([itemName, itemDetails]) => (
+                        <div key={itemName} className="p-4 border rounded-lg text-center">
+                            <p className="font-semibold">{itemName}</p>
+                            <p className="text-muted-foreground">수량: {itemDetails.quantity}</p>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                    <p className="text-muted-foreground">아직 보유한 상품이 없습니다.</p>
+                </div>
+            )}
         </CardContent>
       </Card>
       
