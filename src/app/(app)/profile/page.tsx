@@ -744,20 +744,6 @@ export default function ProfilePage() {
                       <Gem className="w-5 h-5 mr-1 text-blue-500"/>
                       {(userData.classPoints || 0).toLocaleString()}
                   </p>
-                  {classmates.length > 0 && (
-                     <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setIsSendPointsDialogOpen(true)}>
-                                  <Send className="w-4 h-4 text-muted-foreground"/>
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p>학급 친구에게 포인트 보내기</p>
-                            </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                  )}
                 </div>
               <p className="text-sm text-muted-foreground">학급 포인트</p>
             </div>
@@ -813,6 +799,11 @@ export default function ProfilePage() {
                 <Button variant="outline" onClick={() => setIsTeacherDialog(true)}>
                     <KeyRound className="mr-2 h-4 w-4"/> 교사 계정으로 전환
                 </Button>
+            )}
+            {classmates.length > 0 && userData.role !== 'teacher' && (
+              <Button variant="outline" onClick={() => setIsSendPointsDialogOpen(true)}>
+                  <Send className="mr-2 h-4 w-4"/> 학급 포인트 보내기
+              </Button>
             )}
         </CardContent>
       </Card>
@@ -1214,5 +1205,3 @@ export default function ProfilePage() {
     </>
   );
 }
-
-
