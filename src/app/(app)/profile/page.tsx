@@ -206,22 +206,13 @@ export default function ProfilePage() {
           if (classmatesSnapshot) {
               const allClassMembers = classmatesSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
               
-              let classmatesData;
-              if (fetchedUserData.role === 'teacher') {
-                  classmatesData = allClassMembers
-                      .filter(member => member.uid !== user.uid)
-                      .map(member => ({
-                          value: member.uid,
-                          label: member.displayName,
-                      }));
-              } else { // Student
-                  classmatesData = allClassMembers
-                      .filter(member => member.uid !== user.uid && member.role === 'student')
-                       .map(member => ({
-                          value: member.uid,
-                          label: member.displayName,
-                      }));
-              }
+              const classmatesData = allClassMembers
+                  .filter(member => member.uid !== user.uid && member.role === 'student')
+                  .map(member => ({
+                      value: member.uid,
+                      label: member.displayName,
+                  }));
+
               setClassmates(classmatesData);
           }
 
