@@ -148,103 +148,100 @@ export default function ProfilePage() {
   const [isSendingPoints, setIsSendingPoints] = useState(false);
 
 
+  const fetchProfileData = useCallback(async (uid: string) => {
+    setIsLoading(true);
+    try {
+      const userRef = doc(db, 'users', uid);
+      const incorrectAnswersRef = collection(db, 'users', uid, 'incorrect-answers');
+      const solvedIncorrectAnswersRef = collection(db, 'users', uid, 'solved-incorrect-answers');
+      const subjectStatsRef = collection(db, 'users', uid, 'subjectStats');
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  useEffect(() => {
-    if (!user) {
-      setIsLoading(false);
-      return;
-    };
+      const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot] = await Promise.all([
+        getDoc(userRef),
+        getDocs(query(incorrectAnswersRef, where('timestamp', '<=', oneDayAgo), orderBy('timestamp', 'asc'))),
+        getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
+        getDocs(subjectStatsRef),
+      ]);
 
-    const fetchData = async () => {
-      setIsLoading(true);
-      
-      try {
-        const userRef = doc(db, 'users', user.uid);
-        const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
-        const solvedIncorrectAnswersRef = collection(db, 'users', user.uid, 'solved-incorrect-answers');
-        const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
-
-        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        
-        const userSnap = await getDoc(userRef);
-
-        if (userSnap.exists()) {
-          const fetchedUserData = userSnap.data() as User;
-
-          if (fetchedUserData.classPoints === undefined) {
-              await updateDoc(userRef, {
-                  classPoints: fetchedUserData.xp
-              });
-              fetchedUserData.classPoints = fetchedUserData.xp;
-          }
-
-          setUserData(fetchedUserData);
-          setEditNickname(fetchedUserData.displayName);
-          setEditSchoolName(fetchedUserData.schoolName || '');
-          if (fetchedUserData.role === 'teacher') {
-            setClassCode(fetchedUserData.classCode || '');
-          }
-          
-          const currentLevel = getLevelInfo(fetchedUserData.xp);
-          setLevelInfo(currentLevel);
-          setNextLevelInfo(getNextLevelInfo(currentLevel.level));
-
-          let classmatesQuery;
-          if (fetchedUserData.role === 'teacher') {
-            classmatesQuery = query(collection(db, 'users'), where('classId', '==', user.uid));
-          } else if (fetchedUserData.role === 'student' && fetchedUserData.classId) {
-            classmatesQuery = query(collection(db, 'users'), where('classId', '==', fetchedUserData.classId));
-          }
-          
-          const [incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot, classmatesSnapshot] = await Promise.all([
-            getDocs(query(incorrectAnswersRef, where('timestamp', '<=', oneDayAgo), orderBy('timestamp', 'asc'))),
-            getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
-            getDocs(subjectStatsRef),
-            classmatesQuery ? getDocs(classmatesQuery) : Promise.resolve(null),
-          ]);
-          
-          if (classmatesSnapshot) {
-              const allClassMembers = classmatesSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
-              
-              const classmatesData = allClassMembers
-                  .filter(member => member.uid !== user.uid && member.role === 'student')
-                  .map(member => ({
-                      value: member.uid,
-                      label: member.displayName,
-                  }));
-
-              setClassmates(classmatesData);
-          }
-
-          const incorrectData = incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer));
-          setReviewQuestions(incorrectData);
-
-          const solvedIncorrectData = solvedIncorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer));
-          setSolvedReviewQuestions(solvedIncorrectData);
-
-          const flatStatsData = subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat));
-          const nestedStatsData = transformStats(flatStatsData);
-          setSubjectStats(nestedStatsData);
+      if (userSnap.exists()) {
+        const fetchedUserData = userSnap.data() as User;
+        if (fetchedUserData.classPoints === undefined) {
+            await updateDoc(userRef, { classPoints: fetchedUserData.xp });
+            fetchedUserData.classPoints = fetchedUserData.xp;
         }
+        setUserData(fetchedUserData);
+        setEditNickname(fetchedUserData.displayName);
+        setEditSchoolName(fetchedUserData.schoolName || '');
+        if (fetchedUserData.role === 'teacher') {
+          setClassCode(fetchedUserData.classCode || '');
+        }
+        const currentLevel = getLevelInfo(fetchedUserData.xp);
+        setLevelInfo(currentLevel);
+        setNextLevelInfo(getNextLevelInfo(currentLevel.level));
+      }
 
-      } catch (err) {
-         console.error("Error fetching profile data:", err);
-         toast({ variant: 'destructive', title: '오류', description: '프로필 데이터를 불러오는 중 오류가 발생했습니다.'});
+      const incorrectData = incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer));
+      setReviewQuestions(incorrectData);
+
+      const solvedIncorrectData = solvedIncorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer));
+      setSolvedReviewQuestions(solvedIncorrectData);
+
+      const flatStatsData = subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat));
+      const nestedStatsData = transformStats(flatStatsData);
+      setSubjectStats(nestedStatsData);
+
+    } catch (err) {
+      console.error("Error fetching profile data:", err);
+      toast({ variant: 'destructive', title: '오류', description: '프로필 데이터를 불러오는 중 오류가 발생했습니다.'});
+    } finally {
+      setIsLoading(false);
+    }
+  }, [toast]);
+
+  // Fetch user's own data first
+  useEffect(() => {
+    if (user) {
+      fetchProfileData(user.uid);
+    } else {
+      setIsLoading(false);
+    }
+  }, [user, fetchProfileData]);
+
+  // Fetch classmates after user data is loaded
+  useEffect(() => {
+    if (!user || !userData) return;
+
+    const fetchClassmates = async () => {
+      let classmatesQuery;
+      if (userData.role === 'teacher') {
+        classmatesQuery = query(collection(db, 'users'), where('classId', '==', user.uid));
+      } else if (userData.role === 'student' && userData.classId) {
+        classmatesQuery = query(collection(db, 'users'), where('classId', '==', userData.classId));
+      } else {
+        return; // No class, no need to fetch classmates
       }
       
-      setIsLoading(false);
+      try {
+        const classmatesSnapshot = await getDocs(classmatesQuery);
+        const allClassMembers = classmatesSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
+        
+        const classmatesData = allClassMembers
+          .filter(member => member.uid !== user.uid)
+          .map(member => ({
+            value: member.uid,
+            label: member.displayName,
+          }));
+
+        setClassmates(classmatesData);
+      } catch (error) {
+        console.error("Error fetching classmates:", error);
+      }
     };
 
-    const unsub = onSnapshot(doc(db, 'users', user.uid), (doc) => {
-        if(doc.exists()) {
-            setUserData(doc.data() as User);
-        }
-    });
+    fetchClassmates();
+  }, [user, userData]);
 
-    fetchData();
-
-    return () => unsub();
-  }, [user, toast]);
 
   const handleEdit = () => {
     if (!userData) return;
@@ -746,7 +743,7 @@ export default function ProfilePage() {
               <p className="text-sm text-muted-foreground">누적 포인트</p>
             </div>
             <div className="flex flex-col items-center">
-              <div 
+               <div 
                 className={cn("flex flex-col items-center", canSendPoints && "cursor-pointer hover:opacity-80")}
                 onClick={() => canSendPoints && setIsSendPointsDialogOpen(true)}
               >
@@ -810,7 +807,7 @@ export default function ProfilePage() {
                 <Button variant="outline" onClick={() => setIsClassCodeDialog(true)}>
                    <Edit className="mr-2 h-4 w-4"/> 학급 코드 관리
                 </Button>
-                <Button variant="outline" onClick={() => setIsSendPointsDialogOpen(true)} disabled={!canSendPoints}>
+                 <Button variant="outline" onClick={() => setIsSendPointsDialogOpen(true)} disabled={!canSendPoints}>
                     <Send className="mr-2 h-4 w-4"/> 학급 포인트 보내기
                 </Button>
               </>
