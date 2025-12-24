@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -207,7 +205,7 @@ export default function ProfilePage() {
           
           if (classmatesSnapshot) {
             const classmatesData = classmatesSnapshot.docs
-              .map(doc => ({ uid: doc.id, ...doc.data() }))
+              .map(doc => ({ uid: doc.id, ...doc.data() } as User))
               .filter(member => member.uid !== user.uid) // Filter out the current user
               .map(member => ({
                 value: member.uid,
@@ -804,6 +802,9 @@ export default function ProfilePage() {
               <>
                 <Button variant="outline" onClick={() => setIsClassCodeDialog(true)}>
                    <Edit className="mr-2 h-4 w-4"/> 학급 코드 관리
+                </Button>
+                <Button variant="outline" onClick={() => setIsSendPointsDialogOpen(true)} disabled={!canSendPoints}>
+                    <Send className="mr-2 h-4 w-4"/> 학급 포인트 보내기
                 </Button>
               </>
             ) : (
