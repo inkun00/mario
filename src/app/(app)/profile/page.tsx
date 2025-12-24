@@ -166,11 +166,8 @@ export default function ProfilePage() {
 
         const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
         
-        const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot] = await Promise.all([
+        const [userSnap] = await Promise.all([
           getDoc(userRef),
-          getDocs(query(incorrectAnswersRef, where('timestamp', '<=', oneDayAgo), orderBy('timestamp', 'asc'))),
-          getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
-          getDocs(subjectStatsRef),
         ]);
 
         if (userSnap.exists()) {
@@ -197,9 +194,9 @@ export default function ProfilePage() {
 
            // Fetch classmates if the user is in a class or is a teacher
           const classIdForQuery = fetchedUserData.role === 'teacher' ? user.uid : fetchedUserData.classId;
+          let classmatesQuery;
 
           if (classIdForQuery) {
-            let classmatesQuery;
             if (fetchedUserData.role === 'teacher') {
               // Teacher: get all students in their class
               classmatesQuery = query(
@@ -214,25 +211,33 @@ export default function ProfilePage() {
                 where('uid', '!=', user.uid)
               );
             }
-
-            const classmatesSnapshot = await getDocs(classmatesQuery);
+          }
+          
+          const [incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot, classmatesSnapshot] = await Promise.all([
+            getDocs(query(incorrectAnswersRef, where('timestamp', '<=', oneDayAgo), orderBy('timestamp', 'asc'))),
+            getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
+            getDocs(subjectStatsRef),
+            classmatesQuery ? getDocs(classmatesQuery) : Promise.resolve(null),
+          ]);
+          
+          if (classmatesSnapshot) {
             const classmatesData = classmatesSnapshot.docs.map(doc => {
               const data = doc.data();
               return { value: data.uid, label: data.displayName };
             });
             setClassmates(classmatesData);
           }
+
+          const incorrectData = incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer));
+          setReviewQuestions(incorrectData);
+
+          const solvedIncorrectData = solvedIncorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer));
+          setSolvedReviewQuestions(solvedIncorrectData);
+
+          const flatStatsData = subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat));
+          const nestedStatsData = transformStats(flatStatsData);
+          setSubjectStats(nestedStatsData);
         }
-      
-        const incorrectData = incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer));
-        setReviewQuestions(incorrectData);
-
-        const solvedIncorrectData = solvedIncorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer));
-        setSolvedReviewQuestions(solvedIncorrectData);
-
-        const flatStatsData = subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat));
-        const nestedStatsData = transformStats(flatStatsData);
-        setSubjectStats(nestedStatsData);
 
       } catch (err) {
          console.error("Error fetching profile data:", err);
