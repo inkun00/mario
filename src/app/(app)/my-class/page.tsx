@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -366,7 +367,7 @@ export default function MyClassPage() {
                                             <TableCell>
                                               <Button 
                                                 size="sm" 
-                                                disabled={item.sellerId === user.uid || !!isBuying}
+                                                disabled={item.sellerId === user?.uid || !!isBuying}
                                                 onClick={() => handleBuyItem(item)}
                                               >
                                                 {isBuying === item.id ? <Loader2 className="w-4 h-4 animate-spin"/> : '구매'}
