@@ -147,7 +147,7 @@ export default function ProfilePage() {
   const [sendPointsRecipient, setSendPointsRecipient] = useState('');
   const [isSendingPoints, setIsSendingPoints] = useState(false);
 
-
+  // Fetch initial user data and other profile info
   const fetchProfileData = useCallback(async (uid: string) => {
     setIsLoading(true);
     try {
@@ -167,8 +167,8 @@ export default function ProfilePage() {
       if (userSnap.exists()) {
         const fetchedUserData = userSnap.data() as User;
         if (fetchedUserData.classPoints === undefined) {
-            await updateDoc(userRef, { classPoints: fetchedUserData.xp });
-            fetchedUserData.classPoints = fetchedUserData.xp;
+          await updateDoc(userRef, { classPoints: fetchedUserData.xp });
+          fetchedUserData.classPoints = fetchedUserData.xp;
         }
         setUserData(fetchedUserData);
         setEditNickname(fetchedUserData.displayName);
@@ -199,48 +199,60 @@ export default function ProfilePage() {
     }
   }, [toast]);
 
-  // Fetch user's own data first
+  // Initial data fetch effect
   useEffect(() => {
-    if (user) {
+    if (user && !userData) {
       fetchProfileData(user.uid);
-    } else {
-      setIsLoading(false);
     }
-  }, [user, fetchProfileData]);
+  }, [user, userData, fetchProfileData]);
 
-  // Fetch classmates after user data is loaded
+  // Effect to fetch classmates after user data is loaded
   useEffect(() => {
     if (!user || !userData) return;
 
     const fetchClassmates = async () => {
       let classmatesQuery;
+      
+      // If user is a teacher, get all students in their class
       if (userData.role === 'teacher') {
         classmatesQuery = query(collection(db, 'users'), where('classId', '==', user.uid));
-      } else if (userData.role === 'student' && userData.classId) {
-        classmatesQuery = query(collection(db, 'users'), where('classId', '==', userData.classId));
+      } 
+      // If user is a student with a class, get all other students in that class
+      else if (userData.role === 'student' && userData.classId) {
+        // This query requires a composite index on (classId, role)
+        classmatesQuery = query(collection(db, 'users'), 
+          where('classId', '==', userData.classId),
+          where('role', '==', 'student')
+        );
       } else {
-        return; // No class, no need to fetch classmates
+        // No class or not a student, so no classmates to fetch
+        setClassmates([]);
+        return;
       }
       
       try {
         const classmatesSnapshot = await getDocs(classmatesQuery);
-        const allClassMembers = classmatesSnapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
-        
-        const classmatesData = allClassMembers
-          .filter(member => member.uid !== user.uid)
-          .map(member => ({
+        const allClassMembers = classmatesSnapshot.docs
+          .map(doc => doc.data() as User)
+          .filter(member => member.uid !== user.uid); // Exclude self from the list
+
+        const classmatesData = allClassMembers.map(member => ({
             value: member.uid,
             label: member.displayName,
-          }));
-
+        }));
         setClassmates(classmatesData);
       } catch (error) {
         console.error("Error fetching classmates:", error);
+        toast({
+          variant: 'destructive',
+          title: '학급원 조회 실패',
+          description: '학급 친구 목록을 불러오는 데 실패했습니다. Firestore 색인 설정을 확인해주세요.'
+        });
       }
     };
 
     fetchClassmates();
-  }, [user, userData]);
+  }, [user, userData, toast]);
 
 
   const handleEdit = () => {
@@ -744,7 +756,7 @@ export default function ProfilePage() {
             </div>
             <div className="flex flex-col items-center">
                <div 
-                className={cn("flex flex-col items-center", canSendPoints && "cursor-pointer hover:opacity-80")}
+                className={cn(canSendPoints && "cursor-pointer hover:opacity-80")}
                 onClick={() => canSendPoints && setIsSendPointsDialogOpen(true)}
               >
                 <p className="flex items-center justify-center text-2xl font-bold">
