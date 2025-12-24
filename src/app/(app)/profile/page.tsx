@@ -33,11 +33,11 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
-import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package } from 'lucide-react';
+import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -48,6 +48,7 @@ import { cn } from '@/lib/utils';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import Image from 'next/image';
+import { Combobox } from '@/components/ui/combobox';
 
 
 interface ReviewQuestion extends IncorrectAnswer {
@@ -134,6 +135,13 @@ export default function ProfilePage() {
   const [isJoinClassDialog, setIsJoinClassDialog] = useState(false);
   const [joinClassCode, setJoinClassCode] = useState('');
 
+  const [selectedItem, setSelectedItem] = useState<{name: string, details: {quantity: number, description?: string}} | null>(null);
+  const [itemAction, setItemAction] = useState<'use' | 'send' | null>(null);
+  const [actionQuantity, setActionQuantity] = useState(1);
+  const [sendRecipient, setSendRecipient] = useState('');
+  const [classmates, setClassmates] = useState<{value: string, label: string}[]>([]);
+  const [isItemActionLoading, setIsItemActionLoading] = useState(false);
+
 
   useEffect(() => {
     if (!user) {
@@ -180,6 +188,22 @@ export default function ProfilePage() {
           const currentLevel = getLevelInfo(fetchedUserData.xp);
           setLevelInfo(currentLevel);
           setNextLevelInfo(getNextLevelInfo(currentLevel.level));
+
+           // Fetch classmates if the user is in a class
+          if (fetchedUserData.classId) {
+            const classmatesQuery = query(
+              collection(db, 'users'),
+              where('classId', '==', fetchedUserData.classId),
+              where('uid', '!=', user.uid)
+            );
+            const classmatesSnapshot = await getDocs(classmatesQuery);
+            const classmatesData = classmatesSnapshot.docs.map(doc => {
+              const data = doc.data();
+              return { value: data.uid, label: data.displayName };
+            });
+            setClassmates(classmatesData);
+          }
+
         }
       
         const incorrectData = incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer));
@@ -449,6 +473,104 @@ export default function ProfilePage() {
     setIncorrectAnswersToShow(filtered);
     setShowIncorrectAnswersDialog(true);
   };
+  
+  const closeItemDialogs = () => {
+    setSelectedItem(null);
+    setItemAction(null);
+    setActionQuantity(1);
+    setSendRecipient('');
+  };
+
+  const handleUseItem = async () => {
+    if (!user || !selectedItem || actionQuantity <= 0) return;
+
+    setIsItemActionLoading(true);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const userRef = doc(db, 'users', user.uid);
+        const userDoc = await transaction.get(userRef);
+
+        if (!userDoc.exists()) throw "사용자 정보를 찾을 수 없습니다.";
+        
+        const currentInventory = userDoc.data().inventory || {};
+        const itemToUse = currentInventory[selectedItem.name];
+
+        if (!itemToUse || itemToUse.quantity < actionQuantity) {
+          throw "사용할 아이템의 수량이 부족합니다.";
+        }
+
+        const newQuantity = itemToUse.quantity - actionQuantity;
+        if (newQuantity > 0) {
+          currentInventory[selectedItem.name].quantity = newQuantity;
+        } else {
+          delete currentInventory[selectedItem.name];
+        }
+
+        transaction.update(userRef, { inventory: currentInventory });
+      });
+
+      toast({ title: "아이템 사용", description: `'${selectedItem.name}' ${actionQuantity}개를 사용했습니다.` });
+      closeItemDialogs();
+
+    } catch (error) {
+      toast({ variant: "destructive", title: "오류", description: typeof error === 'string' ? error : "아이템 사용 중 오류가 발생했습니다."});
+    } finally {
+      setIsItemActionLoading(false);
+    }
+  };
+
+  const handleSendItem = async () => {
+    if (!user || !selectedItem || !sendRecipient || actionQuantity <= 0) {
+      toast({ variant: 'destructive', title: '오류', description: '받는 사람과 수량을 확인해주세요.'});
+      return;
+    };
+    
+    setIsItemActionLoading(true);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const senderRef = doc(db, 'users', user.uid);
+        const recipientRef = doc(db, 'users', sendRecipient);
+
+        const [senderDoc, recipientDoc] = await Promise.all([
+          transaction.get(senderRef),
+          transaction.get(recipientRef)
+        ]);
+
+        if (!senderDoc.exists() || !recipientDoc.exists()) throw "사용자 정보를 찾을 수 없습니다.";
+        
+        // Sender logic
+        const senderInventory = senderDoc.data().inventory || {};
+        const itemToSend = senderInventory[selectedItem.name];
+
+        if (!itemToSend || itemToSend.quantity < actionQuantity) throw "보유 수량이 부족합니다.";
+
+        const newSenderQuantity = itemToSend.quantity - actionQuantity;
+        if (newSenderQuantity > 0) {
+          senderInventory[selectedItem.name].quantity = newSenderQuantity;
+        } else {
+          delete senderInventory[selectedItem.name];
+        }
+        transaction.update(senderRef, { inventory: senderInventory });
+
+        // Recipient logic
+        const recipientInventory = recipientDoc.data().inventory || {};
+        const currentRecipientQuantity = recipientInventory[selectedItem.name]?.quantity || 0;
+        recipientInventory[selectedItem.name] = { 
+            quantity: currentRecipientQuantity + actionQuantity,
+            description: selectedItem.details.description
+        };
+        transaction.update(recipientRef, { inventory: recipientInventory });
+      });
+
+      toast({ title: '전송 완료', description: `'${selectedItem.name}' ${actionQuantity}개를 성공적으로 보냈습니다.` });
+      closeItemDialogs();
+
+    } catch (error) {
+       toast({ variant: "destructive", title: "오류", description: typeof error === 'string' ? error : "아이템 전송 중 오류가 발생했습니다."});
+    } finally {
+      setIsItemActionLoading(false);
+    }
+  };
 
   
   const xpForNextLevel = nextLevelInfo ? nextLevelInfo.xpThreshold - (levelInfo?.xpThreshold || 0) : 0;
@@ -585,10 +707,14 @@ export default function ProfilePage() {
             {userData.inventory && Object.keys(userData.inventory).length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {Object.entries(userData.inventory).map(([itemName, itemDetails]) => (
-                        <div key={itemName} className="p-4 border rounded-lg text-center">
-                            <p className="font-semibold">{itemName}</p>
-                            <p className="text-muted-foreground">수량: {itemDetails.quantity}</p>
-                        </div>
+                        <Card 
+                          key={itemName} 
+                          className="p-4 text-center cursor-pointer hover:shadow-md hover:border-primary transition"
+                          onClick={() => setSelectedItem({ name: itemName, details: itemDetails })}
+                        >
+                            <CardTitle className="text-base">{itemName}</CardTitle>
+                            <CardDescription>수량: {itemDetails.quantity}</CardDescription>
+                        </Card>
                     ))}
                 </div>
             ) : (
@@ -791,7 +917,76 @@ export default function ProfilePage() {
             </TooltipProvider>
         </CardContent>
       </Card>
-      
+    </div>
+
+    {/* Item Management Dialog */}
+    <Dialog open={!!selectedItem} onOpenChange={(isOpen) => !isOpen && closeItemDialogs()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{selectedItem?.name}</DialogTitle>
+          <DialogDescription>
+            {selectedItem?.details.description || "아이템 설명이 없습니다."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-4 py-4">
+            <Button variant="outline" onClick={() => setItemAction('use')}>
+              <MinusCircle className="mr-2 h-4 w-4" />
+              사용하기
+            </Button>
+            <Button variant="outline" onClick={() => setItemAction('send')}>
+              <Send className="mr-2 h-4 w-4" />
+              보내기
+            </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    
+    {/* Item Action Dialog (Use/Send) */}
+    <Dialog open={!!itemAction} onOpenChange={(isOpen) => !isOpen && closeItemDialogs()}>
+        <DialogContent>
+            <DialogHeader>
+                 <DialogTitle>
+                    {itemAction === 'use' ? '아이템 사용하기' : '아이템 보내기'}
+                </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+                <p><strong>아이템:</strong> {selectedItem?.name}</p>
+                <div className="space-y-2">
+                    <Label htmlFor="quantity">수량</Label>
+                    <Input 
+                        id="quantity"
+                        type="number"
+                        min="1"
+                        max={selectedItem?.details.quantity}
+                        value={actionQuantity}
+                        onChange={(e) => setActionQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                    />
+                </div>
+                {itemAction === 'send' && (
+                    <div className="space-y-2">
+                        <Label>받는 사람</Label>
+                        <Combobox
+                          options={classmates}
+                          value={sendRecipient}
+                          onValueChange={setSendRecipient}
+                          placeholder="학급 친구 선택..."
+                          searchPlaceholder="이름으로 검색..."
+                          notFoundMessage="해당하는 친구가 없습니다."
+                        />
+                    </div>
+                )}
+            </div>
+            <DialogFooter>
+                <Button variant="secondary" onClick={closeItemDialogs}>취소</Button>
+                <Button onClick={itemAction === 'use' ? handleUseItem : handleSendItem} disabled={isItemActionLoading}>
+                    {isItemActionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                    {itemAction === 'use' ? '사용' : '전송'}
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+
       <Dialog open={showIncorrectAnswersDialog} onOpenChange={setShowIncorrectAnswersDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -835,7 +1030,7 @@ export default function ProfilePage() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
-    </div>
+    
 
     {/* Dialogs for class and teacher management */}
     <AlertDialog open={isTeacherDialog} onOpenChange={setIsTeacherDialog}>
@@ -906,3 +1101,4 @@ export default function ProfilePage() {
     </>
   );
 }
+

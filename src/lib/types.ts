@@ -19,6 +19,7 @@ export interface User {
   inventory?: {
     [itemName: string]: {
       quantity: number;
+      description?: string;
     }
   }
 }
@@ -151,12 +152,7 @@ export interface SubjectStat {
     id: string; // subject name
     totalCorrect: number;
     totalIncorrect: number;
-    units?: { // This will be constructed on the client
-        [unitName: string]: {
-            totalCorrect: number;
-            totalIncorrect: number;
-        }
-    }
+...
     // Allow any other fields, which will be the flattened unit stats
     [key: string]: any;
 }
