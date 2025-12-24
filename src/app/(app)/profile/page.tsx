@@ -147,7 +147,7 @@ export default function ProfilePage() {
   const [sendPointsRecipient, setSendPointsRecipient] = useState('');
   const [isSendingPoints, setIsSendingPoints] = useState(false);
 
-  const fetchUserData = useCallback(async () => {
+  const fetchProfileData = useCallback(async () => {
     if (!user) {
       setIsLoading(false);
       return;
@@ -194,37 +194,48 @@ export default function ProfilePage() {
   }, [user, toast]);
 
   const fetchClassmates = useCallback(async () => {
-    if (!user || !userData) return;
-
-    const classId = userData.role === 'teacher' ? user.uid : userData.classId;
-    if (!classId) {
-      setClassmates([]);
-      return;
+    if (!user || !userData || !userData.classId) {
+        setClassmates([]);
+        return;
     }
 
     try {
-      const q = query(collection(db, 'users'), where('classId', '==', classId));
-      const querySnapshot = await getDocs(q);
+        let members: User[] = [];
+
+        // 1. Fetch classmates (other students)
+        const studentsQuery = query(
+            collection(db, 'users'),
+            where('classId', '==', userData.classId),
+            where('role', '==', 'student')
+        );
+        const studentsSnapshot = await getDocs(studentsQuery);
+        const studentMembers = studentsSnapshot.docs
+            .map(doc => doc.data() as User)
+            .filter(member => member.uid !== user.uid); // Exclude self
+        members.push(...studentMembers);
+
+        // 2. Fetch the teacher
+        const teacherRef = doc(db, 'users', userData.classId); // Teacher's UID is the classId
+        const teacherSnap = await getDoc(teacherRef);
+        if (teacherSnap.exists()) {
+            members.push(teacherSnap.data() as User);
+        }
       
-      const members = querySnapshot.docs
-        .map((doc) => doc.data() as User)
-        .filter((member) => member.uid !== user.uid);
-      
-      setClassmates(members.map(member => ({
-        value: member.uid,
-        label: `${member.displayName} ${member.role === 'teacher' ? '(선생님)' : ''}`.trim(),
-      })));
+        setClassmates(members.map(member => ({
+            value: member.uid,
+            label: `${member.displayName} ${member.role === 'teacher' ? '(선생님)' : ''}`.trim(),
+        })));
 
     } catch (error) {
-      console.error("Error fetching classmates:", error);
-      toast({ variant: 'destructive', title: '오류', description: '학급 친구 목록을 불러오는 데 실패했습니다.' });
+        console.error("Error fetching classmates:", error);
+        toast({ variant: 'destructive', title: '오류', description: '학급 구성원 목록을 불러오는 데 실패했습니다.' });
     }
-  }, [user, userData, toast]);
+}, [user, userData, toast]);
 
 
   useEffect(() => {
-    fetchUserData();
-  }, [fetchUserData]);
+    fetchProfileData();
+  }, [fetchProfileData]);
 
   useEffect(() => {
     if (userData) {
@@ -264,8 +275,8 @@ export default function ProfilePage() {
         displayName: editNickname,
         schoolName: editSchoolName,
       });
-
-      // No need to call setUserData, onSnapshot will handle it.
+      
+      setUserData(prev => prev ? {...prev, displayName: editNickname, schoolName: editSchoolName} : null);
       setIsEditing(false);
       toast({ title: '성공', description: '프로필이 성공적으로 업데이트되었습니다.' });
     } catch (error: any) {
@@ -281,7 +292,7 @@ export default function ProfilePage() {
       if (user) {
         const userRef = doc(db, 'users', user.uid);
         await updateDoc(userRef, { role: 'teacher' });
-        // setUserData will be updated by onSnapshot
+        setUserData(prev => prev ? {...prev, role: 'teacher'} : null);
         toast({ title: '성공', description: '교사 계정으로 전환되었습니다.'});
         setIsTeacherDialog(false);
         setTeacherCode('');
@@ -296,7 +307,7 @@ export default function ProfilePage() {
     if (user) {
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, { classCode: classCode });
-      // setUserData will be updated by onSnapshot
+      setUserData(prev => prev ? {...prev, classCode: classCode} : null);
       toast({ title: '성공', description: '학급 코드가 설정되었습니다.' });
       setIsClassCodeDialog(false);
     }
@@ -318,11 +329,12 @@ export default function ProfilePage() {
         }
 
         const teacherDoc = teacherSnapshot.docs[0];
+        const teacherId = teacherDoc.id;
 
         const userRef = doc(db, 'users', user.uid);
-        await updateDoc(userRef, { classId: teacherDoc.id }); // Use teacher's UID as classId
+        await updateDoc(userRef, { classId: teacherId }); 
         
-        // setUserData will be updated by onSnapshot
+        setUserData(prev => prev ? {...prev, classId: teacherId} : null);
         toast({ title: '성공', description: `'${teacherDoc.data().displayName} 선생님'의 학급에 참여했습니다.` });
         setIsJoinClassDialog(false);
         setJoinClassCode('');
@@ -427,13 +439,12 @@ export default function ProfilePage() {
         if (isCorrect) {
             const userRef = doc(db, 'users', user.uid);
             await updateDoc(userRef, { xp: increment(10) });
-            // User data will be updated by onSnapshot listener
+            setUserData(prev => prev ? {...prev, xp: prev.xp + 10} : null);
             toast({ title: '정답입니다!', description: '복습을 완료했습니다. 10 XP를 획득했습니다!' });
         } else {
              toast({ variant: 'destructive', title: '아쉽지만 오답입니다.', description: `정답은 "${reviewItem.question.answer || reviewItem.question.correctAnswer}" 입니다.` });
         }
         
-        // Optimistically update UI
         setReviewQuestions(prev => prev.filter((_, i) => i !== index));
         setSolvedReviewQuestions(prev => [solvedData, ...prev]);
 
@@ -497,6 +508,18 @@ export default function ProfilePage() {
       });
 
       toast({ title: "아이템 사용", description: `'${selectedItem.name}' ${actionQuantity}개를 사용했습니다.` });
+      // Optimistic update
+      setUserData(prev => {
+        if (!prev || !selectedItem) return prev;
+        const newInventory = {...(prev.inventory || {})};
+        const newQuantity = (newInventory[selectedItem.name]?.quantity || 0) - actionQuantity;
+        if (newQuantity > 0) {
+            newInventory[selectedItem.name].quantity = newQuantity;
+        } else {
+            delete newInventory[selectedItem.name];
+        }
+        return {...prev, inventory: newInventory};
+      });
       closeItemDialogs();
 
     } catch (error) {
@@ -550,6 +573,18 @@ export default function ProfilePage() {
       });
 
       toast({ title: '전송 완료', description: `'${selectedItem.name}' ${actionQuantity}개를 성공적으로 보냈습니다.` });
+      // Optimistic update
+      setUserData(prev => {
+        if (!prev || !selectedItem) return prev;
+        const newInventory = {...(prev.inventory || {})};
+        const newQuantity = (newInventory[selectedItem.name]?.quantity || 0) - actionQuantity;
+        if (newQuantity > 0) {
+            newInventory[selectedItem.name].quantity = newQuantity;
+        } else {
+            delete newInventory[selectedItem.name];
+        }
+        return {...prev, inventory: newInventory};
+      });
       closeItemDialogs();
 
     } catch (error) {
@@ -558,6 +593,10 @@ export default function ProfilePage() {
       setIsItemActionLoading(false);
     }
   };
+
+  const handleOpenSendPointsDialog = useCallback(() => {
+    setIsSendPointsDialogOpen(true);
+  }, []);
 
   const handleSendPoints = async () => {
     if (!user || !userData || !sendPointsRecipient || sendPointsAmount <= 0) {
@@ -596,6 +635,8 @@ export default function ProfilePage() {
 
       const recipientName = classmates.find(c => c.value === sendPointsRecipient)?.label || '친구';
       toast({ title: '전송 완료', description: `${recipientName}님에게 ${sendPointsAmount.toLocaleString()} 포인트를 성공적으로 보냈습니다.` });
+      // Optimistic update
+      setUserData(prev => prev ? {...prev, classPoints: (prev.classPoints || 0) - sendPointsAmount} : null);
       setIsSendPointsDialogOpen(false);
       setSendPointsAmount(0);
       setSendPointsRecipient('');
@@ -606,11 +647,6 @@ export default function ProfilePage() {
       setIsSendingPoints(false);
     }
   };
-  
-  const handleOpenSendPointsDialog = useCallback(() => {
-    setIsSendPointsDialogOpen(true);
-  }, []);
-
   
   const xpForNextLevel = nextLevelInfo ? nextLevelInfo.xpThreshold - (levelInfo?.xpThreshold || 0) : 0;
   const currentXpProgress = userData ? userData.xp - (levelInfo?.xpThreshold || 0) : 0;
@@ -1201,3 +1237,4 @@ export default function ProfilePage() {
     </>
   );
 }
+
