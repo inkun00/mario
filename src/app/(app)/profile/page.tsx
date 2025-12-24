@@ -195,11 +195,13 @@ export default function ProfilePage() {
           setLevelInfo(currentLevel);
           setNextLevelInfo(getNextLevelInfo(currentLevel.level));
 
-           // Fetch classmates if the user is in a class
-          if (fetchedUserData.classId) {
+           // Fetch classmates if the user is in a class or is a teacher
+          const classIdForQuery = fetchedUserData.role === 'teacher' ? user.uid : fetchedUserData.classId;
+
+          if (classIdForQuery) {
             const classmatesQuery = query(
               collection(db, 'users'),
-              where('classId', '==', fetchedUserData.classId),
+              where('classId', '==', classIdForQuery),
               where('uid', '!=', user.uid)
             );
             const classmatesSnapshot = await getDocs(classmatesQuery);
@@ -209,7 +211,6 @@ export default function ProfilePage() {
             });
             setClassmates(classmatesData);
           }
-
         }
       
         const incorrectData = incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer));
@@ -675,7 +676,7 @@ export default function ProfilePage() {
       return <div>사용자 정보를 불러올 수 없습니다.</div>
   }
 
-  const canSendPoints = classmates.length > 0 && userData.role !== 'teacher';
+  const canSendPoints = classmates.length > 0;
 
   return (
     <>
@@ -791,19 +792,19 @@ export default function ProfilePage() {
             <CardTitle className="font-headline flex items-center gap-2">계정 및 학급 설정</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {userData.role !== 'teacher' && (
-                <Button variant="outline" onClick={() => setIsJoinClassDialog(true)}>
-                    <Users className="mr-2 h-4 w-4"/> 학급 참여하기
-                </Button>
-            )}
             {userData.role === 'teacher' ? (
                 <Button variant="outline" onClick={() => setIsClassCodeDialog(true)}>
                    <Edit className="mr-2 h-4 w-4"/> 학급 코드 관리
                 </Button>
             ) : (
+              <>
+                <Button variant="outline" onClick={() => setIsJoinClassDialog(true)}>
+                    <Users className="mr-2 h-4 w-4"/> 학급 참여하기
+                </Button>
                 <Button variant="outline" onClick={() => setIsTeacherDialog(true)}>
                     <KeyRound className="mr-2 h-4 w-4"/> 교사 계정으로 전환
                 </Button>
+              </>
             )}
         </CardContent>
       </Card>
