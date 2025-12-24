@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { User, ClassStoreItem } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -58,11 +58,13 @@ export default function MyClassPage() {
     }
   });
 
-  useEffect(() => {
+ useEffect(() => {
     if (!user) {
       setIsLoading(false);
       return;
     }
+
+    let unsubscribeStore: Unsubscribe | undefined;
 
     const fetchClassData = async () => {
       setIsLoading(true);
@@ -77,45 +79,50 @@ export default function MyClassPage() {
         const targetClassId = currentUserData.role === 'teacher' ? user.uid : currentUserData.classId;
 
         if (targetClassId) {
-            const membersQuery = query(collection(db, 'users'), where('classId', '==', targetClassId));
-            const teacherQuery = query(collection(db, 'users'), where('uid', '==', targetClassId));
+          const membersQuery = query(collection(db, 'users'), where('classId', '==', targetClassId));
+          const teacherQuery = query(collection(db, 'users'), where('uid', '==', targetClassId));
 
-            const [membersSnapshot, teacherSnapshot] = await Promise.all([
-                getDocs(membersQuery),
-                getDocs(teacherQuery),
-            ]);
+          const [membersSnapshot, teacherSnapshot] = await Promise.all([
+            getDocs(membersQuery),
+            getDocs(teacherQuery),
+          ]);
 
-            const members = membersSnapshot.docs.map(doc => doc.data() as User);
-            
-            if (currentUserData.role === 'teacher') {
-                setTeacher(currentUserData);
-            } else if (!teacherSnapshot.empty) {
-                setTeacher(teacherSnapshot.docs[0].data() as User);
-            }
+          const members = membersSnapshot.docs.map(doc => doc.data() as User);
+          
+          if (currentUserData.role === 'teacher') {
+            setTeacher(currentUserData);
+          } else if (!teacherSnapshot.empty) {
+            setTeacher(teacherSnapshot.docs[0].data() as User);
+          }
 
-            setClassMembers(members.sort((a, b) => b.xp - a.xp));
-            
-            // Fetch class store items
-            setIsStoreLoading(true);
-            const storeQuery = query(collection(db, 'class-store-items'), where('classId', '==', targetClassId));
-            const unsubscribe = onSnapshot(storeQuery, (snapshot) => {
-              const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClassStoreItem));
-              setClassStoreItems(items);
-              setIsStoreLoading(false);
-            }, (error) => {
-              console.error("Error fetching store items:", error);
-              toast({ variant: "destructive", title: "오류", description: "학급 매장 상품을 불러오는 중 오류가 발생했습니다."});
-              setIsStoreLoading(false);
-            });
-            
-            return () => unsubscribe();
+          setClassMembers(members.sort((a, b) => b.xp - a.xp));
+          
+          // Fetch class store items
+          setIsStoreLoading(true);
+          const storeQuery = query(collection(db, 'class-store-items'), where('classId', '==', targetClassId));
+          unsubscribeStore = onSnapshot(storeQuery, (snapshot) => {
+            const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClassStoreItem));
+            setClassStoreItems(items);
+            setIsStoreLoading(false);
+          }, (error) => {
+            console.error("Error fetching store items:", error);
+            toast({ variant: "destructive", title: "오류", description: "학급 매장 상품을 불러오는 중 오류가 발생했습니다."});
+            setIsStoreLoading(false);
+          });
+        } else {
+            setIsStoreLoading(false);
         }
       }
-
       setIsLoading(false);
     };
 
     fetchClassData();
+
+    return () => {
+        if (unsubscribeStore) {
+            unsubscribeStore();
+        }
+    };
   }, [user, toast]);
 
   async function handleSellItem(data: SellItemFormValues) {
