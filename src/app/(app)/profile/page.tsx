@@ -148,26 +148,23 @@ export default function ProfilePage() {
   const [isSendingPoints, setIsSendingPoints] = useState(false);
 
 
-  // Fetch initial user data
+  // Step 1: Fetch user data and other profile data that doesn't depend on userData
   useEffect(() => {
     if (!user) {
       setIsLoading(false);
       return;
-    };
+    }
 
     setIsLoading(true);
+
     const userRef = doc(db, 'users', user.uid);
-    const unsubscribe = onSnapshot(userRef, async (docSnap) => {
+    const unsubscribeUser = onSnapshot(userRef, (docSnap) => {
       if (docSnap.exists()) {
         const fetchedUserData = docSnap.data() as User;
-        if (fetchedUserData.classPoints === undefined) {
-          await updateDoc(userRef, { classPoints: fetchedUserData.xp });
-          fetchedUserData.classPoints = fetchedUserData.xp;
-        }
         setUserData(fetchedUserData);
         setEditNickname(fetchedUserData.displayName);
         setEditSchoolName(fetchedUserData.schoolName || '');
-         if (fetchedUserData.role === 'teacher') {
+        if (fetchedUserData.role === 'teacher') {
           setClassCode(fetchedUserData.classCode || '');
         }
         const currentLevel = getLevelInfo(fetchedUserData.xp);
@@ -177,78 +174,72 @@ export default function ProfilePage() {
       setIsLoading(false);
     }, (error) => {
       console.error("Error fetching user data:", error);
-      toast({ variant: 'destructive', title: '오류', description: '사용자 정보를 불러오는 중 오류가 발생했습니다.'});
+      toast({ variant: 'destructive', title: '오류', description: '사용자 정보를 불러오는 중 오류가 발생했습니다.' });
       setIsLoading(false);
     });
 
-    return () => unsubscribe();
-  }, [user, toast]);
-
-  // Fetch other profile data after user data is loaded
-  useEffect(() => {
-    if (!user) return;
-
     const fetchOtherData = async () => {
-        const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
-        const solvedIncorrectAnswersRef = collection(db, 'users', user.uid, 'solved-incorrect-answers');
-        const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
-        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
+      const solvedIncorrectAnswersRef = collection(db, 'users', user.uid, 'solved-incorrect-answers');
+      const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-        try {
-            const [incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot] = await Promise.all([
-                getDocs(query(incorrectAnswersRef, where('timestamp', '<=', oneDayAgo), orderBy('timestamp', 'asc'))),
-                getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
-                getDocs(subjectStatsRef),
-            ]);
+      try {
+        const [incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot] = await Promise.all([
+          getDocs(query(incorrectAnswersRef, where('timestamp', '<=', oneDayAgo), orderBy('timestamp', 'asc'))),
+          getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
+          getDocs(subjectStatsRef),
+        ]);
 
-            const incorrectData = incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer));
-            setReviewQuestions(incorrectData);
-
-            const solvedIncorrectData = solvedIncorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer));
-            setSolvedReviewQuestions(solvedIncorrectData);
-
-            const flatStatsData = subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat));
-            const nestedStatsData = transformStats(flatStatsData);
-            setSubjectStats(nestedStatsData);
-
-        } catch (error) {
-            console.error("Error fetching other profile data:", error);
-            toast({ variant: 'destructive', title: '오류', description: '추가 프로필 데이터를 불러오는 중 오류가 발생했습니다.' });
-        }
+        setReviewQuestions(incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer)));
+        setSolvedReviewQuestions(solvedIncorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer)));
+        setSubjectStats(transformStats(subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat))));
+      } catch (error) {
+        console.error("Error fetching other profile data:", error);
+        toast({ variant: 'destructive', title: '오류', description: '추가 프로필 데이터를 불러오는 중 오류가 발생했습니다.' });
+      }
     };
-    
-    fetchOtherData();
-  }, [user, toast]);
 
-  // Fetch classmates after userData is available
+    fetchOtherData();
+
+    return () => {
+      unsubscribeUser();
+    };
+  }, [user, toast]);
+  
+  // Step 2: Fetch classmates only after userData is available
   useEffect(() => {
-    if (!user || !userData) return;
+    if (!user || !userData) {
+      setClassmates([]);
+      return;
+    };
 
     const fetchClassmates = async () => {
-        let classmatesQuery;
-        if (userData.role === 'teacher' && userData.classCode) {
-            classmatesQuery = query(collection(db, 'users'), where('classId', '==', user.uid));
-        } else if (userData.role === 'student' && userData.classId) {
-            classmatesQuery = query(collection(db, 'users'), where('classId', '==', userData.classId));
-        } else {
-            setClassmates([]);
-            return;
-        }
-
-        try {
-            const snapshot = await getDocs(classmatesQuery);
-            const members = snapshot.docs
-                .map(doc => doc.data() as User)
-                .filter(member => member.uid !== user.uid) // Exclude self
-                .map(member => ({
-                    value: member.uid,
-                    label: member.displayName,
-                }));
-            setClassmates(members);
-        } catch (error) {
-            console.error("Error fetching classmates:", error);
-            toast({ variant: 'destructive', title: '오류', description: '학급 친구 목록을 불러오는 데 실패했습니다.' });
-        }
+      let classmatesQuery;
+      
+      if (userData.role === 'teacher') {
+        classmatesQuery = query(collection(db, 'users'), where('classId', '==', user.uid));
+      } else if (userData.role === 'student' && userData.classId) {
+        classmatesQuery = query(collection(db, 'users'), where('classId', '==', userData.classId));
+      } else {
+        setClassmates([]);
+        return;
+      }
+      
+      try {
+        const snapshot = await getDocs(classmatesQuery);
+        const members = snapshot.docs
+          .map(doc => doc.data() as User)
+          .filter(member => member.uid !== user.uid); // Filter self out on the client
+          
+        setClassmates(members.map(member => ({
+          value: member.uid,
+          label: member.displayName,
+        })));
+      } catch (error) {
+        console.error("Error fetching classmates:", error);
+        toast({ variant: 'destructive', title: '오류', description: '학급 친구 목록을 불러오는 데 실패했습니다.' });
+      }
     };
 
     fetchClassmates();
@@ -744,10 +735,7 @@ export default function ProfilePage() {
               <p className="text-sm text-muted-foreground">누적 포인트</p>
             </div>
             <div className="flex flex-col items-center">
-               <div 
-                className={cn(canSendPoints && "cursor-pointer hover:opacity-80")}
-                onClick={() => canSendPoints && setIsSendPointsDialogOpen(true)}
-              >
+               <div className="cursor-pointer hover:opacity-80">
                 <p className="flex items-center justify-center text-2xl font-bold">
                     <Gem className="w-5 h-5 mr-1 text-blue-500"/>
                     {(userData.classPoints || 0).toLocaleString()}
@@ -1222,4 +1210,3 @@ export default function ProfilePage() {
     </>
   );
 }
-
