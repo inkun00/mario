@@ -173,7 +173,6 @@ export default function ProfilePage() {
         if (userSnap.exists()) {
           const fetchedUserData = userSnap.data() as User;
 
-          // Migrate classPoints if it doesn't exist
           if (fetchedUserData.classPoints === undefined) {
               await updateDoc(userRef, {
                   classPoints: fetchedUserData.xp
@@ -192,25 +191,16 @@ export default function ProfilePage() {
           setLevelInfo(currentLevel);
           setNextLevelInfo(getNextLevelInfo(currentLevel.level));
 
-           // Fetch classmates if the user is in a class or is a teacher
-          const classIdForQuery = fetchedUserData.role === 'teacher' ? user.uid : fetchedUserData.classId;
           let classmatesQuery;
-
-          if (classIdForQuery) {
-            if (fetchedUserData.role === 'teacher') {
-              // Teacher: get all students in their class
-              classmatesQuery = query(
-                collection(db, 'users'),
-                where('classId', '==', user.uid)
-              );
-            } else {
-              // Student: get all other students in their class
-              classmatesQuery = query(
-                collection(db, 'users'),
-                where('classId', '==', classIdForQuery),
-                where('uid', '!=', user.uid)
-              );
-            }
+          if (fetchedUserData.role === 'teacher' && fetchedUserData.classCode) {
+            classmatesQuery = query(collection(db, 'users'), where('classId', '==', user.uid));
+          } else if (fetchedUserData.role === 'student' && fetchedUserData.classId) {
+            classmatesQuery = query(
+              collection(db, 'users'),
+              where('classId', '==', fetchedUserData.classId),
+              where('role', '==', 'student'),
+              where('uid', '!=', user.uid)
+            );
           }
           
           const [incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot, classmatesSnapshot] = await Promise.all([
