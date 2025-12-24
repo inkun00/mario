@@ -195,12 +195,7 @@ export default function ProfilePage() {
           if (fetchedUserData.role === 'teacher' && fetchedUserData.classCode) {
             classmatesQuery = query(collection(db, 'users'), where('classId', '==', user.uid));
           } else if (fetchedUserData.role === 'student' && fetchedUserData.classId) {
-            classmatesQuery = query(
-              collection(db, 'users'),
-              where('classId', '==', fetchedUserData.classId),
-              where('role', '==', 'student'),
-              where('uid', '!=', user.uid)
-            );
+            classmatesQuery = query(collection(db, 'users'), where('classId', '==', fetchedUserData.classId));
           }
           
           const [incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot, classmatesSnapshot] = await Promise.all([
@@ -211,10 +206,13 @@ export default function ProfilePage() {
           ]);
           
           if (classmatesSnapshot) {
-            const classmatesData = classmatesSnapshot.docs.map(doc => {
-              const data = doc.data();
-              return { value: data.uid, label: data.displayName };
-            });
+            const classmatesData = classmatesSnapshot.docs
+              .map(doc => ({ uid: doc.id, ...doc.data() }))
+              .filter(member => member.uid !== user.uid) // Filter out the current user
+              .map(member => ({
+                value: member.uid,
+                label: member.displayName,
+              }));
             setClassmates(classmatesData);
           }
 
@@ -747,17 +745,21 @@ export default function ProfilePage() {
               <p className="text-2xl font-bold">{userData.xp.toLocaleString()}</p>
               <p className="text-sm text-muted-foreground">누적 포인트</p>
             </div>
-            <div 
-              className={cn(canSendPoints && 'cursor-pointer hover:bg-muted rounded-md p-2 transition-colors')}
-              onClick={() => canSendPoints && setIsSendPointsDialogOpen(true)}
-            >
-              <div className="flex items-center justify-center gap-2">
-                <p className="flex items-center justify-center text-2xl font-bold">
-                    <Gem className="w-5 h-5 mr-1 text-blue-500"/>
-                    {(userData.classPoints || 0).toLocaleString()}
-                </p>
-              </div>
+            <div className="flex flex-col items-center">
+              <p className="flex items-center justify-center text-2xl font-bold">
+                  <Gem className="w-5 h-5 mr-1 text-blue-500"/>
+                  {(userData.classPoints || 0).toLocaleString()}
+              </p>
               <p className="text-sm text-muted-foreground">학급 포인트</p>
+              <Button 
+                variant="link" 
+                size="sm" 
+                className="h-auto p-0 mt-1"
+                disabled={!canSendPoints}
+                onClick={() => setIsSendPointsDialogOpen(true)}
+              >
+                포인트 보내기
+              </Button>
             </div>
             <div>
               <p className="text-2xl font-bold">{overallAccuracy}%</p>
@@ -803,22 +805,12 @@ export default function ProfilePage() {
                 <Button variant="outline" onClick={() => setIsClassCodeDialog(true)}>
                    <Edit className="mr-2 h-4 w-4"/> 학급 코드 관리
                 </Button>
-                {canSendPoints && (
-                   <Button variant="outline" onClick={() => setIsSendPointsDialogOpen(true)}>
-                      <Send className="mr-2 h-4 w-4"/> 학급 포인트 보내기
-                   </Button>
-                )}
               </>
             ) : (
               <>
                 <Button variant="outline" onClick={() => setIsJoinClassDialog(true)}>
                     <Users className="mr-2 h-4 w-4"/> 학급 참여하기
                 </Button>
-                {canSendPoints && (
-                   <Button variant="outline" onClick={() => setIsSendPointsDialogOpen(true)}>
-                      <Send className="mr-2 h-4 w-4"/> 학급 포인트 보내기
-                   </Button>
-                )}
                 <Button variant="outline" onClick={() => setIsTeacherDialog(true)}>
                     <KeyRound className="mr-2 h-4 w-4"/> 교사 계정으로 전환
                 </Button>
