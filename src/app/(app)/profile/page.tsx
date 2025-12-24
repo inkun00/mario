@@ -199,11 +199,22 @@ export default function ProfilePage() {
           const classIdForQuery = fetchedUserData.role === 'teacher' ? user.uid : fetchedUserData.classId;
 
           if (classIdForQuery) {
-            const classmatesQuery = query(
-              collection(db, 'users'),
-              where('classId', '==', classIdForQuery),
-              where('uid', '!=', user.uid)
-            );
+            let classmatesQuery;
+            if (fetchedUserData.role === 'teacher') {
+              // Teacher: get all students in their class
+              classmatesQuery = query(
+                collection(db, 'users'),
+                where('classId', '==', user.uid)
+              );
+            } else {
+              // Student: get all other students in their class
+              classmatesQuery = query(
+                collection(db, 'users'),
+                where('classId', '==', classIdForQuery),
+                where('uid', '!=', user.uid)
+              );
+            }
+
             const classmatesSnapshot = await getDocs(classmatesQuery);
             const classmatesData = classmatesSnapshot.docs.map(doc => {
               const data = doc.data();
@@ -793,14 +804,26 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {userData.role === 'teacher' ? (
+              <>
                 <Button variant="outline" onClick={() => setIsClassCodeDialog(true)}>
                    <Edit className="mr-2 h-4 w-4"/> 학급 코드 관리
                 </Button>
+                {canSendPoints && (
+                   <Button variant="outline" onClick={() => setIsSendPointsDialogOpen(true)}>
+                      <Send className="mr-2 h-4 w-4"/> 학급 포인트 보내기
+                   </Button>
+                )}
+              </>
             ) : (
               <>
                 <Button variant="outline" onClick={() => setIsJoinClassDialog(true)}>
                     <Users className="mr-2 h-4 w-4"/> 학급 참여하기
                 </Button>
+                {canSendPoints && (
+                   <Button variant="outline" onClick={() => setIsSendPointsDialogOpen(true)}>
+                      <Send className="mr-2 h-4 w-4"/> 학급 포인트 보내기
+                   </Button>
+                )}
                 <Button variant="outline" onClick={() => setIsTeacherDialog(true)}>
                     <KeyRound className="mr-2 h-4 w-4"/> 교사 계정으로 전환
                 </Button>
