@@ -2,16 +2,33 @@
 
 import { useEffect, useState } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import type { User } from '@/lib/types';
+import type { User, ClassStoreItem } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, Crown, Store, ShoppingCart, Repeat } from 'lucide-react';
+import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save } from 'lucide-react';
 import { getLevelInfo } from '@/lib/level-system';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { useToast } from '@/hooks/use-toast';
+
+const sellItemSchema = z.object({
+  name: z.string().min(1, '상품명을 입력해주세요.').max(30, '상품명은 30자 이내로 입력해주세요.'),
+  price: z.coerce.number().min(1, '가격은 1 이상이어야 합니다.'),
+  description: z.string().min(1, '제품 설명을 입력해주세요.').max(200, '설명은 200자 이내로 입력해주세요.'),
+  quantity: z.coerce.number().min(1, '수량은 1 이상이어야 합니다.'),
+});
+
+type SellItemFormValues = z.infer<typeof sellItemSchema>;
 
 
 export default function MyClassPage() {
@@ -20,6 +37,19 @@ export default function MyClassPage() {
   const [classMembers, setClassMembers] = useState<User[]>([]);
   const [teacher, setTeacher] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSellItemDialogOpen, setIsSellItemDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+
+  const form = useForm<SellItemFormValues>({
+    resolver: zodResolver(sellItemSchema),
+    defaultValues: {
+      name: '',
+      price: 1,
+      description: '',
+      quantity: 1,
+    }
+  });
 
   useEffect(() => {
     if (!user) {
@@ -37,28 +67,27 @@ export default function MyClassPage() {
         const currentUserData = userSnap.data() as User;
         setUserData(currentUserData);
 
-        let members: User[] = [];
-        // If the user is a teacher
-        if (currentUserData.role === 'teacher') {
-          const q = query(collection(db, 'users'), where('classId', '==', user.uid));
-          const querySnapshot = await getDocs(q);
-          members = querySnapshot.docs.map(doc => doc.data() as User);
-          setTeacher(currentUserData);
-        } 
-        // If the user is a student and has a classId
-        else if (currentUserData.role === 'student' && currentUserData.classId) {
-          const teacherRef = doc(db, 'users', currentUserData.classId);
-          const teacherSnap = await getDoc(teacherRef);
-          if (teacherSnap.exists()) {
-            setTeacher(teacherSnap.data() as User);
-          }
+        const targetClassId = currentUserData.role === 'teacher' ? user.uid : currentUserData.classId;
 
-          const q = query(collection(db, 'users'), where('classId', '==', currentUserData.classId));
-          const querySnapshot = await getDocs(q);
-          members = querySnapshot.docs.map(doc => doc.data() as User);
+        if (targetClassId) {
+            const membersQuery = query(collection(db, 'users'), where('classId', '==', targetClassId));
+            const teacherQuery = query(collection(db, 'users'), where('uid', '==', targetClassId));
+
+            const [membersSnapshot, teacherSnapshot] = await Promise.all([
+                getDocs(membersQuery),
+                getDocs(teacherQuery),
+            ]);
+
+            const members = membersSnapshot.docs.map(doc => doc.data() as User);
+            
+            if (currentUserData.role === 'teacher') {
+                setTeacher(currentUserData);
+            } else if (!teacherSnapshot.empty) {
+                setTeacher(teacherSnapshot.docs[0].data() as User);
+            }
+
+            setClassMembers(members.sort((a, b) => b.xp - a.xp));
         }
-        
-        setClassMembers(members.sort((a, b) => b.xp - a.xp));
       }
 
       setIsLoading(false);
@@ -66,6 +95,37 @@ export default function MyClassPage() {
 
     fetchClassData();
   }, [user]);
+
+  async function handleSellItem(data: SellItemFormValues) {
+    if (!user || !userData) return;
+    
+    const classId = userData.role === 'teacher' ? user.uid : userData.classId;
+    if (!classId) {
+        toast({ variant: 'destructive', title: '오류', description: '소속된 학급이 없어 상품을 등록할 수 없습니다.' });
+        return;
+    }
+
+    setIsSubmitting(true);
+    try {
+        await addDoc(collection(db, 'class-store-items'), {
+            ...data,
+            sellerId: user.uid,
+            sellerNickname: userData.displayName,
+            classId: classId,
+            createdAt: serverTimestamp(),
+        });
+
+        toast({ title: '성공', description: '상품을 성공적으로 등록했습니다.' });
+        setIsSellItemDialogOpen(false);
+        form.reset();
+    } catch (error) {
+        console.error("Error adding item to store: ", error);
+        toast({ variant: 'destructive', title: '오류', description: '상품 등록 중 오류가 발생했습니다.' });
+    } finally {
+        setIsSubmitting(false);
+    }
+  }
+
 
   if (isLoading) {
     return (
@@ -92,6 +152,7 @@ export default function MyClassPage() {
   const hasClass = (isTeacher && userData.classCode) || (!isTeacher && userData.classId);
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle className="font-headline text-3xl flex items-center gap-2">
@@ -164,15 +225,79 @@ export default function MyClassPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2"><Store className="text-primary"/>학급 매점</CardTitle>
-                        <CardDescription>학급 포인트를 사용하여 다양한 아이템을 구매하거나 판매할 수 있습니다. (개발 중)</CardDescription>
+                        <CardDescription>학급 포인트를 사용하여 다양한 아이템을 구매하거나 판매할 수 있습니다.</CardDescription>
                     </CardHeader>
                     <CardContent className="flex flex-col sm:flex-row gap-4">
                         <Button className="w-full" disabled>
-                            <ShoppingCart className="mr-2 h-4 w-4"/> 물건 사기
+                            <ShoppingCart className="mr-2 h-4 w-4"/> 물건 사기 (개발 중)
                         </Button>
-                        <Button className="w-full" variant="secondary" disabled>
-                            <Repeat className="mr-2 h-4 w-4"/> 물건 팔기
-                        </Button>
+                        <Dialog open={isSellItemDialogOpen} onOpenChange={setIsSellItemDialogOpen}>
+                            <DialogTrigger asChild>
+                                 <Button className="w-full" variant="secondary">
+                                    <Repeat className="mr-2 h-4 w-4"/> 물건 팔기
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>판매할 물건 등록하기</DialogTitle>
+                                    <DialogDescription>판매할 상품의 정보를 입력해주세요.</DialogDescription>
+                                </DialogHeader>
+                                <Form {...form}>
+                                    <form onSubmit={form.handleSubmit(handleSellItem)} className="space-y-4">
+                                        <FormField
+                                            control={form.control}
+                                            name="name"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>상품명</FormLabel>
+                                                    <FormControl><Input {...field} placeholder="예: 숙제 1회 면제권" /></FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="price"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>가격 (학급 포인트)</FormLabel>
+                                                    <FormControl><Input type="number" {...field} /></FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="description"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>제품 설명</FormLabel>
+                                                    <FormControl><Textarea {...field} placeholder="상품에 대해 자세히 설명해주세요." /></FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <FormField
+                                            control={form.control}
+                                            name="quantity"
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>수량</FormLabel>
+                                                    <FormControl><Input type="number" {...field} /></FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                        <DialogFooter>
+                                            <Button type="submit" disabled={isSubmitting}>
+                                                {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                                                저장하기
+                                            </Button>
+                                        </DialogFooter>
+                                    </form>
+                                </Form>
+                            </DialogContent>
+                        </Dialog>
                     </CardContent>
                 </Card>
             </TabsContent>
@@ -180,5 +305,6 @@ export default function MyClassPage() {
         )}
       </CardContent>
     </Card>
+    </>
   );
 }

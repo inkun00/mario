@@ -162,3 +162,15 @@ export interface School {
   memberCount: number;
   members: User[];
 }
+
+export interface ClassStoreItem {
+  id: string; // document id
+  sellerId: string; // user.uid
+  sellerNickname: string;
+  classId: string; // The class this item belongs to
+  name: string;
+  price: number;
+  description: string;
+  quantity: number;
+  createdAt: any; // serverTimestamp
+}
