@@ -194,43 +194,48 @@ export default function ProfilePage() {
   }, [user, toast]);
 
   const fetchClassmates = useCallback(async () => {
-    if (!user || !userData || !userData.classId) {
-        setClassmates([]);
-        return;
+    if (!user || !userData) {
+      setClassmates([]);
+      return;
     }
-
+  
     try {
-        let members: User[] = [];
-
-        // 1. Fetch classmates (other students)
-        const studentsQuery = query(
-            collection(db, 'users'),
-            where('classId', '==', userData.classId),
-            where('role', '==', 'student')
+      let members: User[] = [];
+      const isTeacher = userData.role === 'teacher';
+      const classIdForQuery = isTeacher ? user.uid : userData.classId;
+  
+      if (classIdForQuery) {
+        const classmatesQuery = query(
+          collection(db, 'users'),
+          where(isTeacher ? 'classId' : 'classId', '==', classIdForQuery)
         );
-        const studentsSnapshot = await getDocs(studentsQuery);
-        const studentMembers = studentsSnapshot.docs
-            .map(doc => doc.data() as User)
-            .filter(member => member.uid !== user.uid); // Exclude self
+        
+        const classmatesSnapshot = await getDocs(classmatesQuery);
+        const studentMembers = classmatesSnapshot.docs
+          .map(doc => doc.data() as User)
+          .filter(member => member.uid !== user.uid); // Exclude self
         members.push(...studentMembers);
-
-        // 2. Fetch the teacher
-        const teacherRef = doc(db, 'users', userData.classId); // Teacher's UID is the classId
-        const teacherSnap = await getDoc(teacherRef);
-        if (teacherSnap.exists()) {
-            members.push(teacherSnap.data() as User);
+  
+        // If student, also fetch the teacher
+        if (!isTeacher && userData.classId) {
+          const teacherRef = doc(db, 'users', userData.classId);
+          const teacherSnap = await getDoc(teacherRef);
+          if (teacherSnap.exists()) {
+            members.push(teacherSnap.data() as User); // CORRECTED: use push instead of reassignment
+          }
         }
+      }
       
-        setClassmates(members.map(member => ({
-            value: member.uid,
-            label: `${member.displayName} ${member.role === 'teacher' ? '(선생님)' : ''}`.trim(),
-        })));
-
+      setClassmates(members.map(member => ({
+        value: member.uid,
+        label: `${member.displayName} ${member.role === 'teacher' ? '(선생님)' : ''}`.trim(),
+      })));
+  
     } catch (error) {
-        console.error("Error fetching classmates:", error);
-        toast({ variant: 'destructive', title: '오류', description: '학급 구성원 목록을 불러오는 데 실패했습니다.' });
+      console.error("Error fetching classmates:", error);
+      toast({ variant: 'destructive', title: '오류', description: '학급 구성원 목록을 불러오는 데 실패했습니다.' });
     }
-}, [user, userData, toast]);
+  }, [user, userData, toast]);
 
 
   useEffect(() => {
@@ -1237,4 +1242,5 @@ export default function ProfilePage() {
     </>
   );
 }
+
 
