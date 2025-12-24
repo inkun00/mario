@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -34,7 +35,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo } from 'react';
 import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
 import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -863,5 +864,3 @@ export default function ProfilePage() {
     </>
   );
 }
-
-    
