@@ -675,6 +675,8 @@ export default function ProfilePage() {
       return <div>사용자 정보를 불러올 수 없습니다.</div>
   }
 
+  const canSendPoints = classmates.length > 0 && userData.role !== 'teacher';
+
   return (
     <>
     <div className="container mx-auto flex flex-col gap-8">
@@ -738,13 +740,16 @@ export default function ProfilePage() {
               <p className="text-2xl font-bold">{userData.xp.toLocaleString()}</p>
               <p className="text-sm text-muted-foreground">누적 포인트</p>
             </div>
-            <div>
-                <div className="flex items-center justify-center gap-2">
-                  <p className="flex items-center justify-center text-2xl font-bold">
-                      <Gem className="w-5 h-5 mr-1 text-blue-500"/>
-                      {(userData.classPoints || 0).toLocaleString()}
-                  </p>
-                </div>
+            <div 
+              className={cn(canSendPoints && 'cursor-pointer hover:bg-muted rounded-md p-2 transition-colors')}
+              onClick={() => canSendPoints && setIsSendPointsDialogOpen(true)}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <p className="flex items-center justify-center text-2xl font-bold">
+                    <Gem className="w-5 h-5 mr-1 text-blue-500"/>
+                    {(userData.classPoints || 0).toLocaleString()}
+                </p>
+              </div>
               <p className="text-sm text-muted-foreground">학급 포인트</p>
             </div>
             <div>
@@ -799,11 +804,6 @@ export default function ProfilePage() {
                 <Button variant="outline" onClick={() => setIsTeacherDialog(true)}>
                     <KeyRound className="mr-2 h-4 w-4"/> 교사 계정으로 전환
                 </Button>
-            )}
-            {classmates.length > 0 && userData.role !== 'teacher' && (
-              <Button variant="outline" onClick={() => setIsSendPointsDialogOpen(true)}>
-                  <Send className="mr-2 h-4 w-4"/> 학급 포인트 보내기
-              </Button>
             )}
         </CardContent>
       </Card>
