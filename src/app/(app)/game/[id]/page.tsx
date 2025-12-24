@@ -562,10 +562,14 @@ export default function GamePage() {
     try {
         const batch = writeBatch(db);
 
-        const xpUpdates: { [uid: string]: number } = {};
+        const pointUpdates: { [uid: string]: { xp: number, classPoints: number } } = {};
         (gameRoom.answerLogs || []).forEach(log => {
             if (log.userId && typeof log.pointsAwarded === 'number') {
-                xpUpdates[log.userId] = (xpUpdates[log.userId] || 0) + log.pointsAwarded;
+                if (!pointUpdates[log.userId]) {
+                    pointUpdates[log.userId] = { xp: 0, classPoints: 0 };
+                }
+                pointUpdates[log.userId].xp += log.pointsAwarded;
+                pointUpdates[log.userId].classPoints += log.pointsAwarded;
             }
         });
 
@@ -625,8 +629,12 @@ export default function GamePage() {
 
         playerUIDs.forEach(uid => {
             const userRef = doc(db, 'users', uid);
-            if (xpUpdates[uid] && xpUpdates[uid] !== 0) {
-                batch.update(userRef, { xp: increment(xpUpdates[uid]) });
+            const updates = pointUpdates[uid];
+            if (updates && (updates.xp !== 0 || updates.classPoints !== 0)) {
+                batch.update(userRef, { 
+                    xp: increment(updates.xp),
+                    classPoints: increment(updates.classPoints)
+                });
             }
 
             const playedGameSetRef = doc(db, 'users', uid, 'playedGameSets', gameRoomId);
@@ -647,7 +655,10 @@ export default function GamePage() {
         if (gameSet.creatorId && !playerUIDs.includes(gameSet.creatorId)) {
             const creatorRef = doc(db, 'users', gameSet.creatorId);
             const rewardAmount = gameSet.questions.length;
-            batch.update(creatorRef, { xp: increment(rewardAmount) });
+            batch.update(creatorRef, { 
+                xp: increment(rewardAmount),
+                classPoints: increment(rewardAmount)
+            });
         }
 
         const gameRoomRef = doc(db, 'game-rooms', gameRoomId);

@@ -37,7 +37,7 @@ import { useEffect, useState, useMemo } from 'react';
 import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
-import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit } from 'lucide-react';
+import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -161,6 +161,15 @@ export default function ProfilePage() {
 
         if (userSnap.exists()) {
           const fetchedUserData = userSnap.data() as User;
+
+          // Migrate classPoints if it doesn't exist
+          if (fetchedUserData.classPoints === undefined) {
+              await updateDoc(userRef, {
+                  classPoints: fetchedUserData.xp
+              });
+              fetchedUserData.classPoints = fetchedUserData.xp;
+          }
+
           setUserData(fetchedUserData);
           setEditNickname(fetchedUserData.displayName);
           setEditSchoolName(fetchedUserData.schoolName || '');
@@ -462,7 +471,11 @@ export default function ProfilePage() {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="grid grid-cols-2 gap-4 text-center">
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                            <Skeleton className="h-7 w-24 mx-auto mb-1" />
+                            <Skeleton className="h-5 w-20 mx-auto" />
+                        </div>
                         <div>
                             <Skeleton className="h-7 w-24 mx-auto mb-1" />
                             <Skeleton className="h-5 w-20 mx-auto" />
@@ -544,10 +557,17 @@ export default function ProfilePage() {
                 </p>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-4 text-center">
+          <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <p className="text-2xl font-bold">{userData.xp.toLocaleString()}</p>
               <p className="text-sm text-muted-foreground">누적 포인트</p>
+            </div>
+            <div>
+                <p className="flex items-center justify-center text-2xl font-bold">
+                    <Gem className="w-5 h-5 mr-1 text-blue-500"/>
+                    {(userData.classPoints || 0).toLocaleString()}
+                </p>
+              <p className="text-sm text-muted-foreground">학급 포인트</p>
             </div>
             <div>
               <p className="text-2xl font-bold">{overallAccuracy}%</p>

@@ -74,6 +74,7 @@ export default function LoginPage() {
             class: '',
             createdAt: serverTimestamp(),
             xp: 0,
+            classPoints: 0,
             level: 1,
         });
     }

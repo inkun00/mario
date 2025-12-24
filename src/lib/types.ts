@@ -5,6 +5,7 @@ export interface User {
   email: string | null;
   displayName: string;
   xp: number;
+  classPoints?: number;
   level: number;
   lastPlayed?: any;
   schoolName?: string;
@@ -161,5 +162,3 @@ export interface School {
   memberCount: number;
   members: User[];
 }
-
-    

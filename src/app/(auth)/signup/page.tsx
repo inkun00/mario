@@ -76,6 +76,7 @@ export default function SignupPage() {
             schoolName: customData?.schoolName || '',
             createdAt: serverTimestamp(),
             xp: 0,
+            classPoints: 0,
             level: 1,
             dailyReportCount: 0,
             role: 'student', // 기본 역할을 학생으로 설정
