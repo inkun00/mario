@@ -147,25 +147,19 @@ export default function ProfilePage() {
   const [sendPointsRecipient, setSendPointsRecipient] = useState('');
   const [isSendingPoints, setIsSendingPoints] = useState(false);
 
-  // Fetch initial user data and other profile info
-  const fetchProfileData = useCallback(async (uid: string) => {
+
+  // Fetch initial user data
+  useEffect(() => {
+    if (!user) {
+      setIsLoading(false);
+      return;
+    };
+
     setIsLoading(true);
-    try {
-      const userRef = doc(db, 'users', uid);
-      const incorrectAnswersRef = collection(db, 'users', uid, 'incorrect-answers');
-      const solvedIncorrectAnswersRef = collection(db, 'users', uid, 'solved-incorrect-answers');
-      const subjectStatsRef = collection(db, 'users', uid, 'subjectStats');
-      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-      const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot] = await Promise.all([
-        getDoc(userRef),
-        getDocs(query(incorrectAnswersRef, where('timestamp', '<=', oneDayAgo), orderBy('timestamp', 'asc'))),
-        getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
-        getDocs(subjectStatsRef),
-      ]);
-
-      if (userSnap.exists()) {
-        const fetchedUserData = userSnap.data() as User;
+    const userRef = doc(db, 'users', user.uid);
+    const unsubscribe = onSnapshot(userRef, async (docSnap) => {
+      if (docSnap.exists()) {
+        const fetchedUserData = docSnap.data() as User;
         if (fetchedUserData.classPoints === undefined) {
           await updateDoc(userRef, { classPoints: fetchedUserData.xp });
           fetchedUserData.classPoints = fetchedUserData.xp;
@@ -173,82 +167,88 @@ export default function ProfilePage() {
         setUserData(fetchedUserData);
         setEditNickname(fetchedUserData.displayName);
         setEditSchoolName(fetchedUserData.schoolName || '');
-        if (fetchedUserData.role === 'teacher') {
+         if (fetchedUserData.role === 'teacher') {
           setClassCode(fetchedUserData.classCode || '');
         }
         const currentLevel = getLevelInfo(fetchedUserData.xp);
         setLevelInfo(currentLevel);
         setNextLevelInfo(getNextLevelInfo(currentLevel.level));
       }
-
-      const incorrectData = incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer));
-      setReviewQuestions(incorrectData);
-
-      const solvedIncorrectData = solvedIncorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer));
-      setSolvedReviewQuestions(solvedIncorrectData);
-
-      const flatStatsData = subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat));
-      const nestedStatsData = transformStats(flatStatsData);
-      setSubjectStats(nestedStatsData);
-
-    } catch (err) {
-      console.error("Error fetching profile data:", err);
-      toast({ variant: 'destructive', title: '오류', description: '프로필 데이터를 불러오는 중 오류가 발생했습니다.'});
-    } finally {
       setIsLoading(false);
-    }
-  }, [toast]);
+    }, (error) => {
+      console.error("Error fetching user data:", error);
+      toast({ variant: 'destructive', title: '오류', description: '사용자 정보를 불러오는 중 오류가 발생했습니다.'});
+      setIsLoading(false);
+    });
 
-  // Initial data fetch effect
+    return () => unsubscribe();
+  }, [user, toast]);
+
+  // Fetch other profile data after user data is loaded
   useEffect(() => {
-    if (user && !userData) {
-      fetchProfileData(user.uid);
-    }
-  }, [user, userData, fetchProfileData]);
+    if (!user) return;
 
-  // Effect to fetch classmates after user data is loaded
+    const fetchOtherData = async () => {
+        const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
+        const solvedIncorrectAnswersRef = collection(db, 'users', user.uid, 'solved-incorrect-answers');
+        const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+        try {
+            const [incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot] = await Promise.all([
+                getDocs(query(incorrectAnswersRef, where('timestamp', '<=', oneDayAgo), orderBy('timestamp', 'asc'))),
+                getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
+                getDocs(subjectStatsRef),
+            ]);
+
+            const incorrectData = incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer));
+            setReviewQuestions(incorrectData);
+
+            const solvedIncorrectData = solvedIncorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer));
+            setSolvedReviewQuestions(solvedIncorrectData);
+
+            const flatStatsData = subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat));
+            const nestedStatsData = transformStats(flatStatsData);
+            setSubjectStats(nestedStatsData);
+
+        } catch (error) {
+            console.error("Error fetching other profile data:", error);
+            toast({ variant: 'destructive', title: '오류', description: '추가 프로필 데이터를 불러오는 중 오류가 발생했습니다.' });
+        }
+    };
+    
+    fetchOtherData();
+  }, [user, toast]);
+
+  // Fetch classmates after userData is available
   useEffect(() => {
     if (!user || !userData) return;
 
     const fetchClassmates = async () => {
-      let classmatesQuery;
-      
-      // If user is a teacher, get all students in their class
-      if (userData.role === 'teacher') {
-        classmatesQuery = query(collection(db, 'users'), where('classId', '==', user.uid));
-      } 
-      // If user is a student with a class, get all other students in that class
-      else if (userData.role === 'student' && userData.classId) {
-        // This query requires a composite index on (classId, role)
-        classmatesQuery = query(collection(db, 'users'), 
-          where('classId', '==', userData.classId),
-          where('role', '==', 'student')
-        );
-      } else {
-        // No class or not a student, so no classmates to fetch
-        setClassmates([]);
-        return;
-      }
-      
-      try {
-        const classmatesSnapshot = await getDocs(classmatesQuery);
-        const allClassMembers = classmatesSnapshot.docs
-          .map(doc => doc.data() as User)
-          .filter(member => member.uid !== user.uid); // Exclude self from the list
+        let classmatesQuery;
+        if (userData.role === 'teacher' && userData.classCode) {
+            classmatesQuery = query(collection(db, 'users'), where('classId', '==', user.uid));
+        } else if (userData.role === 'student' && userData.classId) {
+            classmatesQuery = query(collection(db, 'users'), where('classId', '==', userData.classId));
+        } else {
+            setClassmates([]);
+            return;
+        }
 
-        const classmatesData = allClassMembers.map(member => ({
-            value: member.uid,
-            label: member.displayName,
-        }));
-        setClassmates(classmatesData);
-      } catch (error) {
-        console.error("Error fetching classmates:", error);
-        toast({
-          variant: 'destructive',
-          title: '학급원 조회 실패',
-          description: '학급 친구 목록을 불러오는 데 실패했습니다. Firestore 색인 설정을 확인해주세요.'
-        });
-      }
+        try {
+            const snapshot = await getDocs(classmatesQuery);
+            const members = snapshot.docs
+                .map(doc => doc.data() as User)
+                .filter(member => member.uid !== user.uid) // Exclude self
+                .map(member => ({
+                    value: member.uid,
+                    label: member.displayName,
+                }));
+            setClassmates(members);
+        } catch (error) {
+            console.error("Error fetching classmates:", error);
+            toast({ variant: 'destructive', title: '오류', description: '학급 친구 목록을 불러오는 데 실패했습니다.' });
+        }
     };
 
     fetchClassmates();
@@ -287,7 +287,7 @@ export default function ProfilePage() {
         schoolName: editSchoolName,
       });
 
-      setUserData({ ...userData, displayName: editNickname, schoolName: editSchoolName });
+      // No need to call setUserData, onSnapshot will handle it.
       setIsEditing(false);
       toast({ title: '성공', description: '프로필이 성공적으로 업데이트되었습니다.' });
     } catch (error: any) {
@@ -303,7 +303,7 @@ export default function ProfilePage() {
       if (user) {
         const userRef = doc(db, 'users', user.uid);
         await updateDoc(userRef, { role: 'teacher' });
-        setUserData(prev => prev ? ({...prev, role: 'teacher'}) : null);
+        // setUserData will be updated by onSnapshot
         toast({ title: '성공', description: '교사 계정으로 전환되었습니다.'});
         setIsTeacherDialog(false);
         setTeacherCode('');
@@ -318,7 +318,7 @@ export default function ProfilePage() {
     if (user) {
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, { classCode: classCode });
-      setUserData(prev => prev ? ({...prev, classCode: classCode}) : null);
+      // setUserData will be updated by onSnapshot
       toast({ title: '성공', description: '학급 코드가 설정되었습니다.' });
       setIsClassCodeDialog(false);
     }
@@ -344,8 +344,7 @@ export default function ProfilePage() {
         const userRef = doc(db, 'users', user.uid);
         await updateDoc(userRef, { classId: teacherDoc.id }); // Use teacher's UID as classId
         
-        setUserData(prev => prev ? ({...prev, classId: teacherDoc.id}) : null);
-
+        // setUserData will be updated by onSnapshot
         toast({ title: '성공', description: `'${teacherDoc.data().displayName} 선생님'의 학급에 참여했습니다.` });
         setIsJoinClassDialog(false);
         setJoinClassCode('');
@@ -450,23 +449,13 @@ export default function ProfilePage() {
         if (isCorrect) {
             const userRef = doc(db, 'users', user.uid);
             await updateDoc(userRef, { xp: increment(10) });
-            
-            setUserData(prev => {
-                if (!prev) return null;
-                const newXp = prev.xp + 10;
-                const newLevelInfo = getLevelInfo(newXp);
-                if (newLevelInfo.level !== levelInfo?.level) {
-                    setLevelInfo(newLevelInfo);
-                    setNextLevelInfo(getNextLevelInfo(newLevelInfo.level));
-                }
-                return { ...prev, xp: newXp };
-            });
-
+            // User data will be updated by onSnapshot listener
             toast({ title: '정답입니다!', description: '복습을 완료했습니다. 10 XP를 획득했습니다!' });
         } else {
              toast({ variant: 'destructive', title: '아쉽지만 오답입니다.', description: `정답은 "${reviewItem.question.answer || reviewItem.question.correctAnswer}" 입니다.` });
         }
         
+        // Optimistically update UI
         setReviewQuestions(prev => prev.filter((_, i) => i !== index));
         setSolvedReviewQuestions(prev => [solvedData, ...prev]);
 
@@ -1233,3 +1222,4 @@ export default function ProfilePage() {
     </>
   );
 }
+
