@@ -164,20 +164,22 @@ export default function MyClassPage() {
 
     try {
       await runTransaction(db, async (transaction) => {
-        const userRef = doc(db, 'users', user.uid);
+        const buyerRef = doc(db, 'users', user.uid);
+        const sellerRef = doc(db, 'users', item.sellerId);
         const itemRef = doc(db, 'class-store-items', item.id);
 
-        const userDoc = await transaction.get(userRef);
-        const itemDoc = await transaction.get(itemRef);
+        const [buyerDoc, sellerDoc, itemDoc] = await Promise.all([
+            transaction.get(buyerRef),
+            transaction.get(sellerRef),
+            transaction.get(itemRef)
+        ]);
 
-        if (!userDoc.exists()) {
-          throw "사용자 정보를 찾을 수 없습니다.";
-        }
-        if (!itemDoc.exists()) {
-          throw "상품 정보를 찾을 수 없거나 이미 판매되었습니다.";
-        }
+        if (!buyerDoc.exists()) throw "사용자 정보를 찾을 수 없습니다.";
+        if (!sellerDoc.exists()) throw "판매자 정보를 찾을 수 없습니다.";
+        if (!itemDoc.exists()) throw "상품 정보를 찾을 수 없거나 이미 판매되었습니다.";
 
-        const buyerData = userDoc.data() as User;
+        const buyerData = buyerDoc.data() as User;
+        const sellerData = sellerDoc.data() as User;
         const itemData = itemDoc.data() as ClassStoreItem;
         
         if ((buyerData.classPoints || 0) < itemData.price) {
@@ -189,18 +191,25 @@ export default function MyClassPage() {
         }
 
         // 1. Decrement buyer's points
-        transaction.update(userRef, {
+        transaction.update(buyerRef, {
           classPoints: (buyerData.classPoints || 0) - itemData.price,
         });
         
         // 2. Add item to buyer's inventory
         const newInventory = { ...buyerData.inventory };
         const currentQuantity = newInventory[itemData.name]?.quantity || 0;
-        newInventory[itemData.name] = { quantity: currentQuantity + 1 };
-        transaction.update(userRef, { inventory: newInventory });
+        newInventory[itemData.name] = { 
+            quantity: currentQuantity + 1,
+            description: itemData.description
+        };
+        transaction.update(buyerRef, { inventory: newInventory });
 
+        // 3. Increment seller's points
+        transaction.update(sellerRef, {
+          classPoints: (sellerData.classPoints || 0) + itemData.price,
+        });
 
-        // 3. Decrement item quantity or delete
+        // 4. Decrement item quantity or delete
         if (itemData.quantity > 1) {
           transaction.update(itemRef, {
             quantity: itemData.quantity - 1,
