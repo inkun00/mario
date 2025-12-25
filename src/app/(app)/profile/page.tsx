@@ -49,6 +49,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import Image from 'next/image';
 import { Combobox } from '@/components/ui/combobox';
+import { PixelEditor } from '@/components/pixel-editor';
+import { PixelAvatar } from '@/components/pixel-avatar';
 
 
 interface ReviewQuestion extends IncorrectAnswer {
@@ -147,6 +149,9 @@ export default function ProfilePage() {
   const [sendPointsRecipient, setSendPointsRecipient] = useState('');
   const [isSendingPoints, setIsSendingPoints] = useState(false);
 
+  const [isAvatarEditorOpen, setIsAvatarEditorOpen] = useState(false);
+  const [currentPixelAvatar, setCurrentPixelAvatar] = useState<string[][] | null>(null);
+
   const fetchProfileData = useCallback(async () => {
     if (!user) {
       setIsLoading(false);
@@ -172,6 +177,7 @@ export default function ProfilePage() {
       if (userSnap.exists()) {
         const fetchedUserData = userSnap.data() as User;
         setUserData(fetchedUserData);
+        setCurrentPixelAvatar(fetchedUserData.pixelAvatar || null);
         setEditNickname(fetchedUserData.displayName);
         setEditSchoolName(fetchedUserData.schoolName || '');
         if (fetchedUserData.role === 'teacher') {
@@ -200,28 +206,27 @@ export default function ProfilePage() {
     }
   
     try {
-      let members: User[] = [];
+      const members: User[] = [];
       const isTeacher = userData.role === 'teacher';
       const classIdForQuery = isTeacher ? user.uid : userData.classId;
   
       if (classIdForQuery) {
         const classmatesQuery = query(
           collection(db, 'users'),
-          where(isTeacher ? 'classId' : 'classId', '==', classIdForQuery)
+          where('classId', '==', classIdForQuery)
         );
         
         const classmatesSnapshot = await getDocs(classmatesQuery);
         const studentMembers = classmatesSnapshot.docs
           .map(doc => doc.data() as User)
-          .filter(member => member.uid !== user.uid); // Exclude self
+          .filter(member => member.uid !== user.uid); 
         members.push(...studentMembers);
   
-        // If student, also fetch the teacher
         if (!isTeacher && userData.classId) {
           const teacherRef = doc(db, 'users', userData.classId);
           const teacherSnap = await getDoc(teacherRef);
           if (teacherSnap.exists()) {
-            members.push(teacherSnap.data() as User); // CORRECTED: use push instead of reassignment
+            members.push(teacherSnap.data() as User);
           }
         }
       }
@@ -652,6 +657,20 @@ export default function ProfilePage() {
       setIsSendingPoints(false);
     }
   };
+
+  const handleSaveAvatar = async (pixels: string[][]) => {
+    if (!user) return;
+    try {
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, { pixelAvatar: pixels });
+        setCurrentPixelAvatar(pixels);
+        setUserData(prev => prev ? { ...prev, pixelAvatar: pixels } : null);
+        toast({ title: '성공', description: '프로필 이미지가 저장되었습니다.' });
+        setIsAvatarEditorOpen(false);
+    } catch (error) {
+        toast({ variant: 'destructive', title: '오류', description: '프로필 이미지 저장 중 오류가 발생했습니다.' });
+    }
+  };
   
   const xpForNextLevel = nextLevelInfo ? nextLevelInfo.xpThreshold - (levelInfo?.xpThreshold || 0) : 0;
   const currentXpProgress = userData ? userData.xp - (levelInfo?.xpThreshold || 0) : 0;
@@ -665,7 +684,7 @@ export default function ProfilePage() {
             <Card>
                 <CardHeader>
                     <div className="flex items-center gap-4">
-                        <Skeleton className="h-20 w-20 rounded-full" />
+                        <Skeleton className="h-20 w-20 rounded-lg" />
                         <div>
                            <Skeleton className="h-8 w-40 mb-2" />
                            <Skeleton className="h-5 w-32" />
@@ -709,8 +728,11 @@ export default function ProfilePage() {
       <Card>
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-            <div className="relative h-20 w-20 flex items-center justify-center rounded-full bg-secondary flex-shrink-0">
-                <span className="text-5xl">{levelInfo.icon}</span>
+            <div className="relative h-24 w-24 flex items-center justify-center rounded-lg bg-secondary flex-shrink-0 cursor-pointer group" onClick={() => setIsAvatarEditorOpen(true)}>
+                <PixelAvatar pixels={currentPixelAvatar} className="w-full h-full" />
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
+                    <Pencil className="w-8 h-8 text-white" />
+                </div>
             </div>
             <div className="flex-grow">
               {isEditing ? (
@@ -1017,6 +1039,23 @@ export default function ProfilePage() {
       </Card>
     </div>
 
+    {/* Avatar Editor Dialog */}
+    <Dialog open={isAvatarEditorOpen} onOpenChange={setIsAvatarEditorOpen}>
+        <DialogContent className="max-w-4xl">
+            <DialogHeader>
+                <DialogTitle>프로필 이미지 편집</DialogTitle>
+                <DialogDescription>
+                    나만의 픽셀 아바타를 만들어보세요.
+                </DialogDescription>
+            </DialogHeader>
+            <PixelEditor
+                initialPixels={currentPixelAvatar}
+                onSave={handleSaveAvatar}
+            />
+        </DialogContent>
+    </Dialog>
+
+
     {/* Item Management Dialog */}
     <Dialog open={!!selectedItem} onOpenChange={(isOpen) => !isOpen && closeItemDialogs()}>
       <DialogContent>
@@ -1242,5 +1281,3 @@ export default function ProfilePage() {
     </>
   );
 }
-
-

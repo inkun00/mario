@@ -32,6 +32,7 @@ import { useEffect, useState } from 'react';
 import type { User } from '@/lib/types';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { getLevelInfo, LevelInfo } from '@/lib/level-system';
+import { PixelAvatar } from './pixel-avatar';
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: '참여하기' },
@@ -110,25 +111,13 @@ export function Header() {
               <DropdownMenuTrigger asChild>
                 <Button
                   variant="ghost"
-                  className="relative h-8 w-8 rounded-full"
+                  className="relative h-9 w-9 rounded-full"
                 >
                   <Avatar className="h-9 w-9 flex items-center justify-center bg-secondary">
-                    {levelInfo ? (
-                        <span className="text-2xl">{levelInfo.icon}</span>
-                    ) : (
-                      <>
-                        <AvatarImage
-                        src={
-                            user.photoURL ||
-                            `https://avatar.vercel.sh/${user.uid}`
-                        }
-                        alt={userData?.displayName || '사용자'}
-                        />
-                        <AvatarFallback>
-                          {getInitials(userData?.displayName)}
-                        </AvatarFallback>
-                      </>
-                    )}
+                    <PixelAvatar pixels={userData?.pixelAvatar} />
+                    <AvatarFallback>
+                      {getInitials(userData?.displayName)}
+                    </AvatarFallback>
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>

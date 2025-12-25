@@ -21,7 +21,8 @@ export interface User {
       quantity: number;
       description?: string;
     }
-  }
+  };
+  pixelAvatar?: string[][];
 }
 
 export interface Question {
