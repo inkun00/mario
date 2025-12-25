@@ -93,12 +93,16 @@ async function getSchoolLeaderboardData(): Promise<School[]> {
 
 async function getPopularGameSets(): Promise<GameSet[]> {
     const gameSetsRef = collection(db, 'game-sets');
-    const q = query(gameSetsRef, orderBy('playCount', 'desc'), where('isPublic', '==', true), limit(50));
+    // 복합 색인 없이 쿼리하기 위해 where 조건을 제거하고 클라이언트에서 필터링
+    const q = query(gameSetsRef, orderBy('playCount', 'desc'), limit(200)); // 더 많이 가져와서 필터링
     const snapshot = await getDocs(q);
     
     if (snapshot.empty) return [];
 
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSet));
+    const allSets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSet));
+
+    // 클라이언트 측에서 isPublic 필터링 및 50개로 제한
+    return allSets.filter(set => set.isPublic === true).slice(0, 50);
 }
 
 const rowVariants = {
