@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -23,6 +21,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { MotionDiv } from '@/components/motion-div';
 
 const sellItemSchema = z.object({
   name: z.string().min(1, '상품명을 입력해주세요.').max(30, '상품명은 30자 이내로 입력해주세요.'),
@@ -255,215 +254,221 @@ export default function MyClassPage() {
 
   return (
     <>
-    <Card>
-      <CardHeader>
-        <CardTitle className="font-headline text-3xl flex items-center gap-2">
-            <Users />
-            나의 학급
-        </CardTitle>
-        {teacher && (
-            <CardDescription>
-                {teacher.displayName} 선생님의 학급
-            </CardDescription>
-        )}
-      </CardHeader>
-      <CardContent>
-        {!hasClass ? (
-          <div className="text-center py-12 border-2 border-dashed rounded-lg">
-            <p className="text-muted-foreground">
-              {isTeacher ? '아직 학급 코드를 설정하지 않았습니다. 마이페이지에서 학급 코드를 설정해주세요.' : '아직 소속된 학급이 없습니다. 마이페이지에서 학급 코드를 입력하여 참여하세요.'}
-            </p>
-          </div>
-        ) : (
-          <Tabs defaultValue="ranking" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="ranking">우리 학급 랭킹</TabsTrigger>
-              <TabsTrigger value="store">학급 매장</TabsTrigger>
-            </TabsList>
-            <TabsContent value="ranking" className="mt-4">
-              {classMembers.length === 0 ? (
-                <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                   <p className="text-muted-foreground">아직 학급에 참여한 학생이 없습니다.</p>
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[80px] text-center">순위</TableHead>
-                      <TableHead>닉네임</TableHead>
-                      <TableHead>학교</TableHead>
-                      <TableHead className="text-center">레벨</TableHead>
-                      <TableHead className="text-right">경험치 (XP)</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {classMembers.map((member, index) => {
-                      const rank = index + 1;
-                      const levelInfo = getLevelInfo(member.xp);
-                      return (
-                        <TableRow key={member.uid} className={member.uid === user?.uid ? 'bg-primary/10' : ''}>
-                          <TableCell className="font-bold text-center text-lg">
-                            {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-3">
-                              <Avatar className="flex items-center justify-center bg-muted">
-                                <span className="text-xl">{levelInfo.icon}</span>
-                              </Avatar>
-                              <span className="font-medium">{member.displayName}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>{member.schoolName}</TableCell>
-                          <TableCell className="text-center font-medium">Lv. {levelInfo.level}</TableCell>
-                          <TableCell className="text-right font-bold text-primary">{member.xp.toLocaleString()}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              )}
-            </TabsContent>
-            <TabsContent value="store" className="mt-4">
-                <Card>
-                    <CardHeader>
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <CardTitle className="flex items-center gap-2"><Store className="text-primary"/>학급 매점</CardTitle>
-                                <CardDescription>학급 포인트를 사용하여 다양한 아이템을 구매하거나 판매할 수 있습니다.</CardDescription>
-                            </div>
-                            <div className="text-sm font-bold text-blue-500">내 포인트: {(userData.classPoints || 0).toLocaleString()}</div>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="flex flex-col sm:flex-row gap-4">
-                       <Dialog open={isBuyItemDialogOpen} onOpenChange={setIsBuyItemDialogOpen}>
-                            <DialogTrigger asChild>
-                                <Button className="w-full">
-                                    <ShoppingCart className="mr-2 h-4 w-4"/> 물건 사기
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-4xl">
-                                <DialogHeader>
-                                    <DialogTitle>학급 매점</DialogTitle>
-                                    <DialogDescription>판매 중인 물품 목록입니다.</DialogDescription>
-                                </DialogHeader>
-                                <ScrollArea className="h-96">
-                                  {isStoreLoading ? (
-                                    <div className="flex justify-center items-center h-full">
-                                      <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                                    </div>
-                                  ) : classStoreItems.length === 0 ? (
-                                    <div className="text-center py-12">
-                                      <p className="text-muted-foreground">아직 판매 중인 상품이 없습니다.</p>
-                                    </div>
-                                  ) : (
-                                    <Table>
-                                      <TableHeader>
-                                        <TableRow>
-                                          <TableHead>상품명</TableHead>
-                                          <TableHead>판매자</TableHead>
-                                          <TableHead className="text-center">수량</TableHead>
-                                          <TableHead className="text-right">가격 (포인트)</TableHead>
-                                          <TableHead className="w-[100px]"></TableHead>
-                                        </TableRow>
-                                      </TableHeader>
-                                      <TableBody>
-                                        {classStoreItems.map((item) => (
-                                          <TableRow key={item.id}>
-                                            <TableCell className="font-medium">{item.name}</TableCell>
-                                            <TableCell>{item.sellerNickname}</TableCell>
-                                            <TableCell className="text-center">{item.quantity}</TableCell>
-                                            <TableCell className="text-right font-bold text-primary">{item.price.toLocaleString()}</TableCell>
-                                            <TableCell>
-                                              <Button 
-                                                size="sm" 
-                                                disabled={item.sellerId === user?.uid || !!isBuying}
-                                                onClick={() => handleBuyItem(item)}
-                                              >
-                                                {isBuying === item.id ? <Loader2 className="w-4 h-4 animate-spin"/> : '구매'}
-                                              </Button>
-                                            </TableCell>
+    <MotionDiv
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+    >
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-headline text-3xl flex items-center gap-2">
+              <Users />
+              나의 학급
+          </CardTitle>
+          {teacher && (
+              <CardDescription>
+                  {teacher.displayName} 선생님의 학급
+              </CardDescription>
+          )}
+        </CardHeader>
+        <CardContent>
+          {!hasClass ? (
+            <div className="text-center py-12 border-2 border-dashed rounded-lg">
+              <p className="text-muted-foreground">
+                {isTeacher ? '아직 학급 코드를 설정하지 않았습니다. 마이페이지에서 학급 코드를 설정해주세요.' : '아직 소속된 학급이 없습니다. 마이페이지에서 학급 코드를 입력하여 참여하세요.'}
+              </p>
+            </div>
+          ) : (
+            <Tabs defaultValue="ranking" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="ranking">우리 학급 랭킹</TabsTrigger>
+                <TabsTrigger value="store">학급 매장</TabsTrigger>
+              </TabsList>
+              <TabsContent value="ranking" className="mt-4">
+                {classMembers.length === 0 ? (
+                  <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                    <p className="text-muted-foreground">아직 학급에 참여한 학생이 없습니다.</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[80px] text-center">순위</TableHead>
+                        <TableHead>닉네임</TableHead>
+                        <TableHead>학교</TableHead>
+                        <TableHead className="text-center">레벨</TableHead>
+                        <TableHead className="text-right">경험치 (XP)</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {classMembers.map((member, index) => {
+                        const rank = index + 1;
+                        const levelInfo = getLevelInfo(member.xp);
+                        return (
+                          <TableRow key={member.uid} className={member.uid === user?.uid ? 'bg-primary/10' : ''}>
+                            <TableCell className="font-bold text-center text-lg">
+                              {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <Avatar className="flex items-center justify-center bg-muted">
+                                  <span className="text-xl">{levelInfo.icon}</span>
+                                </Avatar>
+                                <span className="font-medium">{member.displayName}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>{member.schoolName}</TableCell>
+                            <TableCell className="text-center font-medium">Lv. {levelInfo.level}</TableCell>
+                            <TableCell className="text-right font-bold text-primary">{member.xp.toLocaleString()}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </TabsContent>
+              <TabsContent value="store" className="mt-4">
+                  <Card>
+                      <CardHeader>
+                          <div className="flex justify-between items-center">
+                              <div>
+                                  <CardTitle className="flex items-center gap-2"><Store className="text-primary"/>학급 매점</CardTitle>
+                                  <CardDescription>학급 포인트를 사용하여 다양한 아이템을 구매하거나 판매할 수 있습니다.</CardDescription>
+                              </div>
+                              <div className="text-sm font-bold text-blue-500">내 포인트: {(userData.classPoints || 0).toLocaleString()}</div>
+                          </div>
+                      </CardHeader>
+                      <CardContent className="flex flex-col sm:flex-row gap-4">
+                        <Dialog open={isBuyItemDialogOpen} onOpenChange={setIsBuyItemDialogOpen}>
+                              <DialogTrigger asChild>
+                                  <Button className="w-full">
+                                      <ShoppingCart className="mr-2 h-4 w-4"/> 물건 사기
+                                  </Button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-4xl">
+                                  <DialogHeader>
+                                      <DialogTitle>학급 매점</DialogTitle>
+                                      <DialogDescription>판매 중인 물품 목록입니다.</DialogDescription>
+                                  </DialogHeader>
+                                  <ScrollArea className="h-96">
+                                    {isStoreLoading ? (
+                                      <div className="flex justify-center items-center h-full">
+                                        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                                      </div>
+                                    ) : classStoreItems.length === 0 ? (
+                                      <div className="text-center py-12">
+                                        <p className="text-muted-foreground">아직 판매 중인 상품이 없습니다.</p>
+                                      </div>
+                                    ) : (
+                                      <Table>
+                                        <TableHeader>
+                                          <TableRow>
+                                            <TableHead>상품명</TableHead>
+                                            <TableHead>판매자</TableHead>
+                                            <TableHead className="text-center">수량</TableHead>
+                                            <TableHead className="text-right">가격 (포인트)</TableHead>
+                                            <TableHead className="w-[100px]"></TableHead>
                                           </TableRow>
-                                        ))}
-                                      </TableBody>
-                                    </Table>
-                                  )}
-                                </ScrollArea>
-                            </DialogContent>
-                        </Dialog>
-                        <Dialog open={isSellItemDialogOpen} onOpenChange={setIsSellItemDialogOpen}>
-                            <DialogTrigger asChild>
-                                 <Button className="w-full" variant="secondary">
-                                    <Repeat className="mr-2 h-4 w-4"/> 물건 팔기
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                                <DialogHeader>
-                                    <DialogTitle>판매할 물건 등록하기</DialogTitle>
-                                    <DialogDescription>판매할 상품의 정보를 입력해주세요.</DialogDescription>
-                                </DialogHeader>
-                                <Form {...form}>
-                                    <form onSubmit={form.handleSubmit(handleSellItem)} className="space-y-4">
-                                        <FormField
-                                            control={form.control}
-                                            name="name"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>상품명</FormLabel>
-                                                    <FormControl><Input {...field} placeholder="예: 숙제 1회 면제권" /></FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="price"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>가격 (학급 포인트)</FormLabel>
-                                                    <FormControl><Input type="number" {...field} /></FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="description"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>제품 설명</FormLabel>
-                                                    <FormControl><Textarea {...field} placeholder="상품에 대해 자세히 설명해주세요." /></FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <FormField
-                                            control={form.control}
-                                            name="quantity"
-                                            render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel>수량</FormLabel>
-                                                    <FormControl><Input type="number" {...field} /></FormControl>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                        <DialogFooter>
-                                            <Button type="submit" disabled={isSubmitting}>
-                                                {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                                                저장하기
-                                            </Button>
-                                        </DialogFooter>
-                                    </form>
-                                </Form>
-                            </DialogContent>
-                        </Dialog>
-                    </CardContent>
-                </Card>
-            </TabsContent>
-          </Tabs>
-        )}
-      </CardContent>
-    </Card>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {classStoreItems.map((item) => (
+                                            <TableRow key={item.id}>
+                                              <TableCell className="font-medium">{item.name}</TableCell>
+                                              <TableCell>{item.sellerNickname}</TableCell>
+                                              <TableCell className="text-center">{item.quantity}</TableCell>
+                                              <TableCell className="text-right font-bold text-primary">{item.price.toLocaleString()}</TableCell>
+                                              <TableCell>
+                                                <Button 
+                                                  size="sm" 
+                                                  disabled={item.sellerId === user?.uid || !!isBuying}
+                                                  onClick={() => handleBuyItem(item)}
+                                                >
+                                                  {isBuying === item.id ? <Loader2 className="w-4 h-4 animate-spin"/> : '구매'}
+                                                </Button>
+                                              </TableCell>
+                                            </TableRow>
+                                          ))}
+                                        </TableBody>
+                                      </Table>
+                                    )}
+                                  </ScrollArea>
+                              </DialogContent>
+                          </Dialog>
+                          <Dialog open={isSellItemDialogOpen} onOpenChange={setIsSellItemDialogOpen}>
+                              <DialogTrigger asChild>
+                                  <Button className="w-full" variant="secondary">
+                                      <Repeat className="mr-2 h-4 w-4"/> 물건 팔기
+                                  </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                  <DialogHeader>
+                                      <DialogTitle>판매할 물건 등록하기</DialogTitle>
+                                      <DialogDescription>판매할 상품의 정보를 입력해주세요.</DialogDescription>
+                                  </DialogHeader>
+                                  <Form {...form}>
+                                      <form onSubmit={form.handleSubmit(handleSellItem)} className="space-y-4">
+                                          <FormField
+                                              control={form.control}
+                                              name="name"
+                                              render={({ field }) => (
+                                                  <FormItem>
+                                                      <FormLabel>상품명</FormLabel>
+                                                      <FormControl><Input {...field} placeholder="예: 숙제 1회 면제권" /></FormControl>
+                                                      <FormMessage />
+                                                  </FormItem>
+                                              )}
+                                          />
+                                          <FormField
+                                              control={form.control}
+                                              name="price"
+                                              render={({ field }) => (
+                                                  <FormItem>
+                                                      <FormLabel>가격 (학급 포인트)</FormLabel>
+                                                      <FormControl><Input type="number" {...field} /></FormControl>
+                                                      <FormMessage />
+                                                  </FormItem>
+                                              )}
+                                          />
+                                          <FormField
+                                              control={form.control}
+                                              name="description"
+                                              render={({ field }) => (
+                                                  <FormItem>
+                                                      <FormLabel>제품 설명</FormLabel>
+                                                      <FormControl><Textarea {...field} placeholder="상품에 대해 자세히 설명해주세요." /></FormControl>
+                                                      <FormMessage />
+                                                  </FormItem>
+                                              )}
+                                          />
+                                          <FormField
+                                              control={form.control}
+                                              name="quantity"
+                                              render={({ field }) => (
+                                                  <FormItem>
+                                                      <FormLabel>수량</FormLabel>
+                                                      <FormControl><Input type="number" {...field} /></FormControl>
+                                                      <FormMessage />
+                                                  </FormItem>
+                                              )}
+                                          />
+                                          <DialogFooter>
+                                              <Button type="submit" disabled={isSubmitting}>
+                                                  {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                                                  저장하기
+                                              </Button>
+                                          </DialogFooter>
+                                      </form>
+                                  </Form>
+                              </DialogContent>
+                          </Dialog>
+                      </CardContent>
+                  </Card>
+              </TabsContent>
+            </Tabs>
+          )}
+        </CardContent>
+      </Card>
+    </MotionDiv>
     </>
   );
 }

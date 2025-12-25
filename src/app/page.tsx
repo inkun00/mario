@@ -4,6 +4,7 @@ import { CheckCircle2, Gamepad2, Lightbulb, Trophy } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import AppLogo from '@/components/app-logo';
+import { MotionDiv } from '@/components/motion-div';
 
 export default function Home() {
   return (
@@ -28,7 +29,12 @@ export default function Home() {
              <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary/5 rounded-full animate-blob animation-delay-1000" />
              <div className="absolute -top-40 -right-40 w-80 h-80 bg-accent/5 rounded-full animate-blob animation-delay-2000" />
           </div>
-          <div className="container relative px-4 md:px-6 z-10">
+          <MotionDiv
+            className="container relative px-4 md:px-6 z-10"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+          >
             <h1 className="font-headline text-4xl font-bold tracking-tighter text-primary sm:text-5xl md:text-6xl lg:text-7xl">
               마리오 게임
             </h1>
@@ -43,7 +49,7 @@ export default function Home() {
                 <Link href="#features">기능 둘러보기</Link>
               </Button>
             </div>
-          </div>
+          </MotionDiv>
         </section>
         
         <section id="features" className="py-12 md:py-24 lg:py-32">
@@ -55,21 +61,39 @@ export default function Home() {
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              <FeatureCard
-                icon={<Lightbulb className="w-8 h-8 text-primary" />}
-                title="나만의 퀴즈 제작"
-                description="다양한 형식의 학습 퀴즈 세트를 쉽게 만들고 공유할 수 있습니다."
-              />
-              <FeatureCard
-                icon={<Trophy className="w-8 h-8 text-primary" />}
-                title="경험치 및 레벨 시스템"
-                description="문제를 맞혀 경험치를 얻고 레벨을 올려 리더보드에 도전하세요."
-              />
-              <FeatureCard
-                icon={<CheckCircle2 className="w-8 h-8 text-primary" />}
-                title="오답 노트"
-                description="틀린 문제는 오답 노트에서 다시 풀어보며 완벽하게 학습할 수 있습니다."
-              />
+              <MotionDiv
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
+              >
+                <FeatureCard
+                  icon={<Lightbulb className="w-8 h-8 text-primary" />}
+                  title="나만의 퀴즈 제작"
+                  description="다양한 형식의 학습 퀴즈 세트를 쉽게 만들고 공유할 수 있습니다."
+                />
+              </MotionDiv>
+              <MotionDiv
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+              >
+                <FeatureCard
+                  icon={<Trophy className="w-8 h-8 text-primary" />}
+                  title="경험치 및 레벨 시스템"
+                  description="문제를 맞혀 경험치를 얻고 레벨을 올려 리더보드에 도전하세요."
+                />
+              </MotionDiv>
+              <MotionDiv
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.4 }}
+              >
+                <FeatureCard
+                  icon={<CheckCircle2 className="w-8 h-8 text-primary" />}
+                  title="오답 노트"
+                  description="틀린 문제는 오답 노트에서 다시 풀어보며 완벽하게 학습할 수 있습니다."
+                />
+              </MotionDiv>
             </div>
           </div>
         </section>
@@ -101,7 +125,7 @@ export default function Home() {
 
 function FeatureCard({ icon, title, description }: { icon: React.ReactNode, title: string, description: string }) {
   return (
-    <Card className="text-center p-6 shadow-md hover:shadow-xl hover:-translate-y-2 transition-all duration-300">
+    <Card className="text-center p-6 shadow-md hover:shadow-xl hover:-translate-y-2 transition-all duration-300 h-full">
       <CardHeader className="flex justify-center items-center mb-4">
         <div className="bg-primary/10 p-4 rounded-full">
           {icon}

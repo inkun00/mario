@@ -46,6 +46,7 @@ import { useRouter } from 'next/navigation';
 import { ADMIN_EMAILS } from '@/lib/admins';
 import { cn } from '@/lib/utils';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
+import { MotionDiv } from '@/components/motion-div';
 
 
 const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '음악', '미술', '체육', '영어', '창체'];
@@ -349,6 +350,11 @@ export default function DashboardPage() {
       setCurrentPage(page);
     }
   };
+  
+  const cardVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0 },
+  };
 
   return (
     <>
@@ -482,7 +488,14 @@ export default function DashboardPage() {
               </div>
           ) : (
             <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <MotionDiv 
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+              variants={{
+                visible: { transition: { staggerChildren: 0.1 } }
+              }}
+              initial="hidden"
+              animate="visible"
+            >
               {currentItems.map((set) => {
                 const isCreator = user ? set.creatorId === user.uid : false;
                 const isTopSet = !set.isDisabled && filteredGameSets.indexOf(set) < 5;
@@ -523,81 +536,83 @@ export default function DashboardPage() {
                 }
 
                 return (
-                <Card key={set.id} className={cn(
-                    "hover:shadow-lg transition-shadow flex flex-col", 
-                    isTopSet && "border-primary/50 border-2 shadow-lg shadow-primary/20",
-                    isDisabled && "bg-muted/50 opacity-60"
-                )}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <CardTitle className="font-headline">{set.title}</CardTitle>
-                                {set.isPublic ? (
-                                    <TooltipProvider>
-                                        <Tooltip>
-                                            <TooltipTrigger><Globe className="w-4 h-4 text-muted-foreground"/></TooltipTrigger>
-                                            <TooltipContent><p>공개</p></TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
-                                ) : (
-                                    <TooltipProvider>
-                                        <Tooltip>
-                                            <TooltipTrigger><Lock className="w-4 h-4 text-muted-foreground"/></TooltipTrigger>
-                                            <TooltipContent><p>비공개</p></TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
-                                )}
-                            </div>
-                            <CardDescription className="mt-1">만든 사람: {set.creatorNickname}</CardDescription>
-                            {isDisabled && (
-                               <div className="mt-2 text-sm font-semibold text-destructive flex items-center gap-1">
-                                    <ShieldOff className="w-4 h-4"/>
-                                    <span>비활성화됨 (신고 {set.reportCount || 0}회)</span>
-                               </div>
-                            )}
-                        </div>
-                        <div className="flex flex-col items-end gap-2 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                              <Book className="h-4 w-4" />
-                              <span>{set.questions.length} 문제</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-primary font-semibold">
-                              <BarChart3 className="h-4 w-4" />
-                              <span>활용 {set.playCount || 0}회</span>
-                            </div>
-                        </div>
-                    </div>
-                  </CardHeader>
-                  <CardFooter className="mt-auto flex flex-wrap justify-end items-center gap-2 p-4 pt-0 pr-4">
-                    <Button variant="secondary" size="sm" onClick={() => setSelectedGameSet(set)}>미리보기</Button>
-                    {(isCreator || isAdmin) && !isDisabled && (
-                      <>
-                        <Button variant="outline" size="sm" asChild>
-                          <Link href={`/game-sets/edit/${set.id}`}><Pencil className="h-4 w-4" /> 수정</Link>
-                        </Button>
-                        <Button variant="destructive" size="sm" onClick={() => setDeleteCandidate(set)}>
-                          <Trash2 className="h-4 w-4" /> 삭제
-                        </Button>
-                      </>
-                    )}
-                     {isDisabled && (
+                <MotionDiv variants={cardVariants} key={set.id}>
+                  <Card className={cn(
+                      "hover:shadow-lg transition-shadow flex flex-col h-full", 
+                      isTopSet && "border-primary/50 border-2 shadow-lg shadow-primary/20",
+                      isDisabled && "bg-muted/50 opacity-60"
+                  )}>
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                          <div>
+                              <div className="flex items-center gap-2">
+                                  <CardTitle className="font-headline">{set.title}</CardTitle>
+                                  {set.isPublic ? (
+                                      <TooltipProvider>
+                                          <Tooltip>
+                                              <TooltipTrigger><Globe className="w-4 h-4 text-muted-foreground"/></TooltipTrigger>
+                                              <TooltipContent><p>공개</p></TooltipContent>
+                                          </Tooltip>
+                                      </TooltipProvider>
+                                  ) : (
+                                      <TooltipProvider>
+                                          <Tooltip>
+                                              <TooltipTrigger><Lock className="w-4 h-4 text-muted-foreground"/></TooltipTrigger>
+                                              <TooltipContent><p>비공개</p></TooltipContent>
+                                          </Tooltip>
+                                      </TooltipProvider>
+                                  )}
+                              </div>
+                              <CardDescription className="mt-1">만든 사람: {set.creatorNickname}</CardDescription>
+                              {isDisabled && (
+                                <div className="mt-2 text-sm font-semibold text-destructive flex items-center gap-1">
+                                      <ShieldOff className="w-4 h-4"/>
+                                      <span>비활성화됨 (신고 {set.reportCount || 0}회)</span>
+                                </div>
+                              )}
+                          </div>
+                          <div className="flex flex-col items-end gap-2 text-sm text-muted-foreground">
+                              <div className="flex items-center gap-2">
+                                <Book className="h-4 w-4" />
+                                <span>{set.questions.length} 문제</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-primary font-semibold">
+                                <BarChart3 className="h-4 w-4" />
+                                <span>활용 {set.playCount || 0}회</span>
+                              </div>
+                          </div>
+                      </div>
+                    </CardHeader>
+                    <CardFooter className="mt-auto flex flex-wrap justify-end items-center gap-2 p-4 pt-0 pr-4">
+                      <Button variant="secondary" size="sm" onClick={() => setSelectedGameSet(set)}>미리보기</Button>
+                      {(isCreator || isAdmin) && !isDisabled && (
                         <>
-                          <Button variant="outline" size="sm" onClick={() => setOppositionCandidate(set)}>
-                            <ShieldCheck className="h-4 w-4 mr-2" /> 신고 반대
+                          <Button variant="outline" size="sm" asChild>
+                            <Link href={`/game-sets/edit/${set.id}`}><Pencil className="h-4 w-4" /> 수정</Link>
                           </Button>
-                          {isAdmin && (
-                            <Button variant="outline" size="sm" onClick={() => setDeactivateCandidate(set)}>
-                              <ShieldOff className="mr-2 h-4 w-4"/>해제
-                            </Button>
-                          )}
+                          <Button variant="destructive" size="sm" onClick={() => setDeleteCandidate(set)}>
+                            <Trash2 className="h-4 w-4" /> 삭제
+                          </Button>
                         </>
-                    )}
-                    {!isDisabled && createRoomButton}
-                  </CardFooter>
-                </Card>
+                      )}
+                      {isDisabled && (
+                          <>
+                            <Button variant="outline" size="sm" onClick={() => setOppositionCandidate(set)}>
+                              <ShieldCheck className="h-4 w-4 mr-2" /> 신고 반대
+                            </Button>
+                            {isAdmin && (
+                              <Button variant="outline" size="sm" onClick={() => setDeactivateCandidate(set)}>
+                                <ShieldOff className="mr-2 h-4 w-4"/>해제
+                              </Button>
+                            )}
+                          </>
+                      )}
+                      {!isDisabled && createRoomButton}
+                    </CardFooter>
+                  </Card>
+                </MotionDiv>
               )})}
-            </div>
+            </MotionDiv>
             {totalPages > 1 && (
                 <Pagination className="mt-8">
                   <PaginationContent>
