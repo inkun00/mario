@@ -167,11 +167,19 @@ export default function LeaderboardPage() {
     setIsUserSetsLoading(true);
     setUserGameSets([]);
     
-    const setsQuery = query(collection(db, 'game-sets'), where('creatorId', '==', player.uid), where('isPublic', '==', true), orderBy('playCount', 'desc'));
+    const setsQuery = query(
+      collection(db, 'game-sets'), 
+      where('creatorId', '==', player.uid), 
+      where('isPublic', '==', true)
+    );
     const snapshot = await getDocs(setsQuery);
     
     const sets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSet));
-    setUserGameSets(sets);
+    
+    // Sort on the client-side
+    const sortedSets = sets.sort((a, b) => (b.playCount || 0) - (a.playCount || 0));
+
+    setUserGameSets(sortedSets);
     setIsUserSetsLoading(false);
   };
 
