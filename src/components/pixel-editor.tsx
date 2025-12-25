@@ -1,8 +1,10 @@
+
 'use client';
 
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Eraser, Eyedropper } from 'lucide-react';
+import { Eraser } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 
 const GRID_SIZE = 30;
 const PIXEL_SIZE = 16;
@@ -10,7 +12,7 @@ const DEFAULT_COLOR = '#000000';
 const ERASE_COLOR = ''; // Represents a transparent pixel
 
 const PALETTE_COLORS = [
-  // Grays & White & Black
+    // Grays & White & Black
   '#ffffff', '#f5f5f5', '#e0e0e0', '#bdbdbd', '#9e9e9e', '#757575', '#616161', '#424242', '#212121', '#000000',
   // Reds
   '#ffebee', '#ffcdd2', '#ef9a9a', '#e57373', '#ef5350', '#f44336', '#e53935', '#d32f2f', '#c62828', '#b71c1c',
@@ -65,20 +67,9 @@ export function PixelEditor({ initialPixels, onSave }: PixelEditorProps) {
   const [currentColor, setCurrentColor] = useState(DEFAULT_COLOR);
   const [isErasing, setIsErasing] = useState(false);
   const [isMouseDown, setIsMouseDown] = useState(false);
-  const [isEyedropperActive, setIsEyedropperActive] = useState(false);
 
   const handlePixelClick = (row: number, col: number) => {
     const newPixels = pixels.map(r => [...r]);
-    if (isEyedropperActive) {
-      const clickedColor = newPixels[row][col];
-      if (clickedColor) {
-        setCurrentColor(clickedColor);
-        setIsErasing(false);
-      }
-      setIsEyedropperActive(false);
-      return;
-    }
-    
     newPixels[row][col] = isErasing ? ERASE_COLOR : currentColor;
     setPixels(newPixels);
   };
@@ -89,15 +80,7 @@ export function PixelEditor({ initialPixels, onSave }: PixelEditorProps) {
     }
   };
 
-  const toggleEraser = () => {
-    setIsErasing(prev => !prev);
-    setIsEyedropperActive(false);
-  };
-  
-  const toggleEyedropper = () => {
-    setIsEyedropperActive(prev => !prev);
-    setIsErasing(false);
-  }
+  const toggleEraser = () => setIsErasing(prev => !prev);
 
   const clearCanvas = () => {
      setPixels(Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(ERASE_COLOR)));
@@ -108,10 +91,7 @@ export function PixelEditor({ initialPixels, onSave }: PixelEditorProps) {
     <div className="flex flex-col md:flex-row gap-6 items-start">
       <div className="flex-shrink-0">
         <div
-          className={cn(
-            "grid border-2",
-            isEyedropperActive ? 'cursor-crosshair' : ''
-          )}
+          className="grid border-2"
           style={{
             gridTemplateColumns: `repeat(${GRID_SIZE}, ${PIXEL_SIZE}px)`,
             width: GRID_SIZE * PIXEL_SIZE,
@@ -148,25 +128,14 @@ export function PixelEditor({ initialPixels, onSave }: PixelEditorProps) {
                         "p-2 rounded border-2",
                         isErasing ? 'border-primary bg-primary/10' : 'border-transparent'
                     )}
-                    aria-label="Eraser"
                 >
                     <Eraser className="w-5 h-5"/>
-                </button>
-                <button
-                    onClick={toggleEyedropper}
-                    className={cn(
-                        "p-2 rounded border-2",
-                        isEyedropperActive ? 'border-primary bg-primary/10' : 'border-transparent'
-                    )}
-                    aria-label="Eyedropper"
-                >
-                    <Eyedropper className="w-5 h-5"/>
                 </button>
                 <div className="flex items-center gap-2 text-sm">
                     <span>Selected:</span>
                     <div
                         className="h-6 w-6 rounded border"
-                        style={{ backgroundColor: isErasing || isEyedropperActive ? 'transparent' : currentColor }}
+                        style={{ backgroundColor: isErasing ? 'transparent' : currentColor }}
                     />
                 </div>
             </div>
@@ -177,13 +146,12 @@ export function PixelEditor({ initialPixels, onSave }: PixelEditorProps) {
                         key={color}
                         className={cn(
                             "h-4 w-full rounded-sm cursor-pointer ring-2 ring-transparent hover:ring-ring",
-                            currentColor === color && !isErasing && !isEyedropperActive && "ring-primary"
+                            currentColor === color && !isErasing && "ring-primary"
                         )}
                         style={{ backgroundColor: color }}
                         onClick={() => {
                             setCurrentColor(color);
                             setIsErasing(false);
-                            setIsEyedropperActive(false);
                         }}
                     />
                 ))}

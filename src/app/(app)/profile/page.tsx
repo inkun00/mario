@@ -49,8 +49,13 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import Image from 'next/image';
 import { Combobox } from '@/components/ui/combobox';
-import { PixelEditor } from '@/components/pixel-editor';
+import dynamic from 'next/dynamic';
 import { PixelAvatar } from '@/components/pixel-avatar';
+
+const PixelEditor = dynamic(() => import('@/components/pixel-editor').then(mod => mod.PixelEditor), {
+  ssr: false,
+  loading: () => <Skeleton className="h-64 w-full" />,
+});
 
 
 interface ReviewQuestion extends IncorrectAnswer {
