@@ -672,8 +672,8 @@ export default function ProfilePage() {
         setUserData(prev => prev ? { ...prev, pixelAvatar: pixels } : null);
         toast({ title: '성공', description: '프로필 이미지가 저장되었습니다.' });
         setIsAvatarEditorOpen(false);
-    } catch (error) {
-        toast({ variant: 'destructive', title: '오류', description: '프로필 이미지 저장 중 오류가 발생했습니다.' });
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: '오류', description: `프로필 이미지 저장 중 오류가 발생했습니다: ${error.message}` });
         console.error("Avatar save error:", error);
     }
   };
