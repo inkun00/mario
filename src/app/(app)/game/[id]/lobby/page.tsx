@@ -335,15 +335,26 @@ export default function LobbyPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!gameRoomId || loadingUser) return;
+    if (!gameRoomId || loadingUser || !user) return;
 
     const roomRef = doc(db, 'game-rooms', gameRoomId as string);
     const unsubscribe = onSnapshot(roomRef, async (docSnap) => {
       if (docSnap.exists()) {
         const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
         
-        if (roomData.joinType === 'remote' && user && !roomData.players[user.uid] && Object.keys(roomData.players).length < 6) {
-           // Auto-join logic if user is not in the room and there's space.
+        if (roomData.joinType === 'remote' && !roomData.players[user.uid] && Object.keys(roomData.players).length < 6) {
+           const newPlayer: Player = {
+             uid: user.uid,
+             nickname: user.displayName || `플레이어${Object.keys(roomData.players).length + 1}`,
+             score: 0,
+             avatarId: `player-avatar-${(Object.keys(roomData.players).length % 4) + 1}`,
+             isHost: false,
+           };
+           await updateDoc(roomRef, {
+             [`players.${user.uid}`]: newPlayer
+           });
+           // The snapshot will update again with the new player.
+           return;
         }
 
         setGameRoom(roomData);

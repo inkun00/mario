@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -365,37 +366,26 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid md:grid-cols-2 gap-6">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="cursor-not-allowed">
-                    <Card className="opacity-50 pointer-events-none">
-                        <CardHeader>
-                            <CardTitle className="font-headline">게임 참여하기</CardTitle>
-                            <CardDescription>참여 코드를 입력하여 친구의 게임에 참여하세요.</CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="flex gap-2">
-                            <Input 
-                                placeholder="참여 코드 입력"
-                                value={joinCode}
-                                onChange={(e) => setJoinCode(e.target.value)}
-                                disabled={true}
-                            />
-                            <Button onClick={handleJoinGame} disabled={true}>
-                                <LogIn className="w-4 h-4 mr-2" />
-                                참여
-                            </Button>
-                            </div>
-                        </CardContent>
-                    </Card>
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>개발 중인 기능입니다.</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline">게임 참여하기</CardTitle>
+                    <CardDescription>참여 코드를 입력하여 친구의 게임에 참여하세요.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex gap-2">
+                    <Input 
+                        placeholder="참여 코드 입력"
+                        value={joinCode}
+                        onChange={(e) => setJoinCode(e.target.value)}
+                        disabled={isJoining}
+                    />
+                    <Button onClick={handleJoinGame} disabled={isJoining}>
+                        {isJoining ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <LogIn className="w-4 h-4 mr-2" />}
+                        참여
+                    </Button>
+                    </div>
+                </CardContent>
+            </Card>
 
           <Card>
             <CardHeader>
