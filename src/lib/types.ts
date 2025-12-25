@@ -22,7 +22,7 @@ export interface User {
       description?: string;
     }
   };
-  pixelAvatar?: string[][];
+  pixelAvatar?: string; // JSON string of string[][]
 }
 
 export interface Question {

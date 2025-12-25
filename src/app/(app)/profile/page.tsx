@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -182,7 +181,16 @@ export default function ProfilePage() {
       if (userSnap.exists()) {
         const fetchedUserData = userSnap.data() as User;
         setUserData(fetchedUserData);
-        setCurrentPixelAvatar(fetchedUserData.pixelAvatar || null);
+        if (fetchedUserData.pixelAvatar) {
+            try {
+                setCurrentPixelAvatar(JSON.parse(fetchedUserData.pixelAvatar));
+            } catch (e) {
+                console.error("Error parsing pixelAvatar:", e);
+                setCurrentPixelAvatar(null);
+            }
+        } else {
+            setCurrentPixelAvatar(null);
+        }
         setEditNickname(fetchedUserData.displayName);
         setEditSchoolName(fetchedUserData.schoolName || '');
         if (fetchedUserData.role === 'teacher') {
@@ -667,9 +675,15 @@ export default function ProfilePage() {
     if (!user) return;
     try {
         const userRef = doc(db, 'users', user.uid);
-        await setDoc(userRef, { pixelAvatar: pixels }, { merge: true });
+        const avatarString = JSON.stringify(pixels);
+        await setDoc(userRef, { pixelAvatar: avatarString }, { merge: true });
+        
         setCurrentPixelAvatar(pixels);
-        setUserData(prev => prev ? { ...prev, pixelAvatar: pixels } : null);
+        setUserData(prev => {
+            if (!prev) return null;
+            return { ...prev, pixelAvatar: avatarString };
+        });
+
         toast({ title: '성공', description: '프로필 이미지가 저장되었습니다.' });
         setIsAvatarEditorOpen(false);
     } catch (error: any) {

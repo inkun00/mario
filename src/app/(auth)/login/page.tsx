@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -77,7 +78,12 @@ export default function LoginPage() {
             classPoints: 0,
             level: 1,
             pixelAvatar: null,
-        });
+        }, { merge: true });
+    } else {
+        const data = docSnap.data();
+        if (data.pixelAvatar === undefined) {
+             await setDoc(userRef, { pixelAvatar: null }, { merge: true });
+        }
     }
   };
 

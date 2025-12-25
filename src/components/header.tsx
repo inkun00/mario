@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -82,6 +83,15 @@ export function Header() {
   };
   
   const logoHref = user ? '/dashboard' : '/';
+  
+  let pixelAvatarData = null;
+  if (userData?.pixelAvatar) {
+    try {
+      pixelAvatarData = JSON.parse(userData.pixelAvatar);
+    } catch (e) {
+      console.error("Error parsing pixel avatar in header", e);
+    }
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -114,7 +124,7 @@ export function Header() {
                   className="relative h-9 w-9 rounded-full"
                 >
                   <Avatar className="h-9 w-9 flex items-center justify-center bg-secondary">
-                    <PixelAvatar pixels={userData?.pixelAvatar} />
+                    <PixelAvatar pixels={pixelAvatarData} />
                     <AvatarFallback>
                       {getInitials(userData?.displayName)}
                     </AvatarFallback>
