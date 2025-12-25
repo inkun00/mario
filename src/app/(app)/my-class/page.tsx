@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -45,6 +46,8 @@ export default function MyClassPage() {
 
   const [isSellItemDialogOpen, setIsSellItemDialogOpen] = useState(false);
   const [isBuyItemDialogOpen, setIsBuyItemDialogOpen] = useState(false);
+  const [selectedItemForDescription, setSelectedItemForDescription] = useState<ClassStoreItem | null>(null);
+
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBuying, setIsBuying] = useState<string | null>(null);
@@ -348,7 +351,7 @@ export default function MyClassPage() {
                               <DialogContent className="max-w-4xl">
                                   <DialogHeader>
                                       <DialogTitle>학급 매점</DialogTitle>
-                                      <DialogDescription>판매 중인 물품 목록입니다.</DialogDescription>
+                                      <DialogDescription>판매 중인 물품 목록입니다. 상품명을 클릭하여 설명을 볼 수 있습니다.</DialogDescription>
                                   </DialogHeader>
                                   <ScrollArea className="h-96">
                                     {isStoreLoading ? (
@@ -373,7 +376,12 @@ export default function MyClassPage() {
                                         <TableBody>
                                           {classStoreItems.map((item) => (
                                             <TableRow key={item.id}>
-                                              <TableCell className="font-medium">{item.name}</TableCell>
+                                              <TableCell 
+                                                className="font-medium cursor-pointer hover:underline"
+                                                onClick={() => setSelectedItemForDescription(item)}
+                                              >
+                                                {item.name}
+                                              </TableCell>
                                               <TableCell>{item.sellerNickname}</TableCell>
                                               <TableCell className="text-center">{item.quantity}</TableCell>
                                               <TableCell className="text-right font-bold text-primary">{item.price.toLocaleString()}</TableCell>
@@ -469,6 +477,23 @@ export default function MyClassPage() {
         </CardContent>
       </Card>
     </MotionDiv>
+    
+    {/* Item Description Dialog */}
+    <Dialog open={!!selectedItemForDescription} onOpenChange={(isOpen) => !isOpen && setSelectedItemForDescription(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>{selectedItemForDescription?.name}</DialogTitle>
+                <DialogDescription>
+                    {selectedItemForDescription?.description || "설명이 없는 상품입니다."}
+                </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+                <Button onClick={() => setSelectedItemForDescription(null)}>닫기</Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
     </>
   );
 }
+
+    
