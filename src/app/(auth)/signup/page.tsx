@@ -80,6 +80,7 @@ export default function SignupPage() {
             level: 1,
             dailyReportCount: 0,
             role: 'student', // 기본 역할을 학생으로 설정
+            pixelAvatar: null,
         });
     }
   };

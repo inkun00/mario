@@ -76,6 +76,7 @@ export default function LoginPage() {
             xp: 0,
             classPoints: 0,
             level: 1,
+            pixelAvatar: null,
         });
     }
   };
