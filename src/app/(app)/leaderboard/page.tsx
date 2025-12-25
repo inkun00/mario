@@ -182,13 +182,13 @@ export default function LeaderboardPage() {
                                   <TableHead className="text-right">경험치 (XP)</TableHead>
                               </TableRow>
                               </TableHeader>
-                              <MotionDiv as={TableBody} variants={{ visible: { transition: { staggerChildren: 0.05 } }}} initial="hidden" animate="visible">
+                              <TableBody>
                               {leaderboardData.map((player, index) => {
                                   const rank = index + 1;
                                   const levelInfo = getLevelInfo(player.xp);
                                   const displayName = player.displayName || '이름없음';
                                   return (
-                                  <MotionDiv as={TableRow} variants={rowVariants} key={player.uid} className={rank <= 3 ? 'bg-secondary' : ''}>
+                                  <TableRow key={player.uid} className={rank <= 3 ? 'bg-secondary' : ''}>
                                       <TableCell className="font-bold text-center text-lg">
                                       {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
                                       </TableCell>
@@ -202,10 +202,10 @@ export default function LeaderboardPage() {
                                       </TableCell>
                                       <TableCell className="text-center font-medium">Lv. {levelInfo.level}</TableCell>
                                       <TableCell className="text-right font-bold text-primary">{player.xp.toLocaleString()}</TableCell>
-                                  </MotionDiv>
+                                  </TableRow>
                                   )
                               })}
-                              </MotionDiv>
+                              </TableBody>
                           </Table>
                       )}
                   </TabsContent>
@@ -220,11 +220,11 @@ export default function LeaderboardPage() {
                                       <TableHead className="text-right">총 경험치 (XP)</TableHead>
                                   </TableRow>
                               </TableHeader>
-                              <MotionDiv as={TableBody} variants={{ visible: { transition: { staggerChildren: 0.05 } }}} initial="hidden" animate="visible">
+                              <TableBody>
                                   {schoolLeaderboard.map((school, index) => {
                                       const rank = index + 1;
                                       return (
-                                          <MotionDiv as={TableRow} variants={rowVariants} key={school.name} className={rank <= 3 ? 'bg-secondary' : ''}>
+                                          <TableRow key={school.name} className={rank <= 3 ? 'bg-secondary' : ''}>
                                               <TableCell className="font-bold text-center text-lg">
                                                   {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
                                               </TableCell>
@@ -238,10 +238,10 @@ export default function LeaderboardPage() {
                                               </TableCell>
                                               <TableCell className="text-center">{school.memberCount}명</TableCell>
                                               <TableCell className="text-right font-bold text-primary">{school.totalXp.toLocaleString()}</TableCell>
-                                          </MotionDiv>
+                                          </TableRow>
                                       )
                                   })}
-                              </MotionDiv>
+                              </TableBody>
                           </Table>
                       )}
                   </TabsContent>
@@ -272,14 +272,14 @@ export default function LeaderboardPage() {
                                   <TableHead className="text-right">경험치 (XP)</TableHead>
                               </TableRow>
                             </TableHeader>
-                            <MotionDiv as={TableBody} variants={{ visible: { transition: { staggerChildren: 0.05 } }}} initial="hidden" animate="visible">
+                            <TableBody>
                             {schoolPersonalLeaderboard.map((player, index) => {
                                 const rank = index + 1;
                                 const levelInfo = getLevelInfo(player.xp);
                                 const displayName = player.displayName || '이름없음';
 
                                 return (
-                                <MotionDiv as={TableRow} variants={rowVariants} key={player.uid} className={player.uid === user?.uid ? 'bg-primary/10' : (rank <= 3 ? 'bg-secondary' : '')}>
+                                <TableRow key={player.uid} className={player.uid === user?.uid ? 'bg-primary/10' : (rank <= 3 ? 'bg-secondary' : '')}>
                                     <TableCell className="font-bold text-center text-lg">
                                     {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
                                     </TableCell>
@@ -293,10 +293,10 @@ export default function LeaderboardPage() {
                                     </TableCell>
                                     <TableCell className="text-center font-medium">Lv. {levelInfo.level}</TableCell>
                                     <TableCell className="text-right font-bold text-primary">{player.xp.toLocaleString()}</TableCell>
-                                </MotionDiv>
+                                </TableRow>
                                 )
                             })}
-                            </MotionDiv>
+                            </TableBody>
                           </Table>
                       )}
                   </TabsContent>
@@ -312,11 +312,11 @@ export default function LeaderboardPage() {
                                       <TableHead className="text-right">활용 횟수</TableHead>
                                   </TableRow>
                               </TableHeader>
-                              <MotionDiv as={TableBody} variants={{ visible: { transition: { staggerChildren: 0.05 } }}} initial="hidden" animate="visible">
+                              <TableBody>
                                   {popularGameSets.map((gameSet, index) => {
                                       const rank = index + 1;
                                       return (
-                                          <MotionDiv as={TableRow} variants={rowVariants} key={gameSet.id} className={rank <= 3 ? 'bg-secondary' : ''}>
+                                          <TableRow key={gameSet.id} className={rank <= 3 ? 'bg-secondary' : ''}>
                                               <TableCell className="font-bold text-center text-lg">
                                                   {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
                                               </TableCell>
@@ -328,10 +328,10 @@ export default function LeaderboardPage() {
                                               <TableCell>{gameSet.creatorNickname}</TableCell>
                                               <TableCell className="text-center">{gameSet.questions.length}개</TableCell>
                                               <TableCell className="text-right font-bold text-primary">{gameSet.playCount || 0}</TableCell>
-                                          </MotionDiv>
+                                          </TableRow>
                                       )
                                   })}
-                              </MotionDiv>
+                              </TableBody>
                           </Table>
                       )}
                   </TabsContent>
