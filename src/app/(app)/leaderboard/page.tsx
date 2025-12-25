@@ -16,18 +16,27 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription
+} from '@/components/ui/dialog';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { db, auth } from '@/lib/firebase';
 import type { User, GameSet, School } from '@/lib/types';
 import { getLevelInfo } from '@/lib/level-system';
 import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
-import { Crown, Loader2, School as SchoolIcon, BookOpen } from 'lucide-react';
+import { Crown, Loader2, School as SchoolIcon, BookOpen, Users } from 'lucide-react';
 import { useEffect, useState, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 import { Combobox } from '@/components/ui/combobox';
 import { MotionDiv } from '@/components/motion-div';
+import { Button } from '@/components/ui/button';
 
 async function getLeaderboardData(): Promise<User[]> {
   const usersRef = collection(db, 'users');
@@ -84,7 +93,7 @@ async function getSchoolLeaderboardData(): Promise<School[]> {
 
 async function getPopularGameSets(): Promise<GameSet[]> {
     const gameSetsRef = collection(db, 'game-sets');
-    const q = query(gameSetsRef, orderBy('playCount', 'desc'), limit(50));
+    const q = query(gameSetsRef, orderBy('playCount', 'desc'), where('isPublic', '==', true), limit(50));
     const snapshot = await getDocs(q);
     
     if (snapshot.empty) return [];
@@ -105,6 +114,10 @@ export default function LeaderboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [currentTab, setCurrentTab] = useState('overall');
   const [selectedSchool, setSelectedSchool] = useState<string>('');
+
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [userGameSets, setUserGameSets] = useState<GameSet[]>([]);
+  const [isUserSetsLoading, setIsUserSetsLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -149,197 +162,248 @@ export default function LeaderboardPage() {
       }));
   }, [schoolLeaderboard]);
 
-  return (
-    <div className="container mx-auto">
-      <MotionDiv
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        <Card>
-          <CardHeader className="text-center">
-            <CardTitle className="font-headline text-3xl">리더보드</CardTitle>
-            <CardDescription>
-              다양한 순위를 확인하고 학습에 대한 동기를 부여받으세요!
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-              <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
-                  <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto">
-                      <TabsTrigger value="overall">전체 순위</TabsTrigger>
-                      <TabsTrigger value="school">학교 순위</TabsTrigger>
-                      <TabsTrigger value="school-personal">학교 내 개인 순위</TabsTrigger>
-                      <TabsTrigger value="popular-sets">인기 퀴즈</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="overall" className="mt-4">
-                      {isLoading ? <LeaderboardSkeleton /> : (
-                          <Table>
-                              <TableHeader>
-                              <TableRow>
-                                  <TableHead className="w-[80px] text-center">순위</TableHead>
-                                  <TableHead>닉네임</TableHead>
-                                  <TableHead className="text-center">레벨</TableHead>
-                                  <TableHead className="text-right">경험치 (XP)</TableHead>
-                              </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                              {leaderboardData.map((player, index) => {
-                                  const rank = index + 1;
-                                  const levelInfo = getLevelInfo(player.xp);
-                                  const displayName = player.displayName || '이름없음';
-                                  return (
-                                  <TableRow key={player.uid} className={rank <= 3 ? 'bg-secondary' : ''}>
-                                      <TableCell className="font-bold text-center text-lg">
-                                      {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
-                                      </TableCell>
-                                      <TableCell>
-                                      <div className="flex items-center gap-3">
-                                          <Avatar className="flex items-center justify-center bg-muted">
-                                          <span className="text-xl">{levelInfo.icon}</span>
-                                          </Avatar>
-                                          <span className="font-medium">{displayName}</span>
-                                      </div>
-                                      </TableCell>
-                                      <TableCell className="text-center font-medium">Lv. {levelInfo.level}</TableCell>
-                                      <TableCell className="text-right font-bold text-primary">{player.xp.toLocaleString()}</TableCell>
-                                  </TableRow>
-                                  )
-                              })}
-                              </TableBody>
-                          </Table>
-                      )}
-                  </TabsContent>
-                  <TabsContent value="school" className="mt-4">
-                      {isLoading ? <LeaderboardSkeleton /> : (
-                          <Table>
-                              <TableHeader>
-                                  <TableRow>
-                                      <TableHead className="w-[80px] text-center">순위</TableHead>
-                                      <TableHead>학교명</TableHead>
-                                      <TableHead className="text-center">참여인원</TableHead>
-                                      <TableHead className="text-right">총 경험치 (XP)</TableHead>
-                                  </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                  {schoolLeaderboard.map((school, index) => {
-                                      const rank = index + 1;
-                                      return (
-                                          <TableRow key={school.name} className={rank <= 3 ? 'bg-secondary' : ''}>
-                                              <TableCell className="font-bold text-center text-lg">
-                                                  {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
-                                              </TableCell>
-                                              <TableCell>
-                                                  <div className="flex items-center gap-3">
-                                                      <Avatar className="flex items-center justify-center bg-muted">
-                                                          <SchoolIcon className="w-5 h-5 text-muted-foreground" />
-                                                      </Avatar>
-                                                      <span className="font-medium">{school.name}</span>
-                                                  </div>
-                                              </TableCell>
-                                              <TableCell className="text-center">{school.memberCount}명</TableCell>
-                                              <TableCell className="text-right font-bold text-primary">{school.totalXp.toLocaleString()}</TableCell>
-                                          </TableRow>
-                                      )
-                                  })}
-                              </TableBody>
-                          </Table>
-                      )}
-                  </TabsContent>
-                  <TabsContent value="school-personal" className="mt-4">
-                      <div className="mb-4">
-                          <Combobox
-                              options={schoolOptions}
-                              value={selectedSchool}
-                              onValueChange={setSelectedSchool}
-                              placeholder="학교 선택..."
-                              searchPlaceholder="학교 검색..."
-                              notFoundMessage="해당 학교를 찾을 수 없습니다."
-                          />
-                      </div>
-                      {isLoading ? <LeaderboardSkeleton /> : !schoolPersonalLeaderboard.length ? (
-                          <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                              <p className="text-muted-foreground">
-                                  {selectedSchool ? '해당 학교의 랭킹 정보가 없습니다.' : '학교를 선택하여 순위를 확인하세요.'}
-                              </p>
-                          </div>
-                      ) : (
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                  <TableHead className="w-[80px] text-center">순위</TableHead>
-                                  <TableHead>닉네임</TableHead>
-                                  <TableHead className="text-center">레벨</TableHead>
-                                  <TableHead className="text-right">경험치 (XP)</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                            {schoolPersonalLeaderboard.map((player, index) => {
-                                const rank = index + 1;
-                                const levelInfo = getLevelInfo(player.xp);
-                                const displayName = player.displayName || '이름없음';
+  const handleUserClick = async (player: User) => {
+    setSelectedUser(player);
+    setIsUserSetsLoading(true);
+    setUserGameSets([]);
+    
+    const setsQuery = query(collection(db, 'game-sets'), where('creatorId', '==', player.uid), where('isPublic', '==', true), orderBy('playCount', 'desc'));
+    const snapshot = await getDocs(setsQuery);
+    
+    const sets = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSet));
+    setUserGameSets(sets);
+    setIsUserSetsLoading(false);
+  };
 
-                                return (
-                                <TableRow key={player.uid} className={player.uid === user?.uid ? 'bg-primary/10' : (rank <= 3 ? 'bg-secondary' : '')}>
-                                    <TableCell className="font-bold text-center text-lg">
-                                    {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
-                                    </TableCell>
-                                    <TableCell>
-                                    <div className="flex items-center gap-3">
-                                        <Avatar className="flex items-center justify-center bg-muted">
-                                        <span className="text-xl">{levelInfo.icon}</span>
-                                        </Avatar>
-                                        <span className="font-medium">{displayName}</span>
-                                    </div>
-                                    </TableCell>
-                                    <TableCell className="text-center font-medium">Lv. {levelInfo.level}</TableCell>
-                                    <TableCell className="text-right font-bold text-primary">{player.xp.toLocaleString()}</TableCell>
+  const renderPlayerRow = (player: User, rank: number) => {
+    const levelInfo = getLevelInfo(player.xp);
+    const displayName = player.displayName || '이름없음';
+    const isClickable = player.uid !== user?.uid;
+    
+    return (
+      <TableRow key={player.uid} className={player.uid === user?.uid ? 'bg-primary/10' : (rank <= 3 ? 'bg-secondary' : '')}>
+        <TableCell className="font-bold text-center text-lg">
+          {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center gap-3">
+            <Avatar className="flex items-center justify-center bg-muted">
+              <span className="text-xl">{levelInfo.icon}</span>
+            </Avatar>
+            <span
+              className={`font-medium ${isClickable ? 'cursor-pointer hover:underline' : ''}`}
+              onClick={isClickable ? () => handleUserClick(player) : undefined}
+            >
+              {displayName}
+            </span>
+          </div>
+        </TableCell>
+        <TableCell className="text-center font-medium">Lv. {levelInfo.level}</TableCell>
+        <TableCell className="text-right font-bold text-primary">{player.xp.toLocaleString()}</TableCell>
+      </TableRow>
+    );
+  };
+
+  return (
+    <>
+      <div className="container mx-auto">
+        <MotionDiv
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Card>
+            <CardHeader className="text-center">
+              <CardTitle className="font-headline text-3xl">리더보드</CardTitle>
+              <CardDescription>
+                다양한 순위를 확인하고 학습에 대한 동기를 부여받으세요!
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto">
+                        <TabsTrigger value="overall">전체 순위</TabsTrigger>
+                        <TabsTrigger value="school">학교 순위</TabsTrigger>
+                        <TabsTrigger value="school-personal">학교 내 개인 순위</TabsTrigger>
+                        <TabsTrigger value="popular-sets">인기 퀴즈</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="overall" className="mt-4">
+                        {isLoading ? <LeaderboardSkeleton /> : (
+                            <Table>
+                                <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-[80px] text-center">순위</TableHead>
+                                    <TableHead>닉네임</TableHead>
+                                    <TableHead className="text-center">레벨</TableHead>
+                                    <TableHead className="text-right">경험치 (XP)</TableHead>
                                 </TableRow>
-                                )
-                            })}
-                            </TableBody>
-                          </Table>
-                      )}
-                  </TabsContent>
-                  <TabsContent value="popular-sets" className="mt-4">
-                      {isLoading ? <LeaderboardSkeleton /> : (
-                          <Table>
+                                </TableHeader>
+                                <TableBody>
+                                {leaderboardData.map((player, index) => renderPlayerRow(player, index + 1))}
+                                </TableBody>
+                            </Table>
+                        )}
+                    </TabsContent>
+                    <TabsContent value="school" className="mt-4">
+                        {isLoading ? <LeaderboardSkeleton /> : (
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="w-[80px] text-center">순위</TableHead>
+                                        <TableHead>학교명</TableHead>
+                                        <TableHead className="text-center">참여인원</TableHead>
+                                        <TableHead className="text-right">총 경험치 (XP)</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {schoolLeaderboard.map((school, index) => {
+                                        const rank = index + 1;
+                                        return (
+                                            <TableRow key={school.name} className={rank <= 3 ? 'bg-secondary' : ''}>
+                                                <TableCell className="font-bold text-center text-lg">
+                                                    {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex items-center gap-3">
+                                                        <Avatar className="flex items-center justify-center bg-muted">
+                                                            <SchoolIcon className="w-5 h-5 text-muted-foreground" />
+                                                        </Avatar>
+                                                        <span className="font-medium">{school.name}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-center">{school.memberCount}명</TableCell>
+                                                <TableCell className="text-right font-bold text-primary">{school.totalXp.toLocaleString()}</TableCell>
+                                            </TableRow>
+                                        )
+                                    })}
+                                </TableBody>
+                            </Table>
+                        )}
+                    </TabsContent>
+                    <TabsContent value="school-personal" className="mt-4">
+                        <div className="mb-4">
+                            <Combobox
+                                options={schoolOptions}
+                                value={selectedSchool}
+                                onValueChange={setSelectedSchool}
+                                placeholder="학교 선택..."
+                                searchPlaceholder="학교 검색..."
+                                notFoundMessage="해당 학교를 찾을 수 없습니다."
+                            />
+                        </div>
+                        {isLoading ? <LeaderboardSkeleton /> : !schoolPersonalLeaderboard.length ? (
+                            <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                                <p className="text-muted-foreground">
+                                    {selectedSchool ? '해당 학교의 랭킹 정보가 없습니다.' : '학교를 선택하여 순위를 확인하세요.'}
+                                </p>
+                            </div>
+                        ) : (
+                            <Table>
                               <TableHeader>
-                                  <TableRow>
-                                      <TableHead className="w-[80px] text-center">순위</TableHead>
-                                      <TableHead>퀴즈 제목</TableHead>
-                                      <TableHead>제작자</TableHead>
-                                      <TableHead className="text-center">문제 수</TableHead>
-                                      <TableHead className="text-right">활용 횟수</TableHead>
-                                  </TableRow>
+                                <TableRow>
+                                    <TableHead className="w-[80px] text-center">순위</TableHead>
+                                    <TableHead>닉네임</TableHead>
+                                    <TableHead className="text-center">레벨</TableHead>
+                                    <TableHead className="text-right">경험치 (XP)</TableHead>
+                                </TableRow>
                               </TableHeader>
                               <TableBody>
-                                  {popularGameSets.map((gameSet, index) => {
-                                      const rank = index + 1;
-                                      return (
-                                          <TableRow key={gameSet.id} className={rank <= 3 ? 'bg-secondary' : ''}>
-                                              <TableCell className="font-bold text-center text-lg">
-                                                  {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
-                                              </TableCell>
-                                              <TableCell>
-                                                  <Link href={`/dashboard?gameSetId=${gameSet.id}`} className="font-medium hover:underline flex items-center gap-2">
-                                                      <BookOpen className="w-4 h-4 text-muted-foreground"/> {gameSet.title}
-                                                  </Link>
-                                              </TableCell>
-                                              <TableCell>{gameSet.creatorNickname}</TableCell>
-                                              <TableCell className="text-center">{gameSet.questions.length}개</TableCell>
-                                              <TableCell className="text-right font-bold text-primary">{gameSet.playCount || 0}</TableCell>
-                                          </TableRow>
-                                      )
-                                  })}
+                                {schoolPersonalLeaderboard.map((player, index) => renderPlayerRow(player, index + 1))}
                               </TableBody>
-                          </Table>
-                      )}
-                  </TabsContent>
-              </Tabs>
-          </CardContent>
-        </Card>
-      </MotionDiv>
-    </div>
+                            </Table>
+                        )}
+                    </TabsContent>
+                    <TabsContent value="popular-sets" className="mt-4">
+                        {isLoading ? <LeaderboardSkeleton /> : (
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="w-[80px] text-center">순위</TableHead>
+                                        <TableHead>퀴즈 제목</TableHead>
+                                        <TableHead>제작자</TableHead>
+                                        <TableHead className="text-center">문제 수</TableHead>
+                                        <TableHead className="text-right">활용 횟수</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {popularGameSets.map((gameSet, index) => {
+                                        const rank = index + 1;
+                                        const isClickable = gameSet.creatorId !== user?.uid;
+                                        return (
+                                            <TableRow key={gameSet.id} className={rank <= 3 ? 'bg-secondary' : ''}>
+                                                <TableCell className="font-bold text-center text-lg">
+                                                    {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Link href={`/dashboard?gameSetId=${gameSet.id}`} className="font-medium hover:underline flex items-center gap-2">
+                                                        <BookOpen className="w-4 h-4 text-muted-foreground"/> {gameSet.title}
+                                                    </Link>
+                                                </TableCell>
+                                                <TableCell 
+                                                    className={`font-medium ${isClickable ? 'cursor-pointer hover:underline' : ''}`}
+                                                    onClick={isClickable ? () => handleUserClick(leaderboardData.find(p => p.uid === gameSet.creatorId) || { uid: gameSet.creatorId, displayName: gameSet.creatorNickname } as User) : undefined}
+                                                >
+                                                    {gameSet.creatorNickname}
+                                                </TableCell>
+                                                <TableCell className="text-center">{gameSet.questions.length}개</TableCell>
+                                                <TableCell className="text-right font-bold text-primary">{gameSet.playCount || 0}</TableCell>
+                                            </TableRow>
+                                        )
+                                    })}
+                                </TableBody>
+                            </Table>
+                        )}
+                    </TabsContent>
+                </Tabs>
+            </CardContent>
+          </Card>
+        </MotionDiv>
+      </div>
+
+      <Dialog open={!!selectedUser} onOpenChange={(isOpen) => !isOpen && setSelectedUser(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-headline text-2xl">{selectedUser?.displayName}님이 만든 퀴즈</DialogTitle>
+            <DialogDescription>이 사용자가 만들어서 공개한 퀴즈 목록입니다.</DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-96 pr-4">
+            <div className="space-y-4 py-4">
+                {isUserSetsLoading ? (
+                    <div className="flex items-center justify-center h-48">
+                        <Loader2 className="w-8 h-8 animate-spin" />
+                    </div>
+                ) : userGameSets.length === 0 ? (
+                    <div className="text-center text-muted-foreground py-12">
+                        공개된 퀴즈가 없습니다.
+                    </div>
+                ) : (
+                    userGameSets.map(set => (
+                        <Card key={set.id}>
+                            <CardContent className="p-4 flex items-center justify-between">
+                                <div>
+                                    <h4 className="font-semibold">{set.title}</h4>
+                                    <p className="text-sm text-muted-foreground">
+                                        {[set.grade, set.semester, set.subject].filter(Boolean).join(' / ')}
+                                        {' · '}
+                                        {set.questions.length} 문제
+                                        {' · '}
+                                        활용 {set.playCount || 0}회
+                                    </p>
+                                </div>
+                                <Button asChild size="sm">
+                                    <Link href={`/game-rooms/new?gameSetId=${set.id}`}>
+                                        <Users className="mr-2 h-4 w-4" />방 만들기
+                                    </Link>
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    ))
+                )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
