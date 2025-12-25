@@ -68,6 +68,7 @@ export interface Player {
   nickname:string;
   score: number;
   avatarId: string;
+  pixelAvatar?: string;
   isHost?: boolean;
 }
 

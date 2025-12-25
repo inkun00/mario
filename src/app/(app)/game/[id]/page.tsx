@@ -9,7 +9,6 @@ import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer, SubjectStat } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb, Save, StopCircle } from 'lucide-react';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
@@ -34,6 +33,7 @@ import Link from 'next/link';
 import { v4 as uuidv4 } from 'uuid';
 import { getLevelInfo } from '@/lib/level-system';
 import { MysteryBox } from '@/components/mystery-box';
+import { PixelAvatar } from '@/components/pixel-avatar';
 
 
 interface GameBlock {
@@ -680,6 +680,7 @@ export default function GamePage() {
 
   const currentTurnPlayer = players.find(p => p.uid === gameRoom?.currentTurn);
   const currentQuestion = currentQuestionInfo?.question;
+  const isSpectator = gameRoom?.joinType === 'remote' && !isMyTurn;
   
   const isClickDisabled = (block: GameBlock) => {
     if (!gameRoom || showGameOverPopup || gameRoom.status !== 'playing') return true;
@@ -802,6 +803,12 @@ export default function GamePage() {
             <div className="flex-grow p-4 space-y-4 overflow-y-auto">
               {scoreboardPlayers.map((player, index) => {
                 const levelInfo = getLevelInfo(player.score);
+                let pixelAvatarData = null;
+                if (player.pixelAvatar) {
+                  try {
+                    pixelAvatarData = JSON.parse(player.pixelAvatar);
+                  } catch (e) { console.error("Error parsing player avatar", e); }
+                }
                 return (
                   <div key={player.uid} className={cn(
                       "p-3 rounded-lg border-2 transition-all", 
@@ -811,9 +818,9 @@ export default function GamePage() {
                       <div className="font-bold text-lg w-6 text-center text-muted-foreground">
                         {index === 0 && player.score > 0 ? <Crown className="w-5 h-5 mx-auto text-yellow-500 fill-yellow-400" /> : index + 1}
                       </div>
-                      <div className="h-10 w-10 flex items-center justify-center rounded-full bg-secondary text-2xl flex-shrink-0">
-                          {levelInfo.icon}
-                      </div>
+                       <div className="h-10 w-10 flex-shrink-0">
+                         <PixelAvatar pixels={pixelAvatarData} className="w-full h-full rounded-md" />
+                       </div>
                       <div className="flex-grow">
                         <p className="font-semibold">{player.nickname}</p>
                         <Progress value={(player.score / 500) * 100} className="h-2 mt-1" />
@@ -829,7 +836,7 @@ export default function GamePage() {
       </div>
 
        {/* Mystery Box Choice Popup */}
-      <Dialog open={showMysteryChoicePopup} onOpenChange={setShowMysteryChoicePopup}>
+      <Dialog open={showMysteryChoicePopup} onOpenChange={isMyTurn ? setShowMysteryChoicePopup : undefined}>
         <DialogContent className="max-w-2xl text-center">
           <DialogHeader>
             <DialogTitle className="font-headline text-2xl">미스터리 박스</DialogTitle>
@@ -837,7 +844,7 @@ export default function GamePage() {
           </DialogHeader>
           <div className="flex justify-center items-center gap-4 sm:gap-8 py-8">
             {mysteryOptions.map((option, index) => (
-              <div key={index} className="w-32 h-32 cursor-pointer hover:scale-110 transition-transform duration-300" onClick={() => handleMysteryBoxChoice(option)}>
+              <div key={index} className="w-32 h-32 cursor-pointer hover:scale-110 transition-transform duration-300" onClick={() => isMyTurn && handleMysteryBoxChoice(option)}>
                 <MysteryBox />
               </div>
             ))}
@@ -881,7 +888,7 @@ export default function GamePage() {
       </Dialog>
 
       {/* Question Popup */}
-      <Dialog open={!!currentQuestion} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
+      <Dialog open={!!currentQuestion} onOpenChange={(isOpen) => !isOpen && isMyTurn && handleCloseDialogs()}>
           <DialogContent className="max-w-2xl">
               <DialogHeader>
                   <div className="flex justify-between items-center">
@@ -893,7 +900,7 @@ export default function GamePage() {
                           </span>
                       </DialogTitle>
                       {currentQuestion?.hint && !showHint && (
-                          <Button variant="outline" size="sm" onClick={handleShowHint} disabled={isSubmitting}>
+                          <Button variant="outline" size="sm" onClick={handleShowHint} disabled={isSubmitting || isSpectator}>
                               <Lightbulb className="w-4 h-4 mr-2" />
                               힌트 보기 (점수 절반)
                           </Button>
@@ -917,11 +924,11 @@ export default function GamePage() {
                               placeholder="정답을 입력하세요" 
                               value={userAnswer}
                               onChange={(e) => setUserAnswer(e.target.value)}
-                              disabled={isSubmitting}
+                              disabled={isSubmitting || isSpectator}
                           />
                       )}
                       {currentQuestion?.type === 'multipleChoice' && currentQuestion.options && (
-                          <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="space-y-2" disabled={isSubmitting}>
+                          <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="space-y-2" disabled={isSubmitting || isSpectator}>
                               {currentQuestion.options.map((option, index) => (
                                   <div key={index} className="flex items-center space-x-2">
                                       <RadioGroupItem value={option} id={`option-${index}`} />
@@ -931,7 +938,7 @@ export default function GamePage() {
                           </RadioGroup>
                       )}
                       {currentQuestion?.type === 'ox' && (
-                          <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="grid grid-cols-2 gap-4" disabled={isSubmitting}>
+                          <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="grid grid-cols-2 gap-4" disabled={isSubmitting || isSpectator}>
                               <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'O' && 'border-primary bg-primary/10')}>
                                   <RadioGroupItem value="O" id="option-o" className="sr-only"/>
                                   O
@@ -945,14 +952,16 @@ export default function GamePage() {
                   </div>
               </div>
               
-              <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting}>
-                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
-              </Button>
+              {!isSpectator && (
+                <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting}>
+                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
+                </Button>
+              )}
           </DialogContent>
       </Dialog>
 
       {/* Mystery Box Popup */}
-      <Dialog open={showMysteryBoxPopup} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
+      <Dialog open={showMysteryBoxPopup} onOpenChange={(isOpen) => !isOpen && isMyTurn && handleCloseDialogs()}>
           <DialogContent className="max-w-md text-center" aria-describedby="mystery-box-description">
               <DialogHeader>
                   <div className="flex flex-col items-center gap-4">
@@ -967,22 +976,32 @@ export default function GamePage() {
                   {mysteryBoxEffect?.type === 'swap' && (
                     <div className="text-left space-y-2">
                       <Label className="font-semibold">바꿀 플레이어 선택:</Label>
-                      <RadioGroup value={playerForSwap || ''} onValueChange={setPlayerForSwap} className="space-y-2" disabled={isSubmitting}>
-                          {players.filter(p => p.uid !== gameRoom?.currentTurn).map((player) => (
-                            <Label key={player.uid} htmlFor={`swap-${player.uid}`} className="flex items-center gap-3 p-3 rounded-md border hover:border-primary cursor-pointer">
-                                  <RadioGroupItem value={player.uid} id={`swap-${player.uid}`} />
-                                  <Image src={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageUrl || ''} alt={player.nickname} width={32} height={32} className="rounded-full" data-ai-hint={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageHint}/>
-                                  <span className="font-semibold">{player.nickname}</span>
-                                  <span className="ml-auto text-primary font-bold">{player.score}점</span>
-                            </Label>
-                          ))}
+                      <RadioGroup value={playerForSwap || ''} onValueChange={setPlayerForSwap} className="space-y-2" disabled={isSubmitting || isSpectator}>
+                          {players.filter(p => p.uid !== gameRoom?.currentTurn).map((player) => {
+                             let pixelAvatarData = null;
+                              if (player.pixelAvatar) {
+                                try {
+                                  pixelAvatarData = JSON.parse(player.pixelAvatar);
+                                } catch (e) { console.error("Error parsing player avatar", e); }
+                              }
+                            return (
+                                <Label key={player.uid} htmlFor={`swap-${player.uid}`} className="flex items-center gap-3 p-3 rounded-md border hover:border-primary cursor-pointer">
+                                    <RadioGroupItem value={player.uid} id={`swap-${player.uid}`} />
+                                    <PixelAvatar pixels={pixelAvatarData} className="w-8 h-8 rounded-md" />
+                                    <span className="font-semibold">{player.nickname}</span>
+                                    <span className="ml-auto text-primary font-bold">{player.score}점</span>
+                                </Label>
+                            )
+                          })}
                       </RadioGroup>
                     </div>
                   )}
               </div>
-              <Button className="w-full" onClick={handleMysteryEffect} disabled={isSubmitting || (mysteryBoxEffect?.type === 'swap' && !playerForSwap)}>
-                  {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "효과 적용"}
-              </Button>
+              {!isSpectator && (
+                <Button className="w-full" onClick={handleMysteryEffect} disabled={isSubmitting || (mysteryBoxEffect?.type === 'swap' && !playerForSwap)}>
+                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "효과 적용"}
+                </Button>
+              )}
           </DialogContent>
       </Dialog>
 

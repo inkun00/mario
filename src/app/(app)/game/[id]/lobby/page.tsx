@@ -6,19 +6,19 @@ import { useParams, useRouter } from 'next/navigation';
 import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, getDocs, limit, arrayUnion, serverTimestamp } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import type { GameRoom, GameSet, Player, PlayedGameSet } from '@/lib/types';
+import type { GameRoom, GameSet, Player, PlayedGameSet, User as FsUser } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Copy, Crown, Users, LogIn, Loader2, Gamepad2, UserCheck, CheckCircle, Eye, EyeOff } from 'lucide-react';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 import Image from 'next/image';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { ADMIN_EMAILS } from '@/lib/admins';
+import { PixelAvatar } from '@/components/pixel-avatar';
 
 function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
     const router = useRouter();
@@ -72,23 +72,33 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
                         <span>참여한 플레이어 ({players.length} / 6)</span>
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {players.map(player => (
-                            <div key={player.uid} className={cn("flex flex-col items-center gap-2 p-3 border rounded-lg bg-background", player.uid === user?.uid && "border-primary")}>
-                                 <div className="relative">
-                                    <Avatar className="w-16 h-16">
-                                        <Image src={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageUrl || ''} alt={player.nickname} width={64} height={64} className="rounded-full" data-ai-hint={PlaceHolderImages.find(p => p.id === player.avatarId)?.imageHint}/>
-                                        <AvatarFallback>{player.nickname.substring(0, 2)}</AvatarFallback>
-                                    </Avatar>
-                                    {player.isHost && (
-                                        <div className="absolute -top-1 -right-2 bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs flex items-center gap-1" >
-                                            <Crown className="w-3 h-3" />
-                                            호스트
-                                        </div>
-                                    )}
+                        {players.map(player => {
+                            let pixelAvatarData = null;
+                            if (player.pixelAvatar) {
+                                try {
+                                    pixelAvatarData = JSON.parse(player.pixelAvatar);
+                                } catch (e) {
+                                    console.error("Error parsing player avatar in lobby", e);
+                                }
+                            }
+                            return (
+                                <div key={player.uid} className={cn("flex flex-col items-center gap-2 p-3 border rounded-lg bg-background", player.uid === user?.uid && "border-primary")}>
+                                    <div className="relative">
+                                        <Avatar className="w-16 h-16">
+                                            <PixelAvatar pixels={pixelAvatarData} />
+                                            <AvatarFallback>{player.nickname.substring(0, 2)}</AvatarFallback>
+                                        </Avatar>
+                                        {player.isHost && (
+                                            <div className="absolute -top-1 -right-2 bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs flex items-center gap-1" >
+                                                <Crown className="w-3 h-3" />
+                                                호스트
+                                            </div>
+                                        )}
+                                    </div>
+                                    <p className="font-semibold text-center">{player.nickname}</p>
                                 </div>
-                                <p className="font-semibold text-center">{player.nickname}</p>
-                            </div>
-                        ))}
+                            )
+                        })}
                     </div>
                 </div>
 
@@ -343,11 +353,16 @@ export default function LobbyPage() {
         const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
         
         if (roomData.joinType === 'remote' && !roomData.players[user.uid] && Object.keys(roomData.players).length < 6) {
+            const userDocRef = doc(db, 'users', user.uid);
+            const userDocSnap = await getDoc(userDocRef);
+            const userData = userDocSnap.data() as FsUser | undefined;
+
            const newPlayer: Player = {
              uid: user.uid,
              nickname: user.displayName || `플레이어${Object.keys(roomData.players).length + 1}`,
              score: 0,
              avatarId: `player-avatar-${(Object.keys(roomData.players).length % 4) + 1}`,
+             pixelAvatar: userData?.pixelAvatar,
              isHost: false,
            };
            await updateDoc(roomRef, {
