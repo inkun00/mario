@@ -38,9 +38,15 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
         if (!isHost) return;
         const roomRef = doc(db, 'game-rooms', gameRoom.id as string);
         try {
+            // Ensure playerUIDs are set in a consistent order before starting
+            const playerUIDs = Object.values(gameRoom.players)
+                .sort((a, b) => (a.isHost ? -1 : 1)) // Simple sort, host first
+                .map(p => p.uid);
+
             await updateDoc(roomRef, { 
               status: gameRoom.mysteryBoxEnabled ? 'setting-mystery' : 'playing',
-              playerUIDs: Object.keys(gameRoom.players),
+              playerUIDs: playerUIDs,
+              currentTurn: playerUIDs[0], // Ensure the first turn is set correctly
               gameStartedAt: serverTimestamp()
             });
             // The onSnapshot listener in the main component will handle the redirection
@@ -179,7 +185,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
             }
 
             const userDoc = userSnapshot.docs[0];
-            const userData = userDoc.data();
+            const userData = userDoc.data() as FsUser;
             const playerUid = userDoc.id;
 
             const isDuplicate = players.some((p, i) => i !== index && p.uid === playerUid);
@@ -231,18 +237,22 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
         const playerObjects: Record<string, Player> = {};
         const playerUIDs: string[] = [];
 
-        players.forEach((p, index) => {
-            if (!p.uid) return; // Should not happen if confirmed
+        for (const p of players) {
+            if (!p.uid) continue;
+            const userDocRef = doc(db, 'users', p.uid);
+            const userDocSnap = await getDoc(userDocRef);
+            const userData = userDocSnap.data() as FsUser | undefined;
+
             const newPlayer: Player = {
-                uid: p.uid, // Use the confirmed UID from Firestore
+                uid: p.uid,
                 nickname: p.nickname,
                 score: 0,
-                avatarId: `player-avatar-${(index % 4) + 1}`,
-                isHost: index === 0,
+                pixelAvatar: userData?.pixelAvatar,
+                isHost: playerUIDs.length === 0, // First confirmed player is host
             };
-            playerObjects[p.uid] = newPlayer; // Key by UID
+            playerObjects[p.uid] = newPlayer;
             playerUIDs.push(p.uid);
-        });
+        }
 
         try {
             await updateDoc(roomRef, { 
@@ -352,7 +362,7 @@ export default function LobbyPage() {
       if (docSnap.exists()) {
         const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
         
-        if (roomData.joinType === 'remote' && !roomData.players[user.uid] && Object.keys(roomData.players).length < 6) {
+        if (roomData.joinType === 'remote' && !roomData.players[user.uid] && Object.keys(roomData.players).length < 6 && roomData.status === 'waiting') {
             const userDocRef = doc(db, 'users', user.uid);
             const userDocSnap = await getDoc(userDocRef);
             const userData = userDocSnap.data() as FsUser | undefined;
@@ -361,7 +371,6 @@ export default function LobbyPage() {
              uid: user.uid,
              nickname: user.displayName || `플레이어${Object.keys(roomData.players).length + 1}`,
              score: 0,
-             avatarId: `player-avatar-${(Object.keys(roomData.players).length % 4) + 1}`,
              pixelAvatar: userData?.pixelAvatar,
              isHost: false,
            };
@@ -425,5 +434,3 @@ export default function LobbyPage() {
     </div>
   )
 }
-
-    

@@ -110,7 +110,7 @@ export default function GamePage() {
   const [showHint, setShowHint] = useState(false);
   const [userAnswer, setUserAnswer] = useState('');
   
-  const [isMyTurn, setIsMyTurn] = useState(true);
+  const [isMyTurn, setIsMyTurn] = useState(false);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -188,12 +188,43 @@ export default function GamePage() {
     const calculatedPlayers = calculateScoresFromLogs(gameRoom);
     setPlayers(calculatedPlayers);
     
-    if (gameRoom.joinType === 'remote') {
-        setIsMyTurn(gameRoom.currentTurn === user?.uid);
-    } else {
-        setIsMyTurn(true);
-    }
+    setIsMyTurn(gameRoom.currentTurn === user?.uid);
   }, [gameRoom, user, loadingUser]);
+
+  // Sync local state with Firestore state for spectator mode
+  useEffect(() => {
+    if (!gameRoom || !gameSet || !blocks.length) return;
+
+    const flippingBlockId = Object.keys(gameRoom.gameState).find(
+      (id) => gameRoom.gameState[id] === 'flipping'
+    );
+
+    if (flippingBlockId) {
+      const block = blocks.find(b => String(b.id) === flippingBlockId);
+      if (block) {
+        if (block.type === 'question' && block.question) {
+          if (!currentQuestionInfo || currentQuestionInfo.blockId !== block.id) {
+            let points = block.question.points;
+            if (points === -1) { 
+                points = (Math.floor(Math.random() * 5) + 1) * 10;
+            }
+            setCurrentPoints(points);
+            setShowHint(false);
+            setUserAnswer('');
+            setCurrentQuestionInfo({ question: block.question, blockId: block.id });
+          }
+        } else if (block.type === 'mystery') {
+          if (!showMysteryChoicePopup && !showMysteryBoxPopup) {
+            prepareMysteryChoice();
+          }
+        }
+      }
+    } else {
+      // If no block is flipping, close all dialogs
+      handleCloseDialogs();
+    }
+  }, [gameRoom?.gameState, gameSet, blocks]);
+
 
   // Initialize game board
   useEffect(() => {
@@ -261,23 +292,6 @@ export default function GamePage() {
     
     const roomRef = doc(db, 'game-rooms', gameRoomId);
     updateDoc(roomRef, { gameState: newGameState });
-
-    setTimeout(() => {
-      if (block.type === 'question' && block.question) {
-        setCurrentQuestionInfo({question: block.question, blockId: block.id});
-        
-        let points = block.question.points;
-        if (points === -1) { 
-            points = (Math.floor(Math.random() * 5) + 1) * 10;
-        }
-        setCurrentPoints(points);
-        setShowHint(false);
-        setUserAnswer('');
-        
-      } else { // Mystery Box
-        prepareMysteryChoice();
-      }
-    }, 800);
   };
 
   const prepareMysteryChoice = () => {
@@ -314,12 +328,10 @@ export default function GamePage() {
     if (!gameRoom) return '';
     const playerUIDs = gameRoom.playerUIDs || Object.keys(gameRoom.players);
     if (playerUIDs.length === 0) return '';
-    if (gameRoom.joinType === 'remote') {
-        if (!gameRoom.currentTurn) return playerUIDs[0]; // Fallback
-        return gameRoom.currentTurn; // Remote game turn is handled by host implicitly
-    }
-
+    
     const currentTurnIndex = playerUIDs.indexOf(gameRoom.currentTurn);
+    if (currentTurnIndex === -1) return playerUIDs[0]; // Fallback
+
     const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
     return playerUIDs[nextTurnIndex];
   }
@@ -680,7 +692,6 @@ export default function GamePage() {
 
   const currentTurnPlayer = players.find(p => p.uid === gameRoom?.currentTurn);
   const currentQuestion = currentQuestionInfo?.question;
-  const isSpectator = gameRoom?.joinType === 'remote' && !isMyTurn;
   
   const isClickDisabled = (block: GameBlock) => {
     if (!gameRoom || showGameOverPopup || gameRoom.status !== 'playing') return true;
@@ -836,7 +847,7 @@ export default function GamePage() {
       </div>
 
        {/* Mystery Box Choice Popup */}
-      <Dialog open={showMysteryChoicePopup} onOpenChange={isMyTurn ? setShowMysteryChoicePopup : undefined}>
+      <Dialog open={showMysteryChoicePopup}>
         <DialogContent className="max-w-2xl text-center">
           <DialogHeader>
             <DialogTitle className="font-headline text-2xl">미스터리 박스</DialogTitle>
@@ -888,7 +899,7 @@ export default function GamePage() {
       </Dialog>
 
       {/* Question Popup */}
-      <Dialog open={!!currentQuestion} onOpenChange={(isOpen) => !isOpen && isMyTurn && handleCloseDialogs()}>
+      <Dialog open={!!currentQuestion}>
           <DialogContent className="max-w-2xl">
               <DialogHeader>
                   <div className="flex justify-between items-center">
@@ -900,7 +911,7 @@ export default function GamePage() {
                           </span>
                       </DialogTitle>
                       {currentQuestion?.hint && !showHint && (
-                          <Button variant="outline" size="sm" onClick={handleShowHint} disabled={isSubmitting || isSpectator}>
+                          <Button variant="outline" size="sm" onClick={handleShowHint} disabled={isSubmitting || !isMyTurn}>
                               <Lightbulb className="w-4 h-4 mr-2" />
                               힌트 보기 (점수 절반)
                           </Button>
@@ -924,11 +935,11 @@ export default function GamePage() {
                               placeholder="정답을 입력하세요" 
                               value={userAnswer}
                               onChange={(e) => setUserAnswer(e.target.value)}
-                              disabled={isSubmitting || isSpectator}
+                              disabled={isSubmitting || !isMyTurn}
                           />
                       )}
                       {currentQuestion?.type === 'multipleChoice' && currentQuestion.options && (
-                          <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="space-y-2" disabled={isSubmitting || isSpectator}>
+                          <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="space-y-2" disabled={isSubmitting || !isMyTurn}>
                               {currentQuestion.options.map((option, index) => (
                                   <div key={index} className="flex items-center space-x-2">
                                       <RadioGroupItem value={option} id={`option-${index}`} />
@@ -938,7 +949,7 @@ export default function GamePage() {
                           </RadioGroup>
                       )}
                       {currentQuestion?.type === 'ox' && (
-                          <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="grid grid-cols-2 gap-4" disabled={isSubmitting || isSpectator}>
+                          <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="grid grid-cols-2 gap-4" disabled={isSubmitting || !isMyTurn}>
                               <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'O' && 'border-primary bg-primary/10')}>
                                   <RadioGroupItem value="O" id="option-o" className="sr-only"/>
                                   O
@@ -952,7 +963,7 @@ export default function GamePage() {
                   </div>
               </div>
               
-              {!isSpectator && (
+              {isMyTurn && (
                 <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting}>
                     {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
                 </Button>
@@ -961,7 +972,7 @@ export default function GamePage() {
       </Dialog>
 
       {/* Mystery Box Popup */}
-      <Dialog open={showMysteryBoxPopup} onOpenChange={(isOpen) => !isOpen && isMyTurn && handleCloseDialogs()}>
+      <Dialog open={showMysteryBoxPopup}>
           <DialogContent className="max-w-md text-center" aria-describedby="mystery-box-description">
               <DialogHeader>
                   <div className="flex flex-col items-center gap-4">
@@ -976,7 +987,7 @@ export default function GamePage() {
                   {mysteryBoxEffect?.type === 'swap' && (
                     <div className="text-left space-y-2">
                       <Label className="font-semibold">바꿀 플레이어 선택:</Label>
-                      <RadioGroup value={playerForSwap || ''} onValueChange={setPlayerForSwap} className="space-y-2" disabled={isSubmitting || isSpectator}>
+                      <RadioGroup value={playerForSwap || ''} onValueChange={setPlayerForSwap} className="space-y-2" disabled={isSubmitting || !isMyTurn}>
                           {players.filter(p => p.uid !== gameRoom?.currentTurn).map((player) => {
                              let pixelAvatarData = null;
                               if (player.pixelAvatar) {
@@ -997,7 +1008,7 @@ export default function GamePage() {
                     </div>
                   )}
               </div>
-              {!isSpectator && (
+              {isMyTurn && (
                 <Button className="w-full" onClick={handleMysteryEffect} disabled={isSubmitting || (mysteryBoxEffect?.type === 'swap' && !playerForSwap)}>
                     {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "효과 적용"}
                 </Button>
@@ -1057,5 +1068,3 @@ export default function GamePage() {
     </>
   );
 }
-
-    
