@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -548,20 +549,32 @@ export default function GamePage() {
     setIsSubmitting(true);
     try {
         const roomRef = doc(db, 'game-rooms', gameRoomId);
-        const allPlayerIds = Object.keys(gameRoom.players);
-        const numPlayers = allPlayerIds.length;
-        const agreedEffects = allMysteryEffects
-            .filter(effect => {
-                const votesForEffect = gameRoom.mysteryEffectVotes?.[effect.type] || [];
-                return votesForEffect.length === numPlayers;
-            })
-            .map(effect => effect.type);
+        let agreedEffects: MysteryEffectType[] = [];
+
+        if (gameRoom.joinType === 'remote') {
+            const allPlayerIds = Object.keys(gameRoom.players);
+            const numPlayers = allPlayerIds.length;
+            agreedEffects = allMysteryEffects
+                .filter(effect => {
+                    const votesForEffect = gameRoom.mysteryEffectVotes?.[effect.type] || [];
+                    return votesForEffect.length === numPlayers;
+                })
+                .map(effect => effect.type);
+        } else { // local game
+            agreedEffects = allMysteryEffects
+                .filter(effect => {
+                    const votesForEffect = gameRoom.mysteryEffectVotes?.[effect.type] || [];
+                    // In local, only host's vote matters
+                    return votesForEffect.includes(gameRoom.hostId);
+                })
+                .map(effect => effect.type);
+        }
 
         if (agreedEffects.length === 0 && gameRoom.mysteryBoxEnabled) {
             toast({
                 variant: 'destructive',
                 title: '필수 동의',
-                description: '미스터리 박스를 사용하려면 최소 1개의 효과에 모든 플레이어가 동의해야 합니다.',
+                description: '미스터리 박스를 사용하려면 최소 1개의 효과에 동의해야 합니다.',
             });
             setIsSubmitting(false);
             return;
