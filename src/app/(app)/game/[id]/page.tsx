@@ -376,7 +376,7 @@ export default function GamePage() {
   }
 
   const handleSubmitAnswer = async () => {
-    if (!currentQuestionInfo || !userAnswer || !gameRoom || !gameSet || typeof gameRoomId !== 'string' || !user) {
+    if (!currentQuestionInfo || !userAnswer || !gameRoom || !gameSet || typeof gameRoomId !== 'string' || !user || !isMyTurn) {
       toast({ variant: 'destructive', title: '오류', description: '답변을 선택하거나 입력해주세요.'});
       return;
     }
@@ -397,66 +397,67 @@ export default function GamePage() {
         pointsAwarded: pointsToAward,
     });
 
-    try {
-        const batch = writeBatch(db);
-        const roomRef = doc(db, 'game-rooms', gameRoomId);
-        
-        const newLogEntry: AnswerLog = {
-            id: uuidv4(),
-            userId: currentTurnUID,
-            question: currentQuestion,
-            userAnswer: userAnswer,
-            isCorrect: isCorrect,
-            pointsAwarded: pointsToAward,
-            timestamp: Timestamp.now(),
-        };
+    setTimeout(async () => {
+        try {
+            const batch = writeBatch(db);
+            const roomRef = doc(db, 'game-rooms', gameRoomId);
+            
+            const newLogEntry: AnswerLog = {
+                id: uuidv4(),
+                userId: currentTurnUID,
+                question: currentQuestion,
+                userAnswer: userAnswer,
+                isCorrect: isCorrect,
+                pointsAwarded: pointsToAward,
+                timestamp: Timestamp.now(),
+            };
 
-        const newAnswerLogs = [...(gameRoom.answerLogs || []), newLogEntry];
-        
-        const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
-        
-        const totalQuestions = gameSet.questions.length;
-        const mysteryBlockCount = gameRoom.mysteryBoxEnabled ? Math.round(totalQuestions * 0.3) : 0;
-        const totalBlocks = totalQuestions + mysteryBlockCount;
-        const allAnswered = Object.keys(newGameState).length >= totalBlocks;
-        
-        const nextTurnUID = getNextTurnUID();
-        const updateData: Partial<GameRoom> = {
-            answerLogs: newAnswerLogs, 
-            gameState: newGameState,
-            currentTurn: nextTurnUID,
-        };
-        
-        if (!isCorrect) {
-          const incorrectLogData: IncorrectAnswer = {
-              id: uuidv4(),
-              userId: gameRoom.currentTurn,
-              question: currentQuestion,
-              userAnswer: userAnswer,
-              timestamp: new Date(),
-          };
-          const incorrectLogRef = doc(db, 'users', currentTurnUID, 'incorrect-answers', incorrectLogData.id);
-          batch.set(incorrectLogRef, incorrectLogData);
+            const newAnswerLogs = [...(gameRoom.answerLogs || []), newLogEntry];
+            
+            const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
+            
+            const totalQuestions = gameSet.questions.length;
+            const mysteryBlockCount = gameRoom.mysteryBoxEnabled ? Math.round(totalQuestions * 0.3) : 0;
+            const totalBlocks = totalQuestions + mysteryBlockCount;
+            const allAnswered = Object.keys(newGameState).length >= totalBlocks;
+            
+            const nextTurnUID = getNextTurnUID();
+            const updateData: Partial<GameRoom> = {
+                answerLogs: newAnswerLogs, 
+                gameState: newGameState,
+                currentTurn: nextTurnUID,
+            };
+            
+            if (!isCorrect) {
+              const incorrectLogData: IncorrectAnswer = {
+                  id: uuidv4(),
+                  userId: gameRoom.currentTurn,
+                  question: currentQuestion,
+                  userAnswer: userAnswer,
+                  timestamp: new Date(),
+              };
+              const incorrectLogRef = doc(db, 'users', currentTurnUID, 'incorrect-answers', incorrectLogData.id);
+              batch.set(incorrectLogRef, incorrectLogData);
+            }
+            
+            if (allAnswered) {
+              updateData.status = 'finished';
+            }
+
+            batch.update(roomRef, updateData as any);
+            
+            await batch.commit();
+            
+            // This will trigger the useEffect to close the dialog
+            // handleCloseDialogs(); 
+            // setIsSubmitting(false);
+            
+        } catch(error: any) {
+             toast({variant: 'destructive', title: '오류', description: `답변 제출 중 오류가 발생했습니다: ${error.message}`});
+             setIsSubmitting(false);
+             setAnswerResult(null);
         }
-        
-        if (allAnswered) {
-          updateData.status = 'finished';
-        }
-
-        batch.update(roomRef, updateData as any);
-        
-        await batch.commit();
-
-        setTimeout(() => {
-            handleCloseDialogs();
-            setIsSubmitting(false);
-        }, 2000); // 2초 후에 다이얼로그를 닫습니다.
-        
-    } catch(error: any) {
-         toast({variant: 'destructive', title: '오류', description: `답변 제출 중 오류가 발생했습니다: ${error.message}`});
-         setIsSubmitting(false);
-         setAnswerResult(null);
-    }
+    }, 2000); // 2초 후에 Firestore 업데이트 및 다이얼로그 닫기
   }
 
 
@@ -590,12 +591,10 @@ export default function GamePage() {
                 })
                 .map(effect => effect.type);
         } else { // local game
-             agreedEffects = allMysteryEffects
-                .filter(effect => {
-                    const votesForEffect = gameRoom.mysteryEffectVotes?.[effect.type] || [];
-                    return votesForEffect.includes(gameRoom.hostId);
-                })
-                .map(effect => effect.type);
+             const hostVotes = Object.keys(gameRoom.mysteryEffectVotes || {}).filter(effectType => 
+                gameRoom.mysteryEffectVotes?.[effectType as MysteryEffectType]?.includes(gameRoom.hostId)
+             );
+             agreedEffects = hostVotes as MysteryEffectType[];
         }
 
         if (agreedEffects.length === 0 && gameRoom.mysteryBoxEnabled) {
@@ -948,7 +947,7 @@ export default function GamePage() {
                     "w-32 h-32 transition-transform duration-300",
                     isMyTurn && "cursor-pointer hover:scale-110"
                 )}
-                onClick={() => handleMysteryBoxChoice(option)}
+                onClick={() => isMyTurn && handleMysteryBoxChoice(option)}
               >
                 <MysteryBox />
               </div>
@@ -1219,5 +1218,6 @@ export default function GamePage() {
     </>
   );
 }
+
 
 
