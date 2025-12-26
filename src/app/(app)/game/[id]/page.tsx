@@ -147,7 +147,7 @@ export default function GamePage() {
             
             setGameRoom(roomData);
 
-            if (roomData.status === 'setting-mystery') {
+            if (roomData.status === 'setting-mystery' && !roomData.isMysterySettingDone) {
                 setShowMysterySettings(true);
             } else {
                 setShowMysterySettings(false);
@@ -232,8 +232,7 @@ export default function GamePage() {
 
     const questions = gameSet.questions || [];
 
-    // Only create board if game is in 'playing' state
-    if (gameRoom.status === 'playing') {
+    if (gameRoom.status === 'playing' || (gameRoom.status === 'setting-mystery' && gameRoom.isMysterySettingDone)) {
         const questionItems: GameBlock[] = questions.map((q, i) => ({
             id: i,
             type: 'question',
@@ -572,6 +571,7 @@ export default function GamePage() {
             enabledMysteryEffects: agreedEffects,
             isMysterySettingDone: true,
             status: 'playing',
+            gameStartedAt: serverTimestamp()
         });
         setShowMysterySettings(false);
     } catch (error) {
@@ -767,7 +767,7 @@ export default function GamePage() {
     );
   }
   
-  if (blocks.length === 0 && gameRoom.status === 'playing') {
+  if (blocks.length === 0 && gameRoom.status === 'playing' && gameRoom.isMysterySettingDone) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
@@ -789,7 +789,7 @@ export default function GamePage() {
           <Card className="w-full max-w-4xl p-4 sm:p-6 bg-background/70 backdrop-blur-sm">
             <div className="text-center mb-6">
                   <h2 className="text-2xl font-bold font-headline">
-                      {gameRoom.status !== 'playing' ? (
+                      {gameRoom.status === 'setting-mystery' && !gameRoom.isMysterySettingDone ? (
                           <span>미스터리 박스 설정을 기다리는 중...</span>
                       ) : gameRoom.joinType === 'local' ? (
                           <span><span className="text-primary">{currentTurnPlayer?.nickname || ''}</span>님, 박스를 선택하여 문제를 풀어보세요!</span>

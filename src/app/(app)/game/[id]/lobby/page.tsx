@@ -38,18 +38,16 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
         if (!isHost) return;
         const roomRef = doc(db, 'game-rooms', gameRoom.id as string);
         try {
-            // Ensure playerUIDs are set in a consistent order before starting
             const playerUIDs = Object.values(gameRoom.players)
-                .sort((a, b) => (a.isHost ? -1 : 1)) // Simple sort, host first
+                .sort((a, b) => (a.isHost ? -1 : 1)) 
                 .map(p => p.uid);
 
             await updateDoc(roomRef, { 
               status: gameRoom.mysteryBoxEnabled ? 'setting-mystery' : 'playing',
               playerUIDs: playerUIDs,
-              currentTurn: playerUIDs[0], // Ensure the first turn is set correctly
-              gameStartedAt: serverTimestamp()
+              currentTurn: playerUIDs[0],
             });
-            // The onSnapshot listener in the main component will handle the redirection
+
         } catch (error) {
             console.error("Error starting game: ", error);
             toast({ variant: 'destructive', title: '오류', description: '게임을 시작하는 중 오류가 발생했습니다.'});
