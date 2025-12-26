@@ -267,6 +267,7 @@ export default function GamePage() {
   }, [gameSet, gameRoom, blocks.length]);
 
   const handleMysteryBoxChoice = (chosenEffect: MysteryEffect) => {
+    if (!isMyTurn) return;
     setShowMysteryChoicePopup(false);
 
     let effectDetails: MysteryEffect;
@@ -306,25 +307,43 @@ export default function GamePage() {
 
   const prepareMysteryChoice = () => {
     if (!gameRoom) return;
-  
-    const effects = gameRoom.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
+
+    const availableEffects = gameRoom.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
+
+    const goodEffects = allMysteryEffects.filter(e => ['bonus', 'double', 'swap'].includes(e.type) && availableEffects.includes(e.type));
+    const badEffects = allMysteryEffects.filter(e => ['penalty', 'half'].includes(e.type) && availableEffects.includes(e.type));
     
     let options: MysteryEffect[] = [];
-    if (effects.length > 0) {
-      const shuffledEffects = shuffleArray(effects);
-      options = shuffledEffects.slice(0, 3).map(type => {
-        const originalEffect = allMysteryEffects.find(e => e.type === type);
-        return { ...originalEffect, description: '' } as MysteryEffect; // description is revealed later
-      });
-    }
 
-    // Ensure we have 3 options, duplicating if necessary
-    while(options.length > 0 && options.length < 3) {
-      options.push(...options);
+    // Ensure at least one bad effect if possible
+    if (badEffects.length > 0) {
+        const shuffledBad = shuffleArray(badEffects);
+        options.push(shuffledBad[0]);
     }
-    options = options.slice(0, 3);
     
-    setMysteryOptions(shuffleArray(options));
+    // Fill the rest with good effects
+    const shuffledGood = shuffleArray(goodEffects);
+    while (options.length < 3 && shuffledGood.length > 0) {
+        options.push(shuffledGood.shift()!);
+    }
+    
+    // If not enough effects, fill with whatever is available
+    const allAvailable = shuffleArray(allMysteryEffects.filter(e => availableEffects.includes(e.type)));
+    while (options.length < 3 && allAvailable.length > 0) {
+        const effectToAdd = allAvailable.shift()!;
+        if (!options.some(opt => opt.type === effectToAdd.type)) {
+            options.push(effectToAdd);
+        }
+    }
+    
+    // Ensure 3 options by duplicating if necessary
+    while (options.length > 0 && options.length < 3) {
+      options.push(...shuffleArray(options));
+    }
+    
+    const finalOptions = shuffleArray(options.slice(0, 3)).map(o => ({...o, description: ''})); // Hide description
+    
+    setMysteryOptions(finalOptions);
     setShowMysteryChoicePopup(true);
   };
   
@@ -442,7 +461,7 @@ export default function GamePage() {
 
 
   const handleMysteryEffect = async () => {
-    if (!mysteryBoxEffect || !gameRoom || typeof gameRoomId !== 'string' || !gameSet || !user) return;
+    if (!mysteryBoxEffect || !gameRoom || typeof gameRoomId !== 'string' || !gameSet || !user || !isMyTurn) return;
   
     setIsSubmitting(true);
     
@@ -597,7 +616,7 @@ export default function GamePage() {
         });
         setShowMysterySettings(false);
     } catch (error: any) {
-        toast({ variant: 'destructive', title: '오류', description: `미스터리 박스 설정 저장 중 오류가 발생했습니다: ${error.message}` });
+        toast({ variant: 'destructive', title: '오류', description: `미스터리 박스 설정 저장 중 오류가 발생했습니다: ${(error as Error).message}` });
     } finally {
         setIsSubmitting(false);
     }
@@ -929,7 +948,7 @@ export default function GamePage() {
                     "w-32 h-32 transition-transform duration-300",
                     isMyTurn && "cursor-pointer hover:scale-110"
                 )}
-                onClick={() => isMyTurn && handleMysteryBoxChoice(option)}
+                onClick={() => handleMysteryBoxChoice(option)}
               >
                 <MysteryBox />
               </div>
@@ -1200,4 +1219,5 @@ export default function GamePage() {
     </>
   );
 }
+
 
