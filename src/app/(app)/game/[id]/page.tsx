@@ -9,7 +9,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer, SubjectStat } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb, Save, StopCircle, Check } from 'lucide-react';
+import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb, Save, StopCircle, Check, CheckCircle, XCircle } from 'lucide-react';
 import Image from 'next/image';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
@@ -50,6 +50,13 @@ interface MysteryEffect {
     description: string;
     icon?: React.ReactNode;
     value?: number;
+}
+
+interface AnswerResult {
+    isCorrect: boolean;
+    userAnswer: string;
+    correctAnswer: string;
+    pointsAwarded: number;
 }
 
 
@@ -111,6 +118,7 @@ export default function GamePage() {
   const [currentPoints, setCurrentPoints] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');
   const [showHint, setShowHint] = useState(false);
+  const [answerResult, setAnswerResult] = useState<AnswerResult | null>(null);
   
   const [isMyTurn, setIsMyTurn] = useState(false);
   
@@ -221,10 +229,12 @@ export default function GamePage() {
         }
       }
     } else {
-      // If no block is flipping, close all dialogs
-      handleCloseDialogs();
+      // If no block is flipping, close all dialogs if they are not showing results
+      if (!answerResult) {
+        handleCloseDialogs();
+      }
     }
-  }, [gameRoom?.gameState, gameSet, blocks]);
+  }, [gameRoom?.gameState, gameSet, blocks, answerResult]);
 
 
   // Initialize game board
@@ -343,6 +353,7 @@ export default function GamePage() {
     setMysteryBoxEffect(null);
     setPlayerForSwap(null);
     setUserAnswer('');
+    setAnswerResult(null);
   }
 
   const handleSubmitAnswer = async () => {
@@ -359,6 +370,13 @@ export default function GamePage() {
 
     const pointsToAward = isCorrect ? currentPoints : 0;
     const currentTurnUID = gameRoom.currentTurn;
+
+    setAnswerResult({
+        isCorrect: isCorrect,
+        userAnswer: userAnswer,
+        correctAnswer: currentQuestion.answer || currentQuestion.correctAnswer || '',
+        pointsAwarded: pointsToAward,
+    });
 
     try {
         const batch = writeBatch(db);
@@ -410,24 +428,15 @@ export default function GamePage() {
         
         await batch.commit();
 
-        if (isCorrect) {
-            toast({
-                title: '정답입니다!',
-                description: `${pointsToAward}점을 획득했습니다!`,
-            });
-        } else {
-            toast({
-                variant: 'destructive',
-                title: '오답입니다...',
-                description: `정답은 "${currentQuestion.answer || currentQuestion.correctAnswer}" 입니다.`,
-            });
-        }
+        setTimeout(() => {
+            handleCloseDialogs();
+            setIsSubmitting(false);
+        }, 2000); // 2초 후에 다이얼로그를 닫습니다.
         
     } catch(error: any) {
          toast({variant: 'destructive', title: '오류', description: `답변 제출 중 오류가 발생했습니다: ${error.message}`});
-    } finally {
-        setIsSubmitting(false);
-        handleCloseDialogs();
+         setIsSubmitting(false);
+         setAnswerResult(null);
     }
   }
 
@@ -574,7 +583,7 @@ export default function GamePage() {
             toast({
                 variant: 'destructive',
                 title: '필수 동의',
-                description: '미스터리 박스를 사용하려면 최소 1개의 효과에 동의해야 합니다.',
+                description: '미스터리 박스를 사용하려면 최소 1개의 효과에 모든 플레이어가 동의해야 합니다.',
             });
             setIsSubmitting(false);
             return;
@@ -989,85 +998,109 @@ export default function GamePage() {
 
       {/* Question Popup */}
       <Dialog open={!!currentQuestion}>
-          <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                  <div className="flex justify-between items-center">
-                      <DialogTitle className="font-headline text-2xl flex items-center gap-2">
-                          질문
-                          <span className="flex items-center gap-1 font-semibold text-primary text-base">
-                              <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
-                              {currentPoints}점
-                          </span>
-                      </DialogTitle>
-                      {currentQuestion?.hint && !showHint && (
-                          <Button variant="outline" size="sm" onClick={handleShowHint} disabled={isSubmitting || !isMyTurn}>
-                              <Lightbulb className="w-4 h-4 mr-2" />
-                              힌트 보기 (점수 절반)
-                          </Button>
-                      )}
-                  </div>
-                  {currentQuestion?.hint && showHint && (
-                      <DialogDescription>힌트: {currentQuestion.hint}</DialogDescription>
-                  )}
-              </DialogHeader>
-              <div className="py-4 space-y-6">
-                  {currentQuestion?.imageUrl && (
-                      <div className="relative aspect-video w-full">
-                          <Image src={encodeURI(currentQuestion.imageUrl)} alt="질문 이미지" fill className="rounded-md object-contain" unoptimized={true} />
-                      </div>
-                  )}
-                  <p className="text-lg font-medium whitespace-pre-wrap">{currentQuestion?.question}</p>
+        <DialogContent className="max-w-2xl">
+            <DialogHeader>
+                <div className="flex justify-between items-center">
+                    <DialogTitle className="font-headline text-2xl flex items-center gap-2">
+                        질문
+                        <span className="flex items-center gap-1 font-semibold text-primary text-base">
+                            <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
+                            {currentPoints}점
+                        </span>
+                    </DialogTitle>
+                    {currentQuestion?.hint && !showHint && (
+                        <Button variant="outline" size="sm" onClick={handleShowHint} disabled={isSubmitting || !isMyTurn}>
+                            <Lightbulb className="w-4 h-4 mr-2" />
+                            힌트 보기 (점수 절반)
+                        </Button>
+                    )}
+                </div>
+                {currentQuestion?.hint && showHint && (
+                    <DialogDescription>힌트: {currentQuestion.hint}</DialogDescription>
+                )}
+            </DialogHeader>
+            
+            {answerResult ? (
+                <div className="py-4 text-center space-y-4">
+                    {answerResult.isCorrect ? (
+                        <div className="flex flex-col items-center gap-2 text-green-600">
+                            <CheckCircle className="w-20 h-20" />
+                            <p className="text-2xl font-bold">정답입니다!</p>
+                            <p className="text-lg">+{answerResult.pointsAwarded}점</p>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center gap-2 text-destructive">
+                            <XCircle className="w-20 h-20" />
+                            <p className="text-2xl font-bold">오답입니다...</p>
+                            <div className="text-base text-foreground/80 space-y-1">
+                                <p>내가 제출한 답: <span className="font-semibold">{answerResult.userAnswer}</span></p>
+                                <p>정답: <span className="font-semibold">{answerResult.correctAnswer}</span></p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            ) : (
+                <>
+                    <div className="py-4 space-y-6">
+                        {currentQuestion?.imageUrl && (
+                            <div className="relative aspect-video w-full">
+                                <Image src={encodeURI(currentQuestion.imageUrl)} alt="질문 이미지" fill className="rounded-md object-contain" unoptimized={true} />
+                            </div>
+                        )}
+                        <p className="text-lg font-medium whitespace-pre-wrap">{currentQuestion?.question}</p>
 
-                  <div>
-                      {currentQuestion?.type === 'subjective' && (
-                          <Input 
-                              placeholder="정답을 입력하세요" 
-                              value={userAnswer}
-                              onChange={(e) => setUserAnswer(e.target.value)}
-                              disabled={isSubmitting || !isMyTurn}
-                          />
-                      )}
-                      {currentQuestion?.type === 'multipleChoice' && currentQuestion.options && (
-                          <RadioGroup 
-                            value={userAnswer} 
-                            onValueChange={setUserAnswer} 
-                            className="space-y-2" 
-                            disabled={isSubmitting || !isMyTurn}
-                          >
-                              {currentQuestion.options.map((option, index) => (
-                                  <div key={index} className="flex items-center space-x-2">
-                                      <RadioGroupItem value={option} id={`option-${index}`} />
-                                      <Label htmlFor={`option-${index}`} className="flex-1 p-3 rounded-md border hover:border-primary cursor-pointer">{option}</Label>
-                                  </div>
-                              ))}
-                          </RadioGroup>
-                      )}
-                      {currentQuestion?.type === 'ox' && (
-                          <RadioGroup 
-                            value={userAnswer} 
-                            onValueChange={setUserAnswer} 
-                            className="grid grid-cols-2 gap-4" 
-                            disabled={isSubmitting || !isMyTurn}
-                          >
-                              <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'O' && 'border-primary bg-primary/10')}>
-                                  <RadioGroupItem value="O" id="option-o" className="sr-only"/>
-                                  O
-                              </Label>
-                              <Label htmlFor="option-x" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'X' && 'border-primary bg-primary/10')}>
-                                  <RadioGroupItem value="X" id="option-x" className="sr-only"/>
-                                  X
-                              </Label>
-                          </RadioGroup>
-                      )}
-                  </div>
-              </div>
-              
-              {isMyTurn && (
-                <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting}>
-                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
-                </Button>
-              )}
-          </DialogContent>
+                        <div>
+                            {currentQuestion?.type === 'subjective' && (
+                                <Input 
+                                    placeholder="정답을 입력하세요" 
+                                    value={userAnswer}
+                                    onChange={(e) => setUserAnswer(e.target.value)}
+                                    disabled={!isMyTurn}
+                                />
+                            )}
+                            {currentQuestion?.type === 'multipleChoice' && currentQuestion.options && (
+                                <RadioGroup 
+                                  value={userAnswer} 
+                                  onValueChange={setUserAnswer} 
+                                  className="space-y-2" 
+                                  disabled={!isMyTurn}
+                                >
+                                    {currentQuestion.options.map((option, index) => (
+                                        <div key={index} className="flex items-center space-x-2">
+                                            <RadioGroupItem value={option} id={`option-${index}`} />
+                                            <Label htmlFor={`option-${index}`} className="flex-1 p-3 rounded-md border hover:border-primary cursor-pointer">{option}</Label>
+                                        </div>
+                                    ))}
+                                </RadioGroup>
+                            )}
+                            {currentQuestion?.type === 'ox' && (
+                                <RadioGroup 
+                                  value={userAnswer} 
+                                  onValueChange={setUserAnswer} 
+                                  className="grid grid-cols-2 gap-4" 
+                                  disabled={!isMyTurn}
+                                >
+                                    <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'O' && 'border-primary bg-primary/10')}>
+                                        <RadioGroupItem value="O" id="option-o" className="sr-only"/>
+                                        O
+                                    </Label>
+                                    <Label htmlFor="option-x" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'X' && 'border-primary bg-primary/10')}>
+                                        <RadioGroupItem value="X" id="option-x" className="sr-only"/>
+                                        X
+                                    </Label>
+                                </RadioGroup>
+                            )}
+                        </div>
+                    </div>
+                    
+                    {isMyTurn && (
+                      <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting}>
+                          {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
+                      </Button>
+                    )}
+                </>
+            )}
+        </DialogContent>
       </Dialog>
 
       {/* Mystery Box Popup */}
@@ -1167,3 +1200,4 @@ export default function GamePage() {
     </>
   );
 }
+
