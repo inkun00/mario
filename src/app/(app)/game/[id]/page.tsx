@@ -109,6 +109,7 @@ export default function GamePage() {
   
   const [currentQuestionInfo, setCurrentQuestionInfo] = useState<{question: Question & { id: number }, blockId: number} | null>(null);
   const [currentPoints, setCurrentPoints] = useState(0);
+  const [userAnswer, setUserAnswer] = useState('');
   const [showHint, setShowHint] = useState(false);
   
   const [isMyTurn, setIsMyTurn] = useState(false);
@@ -210,6 +211,7 @@ export default function GamePage() {
             }
             setCurrentPoints(points);
             setShowHint(false);
+            setUserAnswer(''); // Reset local answer
             setCurrentQuestionInfo({ question: block.question, blockId: block.id });
           }
         } else if (block.type === 'mystery') {
@@ -340,20 +342,11 @@ export default function GamePage() {
     setShowMysteryBoxPopup(false);
     setMysteryBoxEffect(null);
     setPlayerForSwap(null);
-  }
-
-  const handleUserAnswerChange = async (value: string) => {
-    if (!gameRoom || typeof gameRoomId !== 'string' || !isMyTurn) return;
-    const roomRef = doc(db, 'game-rooms', gameRoomId);
-    try {
-        await updateDoc(roomRef, { currentAnswer: value });
-    } catch(e) {
-        console.error("Error updating real-time answer", e);
-    }
+    setUserAnswer('');
   }
 
   const handleSubmitAnswer = async () => {
-    if (!currentQuestionInfo || !gameRoom || !gameRoom.currentAnswer || !gameSet || typeof gameRoomId !== 'string' || !user) {
+    if (!currentQuestionInfo || !userAnswer || !gameRoom || !gameSet || typeof gameRoomId !== 'string' || !user) {
       toast({ variant: 'destructive', title: '오류', description: '답변을 선택하거나 입력해주세요.'});
       return;
     }
@@ -361,8 +354,8 @@ export default function GamePage() {
 
     setIsSubmitting(true);
 
-    const isCorrect = (currentQuestion.type === 'subjective' && gameRoom.currentAnswer.trim().toLowerCase() === currentQuestion.answer?.trim().toLowerCase())
-      || (currentQuestion.type !== 'subjective' && gameRoom.currentAnswer === currentQuestion.correctAnswer);
+    const isCorrect = (currentQuestion.type === 'subjective' && userAnswer.trim().toLowerCase() === currentQuestion.answer?.trim().toLowerCase())
+      || (currentQuestion.type !== 'subjective' && userAnswer === currentQuestion.correctAnswer);
 
     const pointsToAward = isCorrect ? currentPoints : 0;
     const currentTurnUID = gameRoom.currentTurn;
@@ -375,7 +368,7 @@ export default function GamePage() {
             id: uuidv4(),
             userId: currentTurnUID,
             question: currentQuestion,
-            userAnswer: gameRoom.currentAnswer,
+            userAnswer: userAnswer,
             isCorrect: isCorrect,
             pointsAwarded: pointsToAward,
             timestamp: Timestamp.now(),
@@ -395,7 +388,6 @@ export default function GamePage() {
             answerLogs: newAnswerLogs, 
             gameState: newGameState,
             currentTurn: nextTurnUID,
-            currentAnswer: '',
         };
         
         if (!isCorrect) {
@@ -403,7 +395,7 @@ export default function GamePage() {
               id: uuidv4(),
               userId: gameRoom.currentTurn,
               question: currentQuestion,
-              userAnswer: gameRoom.currentAnswer,
+              userAnswer: userAnswer,
               timestamp: new Date(),
           };
           const incorrectLogRef = doc(db, 'users', currentTurnUID, 'incorrect-answers', incorrectLogData.id);
@@ -559,7 +551,7 @@ export default function GamePage() {
     try {
         const roomRef = doc(db, 'game-rooms', gameRoomId);
         let agreedEffects: MysteryEffectType[] = [];
-
+        
         if (gameRoom.joinType === 'remote') {
             const allPlayerIds = Object.keys(gameRoom.players);
             const numPlayers = allPlayerIds.length;
@@ -570,7 +562,7 @@ export default function GamePage() {
                 })
                 .map(effect => effect.type);
         } else { // local game
-            agreedEffects = allMysteryEffects
+             agreedEffects = allMysteryEffects
                 .filter(effect => {
                     const votesForEffect = gameRoom.mysteryEffectVotes?.[effect.type] || [];
                     return votesForEffect.includes(gameRoom.hostId);
@@ -1030,15 +1022,15 @@ export default function GamePage() {
                       {currentQuestion?.type === 'subjective' && (
                           <Input 
                               placeholder="정답을 입력하세요" 
-                              value={gameRoom?.currentAnswer || ''}
-                              onChange={(e) => handleUserAnswerChange(e.target.value)}
+                              value={userAnswer}
+                              onChange={(e) => setUserAnswer(e.target.value)}
                               disabled={isSubmitting || !isMyTurn}
                           />
                       )}
                       {currentQuestion?.type === 'multipleChoice' && currentQuestion.options && (
                           <RadioGroup 
-                            value={gameRoom?.currentAnswer} 
-                            onValueChange={handleUserAnswerChange} 
+                            value={userAnswer} 
+                            onValueChange={setUserAnswer} 
                             className="space-y-2" 
                             disabled={isSubmitting || !isMyTurn}
                           >
@@ -1052,16 +1044,16 @@ export default function GamePage() {
                       )}
                       {currentQuestion?.type === 'ox' && (
                           <RadioGroup 
-                            value={gameRoom?.currentAnswer} 
-                            onValueChange={handleUserAnswerChange} 
+                            value={userAnswer} 
+                            onValueChange={setUserAnswer} 
                             className="grid grid-cols-2 gap-4" 
                             disabled={isSubmitting || !isMyTurn}
                           >
-                              <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", gameRoom?.currentAnswer === 'O' && 'border-primary bg-primary/10')}>
+                              <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'O' && 'border-primary bg-primary/10')}>
                                   <RadioGroupItem value="O" id="option-o" className="sr-only"/>
                                   O
                               </Label>
-                              <Label htmlFor="option-x" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", gameRoom?.currentAnswer === 'X' && 'border-primary bg-primary/10')}>
+                              <Label htmlFor="option-x" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'X' && 'border-primary bg-primary/10')}>
                                   <RadioGroupItem value="X" id="option-x" className="sr-only"/>
                                   X
                               </Label>
