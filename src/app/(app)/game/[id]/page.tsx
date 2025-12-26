@@ -587,8 +587,8 @@ export default function GamePage() {
             gameStartedAt: serverTimestamp()
         });
         setShowMysterySettings(false);
-    } catch (error) {
-        toast({ variant: 'destructive', title: '오류', description: '미스터리 박스 설정 저장 중 오류가 발생했습니다.' });
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: '오류', description: `미스터리 박스 설정 저장 중 오류가 발생했습니다: ${error.message}` });
     } finally {
         setIsSubmitting(false);
     }
