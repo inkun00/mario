@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
 import { db, auth } from '@/lib/firebase';
-import type { GameRoom, GameSet, Player, JoinType, AnswerLog, MysteryEffectType } from '@/lib/types';
+import type { GameRoom, GameSet, Player, JoinType, AnswerLog, MysteryEffectType, User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, Timestamp, updateDoc, increment, collectionGroup, limit } from 'firebase/firestore';
@@ -135,18 +135,22 @@ function NewGameRoomPageContents() {
       if (!newRoomId) {
         throw new Error('고유한 방 ID 생성에 실패했습니다.');
       }
+      
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      const userData = userDocSnap.data() as User | undefined;
 
       const hostPlayer: Player = {
         uid: user.uid,
         nickname: user.displayName || '호스트',
         score: 0,
-        avatarId: `player-avatar-${Math.floor(Math.random() * 4) + 1}`,
+        pixelAvatar: userData?.pixelAvatar,
         isHost: true,
       };
       
       const newRoom: Omit<GameRoom, 'id' | 'createdAt'> = {
         gameSetId: gameSet.id,
-        status: 'waiting',
+        status: joinType === 'remote' && true ? 'setting-mystery' : 'waiting', // Remote games start with mystery setting
         hostId: user.uid,
         currentTurn: user.uid,
         players: {
@@ -157,6 +161,7 @@ function NewGameRoomPageContents() {
         isMysterySettingDone: false,
         joinType: joinType,
         ...(usePassword && password && { password }),
+        mysteryEffectVotes: {},
       };
 
       await setDoc(doc(db, "game-rooms", newRoomId), {

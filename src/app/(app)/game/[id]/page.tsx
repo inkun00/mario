@@ -8,7 +8,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer, SubjectStat } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb, Save, StopCircle } from 'lucide-react';
+import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb, Save, StopCircle, Check } from 'lucide-react';
 import Image from 'next/image';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
@@ -34,6 +34,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { getLevelInfo } from '@/lib/level-system';
 import { MysteryBox } from '@/components/mystery-box';
 import { PixelAvatar } from '@/components/pixel-avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 
 
 interface GameBlock {
@@ -115,7 +116,6 @@ export default function GamePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [showMysterySettings, setShowMysterySettings] = useState(false);
-  const [enabledEffects, setEnabledEffects] = useState<MysteryEffectType[]>(allMysteryEffects.map(e => e.type));
 
   const [showMysteryChoicePopup, setShowMysteryChoicePopup] = useState(false);
   const [mysteryOptions, setMysteryOptions] = useState<MysteryEffect[]>([]);
@@ -148,9 +148,9 @@ export default function GamePage() {
             setGameRoom(roomData);
 
             if (roomData.status === 'setting-mystery') {
-                if (roomData.joinType === 'local' || (roomData.joinType === 'remote' && user?.uid === roomData.hostId)) {
-                    setShowMysterySettings(true);
-                }
+                setShowMysterySettings(true);
+            } else {
+                setShowMysterySettings(false);
             }
 
             if (!gameSet && roomData.gameSetId) {
@@ -518,23 +518,69 @@ export default function GamePage() {
     }
   };
 
-  const handleConfirmMysterySettings = async () => {
-    if (!gameRoom || typeof gameRoomId !== 'string') return;
-    setIsSubmitting(true);
+  const handleToggleMysteryVote = async (effectType: MysteryEffectType, isChecked: boolean) => {
+    if (!gameRoom || !user || typeof gameRoomId !== 'string') return;
+  
+    const currentVotes = gameRoom.mysteryEffectVotes?.[effectType] || [];
+    let newVotes: string[];
+  
+    if (isChecked) {
+      // Add user's vote if not already present
+      newVotes = [...new Set([...currentVotes, user.uid])];
+    } else {
+      // Remove user's vote
+      newVotes = currentVotes.filter(uid => uid !== user.uid);
+    }
+  
     try {
       const roomRef = doc(db, 'game-rooms', gameRoomId);
       await updateDoc(roomRef, {
-        enabledMysteryEffects: enabledEffects,
-        isMysterySettingDone: true,
-        status: 'playing',
+        [`mysteryEffectVotes.${effectType}`]: newVotes
       });
-      setShowMysterySettings(false);
-    } catch(error) {
-      toast({ variant: 'destructive', title: '오류', description: '미스터리 박스 설정 저장 중 오류가 발생했습니다.'});
-    } finally {
-      setIsSubmitting(false);
+    } catch (error) {
+      console.error("Error toggling mystery vote:", error);
+      toast({ variant: 'destructive', title: '오류', description: '투표 중 오류가 발생했습니다.' });
     }
   };
+
+  const handleConfirmMysterySettings = async () => {
+    if (!gameRoom || typeof gameRoomId !== 'string' || !user || user.uid !== gameRoom.hostId) return;
+
+    setIsSubmitting(true);
+    try {
+        const roomRef = doc(db, 'game-rooms', gameRoomId);
+        const allPlayerIds = Object.keys(gameRoom.players);
+        const numPlayers = allPlayerIds.length;
+        const agreedEffects = allMysteryEffects
+            .filter(effect => {
+                const votesForEffect = gameRoom.mysteryEffectVotes?.[effect.type] || [];
+                return votesForEffect.length === numPlayers;
+            })
+            .map(effect => effect.type);
+
+        if (agreedEffects.length === 0 && gameRoom.mysteryBoxEnabled) {
+            toast({
+                variant: 'destructive',
+                title: '필수 동의',
+                description: '미스터리 박스를 사용하려면 최소 1개의 효과에 모든 플레이어가 동의해야 합니다.',
+            });
+            setIsSubmitting(false);
+            return;
+        }
+
+        await updateDoc(roomRef, {
+            enabledMysteryEffects: agreedEffects,
+            isMysterySettingDone: true,
+            status: 'playing',
+        });
+        setShowMysterySettings(false);
+    } catch (error) {
+        toast({ variant: 'destructive', title: '오류', description: '미스터리 박스 설정 저장 중 오류가 발생했습니다.' });
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
 
   const handleEndGameEarly = async () => {
     if (!gameRoom || typeof gameRoomId !== 'string') return;
@@ -771,7 +817,7 @@ export default function GamePage() {
                           {/* Front of the card */}
                            <div className={cn(
                               "absolute inset-0 backface-hidden flex items-center justify-center rounded-lg shadow-md transition-all duration-300",
-                              block.type === 'mystery' ? 'bg-yellow-400 border-b-8 border-yellow-600' : 'bg-blue-500 border-b-8 border-blue-700',
+                              'bg-blue-500 border-b-8 border-blue-700',
                               !isClickDisabled(block) && "hover:scale-105",
                               isOpened && 'opacity-50'
                           )}>
@@ -865,38 +911,67 @@ export default function GamePage() {
 
       {/* Mystery Box Settings Popup */}
       <Dialog open={showMysterySettings}>
-        <DialogContent>
+        <DialogContent className="max-w-3xl">
             <DialogHeader>
                 <DialogTitle className="font-headline text-2xl flex items-center gap-2"><Gift className="text-primary"/>미스터리 박스 설정</DialogTitle>
-                <DialogDescription>게임에 나타날 미스터리 박스 효과를 선택하세요. (최소 1개)</DialogDescription>
+                <DialogDescription>
+                    게임에 나타날 미스터리 박스 효과를 선택하세요.
+                    {gameRoom?.joinType === 'remote' && ' 모든 플레이어가 동의한 효과만 적용됩니다.'}
+                </DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-4">
-                {allMysteryEffects.map(effect => (
-                    <div key={effect.type} className="flex items-start gap-4 p-3 rounded-lg border bg-background">
-                        <Checkbox 
-                          id={`effect-${effect.type}`}
-                          checked={enabledEffects.includes(effect.type)}
-                          onCheckedChange={(checked) => {
-                              setEnabledEffects(prev => 
-                                  checked ? [...prev, effect.type] : prev.filter(t => t !== effect.type)
-                              );
-                          }}
-                        />
-                        <Label htmlFor={`effect-${effect.type}`} className="flex-grow cursor-pointer">
-                            <p className="font-semibold">{effect.title}</p>
-                            <p className="text-sm text-muted-foreground">{effect.description}</p>
-                        </Label>
-                    </div>
-                ))}
+                {allMysteryEffects.map(effect => {
+                    const votes = gameRoom?.mysteryEffectVotes?.[effect.type] || [];
+                    const isChecked = user ? votes.includes(user.uid) : false;
+
+                    return (
+                        <div key={effect.type} className="flex items-start gap-4 p-3 rounded-lg border bg-background">
+                            <Checkbox 
+                                id={`effect-${effect.type}`}
+                                checked={isChecked}
+                                onCheckedChange={(checked) => {
+                                    handleToggleMysteryVote(effect.type, !!checked);
+                                }}
+                            />
+                            <Label htmlFor={`effect-${effect.type}`} className="flex-grow cursor-pointer">
+                                <p className="font-semibold">{effect.title}</p>
+                                <p className="text-sm text-muted-foreground">{effect.description}</p>
+                                {gameRoom?.joinType === 'remote' && (
+                                    <div className="flex items-center gap-2 mt-2">
+                                        {Object.values(gameRoom.players).map(p => {
+                                            const hasVoted = votes.includes(p.uid);
+                                            let pixelAvatarData = null;
+                                            if (p.pixelAvatar) {
+                                                try {
+                                                    pixelAvatarData = JSON.parse(p.pixelAvatar);
+                                                } catch (e) { console.error("Error parsing player avatar", e); }
+                                            }
+                                            return (
+                                                <div key={p.uid} className="flex items-center gap-1 text-xs">
+                                                  <div className={cn("w-5 h-5 rounded-full flex items-center justify-center border", hasVoted ? "bg-green-100 border-green-300" : "bg-gray-100")}>
+                                                    {hasVoted ? <Check className="w-3 h-3 text-green-600"/> : <div className="w-3 h-3" />}
+                                                  </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </Label>
+                        </div>
+                    );
+                })}
             </div>
             <DialogFooter>
-                <Button onClick={handleConfirmMysterySettings} disabled={enabledEffects.length === 0 || isSubmitting}>
-                   {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin"/> : null}
-                    설정 완료 및 게임 시작
-                </Button>
+                {isHost && (
+                    <Button onClick={handleConfirmMysterySettings} disabled={isSubmitting}>
+                       {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin"/> : null}
+                        설정 완료 및 게임 시작
+                    </Button>
+                )}
             </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       {/* Question Popup */}
       <Dialog open={!!currentQuestion}>

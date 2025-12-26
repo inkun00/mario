@@ -104,6 +104,7 @@ export interface GameRoom {
   mysteryBoxEnabled: boolean;
   isMysterySettingDone: boolean;
   enabledMysteryEffects?: MysteryEffectType[];
+  mysteryEffectVotes?: Record<string, string[]>; // key: effectType, value: array of player uids
   joinType: JoinType;
   createdAt: any;
   localPlayers?: LocalPlayer[];
