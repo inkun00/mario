@@ -101,6 +101,7 @@ export interface GameRoom {
   players: Record<string, Player>; // key is userId for remote, or nickname for local
   playerUIDs?: string[]; // ordered list of player UIDIDs for turn sequence
   gameState: Record<string, 'available' | 'flipping' | 'answered'>; // key is questionId
+  currentAnswer?: string; // Real-time answer from the current player
   mysteryBoxEnabled: boolean;
   isMysterySettingDone: boolean;
   enabledMysteryEffects?: MysteryEffectType[];

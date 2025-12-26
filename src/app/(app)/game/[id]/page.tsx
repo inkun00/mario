@@ -110,7 +110,6 @@ export default function GamePage() {
   const [currentQuestionInfo, setCurrentQuestionInfo] = useState<{question: Question & { id: number }, blockId: number} | null>(null);
   const [currentPoints, setCurrentPoints] = useState(0);
   const [showHint, setShowHint] = useState(false);
-  const [userAnswer, setUserAnswer] = useState('');
   
   const [isMyTurn, setIsMyTurn] = useState(false);
   
@@ -211,7 +210,6 @@ export default function GamePage() {
             }
             setCurrentPoints(points);
             setShowHint(false);
-            setUserAnswer('');
             setCurrentQuestionInfo({ question: block.question, blockId: block.id });
           }
         } else if (block.type === 'mystery') {
@@ -344,8 +342,18 @@ export default function GamePage() {
     setPlayerForSwap(null);
   }
 
+  const handleUserAnswerChange = async (value: string) => {
+    if (!gameRoom || typeof gameRoomId !== 'string' || !isMyTurn) return;
+    const roomRef = doc(db, 'game-rooms', gameRoomId);
+    try {
+        await updateDoc(roomRef, { currentAnswer: value });
+    } catch(e) {
+        console.error("Error updating real-time answer", e);
+    }
+  }
+
   const handleSubmitAnswer = async () => {
-    if (!currentQuestionInfo || !gameRoom || !userAnswer || !gameSet || typeof gameRoomId !== 'string' || !user) {
+    if (!currentQuestionInfo || !gameRoom || !gameRoom.currentAnswer || !gameSet || typeof gameRoomId !== 'string' || !user) {
       toast({ variant: 'destructive', title: '오류', description: '답변을 선택하거나 입력해주세요.'});
       return;
     }
@@ -353,8 +361,8 @@ export default function GamePage() {
 
     setIsSubmitting(true);
 
-    const isCorrect = (currentQuestion.type === 'subjective' && userAnswer.trim().toLowerCase() === currentQuestion.answer?.trim().toLowerCase())
-      || (currentQuestion.type !== 'subjective' && userAnswer === currentQuestion.correctAnswer);
+    const isCorrect = (currentQuestion.type === 'subjective' && gameRoom.currentAnswer.trim().toLowerCase() === currentQuestion.answer?.trim().toLowerCase())
+      || (currentQuestion.type !== 'subjective' && gameRoom.currentAnswer === currentQuestion.correctAnswer);
 
     const pointsToAward = isCorrect ? currentPoints : 0;
     const currentTurnUID = gameRoom.currentTurn;
@@ -367,7 +375,7 @@ export default function GamePage() {
             id: uuidv4(),
             userId: currentTurnUID,
             question: currentQuestion,
-            userAnswer: userAnswer,
+            userAnswer: gameRoom.currentAnswer,
             isCorrect: isCorrect,
             pointsAwarded: pointsToAward,
             timestamp: Timestamp.now(),
@@ -387,6 +395,7 @@ export default function GamePage() {
             answerLogs: newAnswerLogs, 
             gameState: newGameState,
             currentTurn: nextTurnUID,
+            currentAnswer: '',
         };
         
         if (!isCorrect) {
@@ -394,7 +403,7 @@ export default function GamePage() {
               id: uuidv4(),
               userId: gameRoom.currentTurn,
               question: currentQuestion,
-              userAnswer: userAnswer,
+              userAnswer: gameRoom.currentAnswer,
               timestamp: new Date(),
           };
           const incorrectLogRef = doc(db, 'users', currentTurnUID, 'incorrect-answers', incorrectLogData.id);
@@ -564,7 +573,6 @@ export default function GamePage() {
             agreedEffects = allMysteryEffects
                 .filter(effect => {
                     const votesForEffect = gameRoom.mysteryEffectVotes?.[effect.type] || [];
-                    // In local, only host's vote matters
                     return votesForEffect.includes(gameRoom.hostId);
                 })
                 .map(effect => effect.type);
@@ -914,7 +922,14 @@ export default function GamePage() {
           </DialogHeader>
           <div className="flex justify-center items-center gap-4 sm:gap-8 py-8">
             {mysteryOptions.map((option, index) => (
-              <div key={index} className="w-32 h-32 cursor-pointer hover:scale-110 transition-transform duration-300" onClick={() => isMyTurn && handleMysteryBoxChoice(option)}>
+              <div 
+                key={index} 
+                className={cn(
+                    "w-32 h-32 transition-transform duration-300",
+                    isMyTurn && "cursor-pointer hover:scale-110"
+                )}
+                onClick={() => isMyTurn && handleMysteryBoxChoice(option)}
+              >
                 <MysteryBox />
               </div>
             ))}
@@ -935,13 +950,13 @@ export default function GamePage() {
             <div className="py-4 space-y-4">
                 {allMysteryEffects.map(effect => {
                     const votes = gameRoom?.mysteryEffectVotes?.[effect.type] || [];
-                    const isChecked = user ? votes.includes(user.uid) : false;
+                    const isCheckedByCurrentUser = user ? votes.includes(user.uid) : false;
 
                     return (
                         <div key={effect.type} className="flex items-start gap-4 p-3 rounded-lg border bg-background">
                             <Checkbox 
                                 id={`effect-${effect.type}`}
-                                checked={isChecked}
+                                checked={isCheckedByCurrentUser}
                                 onCheckedChange={(checked) => {
                                     handleToggleMysteryVote(effect.type, !!checked);
                                 }}
@@ -953,12 +968,6 @@ export default function GamePage() {
                                     <div className="flex items-center gap-2 mt-2">
                                         {Object.values(gameRoom.players).map(p => {
                                             const hasVoted = votes.includes(p.uid);
-                                            let pixelAvatarData = null;
-                                            if (p.pixelAvatar) {
-                                                try {
-                                                    pixelAvatarData = JSON.parse(p.pixelAvatar);
-                                                } catch (e) { console.error("Error parsing player avatar", e); }
-                                            }
                                             return (
                                                 <div key={p.uid} className="flex items-center gap-1 text-xs">
                                                   <div className={cn("w-5 h-5 rounded-full flex items-center justify-center border", hasVoted ? "bg-green-100 border-green-300" : "bg-gray-100")}>
@@ -1021,13 +1030,18 @@ export default function GamePage() {
                       {currentQuestion?.type === 'subjective' && (
                           <Input 
                               placeholder="정답을 입력하세요" 
-                              value={userAnswer}
-                              onChange={(e) => setUserAnswer(e.target.value)}
+                              value={gameRoom?.currentAnswer || ''}
+                              onChange={(e) => handleUserAnswerChange(e.target.value)}
                               disabled={isSubmitting || !isMyTurn}
                           />
                       )}
                       {currentQuestion?.type === 'multipleChoice' && currentQuestion.options && (
-                          <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="space-y-2" disabled={isSubmitting || !isMyTurn}>
+                          <RadioGroup 
+                            value={gameRoom?.currentAnswer} 
+                            onValueChange={handleUserAnswerChange} 
+                            className="space-y-2" 
+                            disabled={isSubmitting || !isMyTurn}
+                          >
                               {currentQuestion.options.map((option, index) => (
                                   <div key={index} className="flex items-center space-x-2">
                                       <RadioGroupItem value={option} id={`option-${index}`} />
@@ -1037,12 +1051,17 @@ export default function GamePage() {
                           </RadioGroup>
                       )}
                       {currentQuestion?.type === 'ox' && (
-                          <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="grid grid-cols-2 gap-4" disabled={isSubmitting || !isMyTurn}>
-                              <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'O' && 'border-primary bg-primary/10')}>
+                          <RadioGroup 
+                            value={gameRoom?.currentAnswer} 
+                            onValueChange={handleUserAnswerChange} 
+                            className="grid grid-cols-2 gap-4" 
+                            disabled={isSubmitting || !isMyTurn}
+                          >
+                              <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", gameRoom?.currentAnswer === 'O' && 'border-primary bg-primary/10')}>
                                   <RadioGroupItem value="O" id="option-o" className="sr-only"/>
                                   O
                               </Label>
-                              <Label htmlFor="option-x" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'X' && 'border-primary bg-primary/10')}>
+                              <Label htmlFor="option-x" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", gameRoom?.currentAnswer === 'X' && 'border-primary bg-primary/10')}>
                                   <RadioGroupItem value="X" id="option-x" className="sr-only"/>
                                   X
                               </Label>
