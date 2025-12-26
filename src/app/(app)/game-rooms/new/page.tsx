@@ -150,7 +150,7 @@ function NewGameRoomPageContents() {
       
       const newRoom: Omit<GameRoom, 'id' | 'createdAt'> = {
         gameSetId: gameSet.id,
-        status: joinType === 'remote' && true ? 'setting-mystery' : 'waiting', // Remote games start with mystery setting
+        status: 'waiting',
         hostId: user.uid,
         currentTurn: user.uid,
         players: {
@@ -163,6 +163,10 @@ function NewGameRoomPageContents() {
         ...(usePassword && password && { password }),
         mysteryEffectVotes: {},
       };
+      
+      if (joinType === 'remote' && newRoom.mysteryBoxEnabled) {
+          newRoom.status = 'setting-mystery';
+      }
 
       await setDoc(doc(db, "game-rooms", newRoomId), {
           ...newRoom,
