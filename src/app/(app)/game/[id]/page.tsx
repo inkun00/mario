@@ -7,7 +7,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { doc, onSnapshot, getDoc, updateDoc, Timestamp, writeBatch, increment, collection, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer, SubjectStat, MysteryEffect } from '@/lib/types';
+import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer, SubjectStat, MysteryEffect, AnswerResult } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb, Save, StopCircle, Check, CheckCircle, XCircle } from 'lucide-react';
 import Image from 'next/image';
@@ -44,12 +44,7 @@ interface GameBlock {
   question?: Question & { id: number };
 }
 
-interface AnswerResult {
-    isCorrect: boolean;
-    userAnswer: string;
-    correctAnswer: string;
-    pointsAwarded: number;
-}
+
 
 
 const allMysteryEffects: {type: MysteryEffectType, title: string, description: string}[] = [
@@ -148,6 +143,9 @@ export default function GamePage() {
 
             if(roomData.currentMysteryEffect) {
                 setShowMysteryBoxPopup(true);
+            } else if (showMysteryBoxPopup) {
+                // This will close the mystery box popup for all users once the effect is processed
+                handleCloseDialogs();
             }
 
             if (roomData.status === 'setting-mystery' && !roomData.isMysterySettingDone) {
@@ -182,7 +180,7 @@ export default function GamePage() {
     return () => {
       unsubscribe();
     };
-  }, [gameRoomId, router, toast, user, loadingUser, gameSet, showGameOverPopup]);
+  }, [gameRoomId, router, toast, user, loadingUser, gameSet, showGameOverPopup, showMysteryBoxPopup]);
   
   // Update player scores and turn status from gameRoom state
   useEffect(() => {
@@ -228,7 +226,7 @@ export default function GamePage() {
         handleCloseDialogs();
       }
     }
-  }, [gameRoom?.gameState, gameSet, blocks, gameRoom?.currentAnswerResult]);
+  }, [gameRoom?.gameState, gameSet, blocks, gameRoom?.currentAnswerResult, currentQuestionInfo, showMysteryBoxPopup, showMysteryChoicePopup]);
 
 
   // Initialize game board
@@ -452,7 +450,7 @@ export default function GamePage() {
         } finally {
             setIsSubmitting(false);
         }
-    }, 2000); // 2초 후에 Firestore 업데이트 및 다이얼로그 닫기
+    }, 5000); // 5초 후에 Firestore 업데이트 및 다이얼로그 닫기
   }
 
 
