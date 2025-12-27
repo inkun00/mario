@@ -380,6 +380,12 @@ export default function LobbyPage() {
            return;
         }
 
+        if (roomData.joinType === 'remote' && roomData.status === 'waiting' && (!roomData.players || !roomData.players[roomData.hostId])) {
+            toast({ variant: 'destructive', title: '오류', description: '호스트가 방을 나갔습니다. 다른 방에 참여해주세요.' });
+            router.push('/dashboard');
+            return;
+        }
+
         setGameRoom(roomData);
 
         // Check if game has started and redirect if needed
