@@ -107,6 +107,7 @@ export interface AnswerResult {
 
 export interface GameRoom {
   id: string;
+  roomTitle: string;
   gameSetId: string;
   password?: string;
   status: 'waiting' | 'setting-mystery' | 'playing' | 'finished';
@@ -170,6 +171,7 @@ export interface SubjectStat {
     id: string; // subject name
     totalCorrect: number;
     totalIncorrect: number;
+
     units: {
         [unitName: string]: {
             totalCorrect: number;

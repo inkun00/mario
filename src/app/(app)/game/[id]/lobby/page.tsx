@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Copy, Crown, Users, LogIn, Loader2, Gamepad2, UserCheck, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { Copy, Crown, Users, LogIn, Loader2, Gamepad2, UserCheck, CheckCircle, Eye, EyeOff, Lock } from 'lucide-react';
 import Image from 'next/image';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -57,15 +57,18 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
     return (
         <Card className="max-w-4xl mx-auto">
             <CardHeader className="text-center">
-                <p className="text-sm text-muted-foreground">{[gameSet?.grade, gameSet?.semester, gameSet?.subject].filter(Boolean).join(' / ')}</p>
-                <CardTitle className="font-headline text-3xl">{gameSet?.title || '게임 로비'}</CardTitle>
+                <CardTitle className="font-headline text-3xl">{gameRoom?.roomTitle}</CardTitle>
                 <CardDescription>모든 플레이어가 들어오면 호스트가 게임을 시작합니다. 최대 6명까지 참여 가능합니다.</CardDescription>
+                <p className="text-sm text-muted-foreground">{gameSet?.title}</p>
             </CardHeader>
             <CardContent className="space-y-8">
                 <div className="bg-secondary/50 rounded-lg p-4 flex flex-col md:flex-row items-center justify-between gap-4">
                    <div className="text-center md:text-left">
                         <p className="text-sm font-medium text-muted-foreground">참여 코드</p>
-                        <p className="text-2xl font-bold font-mono tracking-widest">{gameRoom.id}</p>
+                        <div className="flex items-center gap-2">
+                            <p className="text-2xl font-bold font-mono tracking-widest">{gameRoom.id}</p>
+                            {gameRoom.password && <Lock className="w-5 h-5 text-muted-foreground"/>}
+                        </div>
                    </div>
                     <Button onClick={copyToClipboard} variant="outline"><Copy className="w-4 h-4 mr-2" />코드 복사</Button>
                 </div>
@@ -161,8 +164,6 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
             return;
         }
         
-        // As discussed, password validation is a security risk in this context.
-        // We will only validate the user ID (email).
         if (!password) {
             toast({ variant: 'destructive', title: '오류', description: '계정 확인을 위해 비밀번호를 입력해주세요.'});
             newPlayers[index].isChecking = false;
@@ -353,9 +354,9 @@ export default function LobbyPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!gameRoomId || loadingUser || !user) return;
+    if (!gameRoomId || typeof gameRoomId !== 'string' || loadingUser || !user) return;
 
-    const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+    const roomRef = doc(db, 'game-rooms', gameRoomId);
     const unsubscribe = onSnapshot(roomRef, async (docSnap) => {
       if (docSnap.exists()) {
         const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;

@@ -51,6 +51,7 @@ function NewGameRoomPageContents() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const gameSetId = searchParams.get('gameSetId');
+  const initialJoinType = searchParams.get('joinType') as JoinType | null;
   const { toast } = useToast();
 
   const [gameSet, setGameSet] = useState<GameSet | null>(null);
@@ -58,10 +59,23 @@ function NewGameRoomPageContents() {
   const [isCreating, setIsCreating] = useState(false);
   const [hasPlayed, setHasPlayed] = useState(false);
   
+  const [roomTitle, setRoomTitle] = useState('');
   const [password, setPassword] = useState('');
   const [usePassword, setUsePassword] = useState(false);
-  const [joinType, setJoinType] = useState<JoinType>('local');
+  const [joinType, setJoinType] = useState<JoinType>('remote');
   
+  useEffect(() => {
+    if (initialJoinType === 'local' && gameSetId) {
+        handleCreateRoom(true); // Create a local room immediately
+    } else if (initialJoinType === 'local' && !gameSetId) {
+        toast({ variant: 'destructive', title: '오류', description: '로컬 게임을 시작하려면 퀴즈 세트가 필요합니다. 퀴즈 세트를 먼저 선택해주세요.' });
+        router.push('/dashboard');
+    } else if (initialJoinType) {
+        setJoinType(initialJoinType);
+    }
+  }, [initialJoinType, gameSetId]);
+
+
   useEffect(() => {
     if (!gameSetId) {
       toast({ variant: 'destructive', title: '오류', description: '게임 세트 ID가 필요합니다.' });
@@ -78,7 +92,9 @@ function NewGameRoomPageContents() {
       const setDocSnap = await getDoc(setDocRef);
 
       if (setDocSnap.exists()) {
-        setGameSet({ id: setDocSnap.id, ...setDocSnap.data() } as GameSet);
+        const gameSetData = { id: setDocSnap.id, ...setDocSnap.data() } as GameSet;
+        setGameSet(gameSetData);
+        setRoomTitle(`${gameSetData.title} 게임방`);
       } else {
         toast({ variant: 'destructive', title: '오류', description: '게임 세트를 찾을 수 없습니다.' });
         router.push('/dashboard');
@@ -86,7 +102,6 @@ function NewGameRoomPageContents() {
         return;
       }
       
-      // Check if user has ever played this game set
       const playsRef = collection(db, `users/${user.uid}/playedGameSets`);
       const q = query(playsRef, where("gameSetId", "==", gameSetId), limit(1));
       
@@ -96,7 +111,6 @@ function NewGameRoomPageContents() {
           setHasPlayed(true);
         }
       } catch (e) {
-        // This might fail if the collection or subcollection doesn't exist yet, which is fine.
         console.warn("이전 플레이 기록을 확인할 수 없습니다. (아마도 신규 사용자)", e);
       }
 
@@ -106,9 +120,17 @@ function NewGameRoomPageContents() {
     fetchGameData();
   }, [gameSetId, router, toast, user, loadingUser]);
 
-  const handleCreateRoom = async () => {
+  const handleCreateRoom = async (isLocalGame = false) => {
     if (!user || !gameSet) return;
     
+    if (joinType === 'remote' && !roomTitle) {
+        toast({
+            variant: 'destructive',
+            title: '오류',
+            description: '방 제목을 입력해주세요.',
+        });
+        return;
+    }
     if (hasPlayed) {
         toast({
             variant: 'destructive',
@@ -149,6 +171,7 @@ function NewGameRoomPageContents() {
       };
       
       const newRoom: Omit<GameRoom, 'id' | 'createdAt'> = {
+        roomTitle: isLocalGame ? `${gameSet.title} (로컬)` : roomTitle,
         gameSetId: gameSet.id,
         status: 'waiting',
         hostId: user.uid,
@@ -159,7 +182,7 @@ function NewGameRoomPageContents() {
         gameState: {},
         mysteryBoxEnabled: true,
         isMysterySettingDone: false,
-        joinType: joinType,
+        joinType: isLocalGame ? 'local' : joinType,
         ...(usePassword && password && { password }),
         mysteryEffectVotes: {},
       };
@@ -169,7 +192,6 @@ function NewGameRoomPageContents() {
           createdAt: serverTimestamp(),
       });
       
-      // Increment play count for the game set
       const gameSetRef = doc(db, 'game-sets', gameSet.id);
       await updateDoc(gameSetRef, {
         playCount: increment(1)
@@ -185,11 +207,11 @@ function NewGameRoomPageContents() {
     }
   };
 
-  if (isLoading || loadingUser) {
+  if (isLoading || loadingUser || initialJoinType === 'local') {
     return (
       <div className="container mx-auto py-8 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin" />
-        <p className="ml-2">게임 정보를 불러오는 중...</p>
+        <p className="ml-2">게임방을 준비하는 중...</p>
       </div>
     );
   }
@@ -209,42 +231,15 @@ function NewGameRoomPageContents() {
           <div className="space-y-2">
             <h3 className="font-semibold">게임 설정</h3>
             <div className="p-4 border rounded-lg space-y-4">
-              <div className="space-y-2">
-                <Label>참여 방식</Label>
-                <RadioGroup
-                    value={joinType}
-                    onValueChange={(value: string) => setJoinType(value as JoinType)}
-                    className="grid grid-cols-2 gap-4"
-                  >
-                    <div>
-                      <RadioGroupItem value="remote" id="remote" className="peer sr-only" />
-                      <Label
-                        htmlFor="remote"
-                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                      >
-                        <Users className="mb-3 h-6 w-6" />
-                        여러 기기에서 참여
-                      </Label>
-                    </div>
-
-                    <div>
-                      <RadioGroupItem value="local" id="local" className="peer sr-only" />
-                      <Label
-                        htmlFor="local"
-                        className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
-                      >
-                        <Smartphone className="mb-3 h-6 w-6" />
-                        한 기기에서 참여
-                      </Label>
-                    </div>
-                  </RadioGroup>
-              </div>
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <h3 className="font-semibold">보안 설정</h3>
-              <div className="p-4 border rounded-lg space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="room-title">방 제목</Label>
+                  <Input 
+                    id="room-title"
+                    placeholder="친구들이 알아볼 수 있는 방 제목을 입력하세요."
+                    value={roomTitle}
+                    onChange={(e) => setRoomTitle(e.target.value)}
+                  />
+                </div>
                 <div className="flex items-center justify-between">
                   <Label htmlFor="use-password" className="flex flex-col gap-1">
                       <span>비밀번호 사용</span>
@@ -254,10 +249,9 @@ function NewGameRoomPageContents() {
                     id="use-password"
                     checked={usePassword}
                     onCheckedChange={setUsePassword}
-                    disabled={joinType === 'local'}
                   />
                 </div>
-                {usePassword && joinType === 'remote' && (
+                {usePassword && (
                   <div className="space-y-2">
                     <Label htmlFor="password">게임방 비밀번호</Label>
                     <Input 
@@ -269,11 +263,10 @@ function NewGameRoomPageContents() {
                     />
                   </div>
                 )}
-              </div>
+            </div>
           </div>
-
-
-          <Button onClick={handleCreateRoom} disabled={isCreating || hasPlayed} className="w-full font-headline" size="lg">
+          
+          <Button onClick={() => handleCreateRoom()} disabled={isCreating || hasPlayed} className="w-full font-headline" size="lg">
             {isCreating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>방 만드는 중...</> : hasPlayed ? '이미 참여한 퀴즈 세트입니다' : <><Users className="mr-2 h-5 w-5" /> 게임방 만들기</>}
           </Button>
           {hasPlayed && (

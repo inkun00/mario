@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn, ShieldCheck } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn, ShieldCheck, List, Gamepad2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState, useRef } from 'react';
@@ -58,6 +58,10 @@ interface GameSetDocument extends GameSet {
   id: string;
 }
 
+interface OpenGameRoom extends GameRoom {
+    gameSet?: GameSet;
+}
+
 export default function DashboardPage() {
   const [user, loadingUser] = useAuthState(auth);
   const router = useRouter();
@@ -67,8 +71,10 @@ export default function DashboardPage() {
   const [allGameSets, setAllGameSets] = useState<GameSetDocument[]>([]);
   const [filteredGameSets, setFilteredGameSets] = useState<GameSetDocument[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [openGameRooms, setOpenGameRooms] = useState<OpenGameRoom[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [loadingRooms, setLoadingRooms] = useState(true);
   const [selectedGameSet, setSelectedGameSet] = useState<GameSetDocument | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<GameSetDocument | null>(null);
   const [reportCandidate, setReportCandidate] = useState<GameSetDocument | null>(null);
@@ -78,8 +84,7 @@ export default function DashboardPage() {
 
   const { toast } = useToast();
   
-  const [isJoining, setIsJoining] = useState(false);
-  const [joinCode, setJoinCode] = useState('');
+  const [isJoining, setIsJoining] = useState<string | null>(null);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [password, setPassword] = useState('');
   const [targetRoom, setTargetRoom] = useState<GameRoom | null>(null);
@@ -132,6 +137,37 @@ export default function DashboardPage() {
         }
     };
   }, [user, toast]);
+
+  useEffect(() => {
+    setLoadingRooms(true);
+    const roomsQuery = query(
+        collection(db, 'game-rooms'),
+        where('status', '==', 'waiting'),
+        where('joinType', '==', 'remote')
+    );
+    const roomsUnsubscribe = onSnapshot(roomsQuery, async (snapshot) => {
+        const roomsPromises = snapshot.docs.map(async (roomDoc) => {
+            const roomData = roomDoc.data() as GameRoom;
+            const setDocRef = doc(db, 'game-sets', roomData.gameSetId);
+            const setDocSnap = await getDoc(setDocRef);
+            return {
+                ...roomData,
+                id: roomDoc.id,
+                gameSet: setDocSnap.exists() ? (setDocSnap.data() as GameSet) : undefined,
+            };
+        });
+        const rooms = await Promise.all(roomsPromises);
+        setOpenGameRooms(rooms);
+        setLoadingRooms(false);
+    }, (error) => {
+        console.error("Error fetching open game rooms:", error);
+        toast({ variant: "destructive", title: "오류", description: "참여 가능한 게임방 목록을 불러오는 중 오류가 발생했습니다." });
+        setLoadingRooms(false);
+    });
+
+    return () => roomsUnsubscribe();
+  }, [toast]);
+
 
   useEffect(() => {
       const combinedSets: Record<string, GameSetDocument> = {};
@@ -299,35 +335,16 @@ export default function DashboardPage() {
     setCurrentPage(1);
   };
 
-  const handleJoinGame = async () => {
-    if (!joinCode) {
-        toast({ variant: 'destructive', title: '오류', description: '참여 코드를 입력해주세요.' });
-        return;
+  const handleJoinGame = async (room: OpenGameRoom) => {
+    setIsJoining(room.id);
+    if (room.password) {
+        setTargetRoom(room);
+        setTargetRoomId(room.id);
+        setShowPasswordDialog(true);
+        setIsJoining(null);
+    } else {
+        router.push(`/game/${room.id}/lobby`);
     }
-    setIsJoining(true);
-
-    try {
-        const roomRef = doc(db, 'game-rooms', joinCode.toUpperCase());
-        const roomSnap = await getDoc(roomRef);
-
-        if (!roomSnap.exists()) {
-            toast({ variant: 'destructive', title: '오류', description: '존재하지 않는 게임방입니다.' });
-            setIsJoining(false);
-            return;
-        }
-        
-        const roomData = roomSnap.data() as GameRoom;
-        if (roomData.password) {
-            setTargetRoom(roomData);
-            setTargetRoomId(roomSnap.id);
-            setShowPasswordDialog(true);
-        } else {
-            router.push(`/game/${joinCode.toUpperCase()}/lobby`);
-        }
-    } catch (error) {
-        toast({ variant: 'destructive', title: '오류', description: '게임방 확인 중 오류가 발생했습니다.' });
-    }
-    setIsJoining(false);
   };
   
   const handlePasswordConfirm = () => {
@@ -368,36 +385,70 @@ export default function DashboardPage() {
         <div className="grid md:grid-cols-2 gap-6">
             <Card>
                 <CardHeader>
-                    <CardTitle className="font-headline">게임 참여하기</CardTitle>
-                    <CardDescription>참여 코드를 입력하여 친구의 게임에 참여하세요.</CardDescription>
+                    <CardTitle className="font-headline">새로운 퀴즈 만들기</CardTitle>
+                    <CardDescription>나만의 퀴즈를 만들고 친구들과 함께 플레이하세요.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div className="flex gap-2">
-                    <Input 
-                        placeholder="참여 코드 입력"
-                        value={joinCode}
-                        onChange={(e) => setJoinCode(e.target.value)}
-                        disabled={isJoining}
-                    />
-                    <Button onClick={handleJoinGame} disabled={isJoining}>
-                        {isJoining ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <LogIn className="w-4 h-4 mr-2" />}
-                        참여
+                    <Button asChild className="w-full">
+                        <Link href="/game-sets/create"><PlusCircle className="mr-2 h-4 w-4"/>만들기</Link>
                     </Button>
-                    </div>
                 </CardContent>
             </Card>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline">로컬 게임 시작하기</CardTitle>
+                    <CardDescription>하나의 기기로 여러명이 함께 플레이할 수 있습니다.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Button asChild className="w-full" variant="secondary">
+                        <Link href="/game-rooms/new?joinType=local"><Gamepad2 className="mr-2 h-4 w-4" />시작하기</Link>
+                    </Button>
+                </CardContent>
+            </Card>
+        </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-headline">새로운 퀴즈 만들기</CardTitle>
-              <CardDescription>원하는 게임 세트를 선택하여 새로운 게임방을 만드세요.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild className="w-full">
-                  <Link href="/game-sets/create"><PlusCircle className="mr-2 h-4 w-4"/>만들기</Link>
-              </Button>
-            </CardContent>
-          </Card>
+        <div>
+            <h2 className="text-2xl font-bold font-headline mb-4 flex items-center gap-2">
+                <List />
+                참여 가능한 게임방
+            </h2>
+            {loadingRooms ? (
+                 <div className="text-center py-12">
+                    <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
+                    <p className="mt-2 text-muted-foreground">게임방 목록을 불러오는 중...</p>
+                </div>
+            ) : openGameRooms.length === 0 ? (
+                <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                    <p className="text-muted-foreground">현재 참여 가능한 게임방이 없습니다. 새로운 게임방을 만들어보세요!</p>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {openGameRooms.map(room => (
+                        <Card key={room.id} className="flex flex-col">
+                            <CardHeader>
+                                <CardTitle className="font-headline truncate">{room.roomTitle}</CardTitle>
+                                <CardDescription className="truncate">{room.gameSet?.title || '퀴즈 정보 로딩 중...'}</CardDescription>
+                            </CardHeader>
+                            <CardContent className="flex-grow space-y-2 text-sm text-muted-foreground">
+                                <div className="flex items-center gap-2">
+                                    <Users className="w-4 h-4"/>
+                                    <span>{Object.keys(room.players).length} / 6명</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <Book className="w-4 h-4"/>
+                                    <span>{room.gameSet?.questions?.length || '?'} 문제</span>
+                                </div>
+                            </CardContent>
+                            <CardFooter>
+                                <Button className="w-full" onClick={() => handleJoinGame(room)} disabled={!!isJoining}>
+                                    {isJoining === room.id ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : room.password ? <Lock className="w-4 h-4 mr-2" /> : <LogIn className="w-4 h-4 mr-2" />}
+                                    참여하기
+                                </Button>
+                            </CardFooter>
+                        </Card>
+                    ))}
+                </div>
+            )}
         </div>
 
         <div>
