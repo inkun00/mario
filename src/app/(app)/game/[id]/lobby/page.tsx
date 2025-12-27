@@ -361,6 +361,13 @@ export default function LobbyPage() {
       if (docSnap.exists()) {
         const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
         
+        // This is a crucial check. If the host isn't in the player list for a remote waiting room, it's a ghost room.
+        if (roomData.joinType === 'remote' && roomData.status === 'waiting' && (!roomData.players || !roomData.players[roomData.hostId])) {
+            toast({ variant: 'destructive', title: '오류', description: '호스트가 방을 나갔습니다. 다른 방에 참여해주세요.' });
+            router.push('/dashboard');
+            return;
+        }
+
         if (roomData.joinType === 'remote' && !roomData.players[user.uid] && Object.keys(roomData.players).length < 6 && roomData.status === 'waiting') {
             const userDocRef = doc(db, 'users', user.uid);
             const userDocSnap = await getDoc(userDocRef);
@@ -376,14 +383,8 @@ export default function LobbyPage() {
            await updateDoc(roomRef, {
              [`players.${user.uid}`]: newPlayer
            });
-           // The snapshot will update again with the new player.
+           // The snapshot will update again with the new player data, so we can return here.
            return;
-        }
-
-        if (roomData.joinType === 'remote' && roomData.status === 'waiting' && (!roomData.players || !roomData.players[roomData.hostId])) {
-            toast({ variant: 'destructive', title: '오류', description: '호스트가 방을 나갔습니다. 다른 방에 참여해주세요.' });
-            router.push('/dashboard');
-            return;
         }
 
         setGameRoom(roomData);
