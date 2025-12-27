@@ -1012,7 +1012,7 @@ export default function GamePage() {
 
 
       {/* Question Popup */}
-      <Dialog open={!!currentQuestion}>
+      <Dialog open={!!currentQuestion} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
         <DialogContent className="max-w-2xl">
             <DialogHeader>
                 <div className="flex justify-between items-center">
@@ -1215,6 +1215,7 @@ export default function GamePage() {
     </>
   );
 }
+
 
 
 
