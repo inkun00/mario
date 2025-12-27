@@ -155,6 +155,7 @@ export default function GamePage() {
             }
             
             setGameRoom(roomData);
+            setAnswerResult(roomData.currentAnswerResult || null);
 
             if (roomData.status === 'setting-mystery' && !roomData.isMysterySettingDone) {
                 setShowMysterySettings(true);
@@ -324,7 +325,10 @@ export default function GamePage() {
     // Fill the rest with good effects
     const shuffledGood = shuffleArray(goodEffects);
     while (options.length < 3 && shuffledGood.length > 0) {
-        options.push(shuffledGood.shift()!);
+        const effectToAdd = shuffledGood.shift()!;
+        if (!options.some(opt => opt.type === effectToAdd.type)) {
+            options.push(effectToAdd);
+        }
     }
     
     // If not enough effects, fill with whatever is available
@@ -389,23 +393,25 @@ export default function GamePage() {
       || (currentQuestion.type !== 'subjective' && userAnswer === currentQuestion.correctAnswer);
 
     const pointsToAward = isCorrect ? currentPoints : 0;
-    const currentTurnUID = gameRoom.currentTurn;
-
-    setAnswerResult({
+    
+    const result: AnswerResult = {
         isCorrect: isCorrect,
         userAnswer: userAnswer,
         correctAnswer: currentQuestion.answer || currentQuestion.correctAnswer || '',
         pointsAwarded: pointsToAward,
-    });
+    };
+    
+    const roomRef = doc(db, 'game-rooms', gameRoomId);
+    await updateDoc(roomRef, { currentAnswerResult: result });
+
 
     setTimeout(async () => {
         try {
             const batch = writeBatch(db);
-            const roomRef = doc(db, 'game-rooms', gameRoomId);
             
             const newLogEntry: AnswerLog = {
                 id: uuidv4(),
-                userId: currentTurnUID,
+                userId: gameRoom.currentTurn,
                 question: currentQuestion,
                 userAnswer: userAnswer,
                 isCorrect: isCorrect,
@@ -427,6 +433,7 @@ export default function GamePage() {
                 answerLogs: newAnswerLogs, 
                 gameState: newGameState,
                 currentTurn: nextTurnUID,
+                currentAnswerResult: null,
             };
             
             if (!isCorrect) {
@@ -437,7 +444,7 @@ export default function GamePage() {
                   userAnswer: userAnswer,
                   timestamp: new Date(),
               };
-              const incorrectLogRef = doc(db, 'users', currentTurnUID, 'incorrect-answers', incorrectLogData.id);
+              const incorrectLogRef = doc(db, 'users', gameRoom.currentTurn, 'incorrect-answers', incorrectLogData.id);
               batch.set(incorrectLogRef, incorrectLogData);
             }
             
@@ -1215,8 +1222,3 @@ export default function GamePage() {
     </>
   );
 }
-
-
-
-
-

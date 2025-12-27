@@ -90,6 +90,13 @@ export interface AnswerLog {
     timestamp: any; // Can be Date for client, converted to Timestamp for server
 }
 
+export interface AnswerResult {
+    isCorrect: boolean;
+    userAnswer: string;
+    correctAnswer: string;
+    pointsAwarded: number;
+}
+
 
 export interface GameRoom {
   id: string;
@@ -110,6 +117,7 @@ export interface GameRoom {
   localPlayers?: LocalPlayer[];
   answerLogs?: AnswerLog[];
   gameStartedAt?: any;
+  currentAnswerResult?: AnswerResult | null;
 }
 
 export interface CorrectAnswer {
