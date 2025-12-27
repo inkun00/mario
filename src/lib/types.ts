@@ -80,6 +80,13 @@ export interface LocalPlayer {
 
 export type MysteryEffectType = 'bonus' | 'double' | 'penalty' | 'half' | 'swap';
 
+export interface MysteryEffect {
+    type: MysteryEffectType;
+    title: string;
+    description: string;
+    value?: number;
+}
+
 export interface AnswerLog {
     id: string; // Unique ID for each log entry
     userId: string;
@@ -118,6 +125,7 @@ export interface GameRoom {
   answerLogs?: AnswerLog[];
   gameStartedAt?: any;
   currentAnswerResult?: AnswerResult | null;
+  currentMysteryEffect?: MysteryEffect | null;
 }
 
 export interface CorrectAnswer {

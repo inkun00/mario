@@ -7,7 +7,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { doc, onSnapshot, getDoc, updateDoc, Timestamp, writeBatch, increment, collection, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer, SubjectStat } from '@/lib/types';
+import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer, SubjectStat, MysteryEffect } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb, Save, StopCircle, Check, CheckCircle, XCircle } from 'lucide-react';
 import Image from 'next/image';
@@ -42,14 +42,6 @@ interface GameBlock {
   id: number;
   type: 'question' | 'mystery';
   question?: Question & { id: number };
-}
-
-interface MysteryEffect {
-    type: MysteryEffectType;
-    title: string;
-    description: string;
-    icon?: React.ReactNode;
-    value?: number;
 }
 
 interface AnswerResult {
@@ -118,7 +110,6 @@ export default function GamePage() {
   const [currentPoints, setCurrentPoints] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');
   const [showHint, setShowHint] = useState(false);
-  const [answerResult, setAnswerResult] = useState<AnswerResult | null>(null);
   
   const [isMyTurn, setIsMyTurn] = useState(false);
   
@@ -129,7 +120,6 @@ export default function GamePage() {
   const [showMysteryChoicePopup, setShowMysteryChoicePopup] = useState(false);
   const [mysteryOptions, setMysteryOptions] = useState<MysteryEffect[]>([]);
   const [showMysteryBoxPopup, setShowMysteryBoxPopup] = useState(false);
-  const [mysteryBoxEffect, setMysteryBoxEffect] = useState<MysteryEffect | null>(null);
   const [playerForSwap, setPlayerForSwap] = useState<string | null>(null);
   
   const [showGameOverPopup, setShowGameOverPopup] = useState(false);
@@ -155,7 +145,10 @@ export default function GamePage() {
             }
             
             setGameRoom(roomData);
-            setAnswerResult(roomData.currentAnswerResult || null);
+
+            if(roomData.currentMysteryEffect) {
+                setShowMysteryBoxPopup(true);
+            }
 
             if (roomData.status === 'setting-mystery' && !roomData.isMysterySettingDone) {
                 setShowMysterySettings(true);
@@ -231,11 +224,11 @@ export default function GamePage() {
       }
     } else {
       // If no block is flipping, close all dialogs if they are not showing results
-      if (!answerResult) {
+      if (!gameRoom.currentAnswerResult) {
         handleCloseDialogs();
       }
     }
-  }, [gameRoom?.gameState, gameSet, blocks, answerResult]);
+  }, [gameRoom?.gameState, gameSet, blocks, gameRoom?.currentAnswerResult]);
 
 
   // Initialize game board
@@ -267,8 +260,8 @@ export default function GamePage() {
     }
   }, [gameSet, gameRoom, blocks.length]);
 
-  const handleMysteryBoxChoice = (chosenEffect: MysteryEffect) => {
-    if (!isMyTurn) return;
+  const handleMysteryBoxChoice = async (chosenEffect: MysteryEffect) => {
+    if (!isMyTurn || typeof gameRoomId !== 'string') return;
     setShowMysteryChoicePopup(false);
 
     let effectDetails: MysteryEffect;
@@ -276,25 +269,25 @@ export default function GamePage() {
 
     switch (chosenEffect.type) {
         case 'bonus':
-            effectDetails = { type: 'bonus', title: '점수 보너스!', description: `축하합니다! ${randomPoints}점을 추가로 획득합니다.`, icon: <Star className="w-16 h-16 text-yellow-400"/>, value: randomPoints };
+            effectDetails = { type: 'bonus', title: '점수 보너스!', description: `축하합니다! ${randomPoints}점을 추가로 획득합니다.`, value: randomPoints };
             break;
         case 'double':
-            effectDetails = { type: 'double', title: '점수 2배!', description: '행운의 주인공! 현재까지 누적된 모든 점수가 2배가 됩니다.', icon: <ChevronsRight className="w-16 h-16 text-green-500"/> };
+            effectDetails = { type: 'double', title: '점수 2배!', description: '행운의 주인공! 현재까지 누적된 모든 점수가 2배가 됩니다.' };
             break;
         case 'penalty':
-            effectDetails = { type: 'penalty', title: '점수 감점...', description: `이런! ${randomPoints}점이 감점됩니다.`, icon: <Bomb className="w-16 h-16 text-destructive"/>, value: -randomPoints };
+            effectDetails = { type: 'penalty', title: '점수 감점...', description: `이런! ${randomPoints}점이 감점됩니다.`, value: -randomPoints };
             break;
         case 'half':
-            effectDetails = { type: 'half', title: '점수 반감', description: '치명적인 실수! 현재까지 누적된 모든 점수가 절반으로 줄어듭니다.', icon: <TrendingDown className="w-16 h-16 text-orange-500"/> };
+            effectDetails = { type: 'half', title: '점수 반감', description: '치명적인 실수! 현재까지 누적된 모든 점수가 절반으로 줄어듭니다.' };
             break;
         case 'swap':
-            effectDetails = { type: 'swap', title: '점수 바꾸기!', description: '전략적 선택! 다른 플레이어와 점수를 바꿀 수 있습니다.', icon: <Repeat className="w-16 h-16 text-blue-500"/> };
+            effectDetails = { type: 'swap', title: '점수 바꾸기!', description: '전략적 선택! 다른 플레이어와 점수를 바꿀 수 있습니다.' };
             break;
         default:
-             effectDetails = { type: 'bonus', title: '점수 보너스!', description: `축하합니다! ${randomPoints}점을 추가로 획득합니다.`, icon: <Star className="w-16 h-16 text-yellow-400"/>, value: randomPoints };
+             effectDetails = { type: 'bonus', title: '점수 보너스!', description: `축하합니다! ${randomPoints}점을 추가로 획득합니다.`, value: randomPoints };
     }
-    setMysteryBoxEffect(effectDetails);
-    setShowMysteryBoxPopup(true);
+    const roomRef = doc(db, 'game-rooms', gameRoomId);
+    await updateDoc(roomRef, { currentMysteryEffect: effectDetails });
   };
   
   const handleBlockClick = (block: GameBlock) => {
@@ -345,7 +338,7 @@ export default function GamePage() {
       options.push(...shuffleArray(options));
     }
     
-    const finalOptions = shuffleArray(options.slice(0, 3)).map(o => ({...o, description: ''})); // Hide description
+    const finalOptions = shuffleArray(options.slice(0, 3)).map(o => ({...o, description: '', icon: undefined })); // Hide description and icon for choice
     
     setMysteryOptions(finalOptions);
     setShowMysteryChoicePopup(true);
@@ -374,10 +367,8 @@ export default function GamePage() {
     setCurrentQuestionInfo(null);
     setShowMysteryChoicePopup(false);
     setShowMysteryBoxPopup(false);
-    setMysteryBoxEffect(null);
     setPlayerForSwap(null);
     setUserAnswer('');
-    setAnswerResult(null);
   }
 
   const handleSubmitAnswer = async () => {
@@ -458,15 +449,15 @@ export default function GamePage() {
             
         } catch(error: any) {
              toast({variant: 'destructive', title: '오류', description: `답변 제출 중 오류가 발생했습니다: ${error.message}`});
-             setIsSubmitting(false);
-             setAnswerResult(null);
+        } finally {
+            setIsSubmitting(false);
         }
     }, 2000); // 2초 후에 Firestore 업데이트 및 다이얼로그 닫기
   }
 
 
   const handleMysteryEffect = async () => {
-    if (!mysteryBoxEffect || !gameRoom || typeof gameRoomId !== 'string' || !gameSet || !user || !isMyTurn) return;
+    if (!gameRoom?.currentMysteryEffect || !gameRoom || typeof gameRoomId !== 'string' || !gameSet || !user || !isMyTurn) return;
   
     setIsSubmitting(true);
     
@@ -489,10 +480,10 @@ export default function GamePage() {
         const logsToPush: Partial<AnswerLog>[] = [];
         let pointsChange = 0;
 
-        switch (mysteryBoxEffect.type) {
+        switch (gameRoom.currentMysteryEffect.type) {
             case 'bonus':
             case 'penalty':
-                pointsChange = mysteryBoxEffect.value || 0;
+                pointsChange = gameRoom.currentMysteryEffect.value || 0;
                 logsToPush.push({ id: uuidv4(), userId: currentTurnUID, pointsAwarded: pointsChange, timestamp: Timestamp.now(), isCorrect: true, question: {} as Question, userAnswer: '미스터리' });
                 break;
             case 'double':
@@ -533,6 +524,7 @@ export default function GamePage() {
             answerLogs: newAnswerLogs as AnswerLog[],
             gameState: newGameState,
             currentTurn: nextTurnUID,
+            currentMysteryEffect: null,
         };
 
         if (allAnswered) {
@@ -823,6 +815,10 @@ export default function GamePage() {
   const scoreboardPlayers = players;
   const isHost = user?.uid === gameRoom.hostId;
   const winner = finalScores.length > 0 ? finalScores[0] : null;
+
+  const mysteryBoxEffect = gameRoom.currentMysteryEffect;
+
+  const answerResult = gameRoom.currentAnswerResult;
 
 
   return (
@@ -1115,11 +1111,9 @@ export default function GamePage() {
                         </div>
                     </div>
                     
-                    {isMyTurn && (
-                      <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting}>
-                          {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
-                      </Button>
-                    )}
+                    <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting || !isMyTurn}>
+                        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
+                    </Button>
                 </>
             )}
         </DialogContent>
@@ -1130,7 +1124,11 @@ export default function GamePage() {
           <DialogContent className="max-w-md text-center" aria-describedby="mystery-box-description">
               <DialogHeader>
                   <div className="flex flex-col items-center gap-4">
-                      {mysteryBoxEffect?.icon}
+                      {mysteryBoxEffect?.type === 'bonus' && <Star className="w-16 h-16 text-yellow-400"/>}
+                      {mysteryBoxEffect?.type === 'double' && <ChevronsRight className="w-16 h-16 text-green-500"/>}
+                      {mysteryBoxEffect?.type === 'penalty' && <Bomb className="w-16 h-16 text-destructive"/>}
+                      {mysteryBoxEffect?.type === 'half' && <TrendingDown className="w-16 h-16 text-orange-500"/>}
+                      {mysteryBoxEffect?.type === 'swap' && <Repeat className="w-16 h-16 text-blue-500"/>}
                       <DialogTitle className="font-headline text-3xl">{mysteryBoxEffect?.title}</DialogTitle>
                       <DialogDescription id="mystery-box-description">
                         {mysteryBoxEffect?.description}
