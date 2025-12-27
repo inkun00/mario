@@ -1045,6 +1045,10 @@ export default function GamePage() {
                             <CheckCircle className="w-20 h-20" />
                             <p className="text-2xl font-bold">정답입니다!</p>
                             <p className="text-lg">+{answerResult.pointsAwarded}점</p>
+                             <div className="text-base text-foreground/80 space-y-1 pt-2 border-t mt-2 w-full">
+                                <p>내가 제출한 답: <span className="font-semibold">{answerResult.userAnswer}</span></p>
+                                <p>정답: <span className="font-semibold">{answerResult.correctAnswer}</span></p>
+                            </div>
                         </div>
                     ) : (
                         <div className="flex flex-col items-center gap-2 text-destructive">
