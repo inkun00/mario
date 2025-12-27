@@ -141,28 +141,39 @@ export default function DashboardPage() {
   useEffect(() => {
     setLoadingRooms(true);
     const roomsQuery = query(
-        collection(db, 'game-rooms'),
-        where('status', '==', 'waiting'),
-        where('joinType', '==', 'remote')
+      collection(db, 'game-rooms'),
+      where('status', '==', 'waiting'),
+      where('joinType', '==', 'remote')
     );
+
     const roomsUnsubscribe = onSnapshot(roomsQuery, async (snapshot) => {
-        const roomsPromises = snapshot.docs.map(async (roomDoc) => {
-            const roomData = roomDoc.data() as GameRoom;
-            const setDocRef = doc(db, 'game-sets', roomData.gameSetId);
-            const setDocSnap = await getDoc(setDocRef);
-            return {
-                ...roomData,
-                id: roomDoc.id,
-                gameSet: setDocSnap.exists() ? (setDocSnap.data() as GameSet) : undefined,
-            };
-        });
-        const rooms = await Promise.all(roomsPromises);
-        setOpenGameRooms(rooms);
-        setLoadingRooms(false);
+      const roomsPromises = snapshot.docs.map(async (roomDoc) => {
+        const roomData = roomDoc.data() as GameRoom;
+        
+        // 호스트가 현재 players 목록에 있는지 확인
+        const isHostPresent = roomData.players && roomData.hostId && roomData.players[roomData.hostId];
+        
+        if (!isHostPresent) {
+          return null; // 호스트가 없으면 목록에 포함하지 않음
+        }
+
+        const setDocRef = doc(db, 'game-sets', roomData.gameSetId);
+        const setDocSnap = await getDoc(setDocRef);
+        return {
+          ...roomData,
+          id: roomDoc.id,
+          gameSet: setDocSnap.exists() ? (setDocSnap.data() as GameSet) : undefined,
+        };
+      });
+
+      const rooms = (await Promise.all(roomsPromises)).filter(room => room !== null) as OpenGameRoom[];
+      
+      setOpenGameRooms(rooms);
+      setLoadingRooms(false);
     }, (error) => {
-        console.error("Error fetching open game rooms:", error);
-        toast({ variant: "destructive", title: "오류", description: "참여 가능한 게임방 목록을 불러오는 중 오류가 발생했습니다." });
-        setLoadingRooms(false);
+      console.error("Error fetching open game rooms:", error);
+      toast({ variant: "destructive", title: "오류", description: "참여 가능한 게임방 목록을 불러오는 중 오류가 발생했습니다." });
+      setLoadingRooms(false);
     });
 
     return () => roomsUnsubscribe();
