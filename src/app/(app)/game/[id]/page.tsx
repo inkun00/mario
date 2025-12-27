@@ -368,6 +368,7 @@ export default function GamePage() {
 
   const handleCloseDialogs = () => {
     setCurrentQuestionInfo(null);
+    setShowMysteryChoicePopup(false);
     setShowMysteryBoxPopup(false);
     setMysteryBoxEffect(null);
     setPlayerForSwap(null);
@@ -447,10 +448,6 @@ export default function GamePage() {
             batch.update(roomRef, updateData as any);
             
             await batch.commit();
-            
-            // This will trigger the useEffect to close the dialog
-            // handleCloseDialogs(); 
-            // setIsSubmitting(false);
             
         } catch(error: any) {
              toast({variant: 'destructive', title: '오류', description: `답변 제출 중 오류가 발생했습니다: ${error.message}`});
@@ -933,7 +930,7 @@ export default function GamePage() {
       </div>
 
        {/* Mystery Box Choice Popup */}
-      <Dialog open={showMysteryChoicePopup}>
+      <Dialog open={showMysteryChoicePopup} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
         <DialogContent className="max-w-2xl text-center">
           <DialogHeader>
             <DialogTitle className="font-headline text-2xl">미스터리 박스</DialogTitle>
@@ -1122,7 +1119,7 @@ export default function GamePage() {
       </Dialog>
 
       {/* Mystery Box Popup */}
-      <Dialog open={showMysteryBoxPopup}>
+      <Dialog open={showMysteryBoxPopup} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
           <DialogContent className="max-w-md text-center" aria-describedby="mystery-box-description">
               <DialogHeader>
                   <div className="flex flex-col items-center gap-4">
@@ -1218,6 +1215,7 @@ export default function GamePage() {
     </>
   );
 }
+
 
 
 
