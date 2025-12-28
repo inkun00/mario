@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn, ShieldCheck, List, Gamepad2, Sparkles } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn, ShieldCheck, List, Gamepad2, Sparkles, Smartphone, Tv } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState, useRef } from 'react';
@@ -88,11 +88,14 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [loadingRooms, setLoadingRooms] = useState(true);
   const [isEvaluating, setIsEvaluating] = useState<string | null>(null);
+  
   const [selectedGameSet, setSelectedGameSet] = useState<GameSetDocument | null>(null);
+  const [gameCreationCandidate, setGameCreationCandidate] = useState<GameSetDocument | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<GameSetDocument | null>(null);
   const [reportCandidate, setReportCandidate] = useState<GameSetDocument | null>(null);
   const [oppositionCandidate, setOppositionCandidate] = useState<GameSetDocument | null>(null);
   const [deactivateCandidate, setDeactivateCandidate] = useState<GameSetDocument | null>(null);
+  
   const [deactivationPassword, setDeactivationPassword] = useState("");
 
   const { toast } = useToast();
@@ -445,30 +448,17 @@ export default function DashboardPage() {
           <p className="text-muted-foreground mt-1">오늘도 즐거운 학습을 시작해볼까요?</p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="font-headline">새로운 퀴즈 만들기</CardTitle>
-                    <CardDescription>나만의 퀴즈를 만들고 친구들과 함께 플레이하세요.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Button asChild className="w-full">
-                        <Link href="/game-sets/create"><PlusCircle className="mr-2 h-4 w-4"/>만들기</Link>
-                    </Button>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader>
-                    <CardTitle className="font-headline">로컬 게임 시작하기</CardTitle>
-                    <CardDescription>하나의 기기로 여러명이 함께 플레이할 수 있습니다.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Button asChild className="w-full" variant="secondary">
-                        <Link href="/game-rooms/new?joinType=local"><Gamepad2 className="mr-2 h-4 w-4" />시작하기</Link>
-                    </Button>
-                </CardContent>
-            </Card>
-        </div>
+        <Card>
+            <CardHeader>
+                <CardTitle className="font-headline">새로운 퀴즈 만들기</CardTitle>
+                <CardDescription>나만의 퀴즈를 만들고 친구들과 함께 플레이하세요.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Button asChild className="w-full">
+                    <Link href="/game-sets/create"><PlusCircle className="mr-2 h-4 w-4"/>만들기</Link>
+                </Button>
+            </CardContent>
+        </Card>
 
         <div>
             <h2 className="text-2xl font-bold font-headline mb-4 flex items-center gap-2">
@@ -632,10 +622,8 @@ export default function DashboardPage() {
                   );
                 } else {
                   createRoomButton = (
-                    <Button asChild size="sm">
-                      <Link href={`/game-rooms/new?gameSetId=${set.id}`}>
-                        <Users className="mr-2 h-4 w-4" />방 만들기
-                      </Link>
+                    <Button size="sm" onClick={() => setGameCreationCandidate(set)}>
+                      <Users className="mr-2 h-4 w-4" />방 만들기
                     </Button>
                   );
                 }
@@ -826,6 +814,31 @@ export default function DashboardPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      <AlertDialog open={!!gameCreationCandidate} onOpenChange={(isOpen) => !isOpen && setGameCreationCandidate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>어떤 방식으로 플레이할까요?</AlertDialogTitle>
+            <AlertDialogDescription>
+              친구들과 함께 플레이할 방식을 선택해주세요.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+              <Button variant="outline" className="h-24 flex-col gap-2" asChild>
+                  <Link href={`/game-rooms/new?gameSetId=${gameCreationCandidate?.id}&joinType=local`}>
+                      <Tv className="w-8 h-8"/>
+                      <span className="font-semibold">한 기기로 여러 명이 플레이</span>
+                  </Link>
+              </Button>
+              <Button variant="outline" className="h-24 flex-col gap-2" asChild>
+                   <Link href={`/game-rooms/new?gameSetId=${gameCreationCandidate?.id}&joinType=remote`}>
+                      <Smartphone className="w-8 h-8"/>
+                      <span className="font-semibold">여러 기기로 플레이</span>
+                  </Link>
+              </Button>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deleteCandidate} onOpenChange={(isOpen) => !isOpen && setDeleteCandidate(null)}>
         <AlertDialogContent>

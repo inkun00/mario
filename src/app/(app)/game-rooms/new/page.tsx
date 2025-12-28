@@ -11,22 +11,16 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
 import { db, auth } from '@/lib/firebase';
-import type { GameRoom, GameSet, Player, JoinType, AnswerLog, MysteryEffectType, User } from '@/lib/types';
+import type { GameRoom, GameSet, Player, JoinType, User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { doc, getDoc, setDoc, serverTimestamp, collection, query, where, getDocs, Timestamp, updateDoc, increment, collectionGroup, limit } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, updateDoc, increment } from 'firebase/firestore';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState, Suspense } from 'react';
-import { Smartphone, Lock, Users, Loader2, Gift } from 'lucide-react';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { cn } from '@/lib/utils';
-import { Checkbox } from '@/components/ui/checkbox';
+import { useEffect, useState, Suspense, useCallback } from 'react';
+import { Users, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-
 
 function generateRoomId() {
   const chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789';
@@ -37,105 +31,30 @@ function generateRoomId() {
   return result;
 }
 
-const allMysteryEffects: {type: MysteryEffectType, title: string, description: string}[] = [
-    { type: 'bonus', title: '점수 보너스', description: '10-50점의 보너스 점수를 획득합니다.'},
-    { type: 'double', title: '점수 2배', description: '누적 점수가 2배가 됩니다.'},
-    { type: 'penalty', title: '점수 감점', description: '10-50점의 점수가 감점됩니다.'},
-    { type: 'half', title: '점수 반감', description: '누적 점수가 절반으로 줄어듭니다.'},
-    { type: 'swap', title: '점수 바꾸기', description: '다른 플레이어와 점수를 바꿉니다.'},
-];
-
-
 function NewGameRoomPageContents() {
   const [user, loadingUser] = useAuthState(auth);
   const router = useRouter();
   const searchParams = useSearchParams();
   const gameSetId = searchParams.get('gameSetId');
-  const initialJoinType = searchParams.get('joinType') as JoinType | null;
+  const joinType = searchParams.get('joinType') as JoinType | null;
   const { toast } = useToast();
 
   const [gameSet, setGameSet] = useState<GameSet | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isPageLoading, setIsPageLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
-  const [hasPlayed, setHasPlayed] = useState(false);
   
   const [roomTitle, setRoomTitle] = useState('');
   const [password, setPassword] = useState('');
   const [usePassword, setUsePassword] = useState(false);
-  const [joinType, setJoinType] = useState<JoinType>('remote');
   
-  useEffect(() => {
-    if (initialJoinType === 'local' && gameSetId) {
-        handleCreateRoom(true); // Create a local room immediately
-    } else if (initialJoinType === 'local' && !gameSetId) {
-        toast({ variant: 'destructive', title: '오류', description: '로컬 게임을 시작하려면 퀴즈 세트가 필요합니다. 퀴즈 세트를 먼저 선택해주세요.' });
-        router.push('/dashboard');
-    } else if (initialJoinType) {
-        setJoinType(initialJoinType);
-    }
-  }, [initialJoinType, gameSetId]);
-
-
-  useEffect(() => {
-    if (!gameSetId) {
-      toast({ variant: 'destructive', title: '오류', description: '게임 세트 ID가 필요합니다.' });
-      router.push('/dashboard');
-      return;
-    }
-    
-    if (loadingUser || !user) return;
-
-    const fetchGameData = async () => {
-      setIsLoading(true);
-      
-      const setDocRef = doc(db, 'game-sets', gameSetId);
-      const setDocSnap = await getDoc(setDocRef);
-
-      if (setDocSnap.exists()) {
-        const gameSetData = { id: setDocSnap.id, ...setDocSnap.data() } as GameSet;
-        setGameSet(gameSetData);
-        setRoomTitle(`${gameSetData.title} 게임방`);
-      } else {
-        toast({ variant: 'destructive', title: '오류', description: '게임 세트를 찾을 수 없습니다.' });
-        router.push('/dashboard');
-        setIsLoading(false);
-        return;
-      }
-      
-      const playsRef = collection(db, `users/${user.uid}/playedGameSets`);
-      const q = query(playsRef, where("gameSetId", "==", gameSetId), limit(1));
-      
-      try {
-        const querySnapshot = await getDocs(q);
-        if (!querySnapshot.empty) {
-          setHasPlayed(true);
-        }
-      } catch (e) {
-        console.warn("이전 플레이 기록을 확인할 수 없습니다. (아마도 신규 사용자)", e);
-      }
-
-      setIsLoading(false);
-    };
-
-    fetchGameData();
-  }, [gameSetId, router, toast, user, loadingUser]);
-
-  const handleCreateRoom = async (isLocalGame = false) => {
-    if (!user || !gameSet) return;
+  const handleCreateRoom = useCallback(async () => {
+    if (!user || !gameSet || !joinType) return;
     
     if (joinType === 'remote' && !roomTitle) {
         toast({
             variant: 'destructive',
             title: '오류',
             description: '방 제목을 입력해주세요.',
-        });
-        return;
-    }
-    if (hasPlayed) {
-        toast({
-            variant: 'destructive',
-            title: '참여 제한',
-            description: '이미 참여한 퀴즈 세트입니다. 다른 퀴즈를 즐겨보세요!',
         });
         return;
     }
@@ -171,7 +90,7 @@ function NewGameRoomPageContents() {
       };
       
       const newRoom: Omit<GameRoom, 'id' | 'createdAt'> = {
-        roomTitle: isLocalGame ? `${gameSet.title} (로컬)` : roomTitle,
+        roomTitle: joinType === 'local' ? `${gameSet.title} (로컬)` : roomTitle,
         gameSetId: gameSet.id,
         status: 'waiting',
         hostId: user.uid,
@@ -182,7 +101,7 @@ function NewGameRoomPageContents() {
         gameState: {},
         mysteryBoxEnabled: true,
         isMysterySettingDone: false,
-        joinType: isLocalGame ? 'local' : joinType,
+        joinType: joinType,
         ...(usePassword && password && { password }),
         mysteryEffectVotes: {},
       };
@@ -205,11 +124,49 @@ function NewGameRoomPageContents() {
         toast({ variant: 'destructive', title: '오류', description: '게임방 생성에 실패했습니다.' });
         setIsCreating(false);
     }
-  };
+  }, [user, gameSet, joinType, roomTitle, usePassword, password, toast, router]);
 
-  if (isLoading || loadingUser || initialJoinType === 'local') {
+  useEffect(() => {
+    if (loadingUser) return;
+    
+    if (!user) {
+        router.push('/login');
+        return;
+    }
+
+    if (!gameSetId || !joinType) {
+      toast({ variant: 'destructive', title: '오류', description: '잘못된 접근입니다.' });
+      router.push('/dashboard');
+      return;
+    }
+    
+    const fetchGameSet = async () => {
+      const setDocRef = doc(db, 'game-sets', gameSetId);
+      const setDocSnap = await getDoc(setDocRef);
+
+      if (setDocSnap.exists()) {
+        const gameSetData = { id: setDocSnap.id, ...setDocSnap.data() } as GameSet;
+        setGameSet(gameSetData);
+        setRoomTitle(`${gameSetData.title} 게임방`);
+      } else {
+        toast({ variant: 'destructive', title: '오류', description: '게임 세트를 찾을 수 없습니다.' });
+        router.push('/dashboard');
+      }
+      setIsPageLoading(false);
+    };
+
+    fetchGameSet();
+  }, [gameSetId, joinType, user, loadingUser, router, toast]);
+
+  useEffect(() => {
+    if (joinType === 'local' && gameSet) {
+        handleCreateRoom();
+    }
+  }, [joinType, gameSet, handleCreateRoom]);
+
+  if (isPageLoading || loadingUser || joinType === 'local') {
     return (
-      <div className="container mx-auto py-8 flex items-center justify-center">
+      <div className="container mx-auto py-8 flex items-center justify-center min-h-[60vh]">
         <Loader2 className="w-8 h-8 animate-spin" />
         <p className="ml-2">게임방을 준비하는 중...</p>
       </div>
@@ -217,14 +174,14 @@ function NewGameRoomPageContents() {
   }
 
   if (!gameSet) {
-    return <div className="container mx-auto py-8">게임 세트를 찾을 수 없습니다.</div>;
+    return null;
   }
 
   return (
     <div className="container mx-auto py-8 max-w-2xl">
       <Card>
         <CardHeader>
-          <CardTitle className="font-headline text-2xl">새로운 게임방 만들기</CardTitle>
+          <CardTitle className="font-headline text-2xl">새로운 온라인 게임방 만들기</CardTitle>
           <CardDescription>'{gameSet.title}' 퀴즈로 게임을 시작합니다. 설정을 완료하고 방을 만드세요.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -266,16 +223,14 @@ function NewGameRoomPageContents() {
             </div>
           </div>
           
-          <Button onClick={() => handleCreateRoom()} disabled={isCreating || hasPlayed} className="w-full font-headline" size="lg">
-            {isCreating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>방 만드는 중...</> : hasPlayed ? '이미 참여한 퀴즈 세트입니다' : <><Users className="mr-2 h-5 w-5" /> 게임방 만들기</>}
+          <Button onClick={handleCreateRoom} disabled={isCreating} className="w-full font-headline" size="lg">
+            {isCreating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/>방 만드는 중...</> : <><Users className="mr-2 h-5 w-5" /> 게임방 만들기</>}
           </Button>
-          {hasPlayed && (
-            <p className="text-sm text-center text-muted-foreground">
+           <p className="text-sm text-center text-muted-foreground">
               <Link href="/dashboard" className="hover:underline text-primary">
-                다른 퀴즈를 플레이해 보세요!
+                다른 퀴즈를 플레이하려면 여기를 클릭하세요.
               </Link>
             </p>
-          )}
 
         </CardContent>
       </Card>
