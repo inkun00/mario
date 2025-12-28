@@ -193,7 +193,7 @@ export interface School {
 export interface ClassStoreItem {
   id: string; // document id
   sellerId: string; // user.uid
-  sellerName?: string; // user.name
+  sellerName: string; // user.name
   sellerNickname: string; // user.displayName
   classId: string; // The class this item belongs to
   name: string;
