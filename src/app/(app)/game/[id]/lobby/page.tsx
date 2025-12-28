@@ -137,51 +137,52 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
                             <Users className="w-6 h-6"/>
                             <span>참여한 플레이어 ({players.length} / 6)</span>
                         </h3>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                             {players.map(player => {
                                 let pixelAvatarData = null;
                                 if (player.pixelAvatar) {
                                     try { pixelAvatarData = JSON.parse(player.pixelAvatar); } catch (e) { console.error("Error parsing player avatar in lobby", e); }
                                 }
                                 return (
-                                    <TooltipProvider key={player.uid}>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <div className={cn(
-                                                    "group relative flex flex-col items-center gap-2 p-3 border-2 rounded-lg bg-background",
-                                                    player.uid === user?.uid ? "border-primary" : "border-transparent"
-                                                )}>
-                                                    <div className="relative">
-                                                        <Avatar className="w-16 h-16">
-                                                            {pixelAvatarData ? (
-                                                                <PixelAvatar pixels={pixelAvatarData} />
-                                                            ) : (
-                                                                <AvatarFallback>{player.nickname.substring(0, 2)}</AvatarFallback>
-                                                            )}
-                                                        </Avatar>
-                                                        {player.isHost && (
-                                                            <div className="absolute -top-1 -right-2 bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs flex items-center gap-1" >
-                                                                <Crown className="w-3 h-3" />
-                                                            </div>
-                                                        )}
-                                                         {isHost && !player.isHost && (
-                                                            <Button
-                                                                variant="destructive"
-                                                                size="icon"
-                                                                className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                                                                onClick={() => setKickCandidate(player)}
-                                                            >
-                                                                <XCircle className="w-4 h-4" />
-                                                            </Button>
-                                                        )}
-                                                    </div>
+                                    <div key={player.uid} className={cn(
+                                        "group relative flex flex-col items-center gap-2 p-3 border-2 rounded-lg bg-background",
+                                        player.uid === user?.uid ? "border-primary" : "border-transparent"
+                                    )}>
+                                        <div className="relative">
+                                            <Avatar className="w-20 h-20">
+                                                {pixelAvatarData ? (
+                                                    <PixelAvatar pixels={pixelAvatarData} />
+                                                ) : (
+                                                    <AvatarFallback>{player.nickname.substring(0, 2)}</AvatarFallback>
+                                                )}
+                                            </Avatar>
+                                            {player.isHost && (
+                                                <div className="absolute -top-1 -right-2 bg-primary text-primary-foreground rounded-full p-1 text-xs flex items-center gap-1" >
+                                                    <Crown className="w-3 h-3" />
                                                 </div>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                <p>{player.nickname}{player.isHost ? ' (호스트)' : ''}</p>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    </TooltipProvider>
+                                            )}
+                                            {isHost && !player.isHost && (
+                                                <Button
+                                                    variant="destructive"
+                                                    size="icon"
+                                                    className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                    onClick={() => setKickCandidate(player)}
+                                                >
+                                                    <XCircle className="w-4 h-4" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                        <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger>
+                                                    <p className="text-sm font-medium truncate max-w-[80px]">{player.nickname}</p>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>{player.nickname}</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </TooltipProvider>
+                                    </div>
                                 )
                             })}
                         </div>
