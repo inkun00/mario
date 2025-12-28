@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { ADMIN_EMAILS } from '@/lib/admins';
 import { PixelAvatar } from '@/components/pixel-avatar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
     const router = useRouter();
@@ -89,21 +90,32 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
                                 }
                             }
                             return (
-                                <div key={player.uid} className={cn("flex flex-col items-center gap-2 p-3 border rounded-lg bg-background", player.uid === user?.uid && "border-primary")}>
-                                    <div className="relative">
-                                        <Avatar className="w-16 h-16">
-                                            <PixelAvatar pixels={pixelAvatarData} />
-                                            <AvatarFallback>{player.nickname.substring(0, 2)}</AvatarFallback>
-                                        </Avatar>
-                                        {player.isHost && (
-                                            <div className="absolute -top-1 -right-2 bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs flex items-center gap-1" >
-                                                <Crown className="w-3 h-3" />
-                                                호스트
+                                <TooltipProvider key={player.uid}>
+                                <Tooltip>
+                                    <TooltipTrigger>
+                                        <div className={cn("flex flex-col items-center gap-2 p-3 border rounded-lg bg-background", player.uid === user?.uid && "border-primary")}>
+                                            <div className="relative">
+                                                <Avatar className="w-16 h-16">
+                                                    {pixelAvatarData ? (
+                                                        <PixelAvatar pixels={pixelAvatarData} />
+                                                    ) : (
+                                                        <AvatarFallback>{player.nickname.substring(0, 2)}</AvatarFallback>
+                                                    )}
+                                                </Avatar>
+                                                {player.isHost && (
+                                                    <div className="absolute -top-1 -right-2 bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs flex items-center gap-1" >
+                                                        <Crown className="w-3 h-3" />
+                                                        호스트
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
-                                    </div>
-                                    <p className="font-semibold text-center">{player.nickname}</p>
-                                </div>
+                                        </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>{player.nickname}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                                </TooltipProvider>
                             )
                         })}
                     </div>
