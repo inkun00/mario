@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, getDocs, limit, arrayUnion, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, getDocs, limit, arrayUnion, serverTimestamp, deleteField, deleteDoc } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, PlayedGameSet, User as FsUser } from '@/lib/types';
@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Copy, Crown, Users, LogIn, Loader2, Gamepad2, UserCheck, CheckCircle, Eye, EyeOff, Lock } from 'lucide-react';
+import { Copy, Crown, Users, LogIn, Loader2, Gamepad2, UserCheck, CheckCircle, Eye, EyeOff, Lock, XCircle, LogOut } from 'lucide-react';
 import Image from 'next/image';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -20,6 +20,16 @@ import { cn } from '@/lib/utils';
 import { ADMIN_EMAILS } from '@/lib/admins';
 import { PixelAvatar } from '@/components/pixel-avatar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
     const router = useRouter();
@@ -28,6 +38,8 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
     const players = Object.values(gameRoom.players).sort(a => a.isHost ? -1 : 1);
     const isHost = user?.uid === gameRoom?.hostId;
     const isPlayer = user && gameRoom?.players[user.uid];
+    
+    const [kickCandidate, setKickCandidate] = useState<Player | null>(null);
 
     const copyToClipboard = () => {
         navigator.clipboard.writeText(gameRoom.id as string).then(() => {
@@ -54,91 +66,164 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
             toast({ variant: 'destructive', title: '오류', description: '게임을 시작하는 중 오류가 발생했습니다.'});
         }
     };
+    
+    const handleLeaveRoom = async () => {
+        if (!user || !gameRoom) return;
+
+        if (isHost) {
+            // If host leaves, delete the room
+            try {
+                await deleteDoc(doc(db, 'game-rooms', gameRoom.id));
+                toast({ title: '방 삭제됨', description: '호스트가 방을 나가서 게임방이 삭제되었습니다.' });
+                router.push('/dashboard');
+            } catch (error) {
+                console.error('Error deleting room:', error);
+                toast({ variant: 'destructive', title: '오류', description: '방을 삭제하는 중 오류가 발생했습니다.' });
+            }
+        } else {
+            // If a player leaves, remove them from the players list
+            const roomRef = doc(db, 'game-rooms', gameRoom.id as string);
+            try {
+                await updateDoc(roomRef, {
+                    [`players.${user.uid}`]: deleteField()
+                });
+                toast({ title: '방을 나갔습니다.' });
+                router.push('/dashboard');
+            } catch (error) {
+                console.error('Error leaving room:', error);
+                toast({ variant: 'destructive', title: '오류', description: '방을 나가는 중 오류가 발생했습니다.' });
+            }
+        }
+    };
+    
+    const handleKickPlayer = async () => {
+        if (!isHost || !kickCandidate) return;
+
+        const roomRef = doc(db, 'game-rooms', gameRoom.id as string);
+        try {
+            await updateDoc(roomRef, {
+                [`players.${kickCandidate.uid}`]: deleteField()
+            });
+            toast({ title: '성공', description: `${kickCandidate.nickname} 님을 내보냈습니다.` });
+            setKickCandidate(null);
+        } catch (error) {
+            console.error("Error kicking player:", error);
+            toast({ variant: 'destructive', title: '오류', description: '플레이어를 내보내는 중 오류가 발생했습니다.'});
+        }
+    };
 
     return (
-        <Card className="max-w-4xl mx-auto">
-            <CardHeader className="text-center">
-                <CardTitle className="font-headline text-3xl">{gameRoom?.roomTitle}</CardTitle>
-                <CardDescription>모든 플레이어가 들어오면 호스트가 게임을 시작합니다. 최대 6명까지 참여 가능합니다.</CardDescription>
-                <p className="text-sm text-muted-foreground">{gameSet?.title}</p>
-            </CardHeader>
-            <CardContent className="space-y-8">
-                <div className="bg-secondary/50 rounded-lg p-4 flex flex-col md:flex-row items-center justify-between gap-4">
-                   <div className="text-center md:text-left">
-                        <p className="text-sm font-medium text-muted-foreground">참여 코드</p>
-                        <div className="flex items-center gap-2">
-                            <p className="text-2xl font-bold font-mono tracking-widest">{gameRoom.id}</p>
-                            {gameRoom.password && <Lock className="w-5 h-5 text-muted-foreground"/>}
-                        </div>
-                   </div>
-                    <Button onClick={copyToClipboard} variant="outline"><Copy className="w-4 h-4 mr-2" />코드 복사</Button>
-                </div>
-                
-                <div className="space-y-4">
-                    <h3 className="font-headline text-xl font-semibold flex items-center gap-2">
-                        <Users className="w-6 h-6"/>
-                        <span>참여한 플레이어 ({players.length} / 6)</span>
-                    </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {players.map(player => {
-                            let pixelAvatarData = null;
-                            if (player.pixelAvatar) {
-                                try {
-                                    pixelAvatarData = JSON.parse(player.pixelAvatar);
-                                } catch (e) {
-                                    console.error("Error parsing player avatar in lobby", e);
-                                }
-                            }
-                            return (
-                                <TooltipProvider key={player.uid}>
-                                <Tooltip>
-                                    <TooltipTrigger>
-                                        <div className={cn("flex flex-col items-center gap-2 p-3 border rounded-lg bg-background", player.uid === user?.uid && "border-primary")}>
-                                            <div className="relative">
-                                                <Avatar className="w-16 h-16">
-                                                    {pixelAvatarData ? (
-                                                        <PixelAvatar pixels={pixelAvatarData} />
-                                                    ) : (
-                                                        <AvatarFallback>{player.nickname.substring(0, 2)}</AvatarFallback>
-                                                    )}
-                                                </Avatar>
-                                                {player.isHost && (
-                                                    <div className="absolute -top-1 -right-2 bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs flex items-center gap-1" >
-                                                        <Crown className="w-3 h-3" />
-                                                        호스트
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </TooltipTrigger>
-                                    <TooltipContent>
-                                        <p>{player.nickname}</p>
-                                    </TooltipContent>
-                                </Tooltip>
-                                </TooltipProvider>
-                            )
-                        })}
+        <>
+            <Card className="max-w-4xl mx-auto">
+                <CardHeader className="text-center">
+                    <CardTitle className="font-headline text-3xl">{gameRoom?.roomTitle}</CardTitle>
+                    <CardDescription>모든 플레이어가 들어오면 호스트가 게임을 시작합니다. 최대 6명까지 참여 가능합니다.</CardDescription>
+                    <p className="text-sm text-muted-foreground">{gameSet?.title}</p>
+                </CardHeader>
+                <CardContent className="space-y-8">
+                    <div className="bg-secondary/50 rounded-lg p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+                       <div className="text-center md:text-left">
+                            <p className="text-sm font-medium text-muted-foreground">참여 코드</p>
+                            <div className="flex items-center gap-2">
+                                <p className="text-2xl font-bold font-mono tracking-widest">{gameRoom.id}</p>
+                                {gameRoom.password && <Lock className="w-5 h-5 text-muted-foreground"/>}
+                            </div>
+                       </div>
+                        <Button onClick={copyToClipboard} variant="outline"><Copy className="w-4 h-4 mr-2" />코드 복사</Button>
                     </div>
-                </div>
+                    
+                    <div className="space-y-4">
+                        <h3 className="font-headline text-xl font-semibold flex items-center gap-2">
+                            <Users className="w-6 h-6"/>
+                            <span>참여한 플레이어 ({players.length} / 6)</span>
+                        </h3>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {players.map(player => {
+                                let pixelAvatarData = null;
+                                if (player.pixelAvatar) {
+                                    try { pixelAvatarData = JSON.parse(player.pixelAvatar); } catch (e) { console.error("Error parsing player avatar in lobby", e); }
+                                }
+                                return (
+                                    <TooltipProvider key={player.uid}>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <div className={cn(
+                                                    "group relative flex flex-col items-center gap-2 p-3 border-2 rounded-lg bg-background",
+                                                    player.uid === user?.uid ? "border-primary" : "border-transparent"
+                                                )}>
+                                                    <div className="relative">
+                                                        <Avatar className="w-16 h-16">
+                                                            {pixelAvatarData ? (
+                                                                <PixelAvatar pixels={pixelAvatarData} />
+                                                            ) : (
+                                                                <AvatarFallback>{player.nickname.substring(0, 2)}</AvatarFallback>
+                                                            )}
+                                                        </Avatar>
+                                                        {player.isHost && (
+                                                            <div className="absolute -top-1 -right-2 bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs flex items-center gap-1" >
+                                                                <Crown className="w-3 h-3" />
+                                                            </div>
+                                                        )}
+                                                         {isHost && !player.isHost && (
+                                                            <Button
+                                                                variant="destructive"
+                                                                size="icon"
+                                                                className="absolute -top-2 -right-2 h-6 w-6 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                                                                onClick={() => setKickCandidate(player)}
+                                                            >
+                                                                <XCircle className="w-4 h-4" />
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>{player.nickname}{player.isHost ? ' (호스트)' : ''}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                )
+                            })}
+                        </div>
+                    </div>
 
-                <div className="flex flex-col items-center gap-4">
-                    {isHost ? (
-                        <Button onClick={handleStartGame} size="lg" className="font-headline text-lg" disabled={players.length < 2}>
-                           <Gamepad2 className="w-5 h-5 mr-2" /> {players.length < 2 ? "2명 이상 필요" : "게임 시작"}
+                    <div className="flex flex-col items-center gap-4 pt-4 border-t">
+                        {isHost ? (
+                            <Button onClick={handleStartGame} size="lg" className="font-headline text-lg" disabled={players.length < 2}>
+                               <Gamepad2 className="w-5 h-5 mr-2" /> {players.length < 2 ? "2명 이상 필요" : "게임 시작"}
+                            </Button>
+                        ) : (
+                             <div className="text-center">
+                                {isPlayer ? (
+                                    <p className="text-muted-foreground">호스트가 게임을 시작하기를 기다리고 있습니다...</p>
+                                ) : (
+                                    <p className="text-destructive">게임방이 가득 찼거나, 알 수 없는 오류로 참여할 수 없습니다.</p>
+                                )}
+                             </div>
+                        )}
+                         <Button onClick={handleLeaveRoom} variant="destructive" size="sm">
+                            <LogOut className="w-4 h-4 mr-2" /> 방 나가기
                         </Button>
-                    ) : (
-                         <div className="text-center">
-                            {isPlayer ? (
-                                <p className="text-muted-foreground">호스트가 게임을 시작하기를 기다리고 있습니다...</p>
-                            ) : (
-                                <p className="text-destructive">게임방이 가득 찼거나, 알 수 없는 오류로 참여할 수 없습니다.</p>
-                            )}
-                         </div>
-                    )}
-                </div>
+                    </div>
 
-            </CardContent>
-        </Card>
+                </CardContent>
+            </Card>
+            
+            <AlertDialog open={!!kickCandidate} onOpenChange={(isOpen) => !isOpen && setKickCandidate(null)}>
+                <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>정말 내보내시겠습니까?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                    {kickCandidate?.nickname}님을 게임방에서 내보냅니다. 이 작업은 되돌릴 수 없습니다.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>취소</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleKickPlayer} className="bg-destructive hover:bg-destructive/90">내보내기</AlertDialogAction>
+                </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        </>
     );
 }
 
@@ -366,7 +451,14 @@ export default function LobbyPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!gameRoomId || typeof gameRoomId !== 'string' || loadingUser || !user) return;
+    if (!gameRoomId || typeof gameRoomId !== 'string' || loadingUser) return;
+    
+    // If user is not logged in, redirect to login page.
+    // This needs to be here because local lobby might be accessed without remote auth flow.
+    if (!user) {
+        router.push(`/login?redirect=/game/${gameRoomId}/lobby`);
+        return;
+    }
 
     const roomRef = doc(db, 'game-rooms', gameRoomId);
     const unsubscribe = onSnapshot(roomRef, async (docSnap) => {
@@ -376,6 +468,13 @@ export default function LobbyPage() {
         // This is a crucial check. If the host isn't in the player list for a remote waiting room, it's a ghost room.
         if (roomData.joinType === 'remote' && roomData.status === 'waiting' && (!roomData.players || !roomData.players[roomData.hostId])) {
             toast({ variant: 'destructive', title: '오류', description: '호스트가 방을 나갔습니다. 다른 방에 참여해주세요.' });
+            router.push('/dashboard');
+            return;
+        }
+
+        // if the current user is not in the player list anymore (e.g. kicked), redirect them.
+        if (gameRoom && gameRoom.players[user.uid] && !roomData.players[user.uid]) {
+            toast({ variant: "destructive", title: "방에서 내보내졌습니다.", description: "호스트에 의해 게임방에서 내보내졌습니다."});
             router.push('/dashboard');
             return;
         }
@@ -428,7 +527,7 @@ export default function LobbyPage() {
     });
 
     return () => unsubscribe();
-  }, [gameRoomId, router, toast, gameSet, user, loadingUser]);
+  }, [gameRoomId, router, toast, gameSet, user, loadingUser, gameRoom]);
   
   if (isLoading || loadingUser) {
     return (
