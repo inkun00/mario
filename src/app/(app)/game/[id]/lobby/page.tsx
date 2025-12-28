@@ -37,7 +37,6 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
     const [user, loadingUser] = useAuthState(auth);
     const players = Object.values(gameRoom.players).sort(a => a.isHost ? -1 : 1);
     const isHost = user?.uid === gameRoom?.hostId;
-    const isPlayer = user && gameRoom?.players[user.uid];
     
     const [kickCandidate, setKickCandidate] = useState<Player | null>(null);
 
@@ -195,11 +194,7 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
                             </Button>
                         ) : (
                              <div className="text-center">
-                                {isPlayer ? (
-                                    <p className="text-muted-foreground">호스트가 게임을 시작하기를 기다리고 있습니다...</p>
-                                ) : (
-                                    <p className="text-destructive">게임방이 가득 찼거나, 알 수 없는 오류로 참여할 수 없습니다.</p>
-                                )}
+                                <p className="text-muted-foreground">호스트가 게임을 시작하기를 기다리고 있습니다...</p>
                              </div>
                         )}
                          <Button onClick={handleLeaveRoom} variant="destructive" size="sm">
@@ -479,8 +474,10 @@ export default function LobbyPage() {
             router.push('/dashboard');
             return;
         }
-
-        if (roomData.joinType === 'remote' && !roomData.players[user.uid] && Object.keys(roomData.players).length < 6 && roomData.status === 'waiting') {
+        
+        const isPlayerInRoom = !!roomData.players[user.uid];
+        
+        if (roomData.joinType === 'remote' && !isPlayerInRoom && Object.keys(roomData.players).length < 6 && roomData.status === 'waiting') {
             const userDocRef = doc(db, 'users', user.uid);
             const userDocSnap = await getDoc(userDocRef);
             const userData = userDocSnap.data() as FsUser | undefined;
@@ -528,7 +525,7 @@ export default function LobbyPage() {
     });
 
     return () => unsubscribe();
-  }, [gameRoomId, router, toast, gameSet, user, loadingUser, gameRoom]);
+  }, [gameRoomId, router, toast, gameSet, user, loadingUser]);
   
   if (isLoading || loadingUser) {
     return (
