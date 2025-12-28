@@ -124,10 +124,13 @@ export function Header() {
                   className="relative h-9 w-9 rounded-full"
                 >
                   <Avatar className="h-9 w-9 flex items-center justify-center bg-secondary">
-                    <PixelAvatar pixels={pixelAvatarData} />
-                    <AvatarFallback>
-                      {getInitials(userData?.displayName)}
-                    </AvatarFallback>
+                    {pixelAvatarData ? (
+                      <PixelAvatar pixels={pixelAvatarData} />
+                    ) : (
+                      <AvatarFallback>
+                        {getInitials(userData?.displayName)}
+                      </AvatarFallback>
+                    )}
                   </Avatar>
                 </Button>
               </DropdownMenuTrigger>
