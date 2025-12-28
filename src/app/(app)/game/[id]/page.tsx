@@ -655,14 +655,25 @@ export default function GamePage() {
     try {
         const batch = writeBatch(db);
 
+        let bonusMultiplier = 0;
+        if (gameSet.evaluationScore) {
+          if (gameSet.evaluationScore >= 81) bonusMultiplier = 0.15; // 5 stars
+          else if (gameSet.evaluationScore >= 61) bonusMultiplier = 0.10; // 4 stars
+          else if (gameSet.evaluationScore >= 41) bonusMultiplier = 0.05; // 3 stars
+        }
+
         const pointUpdates: { [uid: string]: { xp: number, classPoints: number } } = {};
         (gameRoom.answerLogs || []).forEach(log => {
             if (log.userId && typeof log.pointsAwarded === 'number') {
                 if (!pointUpdates[log.userId]) {
                     pointUpdates[log.userId] = { xp: 0, classPoints: 0 };
                 }
-                pointUpdates[log.userId].xp += log.pointsAwarded;
-                pointUpdates[log.userId].classPoints += log.pointsAwarded;
+                const basePoints = log.pointsAwarded;
+                const bonusPoints = Math.round(basePoints * bonusMultiplier);
+                const totalPoints = basePoints + bonusPoints;
+
+                pointUpdates[log.userId].xp += totalPoints;
+                pointUpdates[log.userId].classPoints += totalPoints;
             }
         });
 
@@ -747,10 +758,13 @@ export default function GamePage() {
 
         if (gameSet.creatorId && !playerUIDs.includes(gameSet.creatorId)) {
             const creatorRef = doc(db, 'users', gameSet.creatorId);
-            const rewardAmount = gameSet.questions.length;
+            const baseRewardAmount = gameSet.questions.length;
+            const bonusReward = Math.round(baseRewardAmount * bonusMultiplier);
+            const totalReward = baseRewardAmount + bonusReward;
+            
             batch.update(creatorRef, { 
-                xp: increment(rewardAmount),
-                classPoints: increment(rewardAmount)
+                xp: increment(totalReward),
+                classPoints: increment(totalReward)
             });
         }
 
