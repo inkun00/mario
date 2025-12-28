@@ -461,9 +461,9 @@ export default function ProfilePage() {
 
         if (isCorrect) {
             const userRef = doc(db, 'users', user.uid);
-            await updateDoc(userRef, { xp: increment(10) });
-            setUserData(prev => prev ? {...prev, xp: prev.xp + 10} : null);
-            toast({ title: '정답입니다!', description: '복습을 완료했습니다. 10 XP를 획득했습니다!' });
+            await updateDoc(userRef, { xp: increment(10), classPoints: increment(10) });
+            setUserData(prev => prev ? {...prev, xp: prev.xp + 10, classPoints: (prev.classPoints || 0) + 10} : null);
+            toast({ title: '정답입니다!', description: '복습을 완료했습니다. 10 XP와 10 학급 포인트를 획득했습니다!' });
         } else {
              toast({ variant: 'destructive', title: '아쉽지만 오답입니다.', description: `정답은 "${reviewItem.question.answer || reviewItem.question.correctAnswer}" 입니다.` });
         }
