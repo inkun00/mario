@@ -18,7 +18,7 @@ const QuestionSchema = z.object({
   correctAnswer: z.string().optional(),
 });
 
-export const QuizSetEvaluationInputSchema = z.object({
+const QuizSetEvaluationInputSchema = z.object({
   title: z.string(),
   description: z.string().optional(),
   grade: z.string(),
@@ -26,18 +26,18 @@ export const QuizSetEvaluationInputSchema = z.object({
   unit: z.string(),
   questions: z.array(QuestionSchema),
 });
-export type QuizSetEvaluationInput = z.infer<
+type QuizSetEvaluationInput = z.infer<
   typeof QuizSetEvaluationInputSchema
 >;
 
-export const QuizSetEvaluationOutputSchema = z.object({
+const QuizSetEvaluationOutputSchema = z.object({
   score: z
     .number()
     .describe(
       'An overall score from 0 to 100 for the educational quality of the quiz set based on the provided criteria.'
     ),
 });
-export type QuizSetEvaluationOutput = z.infer<
+type QuizSetEvaluationOutput = z.infer<
   typeof QuizSetEvaluationOutputSchema
 >;
 
