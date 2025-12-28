@@ -632,25 +632,6 @@ export default function GamePage() {
   const handleFinishAndSave = async () => {
     if (!gameRoom || typeof gameRoomId !== 'string' || !gameSet || !user) return;
     
-    if (gameRoom.gameStartedAt) {
-        const startTime = (gameRoom.gameStartedAt as Timestamp).toMillis();
-        const endTime = Date.now();
-        const duration = endTime - startTime;
-        
-        const minMinutes = Math.ceil(gameSet.questions.length / 5);
-        const minDurationInMillis = minMinutes * 60 * 1000;
-
-        if (duration < minDurationInMillis) {
-            toast({
-                variant: "destructive",
-                title: "점수 기록 불가",
-                description: "부정행위로 보이는 활동이 감지되어 점수 기록이 되지 않습니다.",
-            });
-            router.push('/dashboard');
-            return;
-        }
-    }
-
     setIsFinishingGame(true);
     try {
         const batch = writeBatch(db);
