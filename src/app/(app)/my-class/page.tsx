@@ -144,6 +144,7 @@ export default function MyClassPage() {
         await addDoc(collection(db, 'class-store-items'), {
             ...data,
             sellerId: user.uid,
+            sellerName: userData.name,
             sellerNickname: userData.displayName,
             classId: classId,
             createdAt: serverTimestamp(),
@@ -270,7 +271,7 @@ export default function MyClassPage() {
           </CardTitle>
           {teacher && (
               <CardDescription>
-                  {teacher.displayName} 선생님의 학급
+                  {teacher.name || teacher.displayName} 선생님의 학급
               </CardDescription>
           )}
         </CardHeader>
@@ -297,7 +298,7 @@ export default function MyClassPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[80px] text-center">순위</TableHead>
-                        <TableHead>닉네임</TableHead>
+                        <TableHead>이름</TableHead>
                         <TableHead>학교</TableHead>
                         <TableHead className="text-center">레벨</TableHead>
                         <TableHead className="text-right">경험치 (XP)</TableHead>
@@ -317,7 +318,7 @@ export default function MyClassPage() {
                                 <Avatar className="flex items-center justify-center bg-muted">
                                   <span className="text-xl">{levelInfo.icon}</span>
                                 </Avatar>
-                                <span className="font-medium">{member.displayName}</span>
+                                <span className="font-medium">{member.name || member.displayName}</span>
                               </div>
                             </TableCell>
                             <TableCell>{member.schoolName}</TableCell>
@@ -382,7 +383,7 @@ export default function MyClassPage() {
                                               >
                                                 {item.name}
                                               </TableCell>
-                                              <TableCell>{item.sellerNickname}</TableCell>
+                                              <TableCell>{item.sellerName || item.sellerNickname}</TableCell>
                                               <TableCell className="text-center">{item.quantity}</TableCell>
                                               <TableCell className="text-right font-bold text-primary">{item.price.toLocaleString()}</TableCell>
                                               <TableCell>

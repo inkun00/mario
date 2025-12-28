@@ -31,7 +31,8 @@ import { useState } from 'react';
 
 const formSchema = z.object({
   email: z.string().email({ message: '유효한 이메일을 입력해주세요.' }),
-  nickname: z.string().min(2, { message: '닉네임은 2자 이상이어야 합니다.' }).max(6, { message: '닉네임은 6자 이내여야 합니다.' }),
+  name: z.string().min(2, { message: '이름(실명)은 2자 이상이어야 합니다.'}),
+  nickname: z.string().min(2, { message: '닉네임은 2자 이상이어야 합니다.' }).max(8, { message: '닉네임은 8자 이내여야 합니다.' }),
   password: z.string().min(6, { message: '비밀번호는 6자 이상이어야 합니다.' }),
   schoolName: z.string().min(1, '학교 이름을 입력해주세요.'),
 });
@@ -59,6 +60,7 @@ export default function SignupPage() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: '',
+      name: '',
       nickname: '',
       password: '',
       schoolName: '',
@@ -66,13 +68,14 @@ export default function SignupPage() {
   });
 
   // Function to create user document in Firestore
-  const createUserDocument = async (user: User, customData?: { nickname?: string, schoolName?: string }) => {
+  const createUserDocument = async (user: User, customData?: { name?: string, nickname?: string, schoolName?: string }) => {
     const userRef = doc(db, 'users', user.uid);
     const docSnap = await getDoc(userRef);
     if (!docSnap.exists()) {
         await setDoc(userRef, {
             uid: user.uid,
             email: user.email,
+            name: customData?.name || user.displayName,
             displayName: customData?.nickname || user.displayName,
             schoolName: customData?.schoolName || '',
             createdAt: serverTimestamp(),
@@ -96,6 +99,7 @@ export default function SignupPage() {
       });
       // Create user document in firestore
       await createUserDocument(user, {
+          name: values.name,
           nickname: values.nickname,
           schoolName: values.schoolName,
       });
@@ -133,6 +137,19 @@ export default function SignupPage() {
                   <FormLabel>이메일</FormLabel>
                   <FormControl>
                     <Input placeholder="user@example.com" {...field} disabled={isLoading}/>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>이름 (실명)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="홍길동" {...field} disabled={isLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -196,3 +213,5 @@ export default function SignupPage() {
     </>
   );
 }
+
+    

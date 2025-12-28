@@ -69,6 +69,7 @@ export default function LoginPage() {
         await setDoc(userRef, {
             uid: user.uid,
             email: user.email,
+            name: user.displayName, // Set name from Google display name initially
             displayName: user.displayName,
             schoolName: '',
             grade: '',
@@ -175,3 +176,5 @@ export default function LoginPage() {
     </>
   );
 }
+
+    

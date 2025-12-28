@@ -3,7 +3,8 @@
 export interface User {
   uid: string;
   email: string | null;
-  displayName: string;
+  name?: string; // Real name
+  displayName: string; // Nickname
   xp: number;
   classPoints?: number;
   level: number;
@@ -192,7 +193,8 @@ export interface School {
 export interface ClassStoreItem {
   id: string; // document id
   sellerId: string; // user.uid
-  sellerNickname: string;
+  sellerName?: string; // user.name
+  sellerNickname: string; // user.displayName
   classId: string; // The class this item belongs to
   name: string;
   price: number;
@@ -200,3 +202,5 @@ export interface ClassStoreItem {
   quantity: number;
   createdAt: any; // serverTimestamp
 }
+
+    

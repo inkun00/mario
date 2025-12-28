@@ -129,6 +129,7 @@ export default function ProfilePage() {
   const [incorrectAnswersToShow, setIncorrectAnswersToShow] = useState<SolvedIncorrectAnswer[]>([]);
 
   const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState('');
   const [editNickname, setEditNickname] = useState('');
   const [editSchoolName, setEditSchoolName] = useState('');
 
@@ -191,6 +192,7 @@ export default function ProfilePage() {
         } else {
             setCurrentPixelAvatar(null);
         }
+        setEditName(fetchedUserData.name || '');
         setEditNickname(fetchedUserData.displayName);
         setEditSchoolName(fetchedUserData.schoolName || '');
         if (fetchedUserData.role === 'teacher') {
@@ -246,7 +248,7 @@ export default function ProfilePage() {
       
       setClassmates(members.map(member => ({
         value: member.uid,
-        label: `${member.displayName} ${member.role === 'teacher' ? '(선생님)' : ''}`.trim(),
+        label: `${member.name || member.displayName} ${member.role === 'teacher' ? '(선생님)' : ''}`.trim(),
       })));
   
     } catch (error) {
@@ -269,6 +271,7 @@ export default function ProfilePage() {
 
   const handleEdit = () => {
     if (!userData) return;
+    setEditName(userData.name || '');
     setEditNickname(userData.displayName);
     setEditSchoolName(userData.schoolName || '');
     setIsEditing(true);
@@ -281,8 +284,12 @@ export default function ProfilePage() {
   const handleSave = async () => {
     if (!user || !userData) return;
 
-    if (!editNickname || editNickname.length < 2 || editNickname.length > 6) {
-      toast({ variant: 'destructive', title: '오류', description: '닉네임은 2자 이상 6자 이하로 입력해주세요.'});
+    if (!editName.trim()) {
+        toast({ variant: 'destructive', title: '오류', description: '이름(실명)을 입력해주세요.' });
+        return;
+    }
+    if (!editNickname || editNickname.length < 2 || editNickname.length > 8) {
+      toast({ variant: 'destructive', title: '오류', description: '닉네임은 2자 이상 8자 이하로 입력해주세요.'});
       return;
     }
     if (!editSchoolName) {
@@ -295,11 +302,12 @@ export default function ProfilePage() {
 
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
+        name: editName,
         displayName: editNickname,
         schoolName: editSchoolName,
       });
       
-      setUserData(prev => prev ? {...prev, displayName: editNickname, schoolName: editSchoolName} : null);
+      setUserData(prev => prev ? {...prev, name: editName, displayName: editNickname, schoolName: editSchoolName} : null);
       setIsEditing(false);
       toast({ title: '성공', description: '프로필이 성공적으로 업데이트되었습니다.' });
     } catch (error: any) {
@@ -358,7 +366,7 @@ export default function ProfilePage() {
         await updateDoc(userRef, { classId: teacherId }); 
         
         setUserData(prev => prev ? {...prev, classId: teacherId} : null);
-        toast({ title: '성공', description: `'${teacherDoc.data().displayName} 선생님'의 학급에 참여했습니다.` });
+        toast({ title: '성공', description: `'${teacherDoc.data().name || teacherDoc.data().displayName} 선생님'의 학급에 참여했습니다.` });
         setIsJoinClassDialog(false);
         setJoinClassCode('');
     }
@@ -757,13 +765,15 @@ export default function ProfilePage() {
             <div className="flex-grow">
               {isEditing ? (
                 <div className="space-y-2">
-                  <Input value={editNickname} onChange={(e) => setEditNickname(e.target.value)} placeholder="닉네임 (2-6자)" />
+                  <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="이름 (실명)" />
+                  <Input value={editNickname} onChange={(e) => setEditNickname(e.target.value)} placeholder="닉네임 (2-8자)" />
                   <Input value={editSchoolName} onChange={(e) => setEditSchoolName(e.target.value)} placeholder="학교 이름" />
                 </div>
               ) : (
                 <div>
                   <CardTitle className="font-headline text-3xl flex items-center gap-2">
                     {userData.displayName}
+                    <span className="text-lg text-muted-foreground font-normal">({userData.name})</span>
                     {userData.role === 'teacher' && <span className="text-xs font-medium bg-primary text-primary-foreground px-2 py-1 rounded-full">교사</span>}
                   </CardTitle>
                   <CardDescription>{levelInfo.title}</CardDescription>
@@ -1301,3 +1311,5 @@ export default function ProfilePage() {
     </>
   );
 }
+
+    
