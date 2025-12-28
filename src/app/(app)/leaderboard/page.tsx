@@ -210,8 +210,11 @@ export default function LeaderboardPage() {
         <TableCell>
           <div className="flex items-center gap-3">
             <Avatar className="flex items-center justify-center bg-muted h-10 w-10">
-                <PixelAvatar pixels={pixelAvatarData} />
-                <AvatarFallback>{displayName.substring(0, 2)}</AvatarFallback>
+                {pixelAvatarData ? (
+                  <PixelAvatar pixels={pixelAvatarData} />
+                ) : (
+                  <AvatarFallback>{displayName.substring(0, 2)}</AvatarFallback>
+                )}
             </Avatar>
             <span
               className={`font-medium ${isClickable ? 'cursor-pointer hover:underline' : ''}`}
