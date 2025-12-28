@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -37,6 +38,7 @@ import Link from 'next/link';
 import { Combobox } from '@/components/ui/combobox';
 import { MotionDiv } from '@/components/motion-div';
 import { Button } from '@/components/ui/button';
+import { PixelAvatar } from '@/components/pixel-avatar';
 
 async function getLeaderboardData(): Promise<User[]> {
   const usersRef = collection(db, 'users');
@@ -117,7 +119,7 @@ export default function LeaderboardPage() {
   const [popularGameSets, setPopularGameSets] = useState<GameSet[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [currentTab, setCurrentTab] = useState('overall');
-  const [selectedSchool, setSelectedSchool] = useState<string>('');
+  const [selectedSchool, setSelectedSchool] = useState('');
 
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userGameSets, setUserGameSets] = useState<GameSet[]>([]);
@@ -191,6 +193,14 @@ export default function LeaderboardPage() {
     const levelInfo = getLevelInfo(player.xp);
     const displayName = player.displayName || '이름없음';
     const isClickable = player.uid !== user?.uid;
+    let pixelAvatarData = null;
+    if (player.pixelAvatar) {
+        try {
+            pixelAvatarData = JSON.parse(player.pixelAvatar);
+        } catch(e) {
+            console.error("Error parsing pixel avatar in leaderboard", e);
+        }
+    }
     
     return (
       <TableRow key={player.uid} className={player.uid === user?.uid ? 'bg-primary/10' : (rank <= 3 ? 'bg-secondary' : '')}>
@@ -199,8 +209,9 @@ export default function LeaderboardPage() {
         </TableCell>
         <TableCell>
           <div className="flex items-center gap-3">
-            <Avatar className="flex items-center justify-center bg-muted">
-              <span className="text-xl">{levelInfo.icon}</span>
+            <Avatar className="flex items-center justify-center bg-muted h-10 w-10">
+                <PixelAvatar pixels={pixelAvatarData} />
+                <AvatarFallback>{displayName.substring(0, 2)}</AvatarFallback>
             </Avatar>
             <span
               className={`font-medium ${isClickable ? 'cursor-pointer hover:underline' : ''}`}
@@ -432,3 +443,5 @@ function LeaderboardSkeleton() {
         </div>
     )
 }
+
+    
