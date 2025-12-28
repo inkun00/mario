@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { PlusCircle, Trash2, Loader2, Save } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Save, Sparkles } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
@@ -38,12 +38,13 @@ import {
 } from '@/components/ui/select';
 import { useEffect, useState } from 'react';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter, useParams } from 'next/navigation';
 import type { GameSet } from '@/lib/types';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { evaluateQuizSet } from '@/ai/flows/validate-quiz-set-flow';
 
 const questionSchema = z.object({
   question: z.string().min(1, '질문을 입력해주세요.'),
@@ -101,6 +102,7 @@ const pointMapping = [-1, 10, 20, 30, 40, 50];
 
 export default function EditGameSetPage() {
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const [isFetching, setIsFetching] = useState(true);
   const { toast } = useToast();
   const router = useRouter();
@@ -176,6 +178,7 @@ export default function EditGameSetPage() {
 
   async function onSubmit(data: GameSetFormValues) {
     setIsLoading(true);
+    setLoadingMessage('퀴즈 세트를 저장하는 중...');
 
     if (!user) {
       toast({ variant: 'destructive', title: '오류', description: '로그인이 필요합니다.' });
@@ -184,6 +187,9 @@ export default function EditGameSetPage() {
     }
 
     try {
+      setLoadingMessage('AI가 퀴즈의 교육적 가치를 분석하고 있습니다...');
+      const evaluationResult = await evaluateQuizSet(data);
+
       const gameSetRef = doc(db, 'game-sets', gameSetId);
       const updateData = {
         ...data,
@@ -196,25 +202,27 @@ export default function EditGameSetPage() {
         })),
         reportCount: 0,
         isDisabled: false,
+        evaluationScore: evaluationResult.score,
       };
 
       await updateDoc(gameSetRef, updateData as any);
 
       toast({
         title: '성공!',
-        description: '퀴즈 세트를 성공적으로 업데이트했습니다.',
+        description: `퀴즈 세트를 업데이트했습니다. (AI 평가 점수: ${evaluationResult.score}점)`,
       });
       router.push('/dashboard');
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating game set: ", error);
       toast({
         variant: 'destructive',
         title: '오류',
-        description: '퀴즈 세트를 업데이트하는 중 오류가 발생했습니다.',
+        description: `퀴즈 세트를 업데이트하는 중 오류가 발생했습니다: ${error.message}`,
       });
     } finally {
         setIsLoading(false);
+        setLoadingMessage('');
     }
   }
 
@@ -226,7 +234,7 @@ export default function EditGameSetPage() {
 
   const submitButton = (
       <Button type="submit" size="lg" className="font-headline" disabled={isLoading || !isValid}>
-        {isLoading ? '저장 중...' : <><Save className="mr-2 h-4 w-4" /> 퀴즈 세트 업데이트</>}
+        {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {loadingMessage}</> : <><Sparkles className="mr-2 h-4 w-4" /> AI 분석 및 업데이트</>}
       </Button>
   );
 

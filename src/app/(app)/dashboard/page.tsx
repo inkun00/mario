@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn, ShieldCheck, List, Gamepad2 } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn, ShieldCheck, List, Gamepad2, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState, useRef } from 'react';
@@ -61,6 +61,17 @@ interface GameSetDocument extends GameSet {
 interface OpenGameRoom extends GameRoom {
     gameSet?: GameSet;
 }
+
+const getStarRating = (score?: number): { stars: number, color: string } => {
+  if (score === undefined || score === null) return { stars: 0, color: 'text-muted-foreground' };
+  if (score >= 81) return { stars: 5, color: 'text-yellow-400' };
+  if (score >= 61) return { stars: 4, color: 'text-yellow-400' };
+  if (score >= 41) return { stars: 3, color: 'text-yellow-400' };
+  if (score >= 21) return { stars: 2, color: 'text-yellow-400' };
+  if (score > 0) return { stars: 1, color: 'text-yellow-400' };
+  return { stars: 0, color: 'text-muted-foreground' };
+};
+
 
 export default function DashboardPage() {
   const [user, loadingUser] = useAuthState(auth);
@@ -552,6 +563,7 @@ export default function DashboardPage() {
                 const isCreator = user ? set.creatorId === user.uid : false;
                 const isTopSet = !set.isDisabled && filteredGameSets.indexOf(set) < 5;
                 const isDisabled = set.isDisabled === true;
+                const { stars, color } = getStarRating(set.evaluationScore);
                 
                 let createRoomButton;
                 if (isDisabled) {
@@ -632,6 +644,21 @@ export default function DashboardPage() {
                                 <BarChart3 className="h-4 w-4" />
                                 <span>활용 {set.playCount || 0}회</span>
                               </div>
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className={cn("flex items-center gap-1", color)}>
+                                        <Sparkles className="h-4 w-4" />
+                                        {Array.from({ length: 5 }).map((_, i) => (
+                                            <Star key={i} className={cn("h-4 w-4", i < stars ? "fill-current" : "text-gray-300")} />
+                                        ))}
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>AI 평가 점수: {set.evaluationScore ?? '미평가'}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
                           </div>
                       </div>
                     </CardHeader>

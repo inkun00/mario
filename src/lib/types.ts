@@ -61,6 +61,7 @@ export interface GameSet {
   isDisabled?: boolean;
   reportedBy?: string[];
   oppositionCount?: number;
+  evaluationScore?: number;
 }
 
 export interface Player {

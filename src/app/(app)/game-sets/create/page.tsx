@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { PlusCircle, Trash2, Loader2, Save } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Save, Sparkles } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
@@ -42,6 +42,7 @@ import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { evaluateQuizSet } from '@/ai/flows/validate-quiz-set-flow';
 
 const questionSchema = z.object({
   question: z.string().min(1, '질문을 입력해주세요.'),
@@ -122,6 +123,7 @@ const pointMapping = [-1, 10, 20, 30, 40, 50];
 
 export default function CreateGameSetPage() {
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const { toast } = useToast();
   const router = useRouter();
 
@@ -149,6 +151,7 @@ export default function CreateGameSetPage() {
 
   async function onSubmit(data: GameSetFormValues) {
     setIsLoading(true);
+    setLoadingMessage('퀴즈 세트를 저장하는 중...');
     const user = auth.currentUser;
 
     if (!user) {
@@ -172,6 +175,9 @@ export default function CreateGameSetPage() {
           semester: data.semester,
         }))
       };
+      
+      setLoadingMessage('AI가 퀴즈의 교육적 가치를 분석하고 있습니다...');
+      const evaluationResult = await evaluateQuizSet(finalData);
 
       await addDoc(collection(db, 'game-sets'), {
         ...finalData,
@@ -180,11 +186,12 @@ export default function CreateGameSetPage() {
         createdAt: serverTimestamp(),
         reportCount: 0,
         isDisabled: false,
+        evaluationScore: evaluationResult.score,
       });
 
       toast({
         title: '성공!',
-        description: '새로운 퀴즈 세트를 성공적으로 만들었습니다.',
+        description: `새로운 퀴즈 세트를 만들었습니다. (AI 평가 점수: ${evaluationResult.score}점)`,
       });
       router.push('/dashboard');
 
@@ -197,6 +204,7 @@ export default function CreateGameSetPage() {
       });
     } finally {
         setIsLoading(false);
+        setLoadingMessage('');
     }
   }
   
@@ -204,7 +212,7 @@ export default function CreateGameSetPage() {
   
   const submitButton = (
     <Button type="submit" size="lg" className="font-headline w-full" disabled={isLoading || !isValid}>
-      {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> 저장 중...</> : <><Save className="mr-2 h-4 w-4" /> 퀴즈 세트 저장</>}
+      {isLoading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {loadingMessage}</> : <><Sparkles className="mr-2 h-4 w-4" /> AI 분석 및 저장</>}
     </Button>
   );
 
