@@ -5,8 +5,6 @@
  *
  * This file contains the Genkit flow for evaluating the educational quality of a quiz set.
  * - evaluateQuizSet - A function that handles the quiz set evaluation process.
- * - QuizSetEvaluationInput - The input type for the evaluateQuizSet function.
- * - QuizSetEvaluationOutput - The return type for the evaluateQuizSet function.
  */
 
 import { ai } from '@/ai/genkit';
@@ -26,9 +24,7 @@ const QuizSetEvaluationInputSchema = z.object({
   unit: z.string(),
   questions: z.array(QuestionSchema),
 });
-type QuizSetEvaluationInput = z.infer<
-  typeof QuizSetEvaluationInputSchema
->;
+type QuizSetEvaluationInput = z.infer<typeof QuizSetEvaluationInputSchema>;
 
 const QuizSetEvaluationOutputSchema = z.object({
   score: z
@@ -37,9 +33,7 @@ const QuizSetEvaluationOutputSchema = z.object({
       'An overall score from 0 to 100 for the educational quality of the quiz set based on the provided criteria.'
     ),
 });
-type QuizSetEvaluationOutput = z.infer<
-  typeof QuizSetEvaluationOutputSchema
->;
+type QuizSetEvaluationOutput = z.infer<typeof QuizSetEvaluationOutputSchema>;
 
 export async function evaluateQuizSet(
   input: QuizSetEvaluationInput
@@ -52,6 +46,7 @@ const evaluateQuizSetPrompt = ai.definePrompt({
   name: 'evaluateQuizSetPrompt',
   input: { schema: QuizSetEvaluationInputSchema },
   output: { schema: QuizSetEvaluationOutputSchema },
+  model: 'googleai/gemini-2.5-flash-preview',
   prompt: `You are an expert in educational content evaluation for elementary school students in South Korea.
 Your task is to evaluate the provided quiz set based on the following criteria and provide a single score from 0 to 100.
 
