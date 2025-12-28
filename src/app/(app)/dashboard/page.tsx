@@ -51,7 +51,7 @@ import { MotionDiv } from '@/components/motion-div';
 
 
 const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '음악', '미술', '체육', '영어', '창체'];
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 9;
 const DEACTIVATION_PASSWORD = "dodam12";
 
 interface GameSetDocument extends GameSet {
