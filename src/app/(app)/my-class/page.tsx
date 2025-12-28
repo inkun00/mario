@@ -8,7 +8,7 @@ import { auth, db } from '@/lib/firebase';
 import type { User, ClassStoreItem } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Avatar } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save } from 'lucide-react';
 import { getLevelInfo } from '@/lib/level-system';
@@ -23,6 +23,7 @@ import * as z from 'zod';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MotionDiv } from '@/components/motion-div';
+import { PixelAvatar } from '@/components/pixel-avatar';
 
 const sellItemSchema = z.object({
   name: z.string().min(1, '상품명을 입력해주세요.').max(30, '상품명은 30자 이내로 입력해주세요.'),
@@ -308,6 +309,14 @@ export default function MyClassPage() {
                       {classMembers.map((member, index) => {
                         const rank = index + 1;
                         const levelInfo = getLevelInfo(member.xp);
+                        let pixelAvatarData = null;
+                        if (member.pixelAvatar) {
+                            try {
+                                pixelAvatarData = JSON.parse(member.pixelAvatar);
+                            } catch(e) { console.error("Error parsing pixel avatar", e); }
+                        }
+                        const displayName = member.name || member.displayName;
+
                         return (
                           <TableRow key={member.uid} className={member.uid === user?.uid ? 'bg-primary/10' : ''}>
                             <TableCell className="font-bold text-center text-lg">
@@ -315,10 +324,14 @@ export default function MyClassPage() {
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-3">
-                                <Avatar className="flex items-center justify-center bg-muted">
-                                  <span className="text-xl">{levelInfo.icon}</span>
+                                <Avatar className="flex items-center justify-center bg-muted h-10 w-10">
+                                    {pixelAvatarData ? (
+                                        <PixelAvatar pixels={pixelAvatarData} />
+                                    ) : (
+                                        <AvatarFallback>{displayName.substring(0,2)}</AvatarFallback>
+                                    )}
                                 </Avatar>
-                                <span className="font-medium">{member.name || member.displayName}</span>
+                                <span className="font-medium">{displayName}</span>
                               </div>
                             </TableCell>
                             <TableCell>{member.schoolName}</TableCell>
