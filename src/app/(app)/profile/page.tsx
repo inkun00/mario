@@ -36,7 +36,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
-import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle } from 'lucide-react';
+import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -141,6 +141,7 @@ export default function ProfilePage() {
   
   const [isJoinClassDialog, setIsJoinClassDialog] = useState(false);
   const [joinClassCode, setJoinClassCode] = useState('');
+  const [isLeaveClassDialogOpen, setIsLeaveClassDialogOpen] = useState(false);
 
   const [selectedItem, setSelectedItem] = useState<{name: string, details: {quantity: number, description?: string}} | null>(null);
   const [itemAction, setItemAction] = useState<'use' | 'send' | null>(null);
@@ -369,6 +370,21 @@ export default function ProfilePage() {
         toast({ title: '성공', description: `'${teacherDoc.data().name || teacherDoc.data().displayName} 선생님'의 학급에 참여했습니다.` });
         setIsJoinClassDialog(false);
         setJoinClassCode('');
+    }
+  };
+  
+  const handleLeaveClass = async () => {
+    if (!user || userData?.role === 'teacher') return;
+    
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, { classId: null });
+      setUserData(prev => prev ? {...prev, classId: undefined } : null);
+      toast({ title: '학급 탈퇴', description: '학급에서 성공적으로 탈퇴했습니다.' });
+      setIsLeaveClassDialogOpen(false);
+    } catch(error) {
+      toast({ variant: 'destructive', title: '오류', description: '학급 탈퇴 중 오류가 발생했습니다.' });
+      console.error('Error leaving class:', error);
     }
   };
 
@@ -886,9 +902,15 @@ export default function ProfilePage() {
               </>
             ) : (
               <>
-                <Button variant="outline" onClick={() => setIsJoinClassDialog(true)}>
-                    <Users className="mr-2 h-4 w-4"/> 학급 참여하기
-                </Button>
+                {userData.classId ? (
+                   <Button variant="destructive" onClick={() => setIsLeaveClassDialogOpen(true)}>
+                        <LogOut className="mr-2 h-4 w-4"/> 학급 탈퇴하기
+                    </Button>
+                ) : (
+                    <Button variant="outline" onClick={() => setIsJoinClassDialog(true)}>
+                        <Users className="mr-2 h-4 w-4"/> 학급 참여하기
+                    </Button>
+                )}
                 <Button variant="outline" onClick={() => setIsTeacherDialog(true)}>
                     <KeyRound className="mr-2 h-4 w-4"/> 교사 계정으로 전환
                 </Button>
@@ -1308,8 +1330,21 @@ export default function ProfilePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
+    
+    <AlertDialog open={isLeaveClassDialogOpen} onOpenChange={setIsLeaveClassDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>정말 학급에서 탈퇴하시겠습니까?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    학급에서 나가면 더 이상 학급 랭킹과 매점을 이용할 수 없습니다. 이 작업은 되돌릴 수 없습니다.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>취소</AlertDialogCancel>
+                <AlertDialogAction onClick={handleLeaveClass} className="bg-destructive hover:bg-destructive/90">탈퇴하기</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
     </>
   );
 }
-
-    

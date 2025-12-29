@@ -3,17 +3,18 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe, runTransaction } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe, runTransaction, updateDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { User, ClassStoreItem } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save } from 'lucide-react';
+import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle } from 'lucide-react';
 import { getLevelInfo } from '@/lib/level-system';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -48,6 +49,8 @@ export default function MyClassPage() {
   const [isSellItemDialogOpen, setIsSellItemDialogOpen] = useState(false);
   const [isBuyItemDialogOpen, setIsBuyItemDialogOpen] = useState(false);
   const [selectedItemForDescription, setSelectedItemForDescription] = useState<ClassStoreItem | null>(null);
+  
+  const [evictCandidate, setEvictCandidate] = useState<User | null>(null);
 
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,6 +74,7 @@ export default function MyClassPage() {
     }
 
     let unsubscribeStore: Unsubscribe | undefined;
+    let unsubscribeMembers: Unsubscribe | undefined;
 
     const fetchClassData = async () => {
       setIsLoading(true);
@@ -87,21 +91,20 @@ export default function MyClassPage() {
         if (targetClassId) {
           const membersQuery = query(collection(db, 'users'), where('classId', '==', targetClassId));
           const teacherQuery = query(collection(db, 'users'), where('uid', '==', targetClassId));
-
-          const [membersSnapshot, teacherSnapshot] = await Promise.all([
-            getDocs(membersQuery),
-            getDocs(teacherQuery),
-          ]);
-
-          const members = membersSnapshot.docs.map(doc => doc.data() as User);
           
           if (currentUserData.role === 'teacher') {
             setTeacher(currentUserData);
-          } else if (!teacherSnapshot.empty) {
-            setTeacher(teacherSnapshot.docs[0].data() as User);
+          } else {
+            const teacherSnapshot = await getDocs(teacherQuery);
+            if (!teacherSnapshot.empty) {
+              setTeacher(teacherSnapshot.docs[0].data() as User);
+            }
           }
-
-          setClassMembers(members.sort((a, b) => b.xp - a.xp));
+          
+          unsubscribeMembers = onSnapshot(membersQuery, (snapshot) => {
+              const members = snapshot.docs.map(doc => doc.data() as User);
+              setClassMembers(members.sort((a, b) => b.xp - a.xp));
+          });
           
           // Fetch class store items
           setIsStoreLoading(true);
@@ -125,9 +128,8 @@ export default function MyClassPage() {
     fetchClassData();
 
     return () => {
-        if (unsubscribeStore) {
-            unsubscribeStore();
-        }
+        if (unsubscribeStore) unsubscribeStore();
+        if (unsubscribeMembers) unsubscribeMembers();
     };
   }, [user, toast]);
 
@@ -232,6 +234,20 @@ export default function MyClassPage() {
       setIsBuying(null);
     }
   };
+  
+  const handleEvictStudent = async () => {
+    if (!evictCandidate || !isTeacher) return;
+    
+    try {
+      const studentRef = doc(db, 'users', evictCandidate.uid);
+      await updateDoc(studentRef, { classId: null });
+      toast({ title: '성공', description: `${evictCandidate.name || evictCandidate.displayName} 학생을 학급에서 내보냈습니다.` });
+      setEvictCandidate(null);
+    } catch(error) {
+      toast({ variant: 'destructive', title: '오류', description: '학생을 내보내는 중 오류가 발생했습니다.' });
+      console.error('Error evicting student:', error);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -303,6 +319,7 @@ export default function MyClassPage() {
                         <TableHead>학교</TableHead>
                         <TableHead className="text-center">레벨</TableHead>
                         <TableHead className="text-right">경험치 (XP)</TableHead>
+                         {isTeacher && <TableHead className="text-right w-[100px]">작업</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -337,6 +354,15 @@ export default function MyClassPage() {
                             <TableCell>{member.schoolName}</TableCell>
                             <TableCell className="text-center font-medium">Lv. {levelInfo.level}</TableCell>
                             <TableCell className="text-right font-bold text-primary">{member.xp.toLocaleString()}</TableCell>
+                            {isTeacher && (
+                                <TableCell className="text-right">
+                                    {member.uid !== user?.uid && (
+                                        <Button variant="destructive" size="sm" onClick={() => setEvictCandidate(member)}>
+                                            <MinusCircle className="mr-2 h-4 w-4"/> 퇴장
+                                        </Button>
+                                    )}
+                                </TableCell>
+                            )}
                           </TableRow>
                         );
                       })}
@@ -506,8 +532,22 @@ export default function MyClassPage() {
             </DialogFooter>
         </DialogContent>
     </Dialog>
+    
+    {/* Evict Student Confirmation Dialog */}
+    <AlertDialog open={!!evictCandidate} onOpenChange={setEvictCandidate}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>정말 학생을 내보내시겠습니까?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    {evictCandidate?.name || evictCandidate?.displayName} 학생을 학급에서 내보냅니다. 이 학생은 더 이상 학급 랭킹과 매장에 접근할 수 없게 됩니다. 이 작업은 되돌릴 수 없습니다.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>취소</AlertDialogCancel>
+                <AlertDialogAction onClick={handleEvictStudent} className="bg-destructive hover:bg-destructive/90">내보내기</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
     </>
   );
 }
-
-    
