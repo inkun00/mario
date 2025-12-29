@@ -34,7 +34,7 @@ import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe,
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState, useRef } from 'react';
-import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe, updateDoc, increment, arrayUnion, getDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe, updateDoc, increment, arrayUnion, getDoc, serverTimestamp, Timestamp, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { GameSet, User as FsUser, GameRoom } from '@/lib/types';
 import { auth } from '@/lib/firebase';
@@ -156,6 +156,31 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setLoadingRooms(true);
+
+    const cleanupOldRooms = async () => {
+        const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+        const oldRoomsQuery = query(
+            collection(db, 'game-rooms'),
+            where('status', '==', 'waiting')
+        );
+
+        try {
+            const snapshot = await getDocs(oldRoomsQuery);
+            const batch = writeBatch(db);
+            snapshot.forEach(doc => {
+                const room = doc.data() as GameRoom;
+                if (room.createdAt && room.createdAt.toDate() < tenMinutesAgo) {
+                    batch.delete(doc.ref);
+                }
+            });
+            await batch.commit();
+        } catch (error) {
+            console.error("Error cleaning up old game rooms:", error);
+        }
+    };
+
+    cleanupOldRooms();
+
     const roomsQuery = query(
       collection(db, 'game-rooms'),
       where('status', '==', 'waiting'),

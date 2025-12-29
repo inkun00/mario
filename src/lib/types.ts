@@ -1,5 +1,7 @@
 
 
+import { Timestamp } from 'firebase/firestore';
+
 export interface User {
   uid: string;
   email: string | null;
@@ -123,7 +125,7 @@ export interface GameRoom {
   enabledMysteryEffects?: MysteryEffectType[];
   mysteryEffectVotes?: Record<string, string[]>; // key: effectType, value: array of player uids
   joinType: JoinType;
-  createdAt: any;
+  createdAt: Timestamp;
   localPlayers?: LocalPlayer[];
   answerLogs?: AnswerLog[];
   gameStartedAt?: any;
