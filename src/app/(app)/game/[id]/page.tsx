@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, getDoc, updateDoc, Timestamp, writeBatch, increment, collection, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc, Timestamp, writeBatch, increment, collection, setDoc, deleteDoc, serverTimestamp, deleteField } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer, SubjectStat, MysteryEffect, AnswerResult } from '@/lib/types';
@@ -132,6 +132,13 @@ export default function GamePage() {
         if (docSnap.exists()) {
             const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
             
+            // Check if current user was removed from the game
+            if (user && gameRoom && gameRoom.players[user.uid] && !roomData.players[user.uid]) {
+              toast({ title: '게임에서 퇴장했습니다.', description: '게임방으로 돌아갑니다.' });
+              router.push('/dashboard');
+              return;
+            }
+
             if (roomData.status === 'finished' && !showGameOverPopup) {
                 const finalPlayers = calculateScoresFromLogs(roomData);
                 setFinalScores(finalPlayers);
@@ -350,14 +357,29 @@ export default function GamePage() {
 
   const getNextTurnUID = (): string => {
     if (!gameRoom) return '';
-    const playerUIDs = gameRoom.playerUIDs || Object.keys(gameRoom.players);
-    if (playerUIDs.length === 0) return '';
     
-    const currentTurnIndex = playerUIDs.indexOf(gameRoom.currentTurn);
-    if (currentTurnIndex === -1) return playerUIDs[0]; // Fallback
+    const remainingPlayerUIDs = gameRoom.playerUIDs?.filter(uid => gameRoom.players[uid]) || [];
+    if (remainingPlayerUIDs.length === 0) return '';
+    
+    const currentTurnIndex = remainingPlayerUIDs.indexOf(gameRoom.currentTurn);
+    if (currentTurnIndex === -1) {
+      // If the current turn player left, find their original index to determine the next player.
+      const originalIndex = gameRoom.playerUIDs?.indexOf(gameRoom.currentTurn) ?? -1;
+      if (originalIndex !== -1) {
+        // Find the next available player
+        for (let i = 1; i < (gameRoom.playerUIDs?.length || 0); i++) {
+          const nextIndex = (originalIndex + i) % (gameRoom.playerUIDs?.length || 1);
+          const nextUID = gameRoom.playerUIDs?.[nextIndex];
+          if (nextUID && remainingPlayerUIDs.includes(nextUID)) {
+            return nextUID;
+          }
+        }
+      }
+      return remainingPlayerUIDs[0]; // Fallback to the first remaining player
+    }
 
-    const nextTurnIndex = (currentTurnIndex + 1) % playerUIDs.length;
-    return playerUIDs[nextTurnIndex];
+    const nextTurnIndex = (currentTurnIndex + 1) % remainingPlayerUIDs.length;
+    return remainingPlayerUIDs[nextTurnIndex];
   }
 
 
@@ -616,16 +638,27 @@ export default function GamePage() {
   };
 
 
-  const handleEndGameEarly = async () => {
-    if (!gameRoom || typeof gameRoomId !== 'string') return;
+  const handleEndGame = async () => {
+    if (!gameRoom || typeof gameRoomId !== 'string' || !user) return;
+    
+    setShowEndGameConfirm(false);
+    
+    const isHost = user.uid === gameRoom.hostId;
+
     try {
         const roomRef = doc(db, 'game-rooms', gameRoomId);
-        await updateDoc(roomRef, { status: 'finished' });
-        setShowEndGameConfirm(false);
-        toast({ title: '게임 종료', description: '게임이 조기 종료되었습니다.' });
+        if (isHost) {
+             await updateDoc(roomRef, { status: 'finished' });
+             toast({ title: '게임 종료', description: '게임이 조기 종료되었습니다.' });
+        } else {
+            await updateDoc(roomRef, {
+                [`players.${user.uid}`]: deleteField()
+            });
+            // The onSnapshot listener will handle the redirection.
+        }
     } catch (error) {
-        console.error("Error ending game early: ", error);
-        toast({ variant: 'destructive', title: '오류', description: '게임 종료 중 오류가 발생했습니다.' });
+        console.error("Error ending/leaving game: ", error);
+        toast({ variant: 'destructive', title: '오류', description: '게임 종료/나가기 중 오류가 발생했습니다.' });
     }
   };
 
@@ -645,7 +678,7 @@ export default function GamePage() {
 
         const pointUpdates: { [uid: string]: { xp: number, classPoints: number } } = {};
         (gameRoom.answerLogs || []).forEach(log => {
-            if (log.userId && typeof log.pointsAwarded === 'number') {
+            if (log.userId && typeof log.pointsAwarded === 'number' && gameRoom.players[log.userId]) {
                 if (!pointUpdates[log.userId]) {
                     pointUpdates[log.userId] = { xp: 0, classPoints: 0 };
                 }
@@ -661,7 +694,7 @@ export default function GamePage() {
         const userStatsToUpdate: { [uid: string]: { [subject: string]: SubjectStat } } = {};
         
         const allSubjects = Array.from(new Set((gameRoom.answerLogs || []).map(l => l.question?.subject).filter(Boolean) as string[]));
-        const playerUIDs = Array.from(new Set((gameRoom.answerLogs || []).map(log => log.userId).filter(Boolean))) as string[];
+        const playerUIDs = Object.keys(gameRoom.players);
 
         const statsPromises = playerUIDs.flatMap(uid => 
             allSubjects.map(subject => getDoc(doc(db, "users", uid, "subjectStats", subject)))
@@ -681,7 +714,7 @@ export default function GamePage() {
         });
 
         (gameRoom.answerLogs || []).forEach(log => {
-            if (!log.userId || !log.question?.subject || !log.question.unit) return;
+            if (!log.userId || !log.question?.subject || !log.question.unit || !gameRoom.players[log.userId]) return;
 
             const { userId, isCorrect } = log;
             const { subject, unit } = log.question;
@@ -766,7 +799,6 @@ export default function GamePage() {
 
 
   const currentTurnPlayer = players.find(p => p.uid === gameRoom?.currentTurn);
-  const currentQuestion = currentQuestionInfo?.question;
   
   const isClickDisabled = (block: GameBlock) => {
     if (!gameRoom || showGameOverPopup || gameRoom.status !== 'playing') return true;
@@ -887,7 +919,7 @@ export default function GamePage() {
               <h2 className="font-headline text-xl font-bold">스코어보드</h2>
               <Button variant="destructive" size="sm" onClick={() => setShowEndGameConfirm(true)}>
                 <StopCircle className="w-4 h-4 mr-2" />
-                게임 종료
+                {isHost ? '게임 종료' : '나가기'}
               </Button>
             </div>
             <div className="flex-grow p-4 space-y-4 overflow-y-auto">
@@ -1008,7 +1040,7 @@ export default function GamePage() {
 
 
       {/* Question Popup */}
-      <Dialog open={!!currentQuestion} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
+      <Dialog open={!!gameRoom?.currentAnswerResult || !!currentQuestionInfo} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
         <DialogContent className="max-w-2xl">
             <DialogHeader>
                 <div className="flex justify-between items-center">
@@ -1019,15 +1051,15 @@ export default function GamePage() {
                             {currentPoints}점
                         </span>
                     </DialogTitle>
-                    {currentQuestion?.hint && !showHint && (
+                    {currentQuestionInfo?.question.hint && !showHint && (
                         <Button variant="outline" size="sm" onClick={handleShowHint} disabled={isSubmitting || !isMyTurn}>
                             <Lightbulb className="w-4 h-4 mr-2" />
                             힌트 보기 (점수 절반)
                         </Button>
                     )}
                 </div>
-                {currentQuestion?.hint && showHint && (
-                    <DialogDescription>힌트: {currentQuestion.hint}</DialogDescription>
+                {currentQuestionInfo?.question.hint && showHint && (
+                    <DialogDescription>힌트: {currentQuestionInfo.question.hint}</DialogDescription>
                 )}
             </DialogHeader>
             
@@ -1057,15 +1089,15 @@ export default function GamePage() {
             ) : (
                 <>
                     <div className="py-4 space-y-6">
-                        {currentQuestion?.imageUrl && (
+                        {currentQuestionInfo?.question?.imageUrl && (
                             <div className="relative aspect-video w-full">
-                                <Image src={encodeURI(currentQuestion.imageUrl)} alt="질문 이미지" fill className="rounded-md object-contain" unoptimized={true} />
+                                <Image src={encodeURI(currentQuestionInfo.question.imageUrl)} alt="질문 이미지" fill className="rounded-md object-contain" unoptimized={true} />
                             </div>
                         )}
-                        <p className="text-lg font-medium whitespace-pre-wrap">{currentQuestion?.question}</p>
+                        <p className="text-lg font-medium whitespace-pre-wrap">{currentQuestionInfo?.question?.question}</p>
 
                         <div>
-                            {currentQuestion?.type === 'subjective' && (
+                            {currentQuestionInfo?.question?.type === 'subjective' && (
                                 <Input 
                                     placeholder="정답을 입력하세요" 
                                     value={userAnswer}
@@ -1073,14 +1105,14 @@ export default function GamePage() {
                                     disabled={!isMyTurn}
                                 />
                             )}
-                            {currentQuestion?.type === 'multipleChoice' && currentQuestion.options && (
+                            {currentQuestionInfo?.question?.type === 'multipleChoice' && currentQuestionInfo?.question.options && (
                                 <RadioGroup 
                                   value={userAnswer} 
                                   onValueChange={setUserAnswer} 
                                   className="space-y-2" 
                                   disabled={!isMyTurn}
                                 >
-                                    {currentQuestion.options.map((option, index) => (
+                                    {currentQuestionInfo.question.options.map((option, index) => (
                                         <div key={index} className="flex items-center space-x-2">
                                             <RadioGroupItem value={option} id={`option-${index}`} />
                                             <Label htmlFor={`option-${index}`} className="flex-1 p-3 rounded-md border hover:border-primary cursor-pointer">{option}</Label>
@@ -1088,7 +1120,7 @@ export default function GamePage() {
                                     ))}
                                 </RadioGroup>
                             )}
-                            {currentQuestion?.type === 'ox' && (
+                            {currentQuestionInfo?.question?.type === 'ox' && (
                                 <RadioGroup 
                                   value={userAnswer} 
                                   onValueChange={setUserAnswer} 
@@ -1203,14 +1235,19 @@ export default function GamePage() {
       <AlertDialog open={showEndGameConfirm} onOpenChange={setShowEndGameConfirm}>
         <AlertDialogContent>
             <AlertDialogHeader>
-                <AlertDialogTitle>정말 게임을 종료하시겠습니까?</AlertDialogTitle>
+                <AlertDialogTitle>정말 {isHost ? '게임을 종료하시겠습니까?' : '나가시겠습니까?'}</AlertDialogTitle>
                 <AlertDialogDescription>
-                    아직 모든 문제를 풀지 않았습니다. 지금 게임을 종료하면 현재 점수를 기준으로 순위가 결정됩니다. 이 작업은 되돌릴 수 없습니다.
+                    {isHost
+                        ? "아직 모든 문제를 풀지 않았습니다. 지금 게임을 종료하면 현재 점수를 기준으로 순위가 결정됩니다. 이 작업은 되돌릴 수 없습니다."
+                        : "지금 나가면 현재까지의 기록은 저장되지 않으며, 다시 이 게임에 참여할 수 없습니다."
+                    }
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel>취소</AlertDialogCancel>
-                <AlertDialogAction onClick={handleEndGameEarly} className="bg-destructive hover:bg-destructive/90">종료</AlertDialogAction>
+                <AlertDialogAction onClick={handleEndGame} className="bg-destructive hover:bg-destructive/90">
+                    {isHost ? '종료' : '나가기'}
+                </AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
