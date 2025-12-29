@@ -534,7 +534,7 @@ export default function MyClassPage() {
     </Dialog>
     
     {/* Evict Student Confirmation Dialog */}
-    <AlertDialog open={!!evictCandidate} onOpenChange={setEvictCandidate}>
+    <AlertDialog open={!!evictCandidate} onOpenChange={(isOpen) => !isOpen && setEvictCandidate(null)}>
         <AlertDialogContent>
             <AlertDialogHeader>
                 <AlertDialogTitle>정말 학생을 내보내시겠습니까?</AlertDialogTitle>
