@@ -289,8 +289,8 @@ export default function ProfilePage() {
         toast({ variant: 'destructive', title: '오류', description: '이름(실명)을 입력해주세요.' });
         return;
     }
-    if (!editNickname || editNickname.length < 2 || editNickname.length > 8) {
-      toast({ variant: 'destructive', title: '오류', description: '닉네임은 2자 이상 8자 이하로 입력해주세요.'});
+    if (!editNickname || editNickname.length < 2 || editNickname.length > 5) {
+      toast({ variant: 'destructive', title: '오류', description: '닉네임은 2자 이상 5자 이하로 입력해주세요.'});
       return;
     }
     if (!editSchoolName) {
@@ -782,7 +782,7 @@ export default function ProfilePage() {
               {isEditing ? (
                 <div className="space-y-2">
                   <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="이름 (실명)" />
-                  <Input value={editNickname} onChange={(e) => setEditNickname(e.target.value)} placeholder="닉네임 (2-8자)" />
+                  <Input value={editNickname} onChange={(e) => setEditNickname(e.target.value)} placeholder="닉네임 (2-5자)" />
                   <Input value={editSchoolName} onChange={(e) => setEditSchoolName(e.target.value)} placeholder="학교 이름" />
                 </div>
               ) : (

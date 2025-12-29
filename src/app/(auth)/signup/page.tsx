@@ -32,7 +32,7 @@ import { useState } from 'react';
 const formSchema = z.object({
   email: z.string().email({ message: '유효한 이메일을 입력해주세요.' }),
   name: z.string().min(2, { message: '이름(실명)은 2자 이상이어야 합니다.'}),
-  nickname: z.string().min(2, { message: '닉네임은 2자 이상이어야 합니다.' }).max(8, { message: '닉네임은 8자 이내여야 합니다.' }),
+  nickname: z.string().min(2, { message: '닉네임은 2자 이상이어야 합니다.' }).max(5, { message: '닉네임은 5자 이내여야 합니다.' }),
   password: z.string().min(6, { message: '비밀번호는 6자 이상이어야 합니다.' }),
   schoolName: z.string().min(1, '학교 이름을 입력해주세요.'),
 });
@@ -213,5 +213,3 @@ export default function SignupPage() {
     </>
   );
 }
-
-    
