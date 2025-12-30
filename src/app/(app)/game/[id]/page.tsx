@@ -597,7 +597,8 @@ export default function GamePage() {
   };
 
   const handleConfirmMysterySettings = async () => {
-    if (!gameRoom || typeof gameRoomId !== 'string' || !user || user.uid !== gameRoom.hostId) return;
+    if (!gameRoom || typeof gameRoomId !== 'string' || !user ) return;
+    if (gameRoom.joinType === 'remote' && user.uid !== gameRoom.hostId) return;
 
     setIsSubmitting(true);
     try {
@@ -1036,7 +1037,7 @@ export default function GamePage() {
                 })}
             </div>
             <DialogFooter>
-                {isHost && (
+                {(gameRoom?.joinType === 'local' || isHost) && (
                     <Button onClick={handleConfirmMysterySettings} disabled={isSubmitting}>
                        {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin"/> : null}
                         설정 완료 및 게임 시작
