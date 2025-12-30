@@ -265,6 +265,31 @@ export default function GamePage() {
     }
   }, [gameSet, gameRoom, blocks.length]);
 
+  const prepareMysteryChoice = () => {
+    if (!gameRoom) return;
+
+    const availableEffects = gameRoom.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
+    
+    let allAvailableFull = allMysteryEffects.filter(e => availableEffects.includes(e.type));
+    
+    if (allAvailableFull.length === 0) {
+      allAvailableFull = allMysteryEffects; 
+    }
+  
+    const shuffled = shuffleArray(allAvailableFull);
+    const options: MysteryEffect[] = [];
+    
+    for (let i = 0; i < 3; i++) {
+        // 중복을 허용하여 3개를 채웁니다.
+        options.push(shuffled[i % shuffled.length]);
+    }
+
+    const finalOptions = options.map(o => ({...o, description: '', icon: undefined }));
+    
+    setMysteryOptions(finalOptions);
+    setShowMysteryChoicePopup(true);
+  };
+  
   const handleMysteryBoxChoice = async (chosenEffect: MysteryEffect) => {
     if (!gameRoom || typeof gameRoomId !== 'string') return;
     
@@ -307,31 +332,6 @@ export default function GamePage() {
     const roomRef = doc(db, 'game-rooms', gameRoomId);
     updateDoc(roomRef, { gameState: newGameState });
   };
-
-  const prepareMysteryChoice = () => {
-    if (!gameRoom) return;
-  
-    const availableEffects = gameRoom.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
-    
-    let allAvailableFull = allMysteryEffects.filter(e => availableEffects.includes(e.type));
-    
-    if (allAvailableFull.length === 0) {
-      allAvailableFull = allMysteryEffects; 
-    }
-  
-    const shuffled = shuffleArray(allAvailableFull);
-    
-    const options: MysteryEffect[] = [];
-    for (let i = 0; i < 3; i++) {
-        options.push(shuffled[i % shuffled.length]);
-    }
-
-    const finalOptions = options.map(o => ({...o, description: '', icon: undefined }));
-    
-    setMysteryOptions(finalOptions);
-    setShowMysteryChoicePopup(true);
-  };
-  
 
   const handleShowHint = () => {
     setShowHint(true);
@@ -379,7 +379,8 @@ export default function GamePage() {
       toast({ variant: 'destructive', title: '오류', description: '답변을 선택하거나 입력해주세요.'});
       return;
     }
-     if (gameRoom.joinType === 'remote' && !isMyTurn) return;
+     const canAct = gameRoom.joinType === 'local' || isMyTurn;
+     if (!canAct) return;
 
     const currentQuestion = currentQuestionInfo.question;
 
@@ -654,19 +655,19 @@ export default function GamePage() {
 
   const handleFinishAndSave = async () => {
     if (!gameRoom || typeof gameRoomId !== 'string' || !gameSet || !user) return;
-    
+
     setIsFinishingGame(true);
     try {
         const batch = writeBatch(db);
 
         let bonusMultiplier = 0;
         if (gameSet.evaluationScore) {
-          if (gameSet.evaluationScore >= 81) bonusMultiplier = 0.15; // 5 stars
-          else if (gameSet.evaluationScore >= 61) bonusMultiplier = 0.10; // 4 stars
-          else if (gameSet.evaluationScore >= 41) bonusMultiplier = 0.05; // 3 stars
+            if (gameSet.evaluationScore >= 81) bonusMultiplier = 0.15;
+            else if (gameSet.evaluationScore >= 61) bonusMultiplier = 0.10;
+            else if (gameSet.evaluationScore >= 41) bonusMultiplier = 0.05;
         }
 
-        const pointUpdates: { [uid: string]: { xp: number, classPoints: number } } = {};
+        const pointUpdates: { [uid: string]: { xp: number; classPoints: number } } = {};
         (gameRoom.answerLogs || []).forEach(log => {
             if (log.userId && typeof log.pointsAwarded === 'number' && gameRoom.players[log.userId]) {
                 if (!pointUpdates[log.userId]) {
@@ -675,29 +676,15 @@ export default function GamePage() {
                 const basePoints = log.pointsAwarded;
                 const bonusPoints = Math.round(basePoints * bonusMultiplier);
                 const totalPoints = basePoints + bonusPoints;
-
                 pointUpdates[log.userId].xp += totalPoints;
                 pointUpdates[log.userId].classPoints += totalPoints;
             }
         });
-        
+
         const playerUIDs = Object.keys(gameRoom.players);
         if (playerUIDs.length === 0) {
-            throw new Error("No players found to save stats for.");
+            throw new Error("저장할 플레이어를 찾을 수 없습니다.");
         }
-
-        const statsQuery = query(collectionGroup(db, 'subjectStats'), where('__name__', 'in', playerUIDs.map(uid => `users/${uid}`)));
-        const statsSnapshots = await getDocs(statsQuery);
-
-        const existingStats: { [key: string]: SubjectStat } = {};
-        statsSnapshots.forEach(snap => {
-            const path = snap.ref.path.split('/');
-            const uid = path[1];
-            const subject = path[3];
-            if (!existingStats[`${uid}-${subject}`]) {
-                existingStats[`${uid}-${subject}`] = { id: subject, ...snap.data() } as SubjectStat;
-            }
-        });
 
         const userStatsToUpdate: { [uid: string]: { [subject: string]: SubjectStat } } = {};
         (gameRoom.answerLogs || []).forEach(log => {
@@ -707,24 +694,18 @@ export default function GamePage() {
             const { subject, unit } = log.question;
 
             if (!userStatsToUpdate[userId]) userStatsToUpdate[userId] = {};
-            
             if (!userStatsToUpdate[userId][subject]) {
-                const existing = existingStats[`${userId}-${subject}`];
-                userStatsToUpdate[userId][subject] = existing ? JSON.parse(JSON.stringify(existing)) : {
+                userStatsToUpdate[userId][subject] = {
                     id: subject,
                     totalCorrect: 0,
                     totalIncorrect: 0,
                     units: {},
                 };
             }
-            
             const stat = userStatsToUpdate[userId][subject];
             const countField = isCorrect ? 'totalCorrect' : 'totalIncorrect';
-
             stat[countField] = (stat[countField] || 0) + 1;
-
             if (unit) {
-                if (!stat.units) stat.units = {};
                 if (!stat.units[unit]) {
                     stat.units[unit] = { totalCorrect: 0, totalIncorrect: 0 };
                 }
@@ -736,7 +717,7 @@ export default function GamePage() {
             const userRef = doc(db, 'users', uid);
             const updates = pointUpdates[uid];
             if (updates && (updates.xp !== 0 || updates.classPoints !== 0)) {
-                batch.update(userRef, { 
+                batch.update(userRef, {
                     xp: increment(updates.xp),
                     classPoints: increment(updates.classPoints)
                 });
@@ -752,10 +733,20 @@ export default function GamePage() {
             if (userStatsToUpdate[uid]) {
                 for (const subject in userStatsToUpdate[uid]) {
                     const statRef = doc(db, "users", uid, "subjectStats", subject);
-                    batch.set(statRef, userStatsToUpdate[uid][subject], { merge: true });
+                    const subjectUpdate = userStatsToUpdate[uid][subject];
+                    const updateData: { [key: string]: any } = {
+                        totalCorrect: increment(subjectUpdate.totalCorrect),
+                        totalIncorrect: increment(subjectUpdate.totalIncorrect)
+                    };
+                    for (const unit in subjectUpdate.units) {
+                        updateData[`units.${unit}.totalCorrect`] = increment(subjectUpdate.units[unit].totalCorrect);
+                        updateData[`units.${unit}.totalIncorrect`] = increment(subjectUpdate.units[unit].totalIncorrect);
+                    }
+                    batch.set(statRef, updateData, { merge: true });
                 }
             }
         });
+
 
         if (gameSet.creatorId && !playerUIDs.includes(gameSet.creatorId)) {
             const creatorRef = doc(db, 'users', gameSet.creatorId);
@@ -1131,7 +1122,7 @@ export default function GamePage() {
                         </div>
                     </div>
                     
-                    <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting || (gameRoom?.joinType === 'remote' && !isMyTurn)}>
+                    <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting || (gameRoom?.joinType === 'remote' && !isMyTurn && !userAnswer)}>
                         {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
                     </Button>
                 </>
