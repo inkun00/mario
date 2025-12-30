@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -36,6 +35,7 @@ import { getLevelInfo } from '@/lib/level-system';
 import { MysteryBox } from '@/components/mystery-box';
 import { PixelAvatar } from '@/components/pixel-avatar';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 interface GameBlock {
@@ -101,26 +101,26 @@ export default function GamePage() {
   const [blocks, setBlocks] = useState<GameBlock[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   
-  const [currentQuestionInfo, setCurrentQuestionInfo] = useState<{question: Question & { id: number }, blockId: number} | null>(null);
-  const [currentPoints, setCurrentPoints] = useState(0);
-  const [userAnswer, setUserAnswer] = useState('');
-  const [showHint, setShowHint] = useState(false);
+  const [currentQuestionInfo, setCurrentQuestionInfo = useState<{question: Question & { id: number }, blockId: number} | null>(null);
+  const [currentPoints, setCurrentPoints = useState(0);
+  const [userAnswer, setUserAnswer = useState('');
+  const [showHint, setShowHint = useState(false);
   
-  const [isMyTurn, setIsMyTurn] = useState(false);
+  const [isMyTurn, setIsMyTurn = useState(false);
   
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting = useState(false);
 
-  const [showMysterySettings, setShowMysterySettings] = useState(false);
+  const [showMysterySettings, setShowMysterySettings = useState(false);
 
-  const [showMysteryChoicePopup, setShowMysteryChoicePopup] = useState(false);
-  const [mysteryOptions, setMysteryOptions] = useState<MysteryEffect[]>([]);
-  const [showMysteryBoxPopup, setShowMysteryBoxPopup] = useState(false);
-  const [playerForSwap, setPlayerForSwap] = useState<string | null>(null);
+  const [showMysteryChoicePopup, setShowMysteryChoicePopup = useState(false);
+  const [mysteryOptions, setMysteryOptions = useState<MysteryEffect[]>([]);
+  const [showMysteryBoxPopup, setShowMysteryBoxPopup = useState(false);
+  const [playerForSwap, setPlayerForSwap = useState<string | null>(null);
   
-  const [showGameOverPopup, setShowGameOverPopup] = useState(false);
-  const [finalScores, setFinalScores] = useState<Player[]>([]);
-  const [isFinishingGame, setIsFinishingGame] = useState(false);
-  const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
+  const [showGameOverPopup, setShowGameOverPopup = useState(false);
+  const [finalScores, setFinalScores = useState<Player[]>([]);
+  const [isFinishingGame, setIsFinishingGame = useState(false);
+  const [showEndGameConfirm, setShowEndGameConfirm = useState(false);
 
   // Fetch GameRoom and GameSet data
   useEffect(() => {
@@ -267,21 +267,22 @@ export default function GamePage() {
 
   const prepareMysteryChoice = () => {
     if (!gameRoom) return;
-
+  
     const availableEffects = gameRoom.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
     let allAvailableFull = allMysteryEffects.filter(e => availableEffects.includes(e.type));
     
     if (allAvailableFull.length === 0) {
       allAvailableFull = allMysteryEffects; 
     }
-
+  
     const shuffled = shuffleArray(allAvailableFull);
     const options: MysteryEffect[] = [];
-    
-    for (let i = 0; i < 3; i++) {
-        options.push(shuffled[i % shuffled.length]);
+    let i = 0;
+    while(options.length < 3) {
+      options.push(shuffled[i % shuffled.length]);
+      i++;
     }
-
+  
     const finalOptions = options.map(o => ({...o, description: '', icon: undefined }));
     
     setMysteryOptions(finalOptions);
@@ -664,89 +665,86 @@ export default function GamePage() {
       if (playerUIDs.length === 0) {
         throw new Error("저장할 플레이어를 찾을 수 없습니다.");
       }
-
-      // 1. Calculate XP and Class Points bonuses
+      
+      const userStatsToUpdate: { 
+        [uid: string]: { 
+          xp: number, 
+          classPoints: number, 
+          subjects: { [subjectId: string]: SubjectStat } 
+        } 
+      } = {};
+  
+      playerUIDs.forEach(uid => {
+        userStatsToUpdate[uid] = { xp: 0, classPoints: 0, subjects: {} };
+      });
+      
       let bonusMultiplier = 0;
       if (gameSet.evaluationScore) {
         if (gameSet.evaluationScore >= 81) bonusMultiplier = 0.15;
         else if (gameSet.evaluationScore >= 61) bonusMultiplier = 0.10;
         else if (gameSet.evaluationScore >= 41) bonusMultiplier = 0.05;
       }
-
-      // 2. Aggregate all points and stats updates locally
-      const pointUpdates: { [uid: string]: { xp: number; classPoints: number } } = {};
-      const subjectStatsUpdates: { [uid: string]: { [subject: string]: SubjectStat } } = {};
-
+  
       (gameRoom.answerLogs || []).forEach(log => {
         if (!log.userId || typeof log.pointsAwarded !== 'number' || !gameRoom.players[log.userId]) return;
-
-        // Aggregate points
-        if (!pointUpdates[log.userId]) pointUpdates[log.userId] = { xp: 0, classPoints: 0 };
+  
         const basePoints = log.pointsAwarded;
         const bonusPoints = Math.round(basePoints * bonusMultiplier);
         const totalPoints = basePoints + bonusPoints;
-        pointUpdates[log.userId].xp += totalPoints;
-        pointUpdates[log.userId].classPoints += totalPoints;
-        
-        // Aggregate subject stats
+  
+        userStatsToUpdate[log.userId].xp += totalPoints;
+        userStatsToUpdate[log.userId].classPoints += totalPoints;
+  
         const { question, isCorrect } = log;
         if (question?.subject && question?.unit) {
-          if (!subjectStatsUpdates[log.userId]) subjectStatsUpdates[log.userId] = {};
-          if (!subjectStatsUpdates[log.userId][question.subject]) {
-            subjectStatsUpdates[log.userId][question.subject] = {
-              id: question.subject, totalCorrect: 0, totalIncorrect: 0, units: {}
-            };
+          const subject = question.subject;
+          const unit = question.unit;
+  
+          if (!userStatsToUpdate[log.userId].subjects[subject]) {
+            userStatsToUpdate[log.userId].subjects[subject] = { id: subject, totalCorrect: 0, totalIncorrect: 0, units: {} };
           }
-          const stat = subjectStatsUpdates[log.userId][question.subject];
+          if (!userStatsToUpdate[log.userId].subjects[subject].units[unit]) {
+            userStatsToUpdate[log.userId].subjects[subject].units[unit] = { totalCorrect: 0, totalIncorrect: 0 };
+          }
+  
           const countField = isCorrect ? 'totalCorrect' : 'totalIncorrect';
-          stat[countField] = (stat[countField] || 0) + 1;
-          
-          if (!stat.units[question.unit]) stat.units[question.unit] = { totalCorrect: 0, totalIncorrect: 0 };
-          stat.units[question.unit][countField] = (stat.units[question.unit][countField] || 0) + 1;
+          userStatsToUpdate[log.userId].subjects[subject].totalCorrect += isCorrect ? 1 : 0;
+          userStatsToUpdate[log.userId].subjects[subject].totalIncorrect += !isCorrect ? 1 : 0;
+          userStatsToUpdate[log.userId].subjects[subject].units[unit][countField]++;
         }
       });
       
-      // 3. Batch write all updates to Firestore
       for (const uid of playerUIDs) {
         const userRef = doc(db, 'users', uid);
-        
-        // Update XP and Class Points
-        const points = pointUpdates[uid];
+        const points = userStatsToUpdate[uid];
         if (points && (points.xp !== 0 || points.classPoints !== 0)) {
           batch.update(userRef, {
             xp: increment(points.xp),
             classPoints: increment(points.classPoints),
           });
         }
-        
-        // Update played game sets
+  
         const playedGameSetRef = doc(db, 'users', uid, 'playedGameSets', gameRoomId);
         batch.set(playedGameSetRef, {
           gameSetId: gameSet.id, playedAt: serverTimestamp(), gameRoomId,
         });
 
-        // Update subject stats
-        if (subjectStatsUpdates[uid]) {
-            for (const subject in subjectStatsUpdates[uid]) {
-                const statRef = doc(db, "users", uid, "subjectStats", subject);
-                const updates = subjectStatsUpdates[uid][subject];
-                
-                // Use field paths for nested unit updates
-                const firestoreUpdates: { [key: string]: any } = {
-                    totalCorrect: increment(updates.totalCorrect),
-                    totalIncorrect: increment(updates.totalIncorrect),
-                };
-                for(const unit in updates.units) {
-                    firestoreUpdates[`units.${unit}.totalCorrect`] = increment(updates.units[unit].totalCorrect);
-                    firestoreUpdates[`units.${unit}.totalIncorrect`] = increment(updates.units[unit].totalIncorrect);
-                }
-                
-                batch.set(statRef, firestoreUpdates, { merge: true });
+        for (const subject in userStatsToUpdate[uid].subjects) {
+            const statRef = doc(db, "users", uid, "subjectStats", subject);
+            const subjectUpdates = userStatsToUpdate[uid].subjects[subject];
+            
+            const firestoreUpdates: { [key: string]: any } = {
+                totalCorrect: increment(subjectUpdates.totalCorrect),
+                totalIncorrect: increment(subjectUpdates.totalIncorrect),
+            };
+            for(const unit in subjectUpdates.units) {
+                firestoreUpdates[`units.${unit}.totalCorrect`] = increment(subjectUpdates.units[unit].totalCorrect);
+                firestoreUpdates[`units.${unit}.totalIncorrect`] = increment(subjectUpdates.units[unit].totalIncorrect);
             }
+            batch.set(statRef, firestoreUpdates, { merge: true });
         }
       }
-
-      // 4. Update creator's points
+      
       if (gameSet.creatorId && !playerUIDs.includes(gameSet.creatorId)) {
         const creatorRef = doc(db, 'users', gameSet.creatorId);
         const baseRewardAmount = gameSet.questions.length;
@@ -756,12 +754,10 @@ export default function GamePage() {
           xp: increment(totalReward), classPoints: increment(totalReward),
         });
       }
-
-      // 5. Finalize game room status
+  
       const gameRoomRef = doc(db, 'game-rooms', gameRoomId);
       batch.update(gameRoomRef, { status: 'finished' });
-
-      // 6. Commit all batched writes at once
+  
       await batch.commit();
 
       toast({ title: "저장 완료!", description: "게임 결과가 성공적으로 저장되었습니다." });
@@ -1256,3 +1252,5 @@ export default function GamePage() {
     </>
   );
 }
+
+    
