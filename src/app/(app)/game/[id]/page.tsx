@@ -982,62 +982,61 @@ export default function GamePage() {
 
       {/* Mystery Box Settings Popup */}
       <Dialog open={showMysterySettings} onOpenChange={setShowMysterySettings}>
-        <DialogContent className="max-w-3xl">
-            <DialogHeader>
-                <DialogTitle className="font-headline text-2xl flex items-center gap-2"><Gift className="text-primary"/>미스터리 박스 설정</DialogTitle>
-                <DialogDescription>
-                    게임에 나타날 미스터리 박스 효과를 선택하세요.
-                    {gameRoom?.joinType === 'remote' && ' 모든 플레이어가 동의한 효과만 적용됩니다.'}
-                </DialogDescription>
-            </DialogHeader>
-            <div className="py-4 space-y-2">
-                {allMysteryEffects.map(effect => {
-                    const votes = gameRoom?.mysteryEffectVotes?.[effect.type] || [];
-                    const currentUserUid = user?.uid;
-                    const isCheckedByCurrentUser = !!currentUserUid && votes.includes(currentUserUid);
+          <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                  <DialogTitle className="font-headline text-2xl flex items-center gap-2"><Gift className="text-primary"/>미스터리 박스 설정</DialogTitle>
+                  <DialogDescription>
+                      게임에 나타날 미스터리 박스 효과를 선택하세요.
+                      {gameRoom?.joinType === 'remote' && ' 모든 플레이어가 동의한 효과만 적용됩니다.'}
+                  </DialogDescription>
+              </DialogHeader>
+              <div className="py-4 space-y-2">
+                  {allMysteryEffects.map(effect => {
+                      const votes = gameRoom?.mysteryEffectVotes?.[effect.type] || [];
+                      const currentUserUid = user?.uid;
+                      const isCheckedByCurrentUser = !!currentUserUid && votes.includes(currentUserUid);
 
-                    return (
-                        <div key={effect.type} className="flex items-start gap-4 p-3 rounded-lg border bg-background">
-                            <Checkbox 
-                                id={`effect-${effect.type}`}
-                                checked={isCheckedByCurrentUser}
-                                onCheckedChange={(checked) => {
-                                    handleToggleMysteryVote(effect.type, !!checked);
-                                }}
-                            />
-                            <Label htmlFor={`effect-${effect.type}`} className="flex-grow cursor-pointer space-y-1">
-                                <p className="font-semibold">{effect.title}</p>
-                                <p className="text-sm text-muted-foreground">{effect.description}</p>
-                                {gameRoom?.joinType === 'remote' && gameRoom.playerUIDs && (
-                                     <div className="flex items-center gap-2 pt-2">
-                                        {gameRoom.playerUIDs.map(uid => {
-                                            const hasVoted = votes.includes(uid);
-                                            return (
-                                                <div 
-                                                    key={uid} 
-                                                    className={cn(
-                                                        "w-4 h-4 rounded-full",
-                                                        hasVoted ? 'bg-primary' : 'bg-muted'
-                                                    )}
-                                                />
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </Label>
-                        </div>
-                    );
-                })}
-            </div>
-            <DialogFooter>
-                {(gameRoom?.joinType === 'local' || isHost) && (
-                    <Button onClick={handleConfirmMysterySettings} disabled={isSubmitting}>
-                       {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin"/> : null}
-                        설정 완료 및 게임 시작
-                    </Button>
-                )}
-            </DialogFooter>
-        </DialogContent>
+                      return (
+                          <div 
+                              key={effect.type} 
+                              className="flex items-start gap-4 p-3 rounded-lg border bg-background cursor-pointer"
+                              onClick={() => handleToggleMysteryVote(effect.type, !isCheckedByCurrentUser)}
+                          >
+                              <Checkbox
+                                  id={`effect-${effect.type}`}
+                                  checked={isCheckedByCurrentUser}
+                                  aria-label={`Select ${effect.title}`}
+                              />
+                              <Label htmlFor={`effect-${effect.type}`} className="flex-grow cursor-pointer space-y-1">
+                                  <p className="font-semibold">{effect.title}</p>
+                                  <p className="text-sm text-muted-foreground">{effect.description}</p>
+                                  {gameRoom?.joinType === 'remote' && gameRoom.playerUIDs && (
+                                       <div className="flex items-center gap-2 pt-2">
+                                          {gameRoom.playerUIDs.map(uid => (
+                                              <div 
+                                                  key={uid} 
+                                                  className={cn(
+                                                      "w-4 h-4 rounded-full",
+                                                      votes.includes(uid) ? 'bg-primary' : 'bg-muted'
+                                                  )}
+                                              />
+                                          ))}
+                                      </div>
+                                  )}
+                              </Label>
+                          </div>
+                      );
+                  })}
+              </div>
+              <DialogFooter>
+                  {(gameRoom?.joinType === 'local' || isHost) && (
+                      <Button onClick={handleConfirmMysterySettings} disabled={isSubmitting}>
+                         {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin"/> : null}
+                          설정 완료 및 게임 시작
+                      </Button>
+                  )}
+              </DialogFooter>
+          </DialogContent>
       </Dialog>
 
 
