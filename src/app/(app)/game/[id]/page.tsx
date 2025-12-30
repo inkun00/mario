@@ -187,7 +187,7 @@ export default function GamePage() {
     return () => {
       unsubscribe();
     };
-  }, [gameRoomId, router, toast, user, loadingUser, gameSet, showGameOverPopup, showMysteryBoxPopup]);
+  }, [gameRoomId, router, toast, user, loadingUser, gameRoom, showGameOverPopup, showMysteryBoxPopup]);
   
   // Update player scores and turn status from gameRoom state
   useEffect(() => {
@@ -266,7 +266,11 @@ export default function GamePage() {
   }, [gameSet, gameRoom, blocks.length]);
 
   const handleMysteryBoxChoice = async (chosenEffect: MysteryEffect) => {
-    if (!isMyTurn || typeof gameRoomId !== 'string') return;
+    if (!gameRoom || typeof gameRoomId !== 'string') return;
+    
+    // For local games, anyone can click. For remote, only the current player.
+    if (gameRoom.joinType === 'remote' && !isMyTurn) return;
+
     setShowMysteryChoicePopup(false);
 
     let effectDetails: MysteryEffect;
@@ -392,10 +396,12 @@ export default function GamePage() {
   }
 
   const handleSubmitAnswer = async () => {
-    if (!currentQuestionInfo || !userAnswer || !gameRoom || !gameSet || typeof gameRoomId !== 'string' || !user || !isMyTurn) {
+    if (!currentQuestionInfo || !userAnswer || !gameRoom || !gameSet || typeof gameRoomId !== 'string' || !user) {
       toast({ variant: 'destructive', title: '오류', description: '답변을 선택하거나 입력해주세요.'});
       return;
     }
+     if (gameRoom.joinType === 'remote' && !isMyTurn) return;
+
     const currentQuestion = currentQuestionInfo.question;
 
     setIsSubmitting(true);
@@ -477,7 +483,8 @@ export default function GamePage() {
 
 
   const handleMysteryEffect = async () => {
-    if (!gameRoom?.currentMysteryEffect || !gameRoom || typeof gameRoomId !== 'string' || !gameSet || !user || !isMyTurn) return;
+    if (!gameRoom?.currentMysteryEffect || !gameRoom || typeof gameRoomId !== 'string' || !gameSet || !user) return;
+    if (gameRoom.joinType === 'remote' && !isMyTurn) return;
   
     setIsSubmitting(true);
     
@@ -816,6 +823,7 @@ export default function GamePage() {
         return !!currentQuestionInfo || !!showMysteryBoxPopup || !!showMysteryChoicePopup;
     }
     
+    // For remote games
     return !isMyTurn || !!currentQuestionInfo || !!showMysteryBoxPopup || !!showMysteryChoicePopup;
   };
   
@@ -965,18 +973,21 @@ export default function GamePage() {
             <DialogDescription>세 개의 박스 중 하나를 선택하여 당신의 운을 시험해보세요!</DialogDescription>
           </DialogHeader>
           <div className="flex justify-center items-center gap-4 sm:gap-8 py-8">
-            {mysteryOptions.map((option, index) => (
-              <div 
-                key={index} 
-                className={cn(
-                    "w-32 h-32 transition-transform duration-300",
-                    isMyTurn && "cursor-pointer hover:scale-110"
-                )}
-                onClick={() => isMyTurn && handleMysteryBoxChoice(option)}
-              >
-                <MysteryBox />
-              </div>
-            ))}
+            {mysteryOptions.map((option, index) => {
+                const canClick = gameRoom?.joinType === 'local' || isMyTurn;
+                return (
+                  <div 
+                    key={index} 
+                    className={cn(
+                        "w-32 h-32 transition-transform duration-300",
+                        canClick && "cursor-pointer hover:scale-110"
+                    )}
+                    onClick={() => canClick && handleMysteryBoxChoice(option)}
+                  >
+                    <MysteryBox />
+                  </div>
+                )
+            })}
           </div>
         </DialogContent>
       </Dialog>
@@ -1052,7 +1063,7 @@ export default function GamePage() {
                         </span>
                     </DialogTitle>
                     {currentQuestionInfo?.question.hint && !showHint && (
-                        <Button variant="outline" size="sm" onClick={handleShowHint} disabled={isSubmitting || !isMyTurn}>
+                        <Button variant="outline" size="sm" onClick={handleShowHint} disabled={isSubmitting || (gameRoom?.joinType === 'remote' && !isMyTurn)}>
                             <Lightbulb className="w-4 h-4 mr-2" />
                             힌트 보기 (점수 절반)
                         </Button>
@@ -1102,7 +1113,7 @@ export default function GamePage() {
                                     placeholder="정답을 입력하세요" 
                                     value={userAnswer}
                                     onChange={(e) => setUserAnswer(e.target.value)}
-                                    disabled={!isMyTurn}
+                                    disabled={gameRoom?.joinType === 'remote' && !isMyTurn}
                                 />
                             )}
                             {currentQuestionInfo?.question?.type === 'multipleChoice' && currentQuestionInfo?.question.options && (
@@ -1110,7 +1121,7 @@ export default function GamePage() {
                                   value={userAnswer} 
                                   onValueChange={setUserAnswer} 
                                   className="space-y-2" 
-                                  disabled={!isMyTurn}
+                                  disabled={gameRoom?.joinType === 'remote' && !isMyTurn}
                                 >
                                     {currentQuestionInfo.question.options.map((option, index) => (
                                         <div key={index} className="flex items-center space-x-2">
@@ -1125,7 +1136,7 @@ export default function GamePage() {
                                   value={userAnswer} 
                                   onValueChange={setUserAnswer} 
                                   className="grid grid-cols-2 gap-4" 
-                                  disabled={!isMyTurn}
+                                  disabled={gameRoom?.joinType === 'remote' && !isMyTurn}
                                 >
                                     <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'O' && 'border-primary bg-primary/10')}>
                                         <RadioGroupItem value="O" id="option-o" className="sr-only"/>
@@ -1140,7 +1151,7 @@ export default function GamePage() {
                         </div>
                     </div>
                     
-                    <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting || !isMyTurn}>
+                    <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting || (gameRoom?.joinType === 'remote' && !isMyTurn)}>
                         {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
                     </Button>
                 </>
@@ -1168,7 +1179,7 @@ export default function GamePage() {
                   {mysteryBoxEffect?.type === 'swap' && (
                     <div className="text-left space-y-2">
                       <Label className="font-semibold">바꿀 플레이어 선택:</Label>
-                      <RadioGroup value={playerForSwap || ''} onValueChange={setPlayerForSwap} className="space-y-2" disabled={isSubmitting || !isMyTurn}>
+                      <RadioGroup value={playerForSwap || ''} onValueChange={setPlayerForSwap} className="space-y-2" disabled={isSubmitting || (gameRoom?.joinType === 'remote' && !isMyTurn)}>
                           {players.filter(p => p.uid !== gameRoom?.currentTurn).map((player) => {
                              let pixelAvatarData = null;
                               if (player.pixelAvatar) {
@@ -1189,7 +1200,7 @@ export default function GamePage() {
                     </div>
                   )}
               </div>
-              {isMyTurn && (
+              {(gameRoom?.joinType === 'local' || isMyTurn) && (
                 <Button className="w-full" onClick={handleMysteryEffect} disabled={isSubmitting || (mysteryBoxEffect?.type === 'swap' && !playerForSwap)}>
                     {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "효과 적용"}
                 </Button>
@@ -1254,5 +1265,3 @@ export default function GamePage() {
     </>
   );
 }
-
-    
