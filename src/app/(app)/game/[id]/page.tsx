@@ -278,7 +278,7 @@ export default function GamePage() {
     const shuffled = shuffleArray(allAvailableFull);
     const options: MysteryEffect[] = [];
     let i = 0;
-    while(options.length < 3) {
+    while (options.length < 3) {
       options.push(shuffled[i % shuffled.length]);
       i++;
     }
@@ -560,17 +560,21 @@ export default function GamePage() {
         }
   
         const currentRoomData = roomDoc.data() as GameRoom;
-        const currentVotes = currentRoomData.mysteryEffectVotes?.[effectType] || [];
-        let newVotes: string[];
-  
+        // IMPORTANT: Create a new object for votes to ensure Firestore detects the change.
+        const newVotes = { ...(currentRoomData.mysteryEffectVotes || {}) };
+        const currentEffectVotes = newVotes[effectType] || [];
+        
+        let updatedEffectVotes: string[];
         if (isChecked) {
-          newVotes = [...new Set([...currentVotes, user.uid])];
+          updatedEffectVotes = [...new Set([...currentEffectVotes, user.uid])];
         } else {
-          newVotes = currentVotes.filter(uid => uid !== user.uid);
+          updatedEffectVotes = currentEffectVotes.filter(uid => uid !== user.uid);
         }
+        
+        newVotes[effectType] = updatedEffectVotes;
   
         transaction.update(roomRef, {
-          [`mysteryEffectVotes.${effectType}`]: newVotes
+          mysteryEffectVotes: newVotes
         });
       });
     } catch (error) {
@@ -741,7 +745,22 @@ export default function GamePage() {
 
         for (const subject in userStatsToUpdate[uid]) {
             const statRef = doc(db, "users", uid, "subjectStats", subject);
-            batch.set(statRef, userStatsToUpdate[uid][subject], { merge: true });
+            batch.set(statRef, {
+              totalCorrect: increment(userStatsToUpdate[uid][subject].totalCorrect),
+              totalIncorrect: increment(userStatsToUpdate[uid][subject].totalIncorrect),
+            }, { merge: true });
+
+            for (const unit in userStatsToUpdate[uid][subject].units) {
+              const unitData = userStatsToUpdate[uid][subject].units[unit];
+              batch.set(statRef, {
+                units: {
+                  [unit]: {
+                    totalCorrect: increment(unitData.totalCorrect),
+                    totalIncorrect: increment(unitData.totalIncorrect),
+                  }
+                }
+              }, { merge: true });
+            }
         }
       }
       
@@ -962,10 +981,10 @@ export default function GamePage() {
       <Dialog 
         open={showMysterySettings} 
         onOpenChange={(isOpen) => {
-          setShowMysterySettings(isOpen);
           if (!isOpen) {
             handleConfirmMysterySettings();
           }
+          setShowMysterySettings(isOpen);
         }}
       >
         <DialogContent className="max-w-3xl">
