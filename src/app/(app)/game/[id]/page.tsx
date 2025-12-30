@@ -9,7 +9,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer, SubjectStat, MysteryEffect, AnswerResult } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb, Save, StopCircle, Check, CheckCircle, XCircle } from 'lucide-react';
+import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb, Save, StopCircle, Check, CheckCircle, XCircle, X } from 'lucide-react';
 import Image from 'next/image';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
@@ -280,7 +280,6 @@ export default function GamePage() {
     const options: MysteryEffect[] = [];
     
     for (let i = 0; i < 3; i++) {
-        // 중복을 허용하여 3개를 채웁니다.
         options.push(shuffled[i % shuffled.length]);
     }
 
@@ -658,118 +657,117 @@ export default function GamePage() {
 
     setIsFinishingGame(true);
     try {
-        const batch = writeBatch(db);
+      const batch = writeBatch(db);
+      const playerUIDs = Object.keys(gameRoom.players);
+      if (playerUIDs.length === 0) {
+        throw new Error("저장할 플레이어를 찾을 수 없습니다.");
+      }
 
-        let bonusMultiplier = 0;
-        if (gameSet.evaluationScore) {
-            if (gameSet.evaluationScore >= 81) bonusMultiplier = 0.15;
-            else if (gameSet.evaluationScore >= 61) bonusMultiplier = 0.10;
-            else if (gameSet.evaluationScore >= 41) bonusMultiplier = 0.05;
+      // 1. Calculate XP and Class Points bonuses
+      let bonusMultiplier = 0;
+      if (gameSet.evaluationScore) {
+        if (gameSet.evaluationScore >= 81) bonusMultiplier = 0.15;
+        else if (gameSet.evaluationScore >= 61) bonusMultiplier = 0.10;
+        else if (gameSet.evaluationScore >= 41) bonusMultiplier = 0.05;
+      }
+
+      // 2. Aggregate all points and stats updates locally
+      const pointUpdates: { [uid: string]: { xp: number; classPoints: number } } = {};
+      const subjectStatsUpdates: { [uid: string]: { [subject: string]: SubjectStat } } = {};
+
+      (gameRoom.answerLogs || []).forEach(log => {
+        if (!log.userId || typeof log.pointsAwarded !== 'number' || !gameRoom.players[log.userId]) return;
+
+        // Aggregate points
+        if (!pointUpdates[log.userId]) pointUpdates[log.userId] = { xp: 0, classPoints: 0 };
+        const basePoints = log.pointsAwarded;
+        const bonusPoints = Math.round(basePoints * bonusMultiplier);
+        const totalPoints = basePoints + bonusPoints;
+        pointUpdates[log.userId].xp += totalPoints;
+        pointUpdates[log.userId].classPoints += totalPoints;
+        
+        // Aggregate subject stats
+        const { question, isCorrect } = log;
+        if (question?.subject && question?.unit) {
+          if (!subjectStatsUpdates[log.userId]) subjectStatsUpdates[log.userId] = {};
+          if (!subjectStatsUpdates[log.userId][question.subject]) {
+            subjectStatsUpdates[log.userId][question.subject] = {
+              id: question.subject, totalCorrect: 0, totalIncorrect: 0, units: {}
+            };
+          }
+          const stat = subjectStatsUpdates[log.userId][question.subject];
+          const countField = isCorrect ? 'totalCorrect' : 'totalIncorrect';
+          stat[countField] = (stat[countField] || 0) + 1;
+          
+          if (!stat.units[question.unit]) stat.units[question.unit] = { totalCorrect: 0, totalIncorrect: 0 };
+          stat.units[question.unit][countField] = (stat.units[question.unit][countField] || 0) + 1;
         }
-
-        const pointUpdates: { [uid: string]: { xp: number; classPoints: number } } = {};
-        (gameRoom.answerLogs || []).forEach(log => {
-            if (log.userId && typeof log.pointsAwarded === 'number' && gameRoom.players[log.userId]) {
-                if (!pointUpdates[log.userId]) {
-                    pointUpdates[log.userId] = { xp: 0, classPoints: 0 };
-                }
-                const basePoints = log.pointsAwarded;
-                const bonusPoints = Math.round(basePoints * bonusMultiplier);
-                const totalPoints = basePoints + bonusPoints;
-                pointUpdates[log.userId].xp += totalPoints;
-                pointUpdates[log.userId].classPoints += totalPoints;
-            }
-        });
-
-        const playerUIDs = Object.keys(gameRoom.players);
-        if (playerUIDs.length === 0) {
-            throw new Error("저장할 플레이어를 찾을 수 없습니다.");
+      });
+      
+      // 3. Batch write all updates to Firestore
+      for (const uid of playerUIDs) {
+        const userRef = doc(db, 'users', uid);
+        
+        // Update XP and Class Points
+        const points = pointUpdates[uid];
+        if (points && (points.xp !== 0 || points.classPoints !== 0)) {
+          batch.update(userRef, {
+            xp: increment(points.xp),
+            classPoints: increment(points.classPoints),
+          });
         }
         
-        const userStatsToUpdate: { [uid: string]: { [subject: string]: SubjectStat } } = {};
-        const subjectStatsToFetch = new Set<string>();
-
-        (gameRoom.answerLogs || []).forEach(log => {
-            if (!log.userId || !log.question?.subject || !log.question.unit || !gameRoom.players[log.userId]) return;
-            const subjectId = `${log.userId}_${log.question.subject}`;
-            subjectStatsToFetch.add(subjectId);
+        // Update played game sets
+        const playedGameSetRef = doc(db, 'users', uid, 'playedGameSets', gameRoomId);
+        batch.set(playedGameSetRef, {
+          gameSetId: gameSet.id, playedAt: serverTimestamp(), gameRoomId,
         });
 
-        (gameRoom.answerLogs || []).forEach(log => {
-            if (!log.userId || !log.question?.subject || !log.question.unit || !gameRoom.players[log.userId]) return;
-
-            const { userId, isCorrect } = log;
-            const { subject, unit } = log.question;
-
-            if (!userStatsToUpdate[userId]) userStatsToUpdate[userId] = {};
-            if (!userStatsToUpdate[userId][subject]) {
-                userStatsToUpdate[userId][subject] = {
-                    id: subject,
-                    totalCorrect: 0,
-                    totalIncorrect: 0,
-                    units: {},
+        // Update subject stats
+        if (subjectStatsUpdates[uid]) {
+            for (const subject in subjectStatsUpdates[uid]) {
+                const statRef = doc(db, "users", uid, "subjectStats", subject);
+                const updates = subjectStatsUpdates[uid][subject];
+                
+                // Use field paths for nested unit updates
+                const firestoreUpdates: { [key: string]: any } = {
+                    totalCorrect: increment(updates.totalCorrect),
+                    totalIncorrect: increment(updates.totalIncorrect),
                 };
-            }
-            const stat = userStatsToUpdate[userId][subject];
-            const countField = isCorrect ? 'totalCorrect' : 'totalIncorrect';
-            stat[countField] = (stat[countField] || 0) + 1;
-            if (unit) {
-                if (!stat.units[unit]) {
-                    stat.units[unit] = { totalCorrect: 0, totalIncorrect: 0 };
+                for(const unit in updates.units) {
+                    firestoreUpdates[`units.${unit}.totalCorrect`] = increment(updates.units[unit].totalCorrect);
+                    firestoreUpdates[`units.${unit}.totalIncorrect`] = increment(updates.units[unit].totalIncorrect);
                 }
-                stat.units[unit][countField] = (stat.units[unit][countField] || 0) + 1;
+                
+                batch.set(statRef, firestoreUpdates, { merge: true });
             }
+        }
+      }
+
+      // 4. Update creator's points
+      if (gameSet.creatorId && !playerUIDs.includes(gameSet.creatorId)) {
+        const creatorRef = doc(db, 'users', gameSet.creatorId);
+        const baseRewardAmount = gameSet.questions.length;
+        const bonusReward = Math.round(baseRewardAmount * bonusMultiplier);
+        const totalReward = baseRewardAmount + bonusReward;
+        batch.update(creatorRef, {
+          xp: increment(totalReward), classPoints: increment(totalReward),
         });
-        
-        for (const uid of playerUIDs) {
-            const userRef = doc(db, 'users', uid);
-            const updates = pointUpdates[uid];
-            if (updates && (updates.xp !== 0 || updates.classPoints !== 0)) {
-                batch.update(userRef, {
-                    xp: increment(updates.xp),
-                    classPoints: increment(updates.classPoints)
-                });
-            }
+      }
 
-            const playedGameSetRef = doc(db, 'users', uid, 'playedGameSets', gameRoomId);
-            batch.set(playedGameSetRef, {
-                gameSetId: gameSet.id,
-                playedAt: Timestamp.now(),
-                gameRoomId: gameRoomId,
-            });
+      // 5. Finalize game room status
+      const gameRoomRef = doc(db, 'game-rooms', gameRoomId);
+      batch.update(gameRoomRef, { status: 'finished' });
 
-            if (userStatsToUpdate[uid]) {
-                for (const subject in userStatsToUpdate[uid]) {
-                    const statRef = doc(db, "users", uid, "subjectStats", subject);
-                    batch.set(statRef, userStatsToUpdate[uid][subject], { merge: true });
-                }
-            }
-        }
+      // 6. Commit all batched writes at once
+      await batch.commit();
 
-
-        if (gameSet.creatorId && !playerUIDs.includes(gameSet.creatorId)) {
-            const creatorRef = doc(db, 'users', gameSet.creatorId);
-            const baseRewardAmount = gameSet.questions.length;
-            const bonusReward = Math.round(baseRewardAmount * bonusMultiplier);
-            const totalReward = baseRewardAmount + bonusReward;
-            
-            batch.update(creatorRef, { 
-                xp: increment(totalReward),
-                classPoints: increment(totalReward)
-            });
-        }
-
-        const gameRoomRef = doc(db, 'game-rooms', gameRoomId);
-        batch.update(gameRoomRef, { status: 'finished' });
-
-        await batch.commit();
-
-        toast({ title: "저장 완료!", description: "게임 결과가 성공적으로 저장되었습니다." });
-        router.push('/dashboard');
-
-    } catch(error: any) {
-        toast({ variant: 'destructive', title: '치명적 오류', description: `결과 저장 중 예상치 못한 오류가 발생했습니다: ${error.message}` });
-        console.error("Critical error in handleFinishAndSave:", error);
+      toast({ title: "저장 완료!", description: "게임 결과가 성공적으로 저장되었습니다." });
+      router.push('/dashboard');
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: '치명적 오류', description: `결과 저장 중 예상치 못한 오류가 발생했습니다: ${error.message}` });
+      console.error("Critical error in handleFinishAndSave:", error);
+    } finally {
         setIsFinishingGame(false);
     }
   }
@@ -965,9 +963,9 @@ export default function GamePage() {
       {/* Mystery Box Settings Popup */}
       <Dialog open={showMysterySettings} onOpenChange={(isOpen) => {
         if (!isOpen) {
-          setShowMysterySettings(false);
           handleConfirmMysterySettings();
         }
+        setShowMysterySettings(isOpen);
       }}>
         <DialogContent className="max-w-3xl">
             <DialogHeader>
