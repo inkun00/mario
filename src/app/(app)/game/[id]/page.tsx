@@ -994,7 +994,10 @@ export default function GamePage() {
                   {allMysteryEffects.map(effect => {
                       const votes = gameRoom?.mysteryEffectVotes?.[effect.type] || [];
                       const currentUserUid = user?.uid;
-                      const isCheckedByCurrentUser = !!currentUserUid && votes.includes(currentUserUid);
+                      let isCheckedByCurrentUser = false;
+                      if (currentUserUid) {
+                        isCheckedByCurrentUser = votes.includes(currentUserUid);
+                      }
 
                       return (
                           <div 
