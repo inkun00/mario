@@ -315,21 +315,18 @@ export default function GamePage() {
     
     let allAvailableFull = allMysteryEffects.filter(e => availableEffects.includes(e.type));
     
-    // Ensure there are always effects to choose from, even if it means repetition
     if (allAvailableFull.length === 0) {
-      allAvailableFull = allMysteryEffects; // Fallback to all effects if none are enabled
+      allAvailableFull = allMysteryEffects; 
     }
   
     const shuffled = shuffleArray(allAvailableFull);
     
-    const options = new Set<MysteryEffect>();
-    let i = 0;
-    while(options.size < 3 && i < allAvailableFull.length * 3) { // *3 to prevent infinite loops on small arrays
-      options.add(shuffled[i % shuffled.length]);
-      i++;
+    const options: MysteryEffect[] = [];
+    for (let i = 0; i < 3; i++) {
+        options.push(shuffled[i % shuffled.length]);
     }
 
-    const finalOptions = Array.from(options).map(o => ({...o, description: '', icon: undefined })); // Hide description and icon for choice
+    const finalOptions = options.map(o => ({...o, description: '', icon: undefined }));
     
     setMysteryOptions(finalOptions);
     setShowMysteryChoicePopup(true);
