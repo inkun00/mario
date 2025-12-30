@@ -462,7 +462,7 @@ export default function LobbyPage() {
         const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
         
         // This is a crucial check. If the host isn't in the player list for a remote waiting room, it's a ghost room.
-        if (roomData.joinType === 'remote' && roomData.status === 'waiting' && (!roomData.players || !roomData.players[roomData.hostId])) {
+        if (roomData.joinType === 'remote' && roomData.status === 'waiting' && roomData.hostId && (!roomData.players || !roomData.players[roomData.hostId])) {
             toast({ variant: 'destructive', title: '오류', description: '호스트가 방을 나갔습니다. 다른 방에 참여해주세요.' });
             router.push('/dashboard');
             return;
