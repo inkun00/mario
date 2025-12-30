@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, getDoc, updateDoc, Timestamp, writeBatch, increment, collection, setDoc, deleteDoc, serverTimestamp, deleteField } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc, Timestamp, writeBatch, increment, collection, setDoc, deleteDoc, serverTimestamp, deleteField, getDocs, where, query, collectionGroup } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer, SubjectStat, MysteryEffect, AnswerResult } from '@/lib/types';
@@ -697,29 +697,26 @@ export default function GamePage() {
                 pointUpdates[log.userId].classPoints += totalPoints;
             }
         });
-
-        const userStatsToUpdate: { [uid: string]: { [subject: string]: SubjectStat } } = {};
         
-        const allSubjects = Array.from(new Set((gameRoom.answerLogs || []).map(l => l.question?.subject).filter(Boolean) as string[]));
         const playerUIDs = Object.keys(gameRoom.players);
+        if (playerUIDs.length === 0) {
+            throw new Error("No players found to save stats for.");
+        }
 
-        const statsPromises = playerUIDs.flatMap(uid => 
-            allSubjects.map(subject => getDoc(doc(db, "users", uid, "subjectStats", subject)))
-        );
+        const statsQuery = query(collectionGroup(db, 'subjectStats'), where('__name__', 'in', playerUIDs.map(uid => `users/${uid}`)));
+        const statsSnapshots = await getDocs(statsQuery);
 
-        const statsSnapshots = await Promise.all(statsPromises);
         const existingStats: { [key: string]: SubjectStat } = {};
         statsSnapshots.forEach(snap => {
-            if (snap.exists()) {
-                const path = snap.ref.path.split('/');
-                const uid = path[1];
-                const subject = path[3];
-                if (!existingStats[`${uid}-${subject}`]) {
-                    existingStats[`${uid}-${subject}`] = { id: subject, ...snap.data() } as SubjectStat;
-                }
+            const path = snap.ref.path.split('/');
+            const uid = path[1];
+            const subject = path[3];
+            if (!existingStats[`${uid}-${subject}`]) {
+                existingStats[`${uid}-${subject}`] = { id: subject, ...snap.data() } as SubjectStat;
             }
         });
 
+        const userStatsToUpdate: { [uid: string]: { [subject: string]: SubjectStat } } = {};
         (gameRoom.answerLogs || []).forEach(log => {
             if (!log.userId || !log.question?.subject || !log.question.unit || !gameRoom.players[log.userId]) return;
 
