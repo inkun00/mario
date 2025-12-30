@@ -268,7 +268,6 @@ export default function GamePage() {
   const handleMysteryBoxChoice = async (chosenEffect: MysteryEffect) => {
     if (!gameRoom || typeof gameRoomId !== 'string') return;
     
-    // For local games, anyone can click. For remote, only the current player.
     if (gameRoom.joinType === 'remote' && !isMyTurn) return;
 
     setShowMysteryChoicePopup(false);
@@ -310,44 +309,26 @@ export default function GamePage() {
 
   const prepareMysteryChoice = () => {
     if (!gameRoom) return;
-
+  
     const availableEffects = gameRoom.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
+    
+    let allAvailableFull = allMysteryEffects.filter(e => availableEffects.includes(e.type));
+    
+    // Ensure there are always effects to choose from, even if it means repetition
+    if (allAvailableFull.length === 0) {
+      allAvailableFull = allMysteryEffects; // Fallback to all effects if none are enabled
+    }
+  
+    const shuffled = shuffleArray(allAvailableFull);
+    
+    const options = new Set<MysteryEffect>();
+    let i = 0;
+    while(options.size < 3 && i < allAvailableFull.length * 3) { // *3 to prevent infinite loops on small arrays
+      options.add(shuffled[i % shuffled.length]);
+      i++;
+    }
 
-    const goodEffects = allMysteryEffects.filter(e => ['bonus', 'double', 'swap'].includes(e.type) && availableEffects.includes(e.type));
-    const badEffects = allMysteryEffects.filter(e => ['penalty', 'half'].includes(e.type) && availableEffects.includes(e.type));
-    
-    let options: MysteryEffect[] = [];
-
-    // Ensure at least one bad effect if possible
-    if (badEffects.length > 0) {
-        const shuffledBad = shuffleArray(badEffects);
-        options.push(shuffledBad[0]);
-    }
-    
-    // Fill the rest with good effects
-    const shuffledGood = shuffleArray(goodEffects);
-    while (options.length < 3 && shuffledGood.length > 0) {
-        const effectToAdd = shuffledGood.shift()!;
-        if (!options.some(opt => opt.type === effectToAdd.type)) {
-            options.push(effectToAdd);
-        }
-    }
-    
-    // If not enough effects, fill with whatever is available
-    const allAvailable = shuffleArray(allMysteryEffects.filter(e => availableEffects.includes(e.type)));
-    while (options.length < 3 && allAvailable.length > 0) {
-        const effectToAdd = allAvailable.shift()!;
-        if (!options.some(opt => opt.type === effectToAdd.type)) {
-            options.push(effectToAdd);
-        }
-    }
-    
-    // Ensure 3 options by duplicating if necessary
-    while (options.length > 0 && options.length < 3) {
-      options.push(...shuffleArray(options));
-    }
-    
-    const finalOptions = shuffleArray(options.slice(0, 3)).map(o => ({...o, description: '', icon: undefined })); // Hide description and icon for choice
+    const finalOptions = Array.from(options).map(o => ({...o, description: '', icon: undefined })); // Hide description and icon for choice
     
     setMysteryOptions(finalOptions);
     setShowMysteryChoicePopup(true);
@@ -1112,7 +1093,7 @@ export default function GamePage() {
                                     placeholder="정답을 입력하세요" 
                                     value={userAnswer}
                                     onChange={(e) => setUserAnswer(e.target.value)}
-                                    disabled={(gameRoom?.joinType === 'remote' && !isMyTurn)}
+                                    disabled={isSubmitting || (gameRoom?.joinType === 'remote' && !isMyTurn)}
                                 />
                             )}
                             {currentQuestionInfo?.question?.type === 'multipleChoice' && currentQuestionInfo?.question.options && (
@@ -1120,7 +1101,7 @@ export default function GamePage() {
                                   value={userAnswer} 
                                   onValueChange={setUserAnswer} 
                                   className="space-y-2" 
-                                  disabled={(gameRoom?.joinType === 'remote' && !isMyTurn)}
+                                  disabled={isSubmitting || (gameRoom?.joinType === 'remote' && !isMyTurn)}
                                 >
                                     {currentQuestionInfo.question.options.map((option, index) => (
                                         <div key={index} className="flex items-center space-x-2">
@@ -1135,7 +1116,7 @@ export default function GamePage() {
                                   value={userAnswer} 
                                   onValueChange={setUserAnswer} 
                                   className="grid grid-cols-2 gap-4" 
-                                  disabled={(gameRoom?.joinType === 'remote' && !isMyTurn)}
+                                  disabled={isSubmitting || (gameRoom?.joinType === 'remote' && !isMyTurn)}
                                 >
                                     <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'O' && 'border-primary bg-primary/10')}>
                                         <RadioGroupItem value="O" id="option-o" className="sr-only"/>
