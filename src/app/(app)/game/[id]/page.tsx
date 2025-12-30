@@ -267,7 +267,7 @@ export default function GamePage() {
 
   const prepareMysteryChoice = () => {
     if (!gameRoom) return;
-
+    
     const availableEffects = gameRoom.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
     const allAvailableFull = allMysteryEffects.filter(e => availableEffects.includes(e.type));
     
@@ -620,7 +620,7 @@ export default function GamePage() {
 
         } else { // local game
              const hostVotes = Object.keys(gameRoom.mysteryEffectVotes || {}).filter(effectType => 
-                gameRoom.mysteryEffectVotes?.[effectType as MysteryEffectType]?.includes(gameRoom.hostId)
+                gameRoom.mysteryEffectVotes?.[effectType as MysteryEffectType]?.includes(user.uid)
              );
              agreedEffects = hostVotes as MysteryEffectType[];
         }
@@ -980,16 +980,11 @@ export default function GamePage() {
       </Dialog>
 
       {/* Mystery Box Settings Popup */}
-      <Dialog
-        open={showMysterySettings}
-        onOpenChange={(isOpen) => {
-          setShowMysterySettings(isOpen)
-          if (!isOpen && !isSubmitting && (gameRoom?.joinType === 'local' || isHost)) {
-            // If the host closes the dialog, assume settings are confirmed to not block the game.
-             handleConfirmMysterySettings();
+      <Dialog open={showMysterySettings} onOpenChange={(isOpen) => {
+          if (!isOpen && !isSubmitting) {
+             setShowMysterySettings(false);
           }
-        }}
-      >
+      }}>
         <DialogContent className="max-w-3xl">
             <DialogHeader>
                 <DialogTitle className="font-headline text-2xl flex items-center gap-2"><Gift className="text-primary"/>미스터리 박스 설정</DialogTitle>
@@ -1001,7 +996,7 @@ export default function GamePage() {
             <div className="py-4 space-y-2">
                 {allMysteryEffects.map(effect => {
                     const votes = gameRoom?.mysteryEffectVotes?.[effect.type] || [];
-                    const currentUserUid = (gameRoom?.joinType === 'local' && gameRoom.hostId) ? gameRoom.hostId : user?.uid;
+                    const currentUserUid = user?.uid;
                     const isCheckedByCurrentUser = currentUserUid ? votes.includes(currentUserUid) : false;
 
                     return (
@@ -1278,5 +1273,3 @@ export default function GamePage() {
     </>
   );
 }
-
-    
