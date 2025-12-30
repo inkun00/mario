@@ -101,26 +101,26 @@ export default function GamePage() {
   const [blocks, setBlocks] = useState<GameBlock[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   
-  const [currentQuestionInfo, setCurrentQuestionInfo = useState<{question: Question & { id: number }, blockId: number} | null>(null);
-  const [currentPoints, setCurrentPoints = useState(0);
-  const [userAnswer, setUserAnswer = useState('');
-  const [showHint, setShowHint = useState(false);
+  const [currentQuestionInfo, setCurrentQuestionInfo] = useState<{question: Question & { id: number }, blockId: number} | null>(null);
+  const [currentPoints, setCurrentPoints] = useState(0);
+  const [userAnswer, setUserAnswer] = useState('');
+  const [showHint, setShowHint] = useState(false);
   
-  const [isMyTurn, setIsMyTurn = useState(false);
+  const [isMyTurn, setIsMyTurn] = useState(false);
   
-  const [isSubmitting, setIsSubmitting = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [showMysterySettings, setShowMysterySettings = useState(false);
+  const [showMysterySettings, setShowMysterySettings] = useState(false);
 
-  const [showMysteryChoicePopup, setShowMysteryChoicePopup = useState(false);
-  const [mysteryOptions, setMysteryOptions = useState<MysteryEffect[]>([]);
-  const [showMysteryBoxPopup, setShowMysteryBoxPopup = useState(false);
-  const [playerForSwap, setPlayerForSwap = useState<string | null>(null);
+  const [showMysteryChoicePopup, setShowMysteryChoicePopup] = useState(false);
+  const [mysteryOptions, setMysteryOptions] = useState<MysteryEffect[]>([]);
+  const [showMysteryBoxPopup, setShowMysteryBoxPopup] = useState(false);
+  const [playerForSwap, setPlayerForSwap] = useState<string | null>(null);
   
-  const [showGameOverPopup, setShowGameOverPopup = useState(false);
-  const [finalScores, setFinalScores = useState<Player[]>([]);
-  const [isFinishingGame, setIsFinishingGame = useState(false);
-  const [showEndGameConfirm, setShowEndGameConfirm = useState(false);
+  const [showGameOverPopup, setShowGameOverPopup] = useState(false);
+  const [finalScores, setFinalScores] = useState<Player[]>([]);
+  const [isFinishingGame, setIsFinishingGame] = useState(false);
+  const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
 
   // Fetch GameRoom and GameSet data
   useEffect(() => {
@@ -657,7 +657,7 @@ export default function GamePage() {
 
   const handleFinishAndSave = async () => {
     if (!gameRoom || typeof gameRoomId !== 'string' || !gameSet || !user) return;
-
+  
     setIsFinishingGame(true);
     try {
       const batch = writeBatch(db);
@@ -668,14 +668,26 @@ export default function GamePage() {
       
       const userStatsToUpdate: { 
         [uid: string]: { 
-          xp: number, 
-          classPoints: number, 
-          subjects: { [subjectId: string]: SubjectStat } 
-        } 
+          [subject: string]: {
+            totalCorrect: number;
+            totalIncorrect: number;
+            units: {
+              [unit: string]: {
+                totalCorrect: number;
+                totalIncorrect: number;
+              };
+            };
+          };
+        };
       } = {};
   
+      const xpUpdates: { [uid: string]: number } = {};
+      const classPointsUpdates: { [uid: string]: number } = {};
+  
       playerUIDs.forEach(uid => {
-        userStatsToUpdate[uid] = { xp: 0, classPoints: 0, subjects: {} };
+        xpUpdates[uid] = 0;
+        classPointsUpdates[uid] = 0;
+        userStatsToUpdate[uid] = {};
       });
       
       let bonusMultiplier = 0;
@@ -692,35 +704,33 @@ export default function GamePage() {
         const bonusPoints = Math.round(basePoints * bonusMultiplier);
         const totalPoints = basePoints + bonusPoints;
   
-        userStatsToUpdate[log.userId].xp += totalPoints;
-        userStatsToUpdate[log.userId].classPoints += totalPoints;
+        xpUpdates[log.userId] += totalPoints;
+        classPointsUpdates[log.userId] += totalPoints;
   
         const { question, isCorrect } = log;
         if (question?.subject && question?.unit) {
           const subject = question.subject;
           const unit = question.unit;
   
-          if (!userStatsToUpdate[log.userId].subjects[subject]) {
-            userStatsToUpdate[log.userId].subjects[subject] = { id: subject, totalCorrect: 0, totalIncorrect: 0, units: {} };
+          if (!userStatsToUpdate[log.userId][subject]) {
+            userStatsToUpdate[log.userId][subject] = { totalCorrect: 0, totalIncorrect: 0, units: {} };
           }
-          if (!userStatsToUpdate[log.userId].subjects[subject].units[unit]) {
-            userStatsToUpdate[log.userId].subjects[subject].units[unit] = { totalCorrect: 0, totalIncorrect: 0 };
+          if (!userStatsToUpdate[log.userId][subject].units[unit]) {
+            userStatsToUpdate[log.userId][subject].units[unit] = { totalCorrect: 0, totalIncorrect: 0 };
           }
   
           const countField = isCorrect ? 'totalCorrect' : 'totalIncorrect';
-          userStatsToUpdate[log.userId].subjects[subject].totalCorrect += isCorrect ? 1 : 0;
-          userStatsToUpdate[log.userId].subjects[subject].totalIncorrect += !isCorrect ? 1 : 0;
-          userStatsToUpdate[log.userId].subjects[subject].units[unit][countField]++;
+          userStatsToUpdate[log.userId][subject][countField] = (userStatsToUpdate[log.userId][subject][countField] || 0) + 1;
+          userStatsToUpdate[log.userId][subject].units[unit][countField] = (userStatsToUpdate[log.userId][subject].units[unit][countField] || 0) + 1;
         }
       });
       
       for (const uid of playerUIDs) {
         const userRef = doc(db, 'users', uid);
-        const points = userStatsToUpdate[uid];
-        if (points && (points.xp !== 0 || points.classPoints !== 0)) {
+        if (xpUpdates[uid] !== 0 || classPointsUpdates[uid] !== 0) {
           batch.update(userRef, {
-            xp: increment(points.xp),
-            classPoints: increment(points.classPoints),
+            xp: increment(xpUpdates[uid]),
+            classPoints: increment(classPointsUpdates[uid]),
           });
         }
   
@@ -729,19 +739,9 @@ export default function GamePage() {
           gameSetId: gameSet.id, playedAt: serverTimestamp(), gameRoomId,
         });
 
-        for (const subject in userStatsToUpdate[uid].subjects) {
+        for (const subject in userStatsToUpdate[uid]) {
             const statRef = doc(db, "users", uid, "subjectStats", subject);
-            const subjectUpdates = userStatsToUpdate[uid].subjects[subject];
-            
-            const firestoreUpdates: { [key: string]: any } = {
-                totalCorrect: increment(subjectUpdates.totalCorrect),
-                totalIncorrect: increment(subjectUpdates.totalIncorrect),
-            };
-            for(const unit in subjectUpdates.units) {
-                firestoreUpdates[`units.${unit}.totalCorrect`] = increment(subjectUpdates.units[unit].totalCorrect);
-                firestoreUpdates[`units.${unit}.totalIncorrect`] = increment(subjectUpdates.units[unit].totalIncorrect);
-            }
-            batch.set(statRef, firestoreUpdates, { merge: true });
+            batch.set(statRef, userStatsToUpdate[uid][subject], { merge: true });
         }
       }
       
@@ -959,12 +959,15 @@ export default function GamePage() {
       </Dialog>
 
       {/* Mystery Box Settings Popup */}
-      <Dialog open={showMysterySettings} onOpenChange={(isOpen) => {
-        if (!isOpen) {
-          handleConfirmMysterySettings();
-        }
-        setShowMysterySettings(isOpen);
-      }}>
+      <Dialog 
+        open={showMysterySettings} 
+        onOpenChange={(isOpen) => {
+          setShowMysterySettings(isOpen);
+          if (!isOpen) {
+            handleConfirmMysterySettings();
+          }
+        }}
+      >
         <DialogContent className="max-w-3xl">
             <DialogHeader>
                 <DialogTitle className="font-headline text-2xl flex items-center gap-2"><Gift className="text-primary"/>미스터리 박스 설정</DialogTitle>
@@ -1252,5 +1255,3 @@ export default function GamePage() {
     </>
   );
 }
-
-    
