@@ -4,7 +4,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, getDoc, updateDoc, Timestamp, writeBatch, increment, collection, setDoc, deleteDoc, serverTimestamp, deleteField, getDocs, where, query, collectionGroup } from 'firebase/firestore';
+import { doc, onSnapshot, getDoc, updateDoc, Timestamp, writeBatch, increment, collection, setDoc, deleteDoc, serverTimestamp, deleteField, getDocs, where, query, collectionGroup, runTransaction } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer, SubjectStat, MysteryEffect, AnswerResult } from '@/lib/types';
@@ -269,13 +269,12 @@ export default function GamePage() {
     if (!gameRoom) return;
 
     const availableEffects = gameRoom.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
-    
     let allAvailableFull = allMysteryEffects.filter(e => availableEffects.includes(e.type));
     
     if (allAvailableFull.length === 0) {
       allAvailableFull = allMysteryEffects; 
     }
-  
+
     const shuffled = shuffleArray(allAvailableFull);
     const options: MysteryEffect[] = [];
     
@@ -338,26 +337,24 @@ export default function GamePage() {
   };
 
   const getNextTurnUID = (): string => {
-    if (!gameRoom) return '';
+    if (!gameRoom || !gameRoom.playerUIDs) return '';
     
-    const remainingPlayerUIDs = gameRoom.playerUIDs?.filter(uid => gameRoom.players[uid]) || [];
+    const remainingPlayerUIDs = gameRoom.playerUIDs.filter(uid => gameRoom.players[uid]);
     if (remainingPlayerUIDs.length === 0) return '';
     
     const currentTurnIndex = remainingPlayerUIDs.indexOf(gameRoom.currentTurn);
     if (currentTurnIndex === -1) {
-      // If the current turn player left, find their original index to determine the next player.
-      const originalIndex = gameRoom.playerUIDs?.indexOf(gameRoom.currentTurn) ?? -1;
+      const originalIndex = gameRoom.playerUIDs.indexOf(gameRoom.currentTurn) ?? -1;
       if (originalIndex !== -1) {
-        // Find the next available player
-        for (let i = 1; i < (gameRoom.playerUIDs?.length || 0); i++) {
-          const nextIndex = (originalIndex + i) % (gameRoom.playerUIDs?.length || 1);
-          const nextUID = gameRoom.playerUIDs?.[nextIndex];
+        for (let i = 1; i < gameRoom.playerUIDs.length; i++) {
+          const nextIndex = (originalIndex + i) % gameRoom.playerUIDs.length;
+          const nextUID = gameRoom.playerUIDs[nextIndex];
           if (nextUID && remainingPlayerUIDs.includes(nextUID)) {
             return nextUID;
           }
         }
       }
-      return remainingPlayerUIDs[0]; // Fallback to the first remaining player
+      return remainingPlayerUIDs[0];
     }
 
     const nextTurnIndex = (currentTurnIndex + 1) % remainingPlayerUIDs.length;
@@ -414,8 +411,6 @@ export default function GamePage() {
                 pointsAwarded: pointsToAward,
                 timestamp: Timestamp.now(),
             };
-
-            const newAnswerLogs = [...(gameRoom.answerLogs || []), newLogEntry];
             
             const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
             
@@ -425,7 +420,7 @@ export default function GamePage() {
             const allAnswered = Object.keys(newGameState).length >= totalBlocks;
             
             const updateData: Partial<GameRoom> = {
-                answerLogs: newAnswerLogs, 
+                answerLogs: [...(gameRoom.answerLogs || []), newLogEntry], 
                 gameState: newGameState,
                 currentAnswerResult: null,
             };
@@ -554,21 +549,28 @@ export default function GamePage() {
   const handleToggleMysteryVote = async (effectType: MysteryEffectType, isChecked: boolean) => {
     if (!gameRoom || !user || typeof gameRoomId !== 'string') return;
   
-    const currentVotes = gameRoom.mysteryEffectVotes?.[effectType] || [];
-    let newVotes: string[];
-  
-    if (isChecked) {
-      // Add user's vote if not already present
-      newVotes = [...new Set([...currentVotes, user.uid])];
-    } else {
-      // Remove user's vote
-      newVotes = currentVotes.filter(uid => uid !== user.uid);
-    }
+    const roomRef = doc(db, 'game-rooms', gameRoomId);
   
     try {
-      const roomRef = doc(db, 'game-rooms', gameRoomId);
-      await updateDoc(roomRef, {
-        [`mysteryEffectVotes.${effectType}`]: newVotes
+      await runTransaction(db, async (transaction) => {
+        const roomDoc = await transaction.get(roomRef);
+        if (!roomDoc.exists()) {
+          throw "Game room not found.";
+        }
+  
+        const currentRoomData = roomDoc.data() as GameRoom;
+        const currentVotes = currentRoomData.mysteryEffectVotes?.[effectType] || [];
+        let newVotes: string[];
+  
+        if (isChecked) {
+          newVotes = [...new Set([...currentVotes, user.uid])];
+        } else {
+          newVotes = currentVotes.filter(uid => uid !== user.uid);
+        }
+  
+        transaction.update(roomRef, {
+          [`mysteryEffectVotes.${effectType}`]: newVotes
+        });
       });
     } catch (error) {
       console.error("Error toggling mystery vote:", error);
@@ -770,7 +772,7 @@ export default function GamePage() {
     } finally {
         setIsFinishingGame(false);
     }
-  }
+  };
 
 
   const currentTurnPlayer = players.find(p => p.uid === gameRoom?.currentTurn);
@@ -996,12 +998,28 @@ export default function GamePage() {
                                     <div className="flex items-center gap-2 mt-2">
                                         {gameRoom.playerUIDs.map(uid => {
                                             const hasVoted = votes.includes(uid);
+                                            const player = gameRoom.players[uid];
+                                            let pixelAvatarData = null;
+                                            if (player?.pixelAvatar) {
+                                                try { pixelAvatarData = JSON.parse(player.pixelAvatar); } catch (e) {}
+                                            }
                                             return (
-                                                <div key={uid} className="flex items-center gap-1 text-xs">
-                                                  <div className={cn("w-5 h-5 rounded-full flex items-center justify-center border", hasVoted ? "bg-green-100 border-green-300" : "bg-gray-100")}>
-                                                    {hasVoted ? <Check className="w-3 h-3 text-green-600"/> : <div className="w-3 h-3" />}
-                                                  </div>
-                                                </div>
+                                                <TooltipProvider key={uid}>
+                                                    <Tooltip>
+                                                        <TooltipTrigger>
+                                                          <div className={cn("w-6 h-6 rounded-full flex items-center justify-center border-2", hasVoted ? "border-green-400 bg-green-100" : "border-gray-300 bg-gray-100")}>
+                                                            {pixelAvatarData ? (
+                                                                <PixelAvatar pixels={pixelAvatarData} className="w-5 h-5 rounded-full" />
+                                                            ) : (
+                                                                hasVoted ? <Check className="w-3 h-3 text-green-600"/> : <div className="w-3 h-3" />
+                                                            )}
+                                                          </div>
+                                                        </TooltipTrigger>
+                                                        <TooltipContent>
+                                                            <p>{player?.nickname || '알 수 없음'}</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
                                             );
                                         })}
                                     </div>
