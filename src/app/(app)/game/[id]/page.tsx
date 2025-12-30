@@ -685,8 +685,9 @@ export default function GamePage() {
         if (playerUIDs.length === 0) {
             throw new Error("저장할 플레이어를 찾을 수 없습니다.");
         }
-
+        
         const userStatsToUpdate: { [uid: string]: { [subject: string]: SubjectStat } } = {};
+
         (gameRoom.answerLogs || []).forEach(log => {
             if (!log.userId || !log.question?.subject || !log.question.unit || !gameRoom.players[log.userId]) return;
 
@@ -712,8 +713,8 @@ export default function GamePage() {
                 stat.units[unit][countField] = (stat.units[unit][countField] || 0) + 1;
             }
         });
-
-        playerUIDs.forEach(uid => {
+        
+        for (const uid of playerUIDs) {
             const userRef = doc(db, 'users', uid);
             const updates = pointUpdates[uid];
             if (updates && (updates.xp !== 0 || updates.classPoints !== 0)) {
@@ -733,19 +734,10 @@ export default function GamePage() {
             if (userStatsToUpdate[uid]) {
                 for (const subject in userStatsToUpdate[uid]) {
                     const statRef = doc(db, "users", uid, "subjectStats", subject);
-                    const subjectUpdate = userStatsToUpdate[uid][subject];
-                    const updateData: { [key: string]: any } = {
-                        totalCorrect: increment(subjectUpdate.totalCorrect),
-                        totalIncorrect: increment(subjectUpdate.totalIncorrect)
-                    };
-                    for (const unit in subjectUpdate.units) {
-                        updateData[`units.${unit}.totalCorrect`] = increment(subjectUpdate.units[unit].totalCorrect);
-                        updateData[`units.${unit}.totalIncorrect`] = increment(subjectUpdate.units[unit].totalIncorrect);
-                    }
-                    batch.set(statRef, updateData, { merge: true });
+                    batch.set(statRef, userStatsToUpdate[uid][subject], { merge: true });
                 }
             }
-        });
+        }
 
 
         if (gameSet.creatorId && !playerUIDs.includes(gameSet.creatorId)) {
@@ -990,12 +982,12 @@ export default function GamePage() {
                             <Label htmlFor={`effect-${effect.type}`} className="flex-grow cursor-pointer">
                                 <p className="font-semibold">{effect.title}</p>
                                 <p className="text-sm text-muted-foreground">{effect.description}</p>
-                                {gameRoom?.joinType === 'remote' && (
+                                {gameRoom?.joinType === 'remote' && gameRoom.playerUIDs && (
                                     <div className="flex items-center gap-2 mt-2">
-                                        {Object.values(gameRoom.players).map(p => {
-                                            const hasVoted = votes.includes(p.uid);
+                                        {gameRoom.playerUIDs.map(uid => {
+                                            const hasVoted = votes.includes(uid);
                                             return (
-                                                <div key={p.uid} className="flex items-center gap-1 text-xs">
+                                                <div key={uid} className="flex items-center gap-1 text-xs">
                                                   <div className={cn("w-5 h-5 rounded-full flex items-center justify-center border", hasVoted ? "bg-green-100 border-green-300" : "bg-gray-100")}>
                                                     {hasVoted ? <Check className="w-3 h-3 text-green-600"/> : <div className="w-3 h-3" />}
                                                   </div>
@@ -1122,7 +1114,7 @@ export default function GamePage() {
                         </div>
                     </div>
                     
-                    <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting || (gameRoom?.joinType === 'remote' && !isMyTurn && !userAnswer)}>
+                    <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting || ((gameRoom?.joinType === 'remote' && !isMyTurn) || !userAnswer)}>
                         {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
                     </Button>
                 </>
