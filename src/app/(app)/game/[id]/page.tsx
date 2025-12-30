@@ -293,8 +293,8 @@ export default function GamePage() {
   const handleMysteryBoxChoice = async (chosenEffect: MysteryEffect) => {
     if (!gameRoom || typeof gameRoomId !== 'string') return;
     
-    const canChoose = gameRoom.joinType === 'local' || isMyTurn;
-    if (!canChoose) return;
+    const canAct = gameRoom.joinType === 'local' || isMyTurn;
+    if (!canAct) return;
 
     setShowMysteryChoicePopup(false);
 
@@ -687,6 +687,13 @@ export default function GamePage() {
         }
         
         const userStatsToUpdate: { [uid: string]: { [subject: string]: SubjectStat } } = {};
+        const subjectStatsToFetch = new Set<string>();
+
+        (gameRoom.answerLogs || []).forEach(log => {
+            if (!log.userId || !log.question?.subject || !log.question.unit || !gameRoom.players[log.userId]) return;
+            const subjectId = `${log.userId}_${log.question.subject}`;
+            subjectStatsToFetch.add(subjectId);
+        });
 
         (gameRoom.answerLogs || []).forEach(log => {
             if (!log.userId || !log.question?.subject || !log.question.unit || !gameRoom.players[log.userId]) return;
@@ -956,7 +963,12 @@ export default function GamePage() {
       </Dialog>
 
       {/* Mystery Box Settings Popup */}
-      <Dialog open={showMysterySettings}>
+      <Dialog open={showMysterySettings} onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          setShowMysterySettings(false);
+          handleConfirmMysterySettings();
+        }
+      }}>
         <DialogContent className="max-w-3xl">
             <DialogHeader>
                 <DialogTitle className="font-headline text-2xl flex items-center gap-2"><Gift className="text-primary"/>미스터리 박스 설정</DialogTitle>
