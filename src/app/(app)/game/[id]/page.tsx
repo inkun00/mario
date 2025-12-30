@@ -278,7 +278,7 @@ export default function GamePage() {
     const shuffled = shuffleArray(allAvailableFull);
     const options: MysteryEffect[] = [];
     let i = 0;
-    while (options.length < 3) {
+    while(options.length < 3) {
       options.push(shuffled[i % shuffled.length]);
       i++;
     }
@@ -549,26 +549,30 @@ export default function GamePage() {
 
   const handleToggleMysteryVote = async (effectType: MysteryEffectType, isChecked: boolean) => {
     if (!gameRoom || !user || typeof gameRoomId !== 'string') return;
-  
-    const roomRef = doc(db, 'game-rooms', gameRoomId);
-  
+
     try {
       await runTransaction(db, async (transaction) => {
+        const roomRef = doc(db, 'game-rooms', gameRoomId);
         const roomDoc = await transaction.get(roomRef);
         if (!roomDoc.exists()) {
           throw "Game room not found.";
         }
   
         const currentRoomData = roomDoc.data() as GameRoom;
-        // IMPORTANT: Create a new object for votes to ensure Firestore detects the change.
         const newVotes = { ...(currentRoomData.mysteryEffectVotes || {}) };
-        const currentEffectVotes = newVotes[effectType] || [];
         
+        let userId = user.uid;
+        if (currentRoomData.joinType === 'local') {
+          userId = currentRoomData.hostId;
+        }
+
+        const currentEffectVotes = newVotes[effectType] || [];
         let updatedEffectVotes: string[];
+  
         if (isChecked) {
-          updatedEffectVotes = [...new Set([...currentEffectVotes, user.uid])];
+          updatedEffectVotes = [...new Set([...currentEffectVotes, userId])];
         } else {
-          updatedEffectVotes = currentEffectVotes.filter(uid => uid !== user.uid);
+          updatedEffectVotes = currentEffectVotes.filter(uid => uid !== userId);
         }
         
         newVotes[effectType] = updatedEffectVotes;
@@ -594,7 +598,7 @@ export default function GamePage() {
         let agreedEffects: MysteryEffectType[] = [];
         
         if (gameRoom.joinType === 'remote') {
-            const allPlayerIds = Object.keys(gameRoom.players);
+            const allPlayerIds = gameRoom.playerUIDs || Object.keys(gameRoom.players);
             const numPlayers = allPlayerIds.length;
             agreedEffects = allMysteryEffects
                 .filter(effect => {
@@ -673,8 +677,6 @@ export default function GamePage() {
       const userStatsToUpdate: { 
         [uid: string]: { 
           [subject: string]: {
-            totalCorrect: number;
-            totalIncorrect: number;
             units: {
               [unit: string]: {
                 totalCorrect: number;
@@ -717,14 +719,13 @@ export default function GamePage() {
           const unit = question.unit;
   
           if (!userStatsToUpdate[log.userId][subject]) {
-            userStatsToUpdate[log.userId][subject] = { totalCorrect: 0, totalIncorrect: 0, units: {} };
+            userStatsToUpdate[log.userId][subject] = { units: {} };
           }
           if (!userStatsToUpdate[log.userId][subject].units[unit]) {
             userStatsToUpdate[log.userId][subject].units[unit] = { totalCorrect: 0, totalIncorrect: 0 };
           }
   
           const countField = isCorrect ? 'totalCorrect' : 'totalIncorrect';
-          userStatsToUpdate[log.userId][subject][countField] = (userStatsToUpdate[log.userId][subject][countField] || 0) + 1;
           userStatsToUpdate[log.userId][subject].units[unit][countField] = (userStatsToUpdate[log.userId][subject].units[unit][countField] || 0) + 1;
         }
       });
@@ -745,22 +746,22 @@ export default function GamePage() {
 
         for (const subject in userStatsToUpdate[uid]) {
             const statRef = doc(db, "users", uid, "subjectStats", subject);
-            batch.set(statRef, {
-              totalCorrect: increment(userStatsToUpdate[uid][subject].totalCorrect),
-              totalIncorrect: increment(userStatsToUpdate[uid][subject].totalIncorrect),
-            }, { merge: true });
-
+            const subjectUpdate: any = {};
+            let totalCorrectForSubject = 0;
+            let totalIncorrectForSubject = 0;
+            
             for (const unit in userStatsToUpdate[uid][subject].units) {
-              const unitData = userStatsToUpdate[uid][subject].units[unit];
-              batch.set(statRef, {
-                units: {
-                  [unit]: {
-                    totalCorrect: increment(unitData.totalCorrect),
-                    totalIncorrect: increment(unitData.totalIncorrect),
-                  }
-                }
-              }, { merge: true });
+                const unitData = userStatsToUpdate[uid][subject].units[unit];
+                subjectUpdate[`units.${unit}.totalCorrect`] = increment(unitData.totalCorrect);
+                subjectUpdate[`units.${unit}.totalIncorrect`] = increment(unitData.totalIncorrect);
+                totalCorrectForSubject += unitData.totalCorrect;
+                totalIncorrectForSubject += unitData.totalIncorrect;
             }
+            
+            subjectUpdate['totalCorrect'] = increment(totalCorrectForSubject);
+            subjectUpdate['totalIncorrect'] = increment(totalIncorrectForSubject);
+
+            batch.set(statRef, subjectUpdate, { merge: true });
         }
       }
       
@@ -978,11 +979,11 @@ export default function GamePage() {
       </Dialog>
 
       {/* Mystery Box Settings Popup */}
-      <Dialog 
-        open={showMysterySettings} 
+      <Dialog
+        open={showMysterySettings}
         onOpenChange={(isOpen) => {
-          if (!isOpen) {
-            handleConfirmMysterySettings();
+          if (!isOpen && !isSubmitting) {
+             handleConfirmMysterySettings();
           }
           setShowMysterySettings(isOpen);
         }}
@@ -1274,3 +1275,4 @@ export default function GamePage() {
     </>
   );
 }
+
