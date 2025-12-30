@@ -597,7 +597,7 @@ export default function GamePage() {
   };
 
   const handleConfirmMysterySettings = async () => {
-    if (!gameRoom || typeof gameRoomId !== 'string' || !user ) return;
+    if (!gameRoom || typeof gameRoomId !== 'string' || !user) return;
     if (gameRoom.joinType === 'remote' && user.uid !== gameRoom.hostId) return;
 
     setIsSubmitting(true);
@@ -614,21 +614,22 @@ export default function GamePage() {
                     return votesForEffect.length === numPlayers;
                 })
                 .map(effect => effect.type);
+            
+            if (agreedEffects.length === 0 && gameRoom.mysteryBoxEnabled) {
+                toast({
+                    variant: 'destructive',
+                    title: '필수 동의',
+                    description: '미스터리 박스를 사용하려면 최소 1개의 효과에 모든 플레이어가 동의해야 합니다.',
+                });
+                setIsSubmitting(false);
+                return;
+            }
+
         } else { // local game
              const hostVotes = Object.keys(gameRoom.mysteryEffectVotes || {}).filter(effectType => 
                 gameRoom.mysteryEffectVotes?.[effectType as MysteryEffectType]?.includes(gameRoom.hostId)
              );
              agreedEffects = hostVotes as MysteryEffectType[];
-        }
-
-        if (agreedEffects.length === 0 && gameRoom.mysteryBoxEnabled) {
-            toast({
-                variant: 'destructive',
-                title: '필수 동의',
-                description: '미스터리 박스를 사용하려면 최소 1개의 효과에 모든 플레이어가 동의해야 합니다.',
-            });
-            setIsSubmitting(false);
-            return;
         }
 
         await updateDoc(roomRef, {
@@ -1111,7 +1112,7 @@ export default function GamePage() {
                                     placeholder="정답을 입력하세요" 
                                     value={userAnswer}
                                     onChange={(e) => setUserAnswer(e.target.value)}
-                                    disabled={gameRoom?.joinType === 'remote' && !isMyTurn}
+                                    disabled={(gameRoom?.joinType === 'remote' && !isMyTurn)}
                                 />
                             )}
                             {currentQuestionInfo?.question?.type === 'multipleChoice' && currentQuestionInfo?.question.options && (
@@ -1119,7 +1120,7 @@ export default function GamePage() {
                                   value={userAnswer} 
                                   onValueChange={setUserAnswer} 
                                   className="space-y-2" 
-                                  disabled={gameRoom?.joinType === 'remote' && !isMyTurn}
+                                  disabled={(gameRoom?.joinType === 'remote' && !isMyTurn)}
                                 >
                                     {currentQuestionInfo.question.options.map((option, index) => (
                                         <div key={index} className="flex items-center space-x-2">
@@ -1134,7 +1135,7 @@ export default function GamePage() {
                                   value={userAnswer} 
                                   onValueChange={setUserAnswer} 
                                   className="grid grid-cols-2 gap-4" 
-                                  disabled={gameRoom?.joinType === 'remote' && !isMyTurn}
+                                  disabled={(gameRoom?.joinType === 'remote' && !isMyTurn)}
                                 >
                                     <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'O' && 'border-primary bg-primary/10')}>
                                         <RadioGroupItem value="O" id="option-o" className="sr-only"/>
