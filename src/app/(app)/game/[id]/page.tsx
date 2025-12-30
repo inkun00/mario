@@ -551,26 +551,6 @@ export default function GamePage() {
   const handleToggleMysteryVote = (effectType: MysteryEffectType) => {
     if (!user || !gameRoomId) return;
 
-    // Optimistic UI update
-    setGameRoom(prevRoom => {
-      if (!prevRoom) return null;
-      
-      const userIdToUpdate = prevRoom.joinType === 'local' ? user.uid : user.uid;
-      const currentVotes = { ...(prevRoom.mysteryEffectVotes || {}) };
-      const votesForEffect: string[] = [...(currentVotes[effectType] || [])];
-      const userIndex = votesForEffect.indexOf(userIdToUpdate);
-
-      if (userIndex > -1) {
-        votesForEffect.splice(userIndex, 1);
-      } else {
-        votesForEffect.push(userIdToUpdate);
-      }
-      const newVotes = { ...currentVotes, [effectType]: votesForEffect };
-      
-      return { ...prevRoom, mysteryEffectVotes: newVotes };
-    });
-
-    // Firestore update
     const roomRef = doc(db, 'game-rooms', gameRoomId);
     runTransaction(db, async (transaction) => {
       const roomDoc = await transaction.get(roomRef);
@@ -579,7 +559,8 @@ export default function GamePage() {
       }
 
       const currentRoomData = roomDoc.data() as GameRoom;
-      const userIdToUpdate = currentRoomData.joinType === 'local' ? user.uid : user.uid;
+      const userIdToUpdate = user.uid;
+      // Deep copy to avoid direct mutation
       const newVotes = JSON.parse(JSON.stringify(currentRoomData.mysteryEffectVotes || {}));
       
       const votesForEffect: string[] = newVotes[effectType] || [];
@@ -595,9 +576,7 @@ export default function GamePage() {
       transaction.update(roomRef, { mysteryEffectVotes: newVotes });
     }).catch(error => {
       console.error('Error toggling mystery vote:', error);
-      toast({ variant: 'destructive', title: '오류', description: '투표 중 오류가 발생했습니다. 페이지를 새로고침합니다.' });
-      // Revert optimistic update on error
-      router.refresh();
+      toast({ variant: 'destructive', title: '오류', description: '투표 중 오류가 발생했습니다.' });
     });
   };
 
