@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, getDocs, limit, arrayUnion, serverTimestamp, deleteField, deleteDoc } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, getDocs, limit, arrayUnion, serverTimestamp, deleteField, deleteDoc, setDoc } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, PlayedGameSet, User as FsUser } from '@/lib/types';
@@ -226,41 +226,32 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
 
 function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSet | null }) {
     const [user] = useAuthState(auth);
-    const [numPlayers, setNumPlayers] = useState(2);
-    const [players, setPlayers] = useState<Array<{userId: string; password: string, uid: string; nickname: string; confirmed: boolean; isChecking: boolean }>>([]);
+    const router = useRouter();
     const { toast } = useToast();
-    const isAdmin = user ? ADMIN_EMAILS.includes(user.email || '') : false;
     
+    const [numPlayers, setNumPlayers] = useState(2);
+    const [playerInputs, setPlayerInputs] = useState<string[]>([]);
+    const [confirmedPlayers, setConfirmedPlayers] = useState<{ uid: string; nickname: string }[]>([]);
+    const [isChecking, setIsChecking] = useState<number | null>(null);
+
     useEffect(() => {
-        setPlayers(Array.from({ length: numPlayers }, () => ({ userId: '', password: '', uid: '', nickname: '', confirmed: false, isChecking: false })));
+        setPlayerInputs(Array(numPlayers).fill(''));
+        setConfirmedPlayers([]);
     }, [numPlayers]);
     
-    const handlePlayerInfoChange = (index: number, field: 'userId' | 'password', value: string) => {
-        const newPlayers = [...players];
-        newPlayers[index][field] = value;
-        newPlayers[index].confirmed = false;
-        newPlayers[index].nickname = '';
-        newPlayers[index].uid = '';
-        setPlayers(newPlayers);
+    const handlePlayerIdChange = (index: number, value: string) => {
+        const newInputs = [...playerInputs];
+        newInputs[index] = value;
+        setPlayerInputs(newInputs);
     };
 
     const handleConfirmPlayer = async (index: number) => {
-        const newPlayers = [...players];
-        newPlayers[index].isChecking = true;
-        setPlayers([...newPlayers]);
+        setIsChecking(index);
+        const userId = playerInputs[index];
 
-        const { userId, password } = players[index];
         if (!userId) {
-            toast({ variant: 'destructive', title: '오류', description: '아이디를 입력해주세요.'});
-            newPlayers[index].isChecking = false;
-            setPlayers(newPlayers);
-            return;
-        }
-        
-        if (!password) {
-            toast({ variant: 'destructive', title: '오류', description: '계정 확인을 위해 비밀번호를 입력해주세요.'});
-            newPlayers[index].isChecking = false;
-            setPlayers(newPlayers);
+            toast({ variant: 'destructive', title: '오류', description: '아이디(이메일)를 입력해주세요.'});
+            setIsChecking(null);
             return;
         }
 
@@ -271,8 +262,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
 
             if (userSnapshot.empty) {
                  toast({ variant: 'destructive', title: '오류', description: `"${userId}" 님을 찾을 수 없습니다.`});
-                 newPlayers[index].isChecking = false;
-                 setPlayers(newPlayers);
+                 setIsChecking(null);
                  return;
             }
 
@@ -280,46 +270,36 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
             const userData = userDoc.data() as FsUser;
             const playerUid = userDoc.id;
 
-            const isDuplicate = players.some((p, i) => i !== index && p.uid === playerUid);
+            const isDuplicate = confirmedPlayers.some(p => p.uid === playerUid);
             if (isDuplicate) {
                 toast({ variant: 'destructive', title: '중복 참여', description: `"${userData.displayName}" 님은 이미 참여 중입니다.`});
-                newPlayers[index].userId = '';
-                newPlayers[index].password = '';
-                newPlayers[index].isChecking = false;
-                setPlayers(newPlayers);
-                return;
-            }
-
-            if (gameSet && gameSet.creatorId === playerUid && !isAdmin) {
-                toast({ variant: 'destructive', title: '참여 불가', description: `제작자(${userData.displayName})는 자신이 만든 퀴즈에 참여할 수 없습니다.`});
-                newPlayers[index].isChecking = false;
-                setPlayers(newPlayers);
+                const newInputs = [...playerInputs];
+                newInputs[index] = '';
+                setPlayerInputs(newInputs);
+                setIsChecking(null);
                 return;
             }
             
-            const playedRef = collection(db, `users/${playerUid}/playedGameSets`);
-            const qPlayed = query(playedRef, where("gameSetId", "==", gameSet?.id), limit(1));
-            const playedSnapshot = await getDocs(qPlayed);
-
-            if (!playedSnapshot.empty) {
-                toast({ variant: 'destructive', title: '참여 제한', description: `"${userData.displayName}" 님은 이미 이 퀴즈를 완료했습니다.`});
-            } else {
-                newPlayers[index].confirmed = true;
-                newPlayers[index].nickname = userData.displayName || '이름없음';
-                newPlayers[index].uid = playerUid;
-                toast({ title: '성공', description: `"${userData.displayName}" 님이 확인되었습니다.`});
+            if (gameSet && gameSet.creatorId === playerUid && user?.email && !ADMIN_EMAILS.includes(user.email)) {
+                 toast({ variant: 'destructive', title: '참여 불가', description: `제작자(${userData.displayName})는 자신이 만든 퀴즈에 참여할 수 없습니다.`});
+                 setIsChecking(null);
+                 return;
             }
+            
+            const newConfirmedPlayers = [...confirmedPlayers];
+            newConfirmedPlayers[index] = { uid: playerUid, nickname: userData.displayName || '이름없음' };
+            setConfirmedPlayers(newConfirmedPlayers);
+            toast({ title: '성공', description: `"${userData.displayName}" 님이 확인되었습니다.`});
 
         } catch (error: any) {
             toast({ variant: 'destructive', title: '오류', description: error.message || '사용자 확인 중 오류가 발생했습니다.' });
         }
         
-        newPlayers[index].isChecking = false;
-        setPlayers(newPlayers);
+        setIsChecking(null);
     };
     
     const handleStartGame = async () => {
-        if (players.some(p => !p.confirmed)) {
+        if (confirmedPlayers.filter(Boolean).length !== numPlayers) {
             toast({ variant: 'destructive', title: '오류', description: '모든 플레이어를 확인해주세요.'});
             return;
         }
@@ -329,32 +309,27 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
         const playerObjects: Record<string, Player> = {};
         const playerUIDs: string[] = [];
 
-        for (const p of players) {
-            if (!p.uid) continue;
-            const userDocRef = doc(db, 'users', p.uid);
-            const userDocSnap = await getDoc(userDocRef);
-            const userData = userDocSnap.data() as FsUser | undefined;
-
-            const newPlayer: Player = {
-                uid: p.uid,
-                nickname: p.nickname,
-                score: 0,
-                pixelAvatar: userData?.pixelAvatar,
-                isHost: playerUIDs.length === 0, // First confirmed player is host
-            };
-            playerObjects[p.uid] = newPlayer;
-            playerUIDs.push(p.uid);
-        }
+        confirmedPlayers.forEach((p, index) => {
+            if (p) {
+                playerObjects[p.uid] = {
+                    uid: p.uid,
+                    nickname: p.nickname,
+                    score: 0,
+                    isHost: index === 0,
+                };
+                playerUIDs.push(p.uid);
+            }
+        });
 
         try {
-            await updateDoc(roomRef, { 
+            await setDoc(roomRef, { 
                 status: gameRoom.mysteryBoxEnabled ? 'setting-mystery' : 'playing',
                 players: playerObjects,
                 playerUIDs: playerUIDs,
                 currentTurn: playerUIDs[0],
                 hostId: playerUIDs[0],
                 gameStartedAt: serverTimestamp()
-            });
+            }, { merge: true });
         } catch (error) {
             console.error("Error starting local game:", error);
             toast({ variant: 'destructive', title: '오류', description: '게임 시작 중 오류가 발생했습니다.'});
@@ -367,7 +342,7 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
             <CardHeader className="text-center">
                  <p className="text-sm text-muted-foreground">{[gameSet?.grade, gameSet?.semester, gameSet?.subject].filter(Boolean).join(' / ')}</p>
                 <CardTitle className="font-headline text-3xl">{gameSet?.title || '로컬 게임 로비'}</CardTitle>
-                <CardDescription>함께 플레이할 친구들의 아이디와 비밀번호를 입력하고 확인해주세요.</CardDescription>
+                <CardDescription>함께 플레이할 친구들의 아이디를 입력하고 확인해주세요.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
                 <div className="space-y-4">
@@ -387,46 +362,37 @@ function LocalLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameSe
                 <div className="space-y-4">
                     <h3 className="text-lg font-semibold">플레이어 설정</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {players.map((player, index) => (
-                            <div key={index} className="space-y-2 p-4 border rounded-lg">
-                                <Label htmlFor={`userId-${index}`}>플레이어 {index + 1} {index === 0 && "(호스트)"}</Label>
-                                {player.confirmed ? (
-                                    <div className="flex items-center justify-between h-[5.5rem] px-3 py-2 text-sm rounded-md border border-transparent bg-secondary">
-                                        <span className="font-semibold">{player.nickname}</span>
-                                        <span className="text-primary flex items-center gap-1"><CheckCircle className="w-4 h-4"/> 참여 완료</span>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-2">
-                                        <Input 
-                                            id={`userId-${index}`}
-                                            placeholder="아이디(이메일) 입력"
-                                            value={player.userId}
-                                            onChange={(e) => handlePlayerInfoChange(index, 'userId', e.target.value)}
-                                            disabled={player.isChecking}
-                                            autoComplete="off"
-                                        />
-                                        <Input 
-                                            type="password"
-                                            placeholder="비밀번호 입력"
-                                            value={player.password}
-                                            onChange={(e) => handlePlayerInfoChange(index, 'password', e.target.value)}
-                                            disabled={player.isChecking}
-                                            autoComplete="new-password"
-                                        />
-                                        <div className="flex justify-between items-center pt-1">
-                                            <p className="text-xs text-muted-foreground">보안을 위해 비밀번호는 노출되지 않게 주의하세요.</p>
-                                            <Button onClick={() => handleConfirmPlayer(index)} disabled={player.isChecking || !player.userId || !player.password} size="sm">
-                                                {player.isChecking ? <Loader2 className="w-4 h-4 animate-spin"/> : "확인"}
+                        {Array.from({ length: numPlayers }).map((_, index) => {
+                            const confirmedPlayer = confirmedPlayers[index];
+                            return (
+                                <div key={index} className="space-y-2 p-4 border rounded-lg">
+                                    <Label>플레이어 {index + 1} {index === 0 && "(호스트)"}</Label>
+                                    {confirmedPlayer ? (
+                                        <div className="flex items-center justify-between h-[2.5rem] px-3 py-2 text-sm rounded-md border border-transparent bg-secondary">
+                                            <span className="font-semibold">{confirmedPlayer.nickname}</span>
+                                            <span className="text-primary flex items-center gap-1"><CheckCircle className="w-4 h-4"/> 참여 완료</span>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-2">
+                                            <Input 
+                                                placeholder="아이디(이메일) 입력"
+                                                value={playerInputs[index]}
+                                                onChange={(e) => handlePlayerIdChange(index, e.target.value)}
+                                                disabled={isChecking === index}
+                                                autoComplete="off"
+                                            />
+                                            <Button onClick={() => handleConfirmPlayer(index)} disabled={isChecking === index || !playerInputs[index]} size="sm">
+                                                {isChecking === index ? <Loader2 className="w-4 h-4 animate-spin"/> : "확인"}
                                             </Button>
                                         </div>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
                  <div className="flex flex-col items-center gap-4 pt-4">
-                    <Button size="lg" className="font-headline text-lg" onClick={handleStartGame} disabled={players.some(p => !p.confirmed) || players.length < 2}>
+                    <Button size="lg" className="font-headline text-lg" onClick={handleStartGame} disabled={confirmedPlayers.filter(Boolean).length !== numPlayers}>
                        <Gamepad2 className="w-5 h-5 mr-2" /> 게임 시작
                     </Button>
                  </div>
@@ -449,8 +415,6 @@ export default function LobbyPage() {
   useEffect(() => {
     if (!gameRoomId || typeof gameRoomId !== 'string' || loadingUser) return;
     
-    // If user is not logged in, redirect to login page.
-    // This needs to be here because local lobby might be accessed without remote auth flow.
     if (!user) {
         router.push(`/login?redirect=/game/${gameRoomId}/lobby`);
         return;
@@ -461,14 +425,12 @@ export default function LobbyPage() {
       if (docSnap.exists()) {
         const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
         
-        // This is a crucial check. If the host isn't in the player list for a remote waiting room, it's a ghost room.
         if (roomData.joinType === 'remote' && roomData.status === 'waiting' && roomData.hostId && (!roomData.players || !roomData.players[roomData.hostId])) {
             toast({ variant: 'destructive', title: '오류', description: '호스트가 방을 나갔습니다. 다른 방에 참여해주세요.' });
             router.push('/dashboard');
             return;
         }
 
-        // if the current user is not in the player list anymore (e.g. kicked), redirect them.
         if (gameRoom && gameRoom.players[user.uid] && !roomData.players[user.uid]) {
             toast({ variant: "destructive", title: "방에서 내보내졌습니다.", description: "호스트에 의해 게임방에서 내보내졌습니다."});
             router.push('/dashboard');
@@ -480,28 +442,30 @@ export default function LobbyPage() {
         if (roomData.joinType === 'remote' && !isPlayerInRoom && Object.keys(roomData.players).length < 6 && roomData.status === 'waiting') {
             const userDocRef = doc(db, 'users', user.uid);
             const userDocSnap = await getDoc(userDocRef);
-            const userData = userDocSnap.data() as FsUser | undefined;
+            let pixelAvatar: string | undefined = undefined;
+            if (userDocSnap.exists()) {
+                const userData = userDocSnap.data() as FsUser | undefined;
+                pixelAvatar = userData?.pixelAvatar;
+            }
 
            const newPlayer: Player = {
              uid: user.uid,
              nickname: user.displayName || `플레이어${Object.keys(roomData.players).length + 1}`,
              score: 0,
-             pixelAvatar: userData?.pixelAvatar,
+             pixelAvatar: pixelAvatar || undefined,
              isHost: false,
            };
            await updateDoc(roomRef, {
              [`players.${user.uid}`]: newPlayer
            });
-           // The snapshot will update again with the new player data, so we can return here.
            return;
         }
 
         setGameRoom(roomData);
 
-        // Check if game has started and redirect if needed
         if (roomData.status === 'playing' || roomData.status === 'setting-mystery') {
             router.push(`/game/${gameRoomId}`);
-            return; // Stop further processing for this snapshot
+            return; 
         }
 
         if (!gameSet && roomData.gameSetId) {
