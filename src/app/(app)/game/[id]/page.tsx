@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -549,36 +550,57 @@ export default function GamePage() {
 
   const handleToggleMysteryVote = (effectType: MysteryEffectType) => {
     if (!user || !gameRoomId) return;
-  
+
+    // Optimistic UI update
+    setGameRoom(prevRoom => {
+      if (!prevRoom) return null;
+      
+      const userIdToUpdate = prevRoom.joinType === 'local' ? user.uid : user.uid;
+      const currentVotes = { ...(prevRoom.mysteryEffectVotes || {}) };
+      const votesForEffect: string[] = [...(currentVotes[effectType] || [])];
+      const userIndex = votesForEffect.indexOf(userIdToUpdate);
+
+      if (userIndex > -1) {
+        votesForEffect.splice(userIndex, 1);
+      } else {
+        votesForEffect.push(userIdToUpdate);
+      }
+      const newVotes = { ...currentVotes, [effectType]: votesForEffect };
+      
+      return { ...prevRoom, mysteryEffectVotes: newVotes };
+    });
+
+    // Firestore update
     const roomRef = doc(db, 'game-rooms', gameRoomId);
     runTransaction(db, async (transaction) => {
       const roomDoc = await transaction.get(roomRef);
       if (!roomDoc.exists()) {
         throw 'Game room not found.';
       }
-  
+
       const currentRoomData = roomDoc.data() as GameRoom;
-      const currentVotes = currentRoomData.mysteryEffectVotes || {};
-      
-      // Create a new votes object to avoid direct mutation
-      const newVotes = JSON.parse(JSON.stringify(currentVotes));
+      const userIdToUpdate = currentRoomData.joinType === 'local' ? user.uid : user.uid;
+      const newVotes = JSON.parse(JSON.stringify(currentRoomData.mysteryEffectVotes || {}));
       
       const votesForEffect: string[] = newVotes[effectType] || [];
-      const userIndex = votesForEffect.indexOf(user.uid);
-  
+      const userIndex = votesForEffect.indexOf(userIdToUpdate);
+
       if (userIndex > -1) {
         votesForEffect.splice(userIndex, 1);
       } else {
-        votesForEffect.push(user.uid);
+        votesForEffect.push(userIdToUpdate);
       }
       newVotes[effectType] = votesForEffect;
-  
+
       transaction.update(roomRef, { mysteryEffectVotes: newVotes });
     }).catch(error => {
       console.error('Error toggling mystery vote:', error);
-      toast({ variant: 'destructive', title: '오류', description: '투표 중 오류가 발생했습니다.' });
+      toast({ variant: 'destructive', title: '오류', description: '투표 중 오류가 발생했습니다. 페이지를 새로고침합니다.' });
+      // Revert optimistic update on error
+      router.refresh();
     });
   };
+
 
   const handleConfirmMysterySettings = async () => {
     if (!gameRoom || typeof gameRoomId !== 'string' || !user) return;
@@ -979,7 +1001,7 @@ export default function GamePage() {
       </Dialog>
 
       {/* Mystery Box Settings Popup */}
-      <Dialog open={showMysterySettings} onOpenChange={(isOpen) => { if (!isOpen && !isSubmitting) setShowMysterySettings(false); }}>
+      <Dialog open={showMysterySettings} onOpenChange={(isOpen) => { if (!isOpen) setShowMysterySettings(false); }}>
           <DialogContent className="max-w-3xl">
               <DialogHeader>
                   <DialogTitle className="font-headline text-2xl flex items-center gap-2"><Gift className="text-primary"/>미스터리 박스 설정</DialogTitle>
@@ -1007,6 +1029,7 @@ export default function GamePage() {
                                   id={`effect-${effect.type}`}
                                   checked={isCheckedByCurrentUser}
                                   aria-label={`Select ${effect.title}`}
+                                  className="mt-1"
                               />
                               <Label htmlFor={`effect-${effect.type}`} className="flex-grow cursor-pointer space-y-1">
                                   <p className="font-semibold">{effect.title}</p>
