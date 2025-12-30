@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -620,7 +621,7 @@ export default function GamePage() {
 
         } else { // local game
              const hostVotes = Object.keys(gameRoom.mysteryEffectVotes || {}).filter(effectType => 
-                gameRoom.mysteryEffectVotes?.[effectType as MysteryEffectType]?.includes(user.uid)
+                gameRoom.mysteryEffectVotes?.[effectType as MysteryEffectType]?.includes(gameRoom.hostId)
              );
              agreedEffects = hostVotes as MysteryEffectType[];
         }
@@ -1012,31 +1013,17 @@ export default function GamePage() {
                                 <p className="font-semibold">{effect.title}</p>
                                 <p className="text-sm text-muted-foreground">{effect.description}</p>
                                 {gameRoom?.joinType === 'remote' && gameRoom.playerUIDs && (
-                                    <div className="flex items-center gap-2 pt-2">
+                                     <div className="flex items-center gap-2 pt-2">
                                         {gameRoom.playerUIDs.map(uid => {
                                             const hasVoted = votes.includes(uid);
-                                            const player = gameRoom.players[uid];
-                                            let pixelAvatarData = null;
-                                            if (player?.pixelAvatar) {
-                                                try { pixelAvatarData = JSON.parse(player.pixelAvatar); } catch (e) {}
-                                            }
                                             return (
-                                                <TooltipProvider key={uid}>
-                                                    <Tooltip>
-                                                        <TooltipTrigger>
-                                                          <div className={cn("w-6 h-6 rounded-full flex items-center justify-center border-2", hasVoted ? "border-green-400 bg-green-100" : "border-gray-300 bg-gray-100")}>
-                                                            {pixelAvatarData ? (
-                                                                <PixelAvatar pixels={pixelAvatarData} className="w-5 h-5 rounded-full" />
-                                                            ) : (
-                                                                hasVoted ? <Check className="w-3 h-3 text-green-600"/> : <div className="w-3 h-3" />
-                                                            )}
-                                                          </div>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>
-                                                            <p>{player?.nickname || '알 수 없음'}</p>
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                </TooltipProvider>
+                                                <div 
+                                                    key={uid} 
+                                                    className={cn(
+                                                        "w-4 h-4 rounded-full",
+                                                        hasVoted ? 'bg-primary' : 'bg-muted'
+                                                    )}
+                                                />
                                             );
                                         })}
                                     </div>
