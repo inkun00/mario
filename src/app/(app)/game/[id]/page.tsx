@@ -439,13 +439,17 @@ export default function GamePage() {
             const totalBlocks = totalQuestions + mysteryBlockCount;
             const allAnswered = Object.keys(newGameState).length >= totalBlocks;
             
-            const nextTurnUID = getNextTurnUID();
             const updateData: Partial<GameRoom> = {
                 answerLogs: newAnswerLogs, 
                 gameState: newGameState,
-                currentTurn: nextTurnUID,
                 currentAnswerResult: null,
             };
+            
+            if (allAnswered) {
+              updateData.status = 'finished';
+            } else {
+              updateData.currentTurn = getNextTurnUID();
+            }
             
             if (!isCorrect) {
               const incorrectLogData: IncorrectAnswer = {
@@ -457,10 +461,6 @@ export default function GamePage() {
               };
               const incorrectLogRef = doc(db, 'users', gameRoom.currentTurn, 'incorrect-answers', incorrectLogData.id);
               batch.set(incorrectLogRef, incorrectLogData);
-            }
-            
-            if (allAnswered) {
-              updateData.status = 'finished';
             }
 
             batch.update(roomRef, updateData as any);
@@ -539,16 +539,16 @@ export default function GamePage() {
         const totalBlocks = totalQuestions + mysteryBlockCount;
         const allAnswered = Object.keys(newGameState).length >= totalBlocks;
 
-        const nextTurnUID = getNextTurnUID();
         const updateData: Partial<GameRoom> = {
             answerLogs: newAnswerLogs as AnswerLog[],
             gameState: newGameState,
-            currentTurn: nextTurnUID,
             currentMysteryEffect: null,
         };
 
         if (allAnswered) {
             updateData.status = 'finished';
+        } else {
+           updateData.currentTurn = getNextTurnUID();
         }
         
         batch.update(roomRef, updateData as any);
@@ -1254,3 +1254,5 @@ export default function GamePage() {
     </>
   );
 }
+
+    
