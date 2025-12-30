@@ -560,20 +560,23 @@ export default function GamePage() {
         }
   
         const currentRoomData = roomDoc.data() as GameRoom;
-        const newVotes = { ...(currentRoomData.mysteryEffectVotes || {}) };
+        // Make a deep copy to ensure we're creating a new object
+        const newVotes = JSON.parse(JSON.stringify(currentRoomData.mysteryEffectVotes || {}));
         
-        const currentEffectVotes = newVotes[effectType] || [];
+        const currentEffectVotes: string[] = newVotes[effectType] || [];
         let updatedEffectVotes: string[];
-
-        let userId = user.uid;
-        // In local games, the host votes on behalf of everyone
-        if (currentRoomData.joinType === 'local') {
-            userId = currentRoomData.hostId;
-        }
+  
+        const userId = user.uid;
   
         if (isChecked) {
-          updatedEffectVotes = [...new Set([...currentEffectVotes, userId])];
+          // Add userId if not already present
+          if (!currentEffectVotes.includes(userId)) {
+            updatedEffectVotes = [...currentEffectVotes, userId];
+          } else {
+            updatedEffectVotes = currentEffectVotes;
+          }
         } else {
+          // Remove userId
           updatedEffectVotes = currentEffectVotes.filter(uid => uid !== userId);
         }
         
@@ -676,13 +679,11 @@ export default function GamePage() {
             throw new Error("저장할 플레이어를 찾을 수 없습니다.");
         }
 
+        // 1. Calculate stats locally from game logs
         const userStatsToUpdate: {
             [uid: string]: {
                 [subject: string]: {
-                    [unit: string]: {
-                        correct: number;
-                        incorrect: number;
-                    };
+                    [unit: string]: { correct: number; incorrect: number };
                 };
             };
         } = {};
@@ -691,7 +692,6 @@ export default function GamePage() {
             userStatsToUpdate[uid] = {};
         });
 
-        // 1. Calculate stats locally from game logs
         (gameRoom.answerLogs || []).forEach(log => {
             if (!log.userId || !gameRoom.players[log.userId]) return;
 
@@ -752,7 +752,7 @@ export default function GamePage() {
 
                 subjectUpdate['totalCorrect'] = increment(totalCorrectForSubject);
                 subjectUpdate['totalIncorrect'] = increment(totalIncorrectForSubject);
-
+                // Use set with merge to create the doc if it doesn't exist or update if it does.
                 batch.set(statRef, subjectUpdate, { merge: true });
             }
         }
@@ -981,11 +981,7 @@ export default function GamePage() {
       </Dialog>
 
       {/* Mystery Box Settings Popup */}
-      <Dialog open={showMysterySettings} onOpenChange={(isOpen) => {
-          if (!isOpen && !isSubmitting) {
-             setShowMysterySettings(false);
-          }
-      }}>
+      <Dialog open={showMysterySettings} onOpenChange={setShowMysterySettings}>
         <DialogContent className="max-w-3xl">
             <DialogHeader>
                 <DialogTitle className="font-headline text-2xl flex items-center gap-2"><Gift className="text-primary"/>미스터리 박스 설정</DialogTitle>
@@ -998,7 +994,7 @@ export default function GamePage() {
                 {allMysteryEffects.map(effect => {
                     const votes = gameRoom?.mysteryEffectVotes?.[effect.type] || [];
                     const currentUserUid = user?.uid;
-                    const isCheckedByCurrentUser = currentUserUid ? votes.includes(currentUserUid) : false;
+                    const isCheckedByCurrentUser = !!currentUserUid && votes.includes(currentUserUid);
 
                     return (
                         <div key={effect.type} className="flex items-start gap-4 p-3 rounded-lg border bg-background">
