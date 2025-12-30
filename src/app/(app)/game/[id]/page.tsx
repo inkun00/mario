@@ -267,22 +267,22 @@ export default function GamePage() {
 
   const prepareMysteryChoice = () => {
     if (!gameRoom) return;
-  
+
     const availableEffects = gameRoom.enabledMysteryEffects || allMysteryEffects.map(e => e.type);
-    let allAvailableFull = allMysteryEffects.filter(e => availableEffects.includes(e.type));
+    const allAvailableFull = allMysteryEffects.filter(e => availableEffects.includes(e.type));
     
     if (allAvailableFull.length === 0) {
-      allAvailableFull = allMysteryEffects; 
+      toast({ variant: 'destructive', title: '오류', description: '사용 가능한 미스터리 효과가 없습니다. 기본 효과로 진행합니다.'});
     }
-  
-    const shuffled = shuffleArray(allAvailableFull);
+
+    const shuffled = shuffleArray(allAvailableFull.length > 0 ? allAvailableFull : allMysteryEffects);
     const options: MysteryEffect[] = [];
     let i = 0;
     while(options.length < 3) {
       options.push(shuffled[i % shuffled.length]);
       i++;
     }
-  
+
     const finalOptions = options.map(o => ({...o, description: '', icon: undefined }));
     
     setMysteryOptions(finalOptions);
@@ -561,13 +561,14 @@ export default function GamePage() {
         const currentRoomData = roomDoc.data() as GameRoom;
         const newVotes = { ...(currentRoomData.mysteryEffectVotes || {}) };
         
-        let userId = user.uid;
-        if (currentRoomData.joinType === 'local') {
-          userId = currentRoomData.hostId;
-        }
-
         const currentEffectVotes = newVotes[effectType] || [];
         let updatedEffectVotes: string[];
+
+        let userId = user.uid;
+        // In local games, the host votes on behalf of everyone
+        if (currentRoomData.joinType === 'local') {
+            userId = currentRoomData.hostId;
+        }
   
         if (isChecked) {
           updatedEffectVotes = [...new Set([...currentEffectVotes, userId])];
@@ -665,130 +666,130 @@ export default function GamePage() {
 
   const handleFinishAndSave = async () => {
     if (!gameRoom || typeof gameRoomId !== 'string' || !gameSet || !user) return;
-  
+
     setIsFinishingGame(true);
     try {
-      const batch = writeBatch(db);
-      const playerUIDs = Object.keys(gameRoom.players);
-      if (playerUIDs.length === 0) {
-        throw new Error("저장할 플레이어를 찾을 수 없습니다.");
-      }
-      
-      const userStatsToUpdate: { 
-        [uid: string]: { 
-          [subject: string]: {
-            units: {
-              [unit: string]: {
-                totalCorrect: number;
-                totalIncorrect: number;
-              };
+        const batch = writeBatch(db);
+        const playerUIDs = Object.keys(gameRoom.players);
+        if (playerUIDs.length === 0) {
+            throw new Error("저장할 플레이어를 찾을 수 없습니다.");
+        }
+
+        const userStatsToUpdate: {
+            [uid: string]: {
+                [subject: string]: {
+                    [unit: string]: {
+                        correct: number;
+                        incorrect: number;
+                    };
+                };
             };
-          };
-        };
-      } = {};
-  
-      const xpUpdates: { [uid: string]: number } = {};
-      const classPointsUpdates: { [uid: string]: number } = {};
-  
-      playerUIDs.forEach(uid => {
-        xpUpdates[uid] = 0;
-        classPointsUpdates[uid] = 0;
-        userStatsToUpdate[uid] = {};
-      });
-      
-      let bonusMultiplier = 0;
-      if (gameSet.evaluationScore) {
-        if (gameSet.evaluationScore >= 81) bonusMultiplier = 0.15;
-        else if (gameSet.evaluationScore >= 61) bonusMultiplier = 0.10;
-        else if (gameSet.evaluationScore >= 41) bonusMultiplier = 0.05;
-      }
-  
-      (gameRoom.answerLogs || []).forEach(log => {
-        if (!log.userId || typeof log.pointsAwarded !== 'number' || !gameRoom.players[log.userId]) return;
-  
-        const basePoints = log.pointsAwarded;
-        const bonusPoints = Math.round(basePoints * bonusMultiplier);
-        const totalPoints = basePoints + bonusPoints;
-  
-        xpUpdates[log.userId] += totalPoints;
-        classPointsUpdates[log.userId] += totalPoints;
-  
-        const { question, isCorrect } = log;
-        if (question?.subject && question?.unit) {
-          const subject = question.subject;
-          const unit = question.unit;
-  
-          if (!userStatsToUpdate[log.userId][subject]) {
-            userStatsToUpdate[log.userId][subject] = { units: {} };
-          }
-          if (!userStatsToUpdate[log.userId][subject].units[unit]) {
-            userStatsToUpdate[log.userId][subject].units[unit] = { totalCorrect: 0, totalIncorrect: 0 };
-          }
-  
-          const countField = isCorrect ? 'totalCorrect' : 'totalIncorrect';
-          userStatsToUpdate[log.userId][subject].units[unit][countField] = (userStatsToUpdate[log.userId][subject].units[unit][countField] || 0) + 1;
-        }
-      });
-      
-      for (const uid of playerUIDs) {
-        const userRef = doc(db, 'users', uid);
-        if (xpUpdates[uid] !== 0 || classPointsUpdates[uid] !== 0) {
-          batch.update(userRef, {
-            xp: increment(xpUpdates[uid]),
-            classPoints: increment(classPointsUpdates[uid]),
-          });
-        }
-  
-        const playedGameSetRef = doc(db, 'users', uid, 'playedGameSets', gameRoomId);
-        batch.set(playedGameSetRef, {
-          gameSetId: gameSet.id, playedAt: serverTimestamp(), gameRoomId,
+        } = {};
+
+        playerUIDs.forEach(uid => {
+            userStatsToUpdate[uid] = {};
         });
 
-        for (const subject in userStatsToUpdate[uid]) {
-            const statRef = doc(db, "users", uid, "subjectStats", subject);
-            const subjectUpdate: any = {};
-            let totalCorrectForSubject = 0;
-            let totalIncorrectForSubject = 0;
+        // 1. Calculate stats locally from game logs
+        (gameRoom.answerLogs || []).forEach(log => {
+            if (!log.userId || !gameRoom.players[log.userId]) return;
+
+            const { question, isCorrect } = log;
+            if (question?.subject && question?.unit) {
+                const { subject, unit } = question;
+                if (!userStatsToUpdate[log.userId][subject]) {
+                    userStatsToUpdate[log.userId][subject] = {};
+                }
+                if (!userStatsToUpdate[log.userId][subject][unit]) {
+                    userStatsToUpdate[log.userId][subject][unit] = { correct: 0, incorrect: 0 };
+                }
+
+                if (isCorrect) {
+                    userStatsToUpdate[log.userId][subject][unit].correct += 1;
+                } else {
+                    userStatsToUpdate[log.userId][subject][unit].incorrect += 1;
+                }
+            }
+        });
+
+        // 2. Prepare batch updates
+        for (const uid of playerUIDs) {
+            const userRef = doc(db, 'users', uid);
+            let totalXpGained = 0;
             
-            for (const unit in userStatsToUpdate[uid][subject].units) {
-                const unitData = userStatsToUpdate[uid][subject].units[unit];
-                subjectUpdate[`units.${unit}.totalCorrect`] = increment(unitData.totalCorrect);
-                subjectUpdate[`units.${unit}.totalIncorrect`] = increment(unitData.totalIncorrect);
-                totalCorrectForSubject += unitData.totalCorrect;
-                totalIncorrectForSubject += unitData.totalIncorrect;
+            (gameRoom.answerLogs || []).forEach(log => {
+                 if (log.userId === uid && typeof log.pointsAwarded === 'number') {
+                    totalXpGained += log.pointsAwarded;
+                 }
+            });
+
+            if (totalXpGained !== 0) {
+                batch.update(userRef, {
+                    xp: increment(totalXpGained),
+                    classPoints: increment(totalXpGained),
+                });
             }
             
-            subjectUpdate['totalCorrect'] = increment(totalCorrectForSubject);
-            subjectUpdate['totalIncorrect'] = increment(totalIncorrectForSubject);
+            const playedGameSetRef = doc(db, 'users', uid, 'playedGameSets', gameRoomId);
+            batch.set(playedGameSetRef, {
+                gameSetId: gameSet.id, playedAt: serverTimestamp(), gameRoomId,
+            });
 
-            batch.set(statRef, subjectUpdate, { merge: true });
+            for (const subject in userStatsToUpdate[uid]) {
+                const statRef = doc(db, "users", uid, "subjectStats", subject);
+                const subjectUpdate: any = {};
+                let totalCorrectForSubject = 0;
+                let totalIncorrectForSubject = 0;
+
+                for (const unit in userStatsToUpdate[uid][subject]) {
+                    const unitData = userStatsToUpdate[uid][subject][unit];
+                    subjectUpdate[`units.${unit}.totalCorrect`] = increment(unitData.correct);
+                    subjectUpdate[`units.${unit}.totalIncorrect`] = increment(unitData.incorrect);
+                    totalCorrectForSubject += unitData.correct;
+                    totalIncorrectForSubject += unitData.incorrect;
+                }
+
+                subjectUpdate['totalCorrect'] = increment(totalCorrectForSubject);
+                subjectUpdate['totalIncorrect'] = increment(totalIncorrectForSubject);
+
+                batch.set(statRef, subjectUpdate, { merge: true });
+            }
         }
-      }
-      
-      if (gameSet.creatorId && !playerUIDs.includes(gameSet.creatorId)) {
-        const creatorRef = doc(db, 'users', gameSet.creatorId);
-        const baseRewardAmount = gameSet.questions.length;
-        const bonusReward = Math.round(baseRewardAmount * bonusMultiplier);
-        const totalReward = baseRewardAmount + bonusReward;
-        batch.update(creatorRef, {
-          xp: increment(totalReward), classPoints: increment(totalReward),
-        });
-      }
-  
-      const gameRoomRef = doc(db, 'game-rooms', gameRoomId);
-      batch.update(gameRoomRef, { status: 'finished' });
-  
-      await batch.commit();
+        
+        // Reward creator
+        if (gameSet.creatorId && !playerUIDs.includes(gameSet.creatorId)) {
+            const creatorRef = doc(db, 'users', gameSet.creatorId);
+            let bonusMultiplier = 0;
+            if (gameSet.evaluationScore) {
+              if (gameSet.evaluationScore >= 81) bonusMultiplier = 0.15;
+              else if (gameSet.evaluationScore >= 61) bonusMultiplier = 0.10;
+              else if (gameSet.evaluationScore >= 41) bonusMultiplier = 0.05;
+            }
+            const baseRewardAmount = gameSet.questions.length;
+            const bonusReward = Math.round(baseRewardAmount * bonusMultiplier);
+            const totalReward = baseRewardAmount + bonusReward;
+            batch.update(creatorRef, {
+                xp: increment(totalReward), classPoints: increment(totalReward),
+            });
+        }
+        
+        const gameRoomRef = doc(db, 'game-rooms', gameRoomId);
+        batch.update(gameRoomRef, { status: 'finished' });
 
-      toast({ title: "저장 완료!", description: "게임 결과가 성공적으로 저장되었습니다." });
-      router.push('/dashboard');
+        // 3. Commit batch
+        await batch.commit();
+
+        toast({ title: "저장 완료!", description: "게임 결과가 성공적으로 저장되었습니다." });
+        router.push('/dashboard');
+
     } catch (error: any) {
-      toast({ variant: 'destructive', title: '치명적 오류', description: `결과 저장 중 예상치 못한 오류가 발생했습니다: ${error.message}` });
-      console.error("Critical error in handleFinishAndSave:", error);
+        toast({ variant: 'destructive', title: '치명적 오류', description: `결과 저장 중 예상치 못한 오류가 발생했습니다: ${error.message}` });
+        console.error("Critical error in handleFinishAndSave:", error);
     } finally {
         setIsFinishingGame(false);
     }
-  };
+};
+
 
 
   const currentTurnPlayer = players.find(p => p.uid === gameRoom?.currentTurn);
@@ -982,10 +983,11 @@ export default function GamePage() {
       <Dialog
         open={showMysterySettings}
         onOpenChange={(isOpen) => {
-          if (!isOpen && !isSubmitting) {
+          setShowMysterySettings(isOpen)
+          if (!isOpen && !isSubmitting && (gameRoom?.joinType === 'local' || isHost)) {
+            // If the host closes the dialog, assume settings are confirmed to not block the game.
              handleConfirmMysterySettings();
           }
-          setShowMysterySettings(isOpen);
         }}
       >
         <DialogContent className="max-w-3xl">
@@ -996,10 +998,11 @@ export default function GamePage() {
                     {gameRoom?.joinType === 'remote' && ' 모든 플레이어가 동의한 효과만 적용됩니다.'}
                 </DialogDescription>
             </DialogHeader>
-            <div className="py-4 space-y-4">
+            <div className="py-4 space-y-2">
                 {allMysteryEffects.map(effect => {
                     const votes = gameRoom?.mysteryEffectVotes?.[effect.type] || [];
-                    const isCheckedByCurrentUser = user ? votes.includes(user.uid) : false;
+                    const currentUserUid = (gameRoom?.joinType === 'local' && gameRoom.hostId) ? gameRoom.hostId : user?.uid;
+                    const isCheckedByCurrentUser = currentUserUid ? votes.includes(currentUserUid) : false;
 
                     return (
                         <div key={effect.type} className="flex items-start gap-4 p-3 rounded-lg border bg-background">
@@ -1010,11 +1013,11 @@ export default function GamePage() {
                                     handleToggleMysteryVote(effect.type, !!checked);
                                 }}
                             />
-                            <Label htmlFor={`effect-${effect.type}`} className="flex-grow cursor-pointer">
+                            <Label htmlFor={`effect-${effect.type}`} className="flex-grow cursor-pointer space-y-1">
                                 <p className="font-semibold">{effect.title}</p>
                                 <p className="text-sm text-muted-foreground">{effect.description}</p>
                                 {gameRoom?.joinType === 'remote' && gameRoom.playerUIDs && (
-                                    <div className="flex items-center gap-2 mt-2">
+                                    <div className="flex items-center gap-2 pt-2">
                                         {gameRoom.playerUIDs.map(uid => {
                                             const hasVoted = votes.includes(uid);
                                             const player = gameRoom.players[uid];
@@ -1276,3 +1279,4 @@ export default function GamePage() {
   );
 }
 
+    
