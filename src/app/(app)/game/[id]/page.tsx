@@ -548,53 +548,61 @@ export default function GamePage() {
     }
   };
 
-  const handleToggleMysteryVote = async (effectType: MysteryEffectType) => {
-    if (!gameRoom || !user || typeof gameRoomId !== 'string') return;
+  const handleToggleMysteryVote = (effectType: MysteryEffectType) => {
+    if (!user || !gameRoomId) return;
+
+    const userIdToUse = user.uid;
+
+    // Optimistic UI update
+    setGameRoom(prevRoom => {
+      if (!prevRoom) return null;
+      
+      const newVotes = JSON.parse(JSON.stringify(prevRoom.mysteryEffectVotes || {}));
+      const votesForEffect: string[] = newVotes[effectType] || [];
+      const userIndex = votesForEffect.indexOf(userIdToUse);
   
-    try {
-      let finalVotes: Record<string, string[]> = {};
-  
-      await runTransaction(db, async (transaction) => {
-        const roomRef = doc(db, 'game-rooms', gameRoomId);
-        const roomDoc = await transaction.get(roomRef);
-        if (!roomDoc.exists()) {
-          throw 'Game room not found.';
-        }
-  
-        const currentRoomData = roomDoc.data() as GameRoom;
-        const currentVotes = currentRoomData.mysteryEffectVotes || {};
-        
-        // Deep copy to avoid direct mutation
-        const newVotes = JSON.parse(JSON.stringify(currentVotes));
-        const userIdToUse = user.uid;
-  
-        const votesForEffect: string[] = newVotes[effectType] || [];
-        const userIndex = votesForEffect.indexOf(userIdToUse);
-  
-        if (userIndex > -1) {
-          votesForEffect.splice(userIndex, 1);
-        } else {
-          votesForEffect.push(userIdToUse);
-        }
-        newVotes[effectType] = votesForEffect;
-  
-        transaction.update(roomRef, { mysteryEffectVotes: newVotes });
-        finalVotes = newVotes; // Store for local update
-      });
-  
-      // Optimistic local state update
-      setGameRoom(prevRoom => {
-        if (!prevRoom) return null;
-        return {
-          ...prevRoom,
-          mysteryEffectVotes: finalVotes,
-        };
-      });
-  
-    } catch (error) {
+      if (userIndex > -1) {
+        votesForEffect.splice(userIndex, 1);
+      } else {
+        votesForEffect.push(userIdToUse);
+      }
+      newVotes[effectType] = votesForEffect;
+
+      return {
+        ...prevRoom,
+        mysteryEffectVotes: newVotes,
+      };
+    });
+
+    // Update Firestore in the background
+    const roomRef = doc(db, 'game-rooms', gameRoomId);
+    runTransaction(db, async (transaction) => {
+      const roomDoc = await transaction.get(roomRef);
+      if (!roomDoc.exists()) {
+        throw "Game room not found.";
+      }
+
+      const currentRoomData = roomDoc.data() as GameRoom;
+      const currentVotes = currentRoomData.mysteryEffectVotes || {};
+      const newVotes = JSON.parse(JSON.stringify(currentVotes));
+      
+      const votesForEffect: string[] = newVotes[effectType] || [];
+      const userIndex = votesForEffect.indexOf(userIdToUse);
+
+      if (userIndex > -1) {
+        votesForEffect.splice(userIndex, 1);
+      } else {
+        votesForEffect.push(userIdToUse);
+      }
+      newVotes[effectType] = votesForEffect;
+
+      transaction.update(roomRef, { mysteryEffectVotes: newVotes });
+    }).catch(error => {
       console.error('Error toggling mystery vote:', error);
-      toast({ variant: 'destructive', title: '오류', description: '투표 중 오류가 발생했습니다.' });
-    }
+      toast({ variant: 'destructive', title: '오류', description: '투표 중 오류가 발생했습니다. 페이지를 새로고침합니다.' });
+      // Revert optimistic update on error
+      fetchProfileData();
+    });
   };
 
   const handleConfirmMysterySettings = async () => {
@@ -797,6 +805,15 @@ export default function GamePage() {
     }
 };
 
+  // Helper function to fetch user data, used for reverting optimistic updates on error.
+  const fetchProfileData = useCallback(async () => {
+    if (!user) return;
+    const userRef = doc(db, 'users', user.uid);
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      setGameRoom(prev => prev ? { ...prev, ...userSnap.data() } : userSnap.data() as GameRoom);
+    }
+  }, [user]);
 
 
   const currentTurnPlayer = players.find(p => p.uid === gameRoom?.currentTurn);
@@ -987,11 +1004,7 @@ export default function GamePage() {
       </Dialog>
 
       {/* Mystery Box Settings Popup */}
-      <Dialog open={showMysterySettings} onOpenChange={(isOpen) => {
-          if (!isOpen && !isSubmitting) {
-              setShowMysterySettings(false);
-          }
-      }}>
+      <Dialog open={showMysterySettings} onOpenChange={(isOpen) => !isOpen && !isSubmitting && setShowMysterySettings(false)}>
           <DialogContent className="max-w-3xl">
               <DialogHeader>
                   <DialogTitle className="font-headline text-2xl flex items-center gap-2"><Gift className="text-primary"/>미스터리 박스 설정</DialogTitle>
@@ -1268,3 +1281,4 @@ export default function GamePage() {
     </>
   );
 }
+
