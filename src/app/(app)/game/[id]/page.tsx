@@ -268,7 +268,8 @@ export default function GamePage() {
   const handleMysteryBoxChoice = async (chosenEffect: MysteryEffect) => {
     if (!gameRoom || typeof gameRoomId !== 'string') return;
     
-    if (gameRoom.joinType === 'remote' && !isMyTurn) return;
+    const canChoose = gameRoom.joinType === 'local' || isMyTurn;
+    if (!canChoose) return;
 
     setShowMysteryChoicePopup(false);
 
@@ -465,7 +466,8 @@ export default function GamePage() {
 
   const handleMysteryEffect = async () => {
     if (!gameRoom?.currentMysteryEffect || !gameRoom || typeof gameRoomId !== 'string' || !gameSet || !user) return;
-    if (gameRoom.joinType === 'remote' && !isMyTurn) return;
+    const canAct = gameRoom.joinType === 'local' || isMyTurn;
+    if (!canAct) return;
   
     setIsSubmitting(true);
     
@@ -579,7 +581,8 @@ export default function GamePage() {
 
   const handleConfirmMysterySettings = async () => {
     if (!gameRoom || typeof gameRoomId !== 'string' || !user) return;
-    if (gameRoom.joinType === 'remote' && user.uid !== gameRoom.hostId) return;
+    const canConfirm = gameRoom.joinType === 'local' || user.uid === gameRoom.hostId;
+    if (!canConfirm) return;
 
     setIsSubmitting(true);
     try {
