@@ -13,7 +13,7 @@ import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, Che
 import Image from 'next/image';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -250,7 +250,7 @@ export default function GamePage() {
         handleCloseDialogs();
       }
     }
-  }, [gameRoom?.gameState, gameSet, blocks, gameRoom?.currentAnswerResult, currentQuestionInfo, showMysteryBoxPopup, showMysteryChoicePopup]);
+  }, [gameRoom, gameSet, blocks]);
 
 
   // Initialize game board
@@ -573,35 +573,33 @@ export default function GamePage() {
   };
 
   const handleToggleMysteryVote = (effectType: MysteryEffectType) => {
-    if (!user || !gameRoomId) return;
+    if (!user || !gameRoom || !gameRoomId) return;
 
-    const roomRef = doc(db, "game-rooms", gameRoomId);
-
+    const roomRef = doc(db, 'game-rooms', gameRoomId);
+    
     runTransaction(db, async (transaction) => {
       const roomDoc = await transaction.get(roomRef);
       if (!roomDoc.exists()) {
         throw "Game room not found.";
       }
-
+      
       const currentRoomData = roomDoc.data() as GameRoom;
       const userIdToUpdate = user.uid;
-
-      // Create a new votes object to ensure Firestore detects the change.
+      
       const newVotes = { ...(currentRoomData.mysteryEffectVotes || {}) };
       
       if (!newVotes[effectType]) {
         newVotes[effectType] = [];
       }
-
+      
       const userIndex = newVotes[effectType].indexOf(userIdToUpdate);
-
+      
       if (userIndex > -1) {
         newVotes[effectType] = newVotes[effectType].filter(uid => uid !== userIdToUpdate);
       } else {
         newVotes[effectType] = [...newVotes[effectType], userIdToUpdate];
       }
       
-      // Update the document with the new object.
       transaction.update(roomRef, { mysteryEffectVotes: newVotes });
     }).catch(error => {
       console.error("Error toggling mystery vote:", error);
@@ -1009,7 +1007,7 @@ export default function GamePage() {
       </Dialog>
 
       {/* Mystery Box Settings Popup */}
-      <Dialog open={showMysterySettings} onOpenChange={setShowMysterySettings}>
+      <Dialog open={showMysterySettings} onOpenChange={(isOpen) => !isOpen && setShowMysterySettings(false)}>
           <DialogContent className="max-w-3xl">
               <DialogHeader>
                   <DialogTitle className="font-headline text-2xl flex items-center gap-2"><Gift className="text-primary"/>미스터리 박스 설정</DialogTitle>
@@ -1022,10 +1020,7 @@ export default function GamePage() {
                   {allMysteryEffects.map(effect => {
                       const votes = gameRoom?.mysteryEffectVotes?.[effect.type] || [];
                       const currentUserUid = user?.uid;
-                      let isCheckedByCurrentUser = false;
-                      if (currentUserUid) {
-                        isCheckedByCurrentUser = votes.includes(currentUserUid);
-                      }
+                      const isCheckedByCurrentUser = currentUserUid ? votes.includes(currentUserUid) : false;
 
                       return (
                           <div 
