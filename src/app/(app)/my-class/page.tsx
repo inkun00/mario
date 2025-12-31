@@ -63,7 +63,7 @@ export default function MyClassPage() {
   const [isStudentDetailsLoading, setIsStudentDetailsLoading] = useState(false);
 
   const [managementAction, setManagementAction] = useState<'sendPoints' | 'takePoints' | 'sendItem' | 'takeItem' | null>(null);
-  const [managementAmount, setManagementAmount] = useState(0);
+  const [managementAmount, setManagementAmount] = useState(1);
   const [managementItem, setManagementItem] = useState('');
   const [isManagementLoading, setIsManagementLoading] = useState(false);
 
@@ -306,7 +306,7 @@ export default function MyClassPage() {
   };
 
   const handleManagementAction = async () => {
-    if (!selectedStudent || !managementAction || !isTeacher) return;
+    if (!selectedStudent || !managementAction || !isTeacher || !user) return;
 
     setIsManagementLoading(true);
     const studentRef = doc(db, 'users', selectedStudent.uid);
@@ -328,20 +328,37 @@ export default function MyClassPage() {
                 
                 const studentData = studentDoc.data() as User;
                 const inventory = { ...(studentData.inventory || {}) };
-                const currentQuantity = inventory[managementItem]?.quantity || 0;
+                const studentItemQuantity = inventory[managementItem]?.quantity || 0;
                 
-                if (amount < 0 && currentQuantity < Math.abs(amount)) {
-                    throw "가져올 상품의 수량이 부족합니다.";
+                const storeItem = classStoreItems.find(item => item.name === managementItem && item.sellerId === user.uid);
+                
+                if (managementAction === 'sendItem') {
+                    if (!storeItem || storeItem.quantity < amount) {
+                        throw "보낼 상품의 재고가 부족합니다.";
+                    }
+                    // Decrease store quantity
+                    const storeItemRef = doc(db, 'class-store-items', storeItem.id);
+                    transaction.update(storeItemRef, { quantity: increment(-amount) });
                 }
-
-                const newQuantity = currentQuantity + amount;
-
+                
+                if (managementAction === 'takeItem') {
+                    if (studentItemQuantity < Math.abs(amount)) {
+                        throw "가져올 상품의 수량이 부족합니다.";
+                    }
+                    if (storeItem) {
+                        // Increase store quantity
+                        const storeItemRef = doc(db, 'class-store-items', storeItem.id);
+                        transaction.update(storeItemRef, { quantity: increment(Math.abs(amount)) });
+                    }
+                }
+                
+                const newQuantity = studentItemQuantity + amount;
                 if (newQuantity > 0) {
                     inventory[managementItem] = {
-                        ...inventory[managementItem],
-                        itemId: inventory[managementItem]?.itemId || 'teacher_sent',
+                        ...(inventory[managementItem] || storeItem),
+                        itemId: inventory[managementItem]?.itemId || storeItem?.id || 'teacher_sent',
                         quantity: newQuantity,
-                        description: inventory[managementItem]?.description || '선생님이 보낸 상품'
+                        description: inventory[managementItem]?.description || storeItem?.description || '선생님이 보낸 상품'
                     };
                 } else {
                     delete inventory[managementItem];
@@ -358,20 +375,13 @@ export default function MyClassPage() {
             const amount = managementAction === 'sendPoints' ? managementAmount : -managementAmount;
             updatedStudent.classPoints = (updatedStudent.classPoints || 0) + amount;
         } else {
-            const amount = managementAction === 'sendItem' ? managementAmount : -managementAmount;
-            const inventory = { ...(updatedStudent.inventory || {}) };
-            const currentQuantity = inventory[managementItem]?.quantity || 0;
-            const newQuantity = currentQuantity + amount;
-            if (newQuantity > 0) {
-                inventory[managementItem] = { ...inventory[managementItem], itemId: 'teacher_sent', quantity: newQuantity };
-            } else {
-                delete inventory[managementItem];
-            }
-            updatedStudent.inventory = inventory;
+            // This part is complex to update optimistically without re-fetching, so we'll rely on the snapshot listener
         }
         setSelectedStudent(updatedStudent);
         
         setManagementAction(null);
+        setManagementAmount(1);
+        setManagementItem('');
 
     } catch (error: any) {
         toast({ variant: 'destructive', title: '오류', description: typeof error === 'string' ? error : error.message || "작업 처리 중 오류가 발생했습니다."});
@@ -404,6 +414,7 @@ export default function MyClassPage() {
 
   const isTeacher = userData.role === 'teacher';
   const hasClass = (isTeacher && userData.classCode) || (!isTeacher && userData.classId);
+  const teacherSellingItems = isTeacher ? classStoreItems.filter(item => item.sellerId === user?.uid) : [];
 
   return (
     <>
@@ -838,11 +849,11 @@ export default function MyClassPage() {
                                     <SelectValue placeholder="상품 선택..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {managementAction === 'sendItem' && classStoreItems.map(item => (
-                                        <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
+                                    {managementAction === 'sendItem' && teacherSellingItems.map(item => (
+                                        <SelectItem key={item.id} value={item.name}>{item.name} (재고: {item.quantity})</SelectItem>
                                     ))}
                                     {managementAction === 'takeItem' && selectedStudent?.inventory && Object.keys(selectedStudent.inventory).map(itemName => (
-                                        <SelectItem key={itemName} value={itemName}>{itemName}</SelectItem>
+                                        <SelectItem key={itemName} value={itemName}>{itemName} (보유: {selectedStudent.inventory?.[itemName].quantity})</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
