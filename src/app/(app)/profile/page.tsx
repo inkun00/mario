@@ -2,13 +2,14 @@
 
 'use client';
 
-import { Avatar } from '@/components/ui/avatar';
+import { Avatar, AvatarImage } from '@/components/ui/avatar';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,10 +35,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer } from '@/lib/types';
+import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, ClassStoreItem, ItemBuyer } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
-import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2 } from 'lucide-react';
+import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -51,6 +52,9 @@ import Image from 'next/image';
 import { Combobox } from '@/components/ui/combobox';
 import dynamic from 'next/dynamic';
 import { PixelAvatar } from '@/components/pixel-avatar';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+
 
 const PixelEditor = dynamic(() => import('@/components/pixel-editor').then(mod => mod.PixelEditor), {
   ssr: false,
@@ -117,6 +121,7 @@ export default function ProfilePage() {
   const [reviewQuestions, setReviewQuestions] = useState<ReviewQuestion[]>([]);
   const [solvedReviewQuestions, setSolvedReviewQuestions] = useState<SolvedIncorrectAnswer[]>([]);
   const [subjectStats, setSubjectStats] = useState<SubjectStat[]>([]);
+  const [sellingItems, setSellingItems] = useState<ClassStoreItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -160,6 +165,12 @@ export default function ProfilePage() {
   const [currentPixelAvatar, setCurrentPixelAvatar] = useState<string[][] | null>(null);
   const [isRefundConfirmationOpen, setIsRefundConfirmationOpen] = useState(false);
   const [refundCandidate, setRefundCandidate] = useState<{name: string, details: {itemId: string, quantity: number, description?: string, sellerId?: string, sellerNickname?: string, price?: number}} | null>(null);
+  
+  const [selectedSellingItem, setSelectedSellingItem] = useState<ClassStoreItem | null>(null);
+  const [itemBuyers, setItemBuyers] = useState<ItemBuyer[]>([]);
+  const [isBuyersLoading, setIsBuyersLoading] = useState(false);
+  const [editItemDescription, setEditItemDescription] = useState('');
+  const [editItemQuantity, setEditItemQuantity] = useState(0);
 
 
   const fetchProfileData = useCallback(async () => {
@@ -174,14 +185,16 @@ export default function ProfilePage() {
     const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
     const solvedIncorrectAnswersRef = collection(db, 'users', user.uid, 'solved-incorrect-answers');
     const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
+    const sellingItemsQuery = query(collection(db, 'class-store-items'), where('sellerId', '==', user.uid));
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     try {
-      const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot] = await Promise.all([
+      const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot, sellingItemsSnapshot] = await Promise.all([
         getDoc(userRef),
         getDocs(query(incorrectAnswersRef, where('timestamp', '<=', oneDayAgo), orderBy('timestamp', 'asc'))),
         getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
         getDocs(subjectStatsRef),
+        getDocs(sellingItemsQuery),
       ]);
 
       if (userSnap.exists()) {
@@ -211,6 +224,7 @@ export default function ProfilePage() {
       setReviewQuestions(incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer)));
       setSolvedReviewQuestions(solvedIncorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer)));
       setSubjectStats(transformStats(subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat))));
+      setSellingItems(sellingItemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClassStoreItem)));
     } catch (error) {
         console.error("Error fetching profile data:", error);
         toast({ variant: 'destructive', title: '오류', description: '프로필 데이터를 불러오는 중 오류가 발생했습니다.' });
@@ -821,6 +835,83 @@ export default function ProfilePage() {
         console.error("Avatar save error:", error);
     }
   };
+
+  const handleOpenSellingItemDialog = async (item: ClassStoreItem) => {
+    setSelectedSellingItem(item);
+    setEditItemDescription(item.description);
+    setEditItemQuantity(item.quantity);
+    
+    setIsBuyersLoading(true);
+    setItemBuyers([]);
+    
+    if (!userData?.classId && userData?.role !== 'teacher') {
+        setIsBuyersLoading(false);
+        return;
+    }
+
+    const classId = userData.role === 'teacher' ? user?.uid : userData.classId;
+
+    try {
+        const q = query(collection(db, 'users'), where('classId', '==', classId));
+        const usersSnapshot = await getDocs(q);
+        const buyers: ItemBuyer[] = [];
+        usersSnapshot.forEach(userDoc => {
+            const userData = userDoc.data() as User;
+            if (userData.inventory && userData.inventory[item.name]) {
+                buyers.push({
+                    uid: userData.uid,
+                    name: userData.name || '',
+                    nickname: userData.displayName,
+                    quantity: userData.inventory[item.name].quantity,
+                });
+            }
+        });
+        setItemBuyers(buyers);
+    } catch (e) {
+        console.error("Error fetching item buyers:", e);
+        toast({variant: 'destructive', title: '오류', description: '구매자 정보를 불러오는 중 오류 발생'});
+    } finally {
+        setIsBuyersLoading(false);
+    }
+};
+
+const handleUpdateSellingItem = async () => {
+    if (!selectedSellingItem) return;
+
+    try {
+        const itemRef = doc(db, 'class-store-items', selectedSellingItem.id);
+        await updateDoc(itemRef, {
+            description: editItemDescription,
+            quantity: editItemQuantity,
+        });
+
+        // Optimistic update
+        setSellingItems(prev => prev.map(item => 
+            item.id === selectedSellingItem.id 
+                ? { ...item, description: editItemDescription, quantity: editItemQuantity }
+                : item
+        ));
+        
+        toast({ title: '성공', description: '상품 정보가 업데이트되었습니다.'});
+        setSelectedSellingItem(null);
+    } catch (e) {
+        console.error("Error updating selling item:", e);
+        toast({variant: 'destructive', title: '오류', description: '상품 정보 업데이트 중 오류 발생'});
+    }
+};
+
+const handleDeleteSellingItem = async () => {
+    if (!selectedSellingItem) return;
+    try {
+        await deleteDoc(doc(db, 'class-store-items', selectedSellingItem.id));
+        setSellingItems(prev => prev.filter(item => item.id !== selectedSellingItem.id));
+        toast({ title: '삭제 완료', description: `'${selectedSellingItem.name}' 상품을 매장에서 삭제했습니다.` });
+        setSelectedSellingItem(null);
+    } catch (e) {
+        console.error("Error deleting selling item:", e);
+        toast({variant: 'destructive', title: '오류', description: '상품 삭제 중 오류 발생'});
+    }
+};
   
   const xpForNextLevel = nextLevelInfo ? nextLevelInfo.xpThreshold - (levelInfo?.xpThreshold || 0) : 0;
   const currentXpProgress = userData ? userData.xp - (levelInfo?.xpThreshold || 0) : 0;
@@ -992,6 +1083,48 @@ export default function ProfilePage() {
                     <p className="text-muted-foreground">아직 보유한 상품이 없습니다.</p>
                 </div>
             )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="font-headline flex items-center gap-2">
+            <Send className="text-primary"/>판매 중인 상품
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {sellingItems.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {sellingItems.map((item) => (
+                <Card key={item.id} className="flex flex-col">
+                  <CardHeader>
+                    <CardTitle className="text-lg">{item.name}</CardTitle>
+                    <CardDescription className="text-sm text-primary font-bold">
+                      {item.price.toLocaleString()} 포인트
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex-grow">
+                    <p className="text-sm text-muted-foreground line-clamp-2">
+                      {item.description}
+                    </p>
+                    <p className="text-sm mt-2">
+                      남은 수량: <span className="font-bold">{item.quantity}</span>
+                    </p>
+                  </CardContent>
+                  <CardFooter>
+                    <Button variant="outline" className="w-full" onClick={() => handleOpenSellingItemDialog(item)}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      관리
+                    </Button>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 border-2 border-dashed rounded-lg">
+              <p className="text-muted-foreground">현재 판매 중인 상품이 없습니다.</p>
+            </div>
+          )}
         </CardContent>
       </Card>
       
@@ -1487,6 +1620,78 @@ export default function ProfilePage() {
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
+
+    {/* Selling Item Management Dialog */}
+    <Dialog open={!!selectedSellingItem} onOpenChange={(isOpen) => !isOpen && setSelectedSellingItem(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>판매 상품 관리: {selectedSellingItem?.name}</DialogTitle>
+          </DialogHeader>
+          <Tabs defaultValue="manage">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="manage">정보 수정</TabsTrigger>
+              <TabsTrigger value="buyers">구매자 목록</TabsTrigger>
+            </TabsList>
+            <TabsContent value="manage" className="pt-4">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="item-desc">설명</Label>
+                  <Textarea 
+                    id="item-desc"
+                    value={editItemDescription}
+                    onChange={(e) => setEditItemDescription(e.target.value)}
+                    placeholder="상품 설명을 입력하세요."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="item-quantity">수량</Label>
+                  <Input 
+                    id="item-quantity"
+                    type="number"
+                    min="0"
+                    value={editItemQuantity}
+                    onChange={(e) => setEditItemQuantity(parseInt(e.target.value) || 0)}
+                  />
+                </div>
+              </div>
+              <DialogFooter className="mt-6 gap-2">
+                <Button variant="destructive" onClick={handleDeleteSellingItem}><Trash2 className="mr-2 h-4 w-4" /> 판매 중지</Button>
+                <Button onClick={handleUpdateSellingItem}><Save className="mr-2 h-4 w-4" /> 정보 저장</Button>
+              </DialogFooter>
+            </TabsContent>
+            <TabsContent value="buyers" className="pt-4">
+              {isBuyersLoading ? (
+                <div className="flex justify-center items-center h-48">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              ) : itemBuyers.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground">
+                  아직 이 상품을 구매한 학생이 없습니다.
+                </div>
+              ) : (
+                <ScrollArea className="h-64">
+                    {itemBuyers.map(buyer => (
+                        <div key={buyer.uid} className="flex items-center justify-between p-2 rounded-md hover:bg-secondary">
+                             <div className="flex items-center gap-2">
+                                <Avatar className="h-8 w-8">
+                                    <AvatarImage src={`https://api.dicebear.com/8.x/pixel-art/svg?seed=${buyer.nickname}`} />
+                                    <AvatarFallback>{buyer.nickname.substring(0,1)}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <p className="font-semibold">{buyer.nickname}</p>
+                                    <p className="text-xs text-muted-foreground">{buyer.name}</p>
+                                </div>
+                            </div>
+                            <p className="text-sm font-medium">보유 수량: {buyer.quantity}</p>
+                        </div>
+                    ))}
+                </ScrollArea>
+              )}
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+    </Dialog>
     </>
   );
 }
+

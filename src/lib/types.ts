@@ -208,3 +208,10 @@ export interface ClassStoreItem {
   quantity: number;
   createdAt: any; // serverTimestamp
 }
+
+export interface ItemBuyer {
+    uid: string;
+    name: string;
+    nickname: string;
+    quantity: number;
+}
