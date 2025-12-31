@@ -573,7 +573,7 @@ export default function GamePage() {
   };
 
   const handleToggleMysteryVote = (effectType: MysteryEffectType) => {
-    if (!user || !gameRoom || !gameRoomId || typeof gameRoomId !== 'string') return;
+    if (!user || !gameRoom || typeof gameRoomId !== 'string') return;
   
     const roomRef = doc(db, 'game-rooms', gameRoomId);
   
