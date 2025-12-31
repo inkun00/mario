@@ -1,9 +1,10 @@
 
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe, runTransaction, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe, runTransaction, updateDoc, deleteDoc, increment } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { User, ClassStoreItem } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -199,7 +200,7 @@ export default function MyClassPage() {
 
         // 1. Decrement buyer's points
         transaction.update(buyerRef, {
-          classPoints: (buyerData.classPoints || 0) - itemData.price,
+          classPoints: increment(-itemData.price),
         });
         
         // 2. Add item to buyer's inventory
@@ -208,13 +209,15 @@ export default function MyClassPage() {
         newInventory[itemData.name] = { 
             quantity: currentQuantity + 1,
             description: itemData.description,
-            sellerNickname: itemData.sellerNickname
+            sellerId: item.sellerId,
+            sellerNickname: item.sellerNickname,
+            price: item.price
         };
         transaction.update(buyerRef, { inventory: newInventory });
 
         // 3. Increment seller's points
         transaction.update(sellerRef, {
-          classPoints: (sellerData.classPoints || 0) + itemData.price,
+          classPoints: increment(itemData.price),
         });
 
         // 4. Decrement item quantity or delete

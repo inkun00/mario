@@ -23,7 +23,9 @@ export interface User {
     [itemName: string]: {
       quantity: number;
       description?: string;
+      sellerId?: string; // 판매자 ID
       sellerNickname?: string; // 판매자 닉네임
+      price?: number; // 구매 당시 가격
     }
   };
   pixelAvatar?: string; // JSON string of string[][]

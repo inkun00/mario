@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Avatar } from '@/components/ui/avatar';
@@ -36,7 +37,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
-import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut } from 'lucide-react';
+import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -143,8 +144,8 @@ export default function ProfilePage() {
   const [joinClassCode, setJoinClassCode] = useState('');
   const [isLeaveClassDialogOpen, setIsLeaveClassDialogOpen] = useState(false);
 
-  const [selectedItem, setSelectedItem] = useState<{name: string, details: {quantity: number, description?: string, sellerNickname?: string}} | null>(null);
-  const [itemAction, setItemAction] = useState<'use' | 'send' | null>(null);
+  const [selectedItem, setSelectedItem] = useState<{name: string, details: {quantity: number, description?: string, sellerId?: string, sellerNickname?: string, price?: number}} | null>(null);
+  const [itemAction, setItemAction] = useState<'use' | 'send' | 'refund' | null>(null);
   const [actionQuantity, setActionQuantity] = useState(1);
   const [sendRecipient, setSendRecipient] = useState('');
   const [classmates, setClassmates] = useState<{value: string, label: string}[]>([]);
@@ -157,6 +158,9 @@ export default function ProfilePage() {
 
   const [isAvatarEditorOpen, setIsAvatarEditorOpen] = useState(false);
   const [currentPixelAvatar, setCurrentPixelAvatar] = useState<string[][] | null>(null);
+  const [isRefundConfirmationOpen, setIsRefundConfirmationOpen] = useState(false);
+  const [refundCandidate, setRefundCandidate] = useState<{name: string, details: {quantity: number, description?: string, sellerId?: string, sellerNickname?: string, price?: number}} | null>(null);
+
 
   const fetchProfileData = useCallback(async () => {
     if (!user) {
@@ -615,7 +619,9 @@ export default function ProfilePage() {
         recipientInventory[selectedItem.name] = { 
             quantity: currentRecipientQuantity + actionQuantity,
             description: selectedItem.details.description,
-            sellerNickname: selectedItem.details.sellerNickname,
+            sellerId: itemToSend.sellerId,
+            sellerNickname: itemToSend.sellerNickname,
+            price: itemToSend.price,
         };
         transaction.update(recipientRef, { inventory: recipientInventory });
       });
@@ -641,6 +647,84 @@ export default function ProfilePage() {
       setIsItemActionLoading(false);
     }
   };
+
+  const handleRefundItem = async () => {
+    if (!user || !refundCandidate) return;
+    setIsRefundConfirmationOpen(false);
+    setIsItemActionLoading(true);
+
+    const { name, details } = refundCandidate;
+    const { sellerId, price } = details;
+
+    if (!sellerId || typeof price !== 'number') {
+        toast({ variant: 'destructive', title: '환불 불가', description: '이 상품은 환불할 수 없습니다.' });
+        setIsItemActionLoading(false);
+        return;
+    }
+
+    try {
+        await runTransaction(db, async (transaction) => {
+            const buyerRef = doc(db, 'users', user.uid);
+            const sellerRef = doc(db, 'users', sellerId);
+
+            const [buyerDoc, sellerDoc] = await Promise.all([
+                transaction.get(buyerRef),
+                transaction.get(sellerRef),
+            ]);
+
+            if (!buyerDoc.exists()) throw '구매자 정보를 찾을 수 없습니다.';
+            if (!sellerDoc.exists()) throw '판매자 정보를 찾을 수 없습니다.';
+
+            const buyerData = buyerDoc.data();
+            const sellerData = sellerDoc.data();
+            const buyerInventory = buyerData.inventory || {};
+
+            if (!buyerInventory[name] || buyerInventory[name].quantity < 1) {
+                throw '환불할 상품이 없습니다.';
+            }
+
+            // 1. Update buyer's inventory
+            const newQuantity = buyerInventory[name].quantity - 1;
+            if (newQuantity > 0) {
+                buyerInventory[name].quantity = newQuantity;
+            } else {
+                delete buyerInventory[name];
+            }
+            transaction.update(buyerRef, { inventory: buyerInventory });
+
+            // 2. Refund points to buyer
+            transaction.update(buyerRef, { classPoints: increment(price) });
+
+            // 3. Deduct points from seller
+            transaction.update(sellerRef, { classPoints: increment(-price) });
+        });
+
+        toast({ title: '환불 완료', description: `'${name}' 상품을 환불하고 ${price} 포인트를 돌려받았습니다.` });
+        
+        setUserData(prev => {
+            if (!prev) return null;
+            const newInventory = {...prev.inventory};
+            if (newInventory[name]) {
+                newInventory[name].quantity -= 1;
+                if (newInventory[name].quantity <= 0) {
+                    delete newInventory[name];
+                }
+            }
+            return {
+                ...prev,
+                inventory: newInventory,
+                classPoints: (prev.classPoints || 0) + price
+            };
+        });
+
+    } catch (error) {
+        toast({ variant: 'destructive', title: '환불 실패', description: typeof error === 'string' ? error : '환불 처리 중 오류가 발생했습니다.' });
+    } finally {
+        setIsItemActionLoading(false);
+        setRefundCandidate(null);
+        closeItemDialogs();
+    }
+};
 
   const handleOpenSendPointsDialog = useCallback(() => {
     setIsSendPointsDialogOpen(true);
@@ -1121,7 +1205,7 @@ export default function ProfilePage() {
             {selectedItem?.details.description || "아이템 설명이 없습니다."}
           </DialogDescription>
         </DialogHeader>
-        <div className="grid grid-cols-2 gap-4 py-4">
+        <div className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-3">
             <Button variant="outline" onClick={() => setItemAction('use')}>
               <MinusCircle className="mr-2 h-4 w-4" />
               사용하기
@@ -1130,9 +1214,37 @@ export default function ProfilePage() {
               <Send className="mr-2 h-4 w-4" />
               보내기
             </Button>
+             <Button 
+                variant="outline"
+                onClick={() => {
+                    setRefundCandidate(selectedItem);
+                    setIsRefundConfirmationOpen(true);
+                    closeItemDialogs();
+                }}
+                disabled={!selectedItem?.details.sellerId || !selectedItem?.details.price}
+            >
+              <Undo2 className="mr-2 h-4 w-4" />
+              환불하기
+            </Button>
         </div>
       </DialogContent>
     </Dialog>
+    
+    {/* Refund Confirmation Dialog */}
+    <AlertDialog open={isRefundConfirmationOpen} onOpenChange={setIsRefundConfirmationOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>정말 환불하시겠습니까?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    '{refundCandidate?.name}' 상품을 환불합니다. 상품 가격인 {refundCandidate?.details.price} 포인트가 반환되며, 상품은 인벤토리에서 사라집니다. 이 작업은 되돌릴 수 없습니다.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setRefundCandidate(null)}>취소</AlertDialogCancel>
+                <AlertDialogAction onClick={handleRefundItem}>환불</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
     
     {/* Item Action Dialog (Use/Send) */}
     <Dialog open={!!itemAction} onOpenChange={(isOpen) => !isOpen && closeItemDialogs()}>
@@ -1352,3 +1464,4 @@ export default function ProfilePage() {
     </>
   );
 }
+
