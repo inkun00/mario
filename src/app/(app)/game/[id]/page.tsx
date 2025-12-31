@@ -560,10 +560,11 @@ export default function GamePage() {
 
       const currentRoomData = roomDoc.data() as GameRoom;
       const userIdToUpdate = user.uid;
-      // Deep copy to avoid direct mutation
-      const newVotes = JSON.parse(JSON.stringify(currentRoomData.mysteryEffectVotes || {}));
+
+      // Create a new votes object to ensure Firestore detects the change.
+      const newVotes = { ...(currentRoomData.mysteryEffectVotes || {}) };
       
-      const votesForEffect: string[] = newVotes[effectType] || [];
+      const votesForEffect: string[] = newVotes[effectType] ? [...newVotes[effectType]] : [];
       const userIndex = votesForEffect.indexOf(userIdToUpdate);
 
       if (userIndex > -1) {
@@ -993,10 +994,7 @@ export default function GamePage() {
                   {allMysteryEffects.map(effect => {
                       const votes = gameRoom?.mysteryEffectVotes?.[effect.type] || [];
                       const currentUserUid = user?.uid;
-                      let isCheckedByCurrentUser = false;
-                      if (currentUserUid) {
-                        isCheckedByCurrentUser = votes.includes(currentUserUid);
-                      }
+                      const isCheckedByCurrentUser = currentUserUid ? votes.includes(currentUserUid) : false;
 
                       return (
                           <div 
