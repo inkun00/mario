@@ -207,6 +207,7 @@ export default function MyClassPage() {
         const newInventory = { ...buyerData.inventory };
         const currentQuantity = newInventory[itemData.name]?.quantity || 0;
         newInventory[itemData.name] = { 
+            itemId: item.id,
             quantity: currentQuantity + 1,
             description: itemData.description,
             sellerId: item.sellerId,
@@ -255,7 +256,13 @@ export default function MyClassPage() {
   };
 
   const handleDeleteItem = async () => {
-    if (!deleteCandidate || !isTeacher) return;
+    if (!deleteCandidate) return;
+
+    if (!isTeacher && deleteCandidate.sellerId !== user?.uid) {
+        toast({ variant: 'destructive', title: '권한 없음', description: '자신이 등록한 상품만 삭제할 수 있습니다.' });
+        return;
+    }
+    
     try {
       await deleteDoc(doc(db, 'class-store-items', deleteCandidate.id));
       toast({ title: '삭제 완료', description: `'${deleteCandidate.name}' 상품을 삭제했습니다.` });
@@ -443,7 +450,7 @@ export default function MyClassPage() {
                                               <TableCell className="text-center">{item.quantity}</TableCell>
                                               <TableCell className="text-right font-bold text-primary">{item.price.toLocaleString()}</TableCell>
                                               <TableCell className="text-center">
-                                                {isTeacher ? (
+                                                {isTeacher || item.sellerId === user?.uid ? (
                                                   <Button
                                                     variant="destructive"
                                                     size="sm"
@@ -454,7 +461,7 @@ export default function MyClassPage() {
                                                 ) : (
                                                   <Button 
                                                     size="sm" 
-                                                    disabled={item.sellerId === user?.uid || !!isBuying}
+                                                    disabled={!!isBuying}
                                                     onClick={() => handleBuyItem(item)}
                                                   >
                                                     {isBuying === item.id ? <Loader2 className="w-4 h-4 animate-spin"/> : '구매'}
@@ -594,5 +601,3 @@ export default function MyClassPage() {
     </>
   );
 }
-
-      

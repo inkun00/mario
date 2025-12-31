@@ -144,7 +144,7 @@ export default function ProfilePage() {
   const [joinClassCode, setJoinClassCode] = useState('');
   const [isLeaveClassDialogOpen, setIsLeaveClassDialogOpen] = useState(false);
 
-  const [selectedItem, setSelectedItem] = useState<{name: string, details: {quantity: number, description?: string, sellerId?: string, sellerNickname?: string, price?: number}} | null>(null);
+  const [selectedItem, setSelectedItem] = useState<{name: string, details: {itemId: string, quantity: number, description?: string, sellerId?: string, sellerNickname?: string, price?: number}} | null>(null);
   const [itemAction, setItemAction] = useState<'use' | 'send' | 'refund' | null>(null);
   const [actionQuantity, setActionQuantity] = useState(1);
   const [sendRecipient, setSendRecipient] = useState('');
@@ -159,7 +159,7 @@ export default function ProfilePage() {
   const [isAvatarEditorOpen, setIsAvatarEditorOpen] = useState(false);
   const [currentPixelAvatar, setCurrentPixelAvatar] = useState<string[][] | null>(null);
   const [isRefundConfirmationOpen, setIsRefundConfirmationOpen] = useState(false);
-  const [refundCandidate, setRefundCandidate] = useState<{name: string, details: {quantity: number, description?: string, sellerId?: string, sellerNickname?: string, price?: number}} | null>(null);
+  const [refundCandidate, setRefundCandidate] = useState<{name: string, details: {itemId: string, quantity: number, description?: string, sellerId?: string, sellerNickname?: string, price?: number}} | null>(null);
 
 
   const fetchProfileData = useCallback(async () => {
@@ -617,6 +617,7 @@ export default function ProfilePage() {
         const recipientInventory = recipientDoc.data().inventory || {};
         const currentRecipientQuantity = recipientInventory[selectedItem.name]?.quantity || 0;
         recipientInventory[selectedItem.name] = { 
+            itemId: itemToSend.itemId,
             quantity: currentRecipientQuantity + actionQuantity,
             description: selectedItem.details.description,
             sellerId: itemToSend.sellerId,
@@ -654,7 +655,7 @@ export default function ProfilePage() {
     setIsItemActionLoading(true);
 
     const { name, details } = refundCandidate;
-    const { sellerId, price } = details;
+    const { sellerId, price, itemId } = details;
 
     if (!sellerId || typeof price !== 'number') {
         toast({ variant: 'destructive', title: '환불 불가', description: '이 상품은 환불할 수 없습니다.' });
@@ -666,17 +667,18 @@ export default function ProfilePage() {
         await runTransaction(db, async (transaction) => {
             const buyerRef = doc(db, 'users', user.uid);
             const sellerRef = doc(db, 'users', sellerId);
+            const itemRef = doc(db, 'class-store-items', itemId);
 
-            const [buyerDoc, sellerDoc] = await Promise.all([
+            const [buyerDoc, sellerDoc, itemDoc] = await Promise.all([
                 transaction.get(buyerRef),
                 transaction.get(sellerRef),
+                transaction.get(itemRef)
             ]);
 
             if (!buyerDoc.exists()) throw '구매자 정보를 찾을 수 없습니다.';
             if (!sellerDoc.exists()) throw '판매자 정보를 찾을 수 없습니다.';
 
             const buyerData = buyerDoc.data();
-            const sellerData = sellerDoc.data();
             const buyerInventory = buyerData.inventory || {};
 
             if (!buyerInventory[name] || buyerInventory[name].quantity < 1) {
@@ -697,6 +699,25 @@ export default function ProfilePage() {
 
             // 3. Deduct points from seller
             transaction.update(sellerRef, { classPoints: increment(-price) });
+
+            // 4. Update store item quantity
+            if (itemDoc.exists()) {
+                transaction.update(itemRef, { quantity: increment(1) });
+            } else {
+                // If item was deleted, re-create it
+                const originalItemData = {
+                  sellerId: sellerId,
+                  sellerName: details.sellerNickname || '', // Should ideally get from seller doc
+                  sellerNickname: details.sellerNickname || '',
+                  classId: buyerData.classId,
+                  name: name,
+                  price: price,
+                  description: details.description || '',
+                  quantity: 1,
+                  createdAt: serverTimestamp(),
+                }
+                transaction.set(itemRef, originalItemData);
+            }
         });
 
         toast({ title: '환불 완료', description: `'${name}' 상품을 환불하고 ${price} 포인트를 돌려받았습니다.` });
