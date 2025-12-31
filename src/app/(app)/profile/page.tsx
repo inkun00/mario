@@ -1221,7 +1221,7 @@ export default function ProfilePage() {
                     setIsRefundConfirmationOpen(true);
                     closeItemDialogs();
                 }}
-                disabled={!selectedItem?.details.sellerId || !selectedItem?.details.price}
+                disabled={!selectedItem?.details.sellerId || !selectedItem?.details.price || selectedItem?.details.price === 0}
             >
               <Undo2 className="mr-2 h-4 w-4" />
               환불하기
@@ -1464,4 +1464,3 @@ export default function ProfilePage() {
     </>
   );
 }
-
