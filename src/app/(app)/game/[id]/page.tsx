@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, onSnapshot, getDoc, updateDoc, Timestamp, writeBatch, increment, collection, setDoc, deleteDoc, serverTimestamp, deleteField, getDocs, where, query, collectionGroup, runTransaction } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
@@ -107,7 +107,7 @@ export default function GamePage() {
   const [userAnswer, setUserAnswer] = useState('');
   const [showHint, setShowHint] = useState(false);
   
-  const [isMyTurn, setIsMyTurn] = useState(false);
+  const isMyTurn = gameRoom?.currentTurn === user?.uid;
   
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -123,9 +123,17 @@ export default function GamePage() {
   const [isFinishingGame, setIsFinishingGame] = useState(false);
   const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
 
+  // useRef to hold a reference to the unsubscribe function
+  const unsubscribeRef = useRef<() => void | undefined>();
+
   // Fetch GameRoom and GameSet data
   useEffect(() => {
     if (!gameRoomId || typeof gameRoomId !== 'string' || loadingUser) return;
+    
+    // Unsubscribe from previous listener if it exists
+    if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+    }
 
     const roomRef = doc(db, 'game-rooms', gameRoomId);
 
@@ -134,13 +142,13 @@ export default function GamePage() {
             const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
             
             // Check if current user was removed from the game
-            if (user && gameRoom && gameRoom.players[user.uid] && !roomData.players[user.uid]) {
+            if (user && gameRoomRef.current && gameRoomRef.current.players[user.uid] && !roomData.players[user.uid]) {
               toast({ title: '게임에서 퇴장했습니다.', description: '게임방으로 돌아갑니다.' });
               router.push('/dashboard');
               return;
             }
 
-            if (roomData.status === 'finished' && !showGameOverPopup) {
+            if (roomData.status === 'finished' && !showGameOverPopupRef.current) {
                 const finalPlayers = calculateScoresFromLogs(roomData);
                 setFinalScores(finalPlayers);
                 setShowGameOverPopup(true);
@@ -151,11 +159,10 @@ export default function GamePage() {
 
             if(roomData.currentMysteryEffect) {
                 setShowMysteryBoxPopup(true);
-            } else if (showMysteryBoxPopup) {
-                // This will close the mystery box popup for all users once the effect is processed
+            } else {
                 handleCloseDialogs();
             }
-
+            
             if (roomData.status === 'setting-mystery' && !roomData.isMysterySettingDone) {
                 setShowMysterySettings(true);
             } else {
@@ -185,19 +192,28 @@ export default function GamePage() {
         router.push('/dashboard');
     });
 
+    unsubscribeRef.current = unsubscribe;
+
+    // Use refs for values that change but should not trigger re-subscription
+    const gameRoomRef = { current: gameRoom };
+    const showGameOverPopupRef = { current: showGameOverPopup };
+
+
     return () => {
-      unsubscribe();
+      if (unsubscribeRef.current) {
+          unsubscribeRef.current();
+      }
     };
-  }, [gameRoomId, router, toast, user, loadingUser, gameRoom, showGameOverPopup, showMysteryBoxPopup]);
+  }, [gameRoomId, user, loadingUser, router, toast]);
   
-  // Update player scores and turn status from gameRoom state
+  
+  // Update player scores from gameRoom state
   useEffect(() => {
     if (!gameRoom || loadingUser) return;
     
     const calculatedPlayers = calculateScoresFromLogs(gameRoom);
     setPlayers(calculatedPlayers);
     
-    setIsMyTurn(gameRoom.currentTurn === user?.uid);
   }, [gameRoom, user, loadingUser]);
 
   // Sync local state with Firestore state for spectator mode
@@ -365,11 +381,15 @@ export default function GamePage() {
 
 
   const handleCloseDialogs = () => {
-    setCurrentQuestionInfo(null);
-    setShowMysteryChoicePopup(false);
-    setShowMysteryBoxPopup(false);
-    setPlayerForSwap(null);
-    setUserAnswer('');
+    if (showMysteryBoxPopup || currentQuestionInfo) {
+      setCurrentQuestionInfo(null);
+      setShowMysteryBoxPopup(false);
+      setPlayerForSwap(null);
+      setUserAnswer('');
+    }
+    if (showMysteryChoicePopup) {
+      setShowMysteryChoicePopup(false);
+    }
   }
 
   const handleSubmitAnswer = async () => {
@@ -402,52 +422,56 @@ export default function GamePage() {
 
     setTimeout(async () => {
         try {
-            const batch = writeBatch(db);
-            
-            const newLogEntry: AnswerLog = {
-                id: uuidv4(),
-                userId: gameRoom.currentTurn,
-                question: currentQuestion,
-                userAnswer: userAnswer,
-                isCorrect: isCorrect,
-                pointsAwarded: pointsToAward,
-                timestamp: Timestamp.now(),
-            };
-            
-            const newGameState: GameRoom['gameState'] = {...gameRoom.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
-            
-            const totalQuestions = gameSet.questions.length;
-            const mysteryBlockCount = gameRoom.mysteryBoxEnabled ? Math.round(totalQuestions * 0.3) : 0;
-            const totalBlocks = totalQuestions + mysteryBlockCount;
-            const allAnswered = Object.keys(newGameState).length >= totalBlocks;
-            
-            const updateData: Partial<GameRoom> = {
-                answerLogs: [...(gameRoom.answerLogs || []), newLogEntry], 
-                gameState: newGameState,
-                currentAnswerResult: null,
-            };
-            
-            if (allAnswered) {
-              updateData.status = 'finished';
-            } else {
-              updateData.currentTurn = getNextTurnUID();
-            }
-            
-            if (!isCorrect) {
-              const incorrectLogData: IncorrectAnswer = {
+            await runTransaction(db, async (transaction) => {
+              const roomDoc = await transaction.get(roomRef);
+              if (!roomDoc.exists()) {
+                  throw "Game room not found.";
+              }
+              const currentRoomData = roomDoc.data() as GameRoom;
+
+              const newLogEntry: AnswerLog = {
                   id: uuidv4(),
-                  userId: gameRoom.currentTurn,
+                  userId: currentRoomData.currentTurn,
                   question: currentQuestion,
                   userAnswer: userAnswer,
-                  timestamp: new Date(),
+                  isCorrect: isCorrect,
+                  pointsAwarded: pointsToAward,
+                  timestamp: Timestamp.now(),
               };
-              const incorrectLogRef = doc(db, 'users', gameRoom.currentTurn, 'incorrect-answers', incorrectLogData.id);
-              batch.set(incorrectLogRef, incorrectLogData);
-            }
+              
+              const newGameState: GameRoom['gameState'] = {...currentRoomData.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
+              
+              const totalQuestions = gameSet.questions.length;
+              const mysteryBlockCount = currentRoomData.mysteryBoxEnabled ? Math.round(totalQuestions * 0.3) : 0;
+              const totalBlocks = totalQuestions + mysteryBlockCount;
+              const allAnswered = Object.keys(newGameState).length >= totalBlocks;
+              
+              const updateData: Partial<GameRoom> = {
+                  answerLogs: [...(currentRoomData.answerLogs || []), newLogEntry], 
+                  gameState: newGameState,
+                  currentAnswerResult: null,
+              };
+              
+              if (allAnswered) {
+                updateData.status = 'finished';
+              } else {
+                updateData.currentTurn = getNextTurnUID();
+              }
+              
+              if (!isCorrect) {
+                const incorrectLogData: IncorrectAnswer = {
+                    id: uuidv4(),
+                    userId: currentRoomData.currentTurn,
+                    question: currentQuestion,
+                    userAnswer: userAnswer,
+                    timestamp: new Date(),
+                };
+                const incorrectLogRef = doc(db, 'users', currentRoomData.currentTurn, 'incorrect-answers', incorrectLogData.id);
+                transaction.set(incorrectLogRef, incorrectLogData);
+              }
 
-            batch.update(roomRef, updateData as any);
-            
-            await batch.commit();
+              transaction.update(roomRef, updateData as any);
+            });
             
         } catch(error: any) {
              toast({variant: 'destructive', title: '오류', description: `답변 제출 중 오류가 발생했습니다: ${error.message}`});
@@ -550,37 +574,38 @@ export default function GamePage() {
 
   const handleToggleMysteryVote = (effectType: MysteryEffectType) => {
     if (!user || !gameRoomId) return;
-  
-    const roomRef = doc(db, 'game-rooms', gameRoomId);
+
+    const roomRef = doc(db, "game-rooms", gameRoomId);
+
     runTransaction(db, async (transaction) => {
       const roomDoc = await transaction.get(roomRef);
       if (!roomDoc.exists()) {
-        throw 'Game room not found.';
+        throw "Game room not found.";
       }
-  
+
       const currentRoomData = roomDoc.data() as GameRoom;
       const userIdToUpdate = user.uid;
-      
-      // Create a deep copy of the votes object to ensure we're not mutating the state from the snapshot.
-      const newVotes: Record<string, string[]> = JSON.parse(JSON.stringify(currentRoomData.mysteryEffectVotes || {}));
+
+      // Create a new votes object to ensure Firestore detects the change.
+      const newVotes = { ...(currentRoomData.mysteryEffectVotes || {}) };
       
       if (!newVotes[effectType]) {
         newVotes[effectType] = [];
       }
-  
+
       const userIndex = newVotes[effectType].indexOf(userIdToUpdate);
-  
+
       if (userIndex > -1) {
-        newVotes[effectType].splice(userIndex, 1);
+        newVotes[effectType] = newVotes[effectType].filter(uid => uid !== userIdToUpdate);
       } else {
-        newVotes[effectType].push(userIdToUpdate);
+        newVotes[effectType] = [...newVotes[effectType], userIdToUpdate];
       }
       
-      // Update the document with the new object. This forces Firestore to recognize the change.
+      // Update the document with the new object.
       transaction.update(roomRef, { mysteryEffectVotes: newVotes });
     }).catch(error => {
-      console.error('Error toggling mystery vote:', error);
-      toast({ variant: 'destructive', title: '오류', description: '투표 중 오류가 발생했습니다.' });
+      console.error("Error toggling mystery vote:", error);
+      toast({ variant: "destructive", title: "오류", description: `투표 중 오류가 발생했습니다: ${error}` });
     });
   };
 
@@ -997,7 +1022,10 @@ export default function GamePage() {
                   {allMysteryEffects.map(effect => {
                       const votes = gameRoom?.mysteryEffectVotes?.[effect.type] || [];
                       const currentUserUid = user?.uid;
-                      const isCheckedByCurrentUser = currentUserUid ? votes.includes(currentUserUid) : false;
+                      let isCheckedByCurrentUser = false;
+                      if (currentUserUid) {
+                        isCheckedByCurrentUser = votes.includes(currentUserUid);
+                      }
 
                       return (
                           <div 
@@ -1259,5 +1287,3 @@ export default function GamePage() {
     </>
   );
 }
-
-    
