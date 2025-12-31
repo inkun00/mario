@@ -1203,6 +1203,11 @@ export default function ProfilePage() {
           <DialogTitle>{selectedItem?.name}</DialogTitle>
           <DialogDescription>
             {selectedItem?.details.description || "아이템 설명이 없습니다."}
+            {selectedItem?.details.price && (
+                <div className="text-sm text-primary font-semibold mt-2">
+                    구매 가격: {selectedItem.details.price.toLocaleString()} 포인트
+                </div>
+            )}
           </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-3">
@@ -1236,7 +1241,7 @@ export default function ProfilePage() {
             <AlertDialogHeader>
                 <AlertDialogTitle>정말 환불하시겠습니까?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    '{refundCandidate?.name}' 상품을 환불합니다. 상품 가격인 {refundCandidate?.details.price} 포인트가 반환되며, 상품은 인벤토리에서 사라집니다. 이 작업은 되돌릴 수 없습니다.
+                    '{refundCandidate?.name}' 상품을 환불합니다. 상품 가격인 {refundCandidate?.details.price?.toLocaleString()} 포인트를 돌려받으며, 상품은 인벤토리에서 사라집니다. 이 작업은 되돌릴 수 없습니다.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
