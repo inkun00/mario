@@ -550,30 +550,33 @@ export default function GamePage() {
 
   const handleToggleMysteryVote = (effectType: MysteryEffectType) => {
     if (!user || !gameRoomId) return;
-
+  
     const roomRef = doc(db, 'game-rooms', gameRoomId);
     runTransaction(db, async (transaction) => {
       const roomDoc = await transaction.get(roomRef);
       if (!roomDoc.exists()) {
         throw 'Game room not found.';
       }
-
+  
       const currentRoomData = roomDoc.data() as GameRoom;
       const userIdToUpdate = user.uid;
-
-      // Create a new votes object to ensure Firestore detects the change.
-      const newVotes = { ...(currentRoomData.mysteryEffectVotes || {}) };
       
-      const votesForEffect: string[] = newVotes[effectType] ? [...newVotes[effectType]] : [];
-      const userIndex = votesForEffect.indexOf(userIdToUpdate);
-
-      if (userIndex > -1) {
-        votesForEffect.splice(userIndex, 1);
-      } else {
-        votesForEffect.push(userIdToUpdate);
+      // Create a deep copy of the votes object to ensure we're not mutating the state from the snapshot.
+      const newVotes: Record<string, string[]> = JSON.parse(JSON.stringify(currentRoomData.mysteryEffectVotes || {}));
+      
+      if (!newVotes[effectType]) {
+        newVotes[effectType] = [];
       }
-      newVotes[effectType] = votesForEffect;
-
+  
+      const userIndex = newVotes[effectType].indexOf(userIdToUpdate);
+  
+      if (userIndex > -1) {
+        newVotes[effectType].splice(userIndex, 1);
+      } else {
+        newVotes[effectType].push(userIdToUpdate);
+      }
+      
+      // Update the document with the new object. This forces Firestore to recognize the change.
       transaction.update(roomRef, { mysteryEffectVotes: newVotes });
     }).catch(error => {
       console.error('Error toggling mystery vote:', error);
@@ -981,7 +984,7 @@ export default function GamePage() {
       </Dialog>
 
       {/* Mystery Box Settings Popup */}
-      <Dialog open={showMysterySettings} onOpenChange={(isOpen) => { if (!isOpen) setShowMysterySettings(false); }}>
+      <Dialog open={showMysterySettings} onOpenChange={setShowMysterySettings}>
           <DialogContent className="max-w-3xl">
               <DialogHeader>
                   <DialogTitle className="font-headline text-2xl flex items-center gap-2"><Gift className="text-primary"/>미스터리 박스 설정</DialogTitle>
