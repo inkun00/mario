@@ -23,6 +23,7 @@ export interface User {
     [itemName: string]: {
       quantity: number;
       description?: string;
+      sellerNickname?: string; // 판매자 닉네임
     }
   };
   pixelAvatar?: string; // JSON string of string[][]

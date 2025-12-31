@@ -143,7 +143,7 @@ export default function ProfilePage() {
   const [joinClassCode, setJoinClassCode] = useState('');
   const [isLeaveClassDialogOpen, setIsLeaveClassDialogOpen] = useState(false);
 
-  const [selectedItem, setSelectedItem] = useState<{name: string, details: {quantity: number, description?: string}} | null>(null);
+  const [selectedItem, setSelectedItem] = useState<{name: string, details: {quantity: number, description?: string, sellerNickname?: string}} | null>(null);
   const [itemAction, setItemAction] = useState<'use' | 'send' | null>(null);
   const [actionQuantity, setActionQuantity] = useState(1);
   const [sendRecipient, setSendRecipient] = useState('');
@@ -614,7 +614,8 @@ export default function ProfilePage() {
         const currentRecipientQuantity = recipientInventory[selectedItem.name]?.quantity || 0;
         recipientInventory[selectedItem.name] = { 
             quantity: currentRecipientQuantity + actionQuantity,
-            description: selectedItem.details.description
+            description: selectedItem.details.description,
+            sellerNickname: selectedItem.details.sellerNickname,
         };
         transaction.update(recipientRef, { inventory: recipientInventory });
       });
@@ -870,11 +871,14 @@ export default function ProfilePage() {
                     {Object.entries(userData.inventory).map(([itemName, itemDetails]) => (
                         <Card 
                           key={itemName} 
-                          className="p-4 text-center cursor-pointer hover:shadow-md hover:border-primary transition"
+                          className="p-4 text-center cursor-pointer hover:shadow-md hover:border-primary transition flex flex-col"
                           onClick={() => setSelectedItem({ name: itemName, details: itemDetails })}
                         >
                             <CardTitle className="text-base">{itemName}</CardTitle>
-                            <CardDescription>수량: {itemDetails.quantity}</CardDescription>
+                            <CardDescription className="mt-1">수량: {itemDetails.quantity}</CardDescription>
+                            {itemDetails.sellerNickname && (
+                                <CardDescription className="text-xs mt-auto pt-2">판매자: {itemDetails.sellerNickname}</CardDescription>
+                            )}
                         </Card>
                     ))}
                 </div>

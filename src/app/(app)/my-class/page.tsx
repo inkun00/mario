@@ -207,7 +207,8 @@ export default function MyClassPage() {
         const currentQuantity = newInventory[itemData.name]?.quantity || 0;
         newInventory[itemData.name] = { 
             quantity: currentQuantity + 1,
-            description: itemData.description
+            description: itemData.description,
+            sellerNickname: itemData.sellerNickname
         };
         transaction.update(buyerRef, { inventory: newInventory });
 
