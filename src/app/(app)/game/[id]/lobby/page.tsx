@@ -458,7 +458,8 @@ export default function LobbyPage() {
            await updateDoc(roomRef, {
              [`players.${user.uid}`]: newPlayer
            });
-           return;
+           // After updating, we let the snapshot listener update the state, so we return here to avoid race conditions.
+           return; 
         }
 
         setGameRoom(roomData);
@@ -489,7 +490,7 @@ export default function LobbyPage() {
     });
 
     return () => unsubscribe();
-  }, [gameRoomId, router, toast, gameSet, user, loadingUser]);
+  }, [gameRoomId, router, toast, user, loadingUser, gameSet]);
   
   if (isLoading || loadingUser) {
     return (
