@@ -149,7 +149,7 @@ export default function MyClassPage() {
         await addDoc(collection(db, 'class-store-items'), {
             ...data,
             sellerId: user.uid,
-            sellerName: userData.name,
+            sellerName: userData.name || userData.displayName,
             sellerNickname: userData.displayName,
             classId: classId,
             createdAt: serverTimestamp(),
