@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle } from 'lucide-react';
+import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2 } from 'lucide-react';
 import { getLevelInfo } from '@/lib/level-system';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
@@ -51,6 +51,7 @@ export default function MyClassPage() {
   const [selectedItemForDescription, setSelectedItemForDescription] = useState<ClassStoreItem | null>(null);
   
   const [evictCandidate, setEvictCandidate] = useState<User | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<ClassStoreItem | null>(null);
 
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -249,6 +250,18 @@ export default function MyClassPage() {
     }
   };
 
+  const handleDeleteItem = async () => {
+    if (!deleteCandidate || !isTeacher) return;
+    try {
+      await deleteDoc(doc(db, 'class-store-items', deleteCandidate.id));
+      toast({ title: '삭제 완료', description: `'${deleteCandidate.name}' 상품을 삭제했습니다.` });
+      setDeleteCandidate(null);
+    } catch (error) {
+      console.error('Error deleting item:', error);
+      toast({ variant: 'destructive', title: '오류', description: '상품 삭제 중 오류가 발생했습니다.' });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -410,7 +423,7 @@ export default function MyClassPage() {
                                             <TableHead>판매자</TableHead>
                                             <TableHead className="text-center">수량</TableHead>
                                             <TableHead className="text-right">가격 (포인트)</TableHead>
-                                            <TableHead className="w-[100px]"></TableHead>
+                                            <TableHead className="w-[100px] text-center">동작</TableHead>
                                           </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -425,14 +438,24 @@ export default function MyClassPage() {
                                               <TableCell>{item.sellerName || item.sellerNickname}</TableCell>
                                               <TableCell className="text-center">{item.quantity}</TableCell>
                                               <TableCell className="text-right font-bold text-primary">{item.price.toLocaleString()}</TableCell>
-                                              <TableCell>
-                                                <Button 
-                                                  size="sm" 
-                                                  disabled={item.sellerId === user?.uid || !!isBuying}
-                                                  onClick={() => handleBuyItem(item)}
-                                                >
-                                                  {isBuying === item.id ? <Loader2 className="w-4 h-4 animate-spin"/> : '구매'}
-                                                </Button>
+                                              <TableCell className="text-center">
+                                                {isTeacher ? (
+                                                  <Button
+                                                    variant="destructive"
+                                                    size="sm"
+                                                    onClick={() => setDeleteCandidate(item)}
+                                                  >
+                                                    <Trash2 className="w-4 h-4" />
+                                                  </Button>
+                                                ) : (
+                                                  <Button 
+                                                    size="sm" 
+                                                    disabled={item.sellerId === user?.uid || !!isBuying}
+                                                    onClick={() => handleBuyItem(item)}
+                                                  >
+                                                    {isBuying === item.id ? <Loader2 className="w-4 h-4 animate-spin"/> : '구매'}
+                                                  </Button>
+                                                )}
                                               </TableCell>
                                             </TableRow>
                                           ))}
@@ -548,6 +571,24 @@ export default function MyClassPage() {
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
+
+    {/* Delete Item Confirmation Dialog */}
+    <AlertDialog open={!!deleteCandidate} onOpenChange={(isOpen) => !isOpen && setDeleteCandidate(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>정말 이 상품을 삭제하시겠습니까?</AlertDialogTitle>
+          <AlertDialogDescription>
+            '{deleteCandidate?.name}' 상품을 매장에서 영구적으로 삭제합니다. 이 작업은 되돌릴 수 없습니다.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>취소</AlertDialogCancel>
+          <AlertDialogAction onClick={handleDeleteItem} className="bg-destructive hover:bg-destructive/90">삭제</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     </>
   );
 }
+
+      
