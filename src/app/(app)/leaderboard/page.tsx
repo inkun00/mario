@@ -30,7 +30,7 @@ import { db, auth } from '@/lib/firebase';
 import type { User, GameSet, School, Question } from '@/lib/types';
 import { getLevelInfo } from '@/lib/level-system';
 import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
-import { Crown, Loader2, School as SchoolIcon, BookOpen, Users, HelpCircle, Star } from 'lucide-react';
+import { Crown, Loader2, School as SchoolIcon, BookOpen, Users, HelpCircle, Star, Sparkles } from 'lucide-react';
 import { useEffect, useState, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -41,6 +41,8 @@ import { Button } from '@/components/ui/button';
 import { PixelAvatar } from '@/components/pixel-avatar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import Image from 'next/image';
+import { cn } from '@/lib/utils';
+
 
 async function getLeaderboardData(): Promise<User[]> {
   const usersRef = collection(db, 'users');
@@ -108,6 +110,17 @@ async function getPopularGameSets(): Promise<GameSet[]> {
     // 클라이언트 측에서 isPublic 필터링 및 50개로 제한
     return allSets.filter(set => set.isPublic === true).slice(0, 50);
 }
+
+const getStarRating = (score?: number): { stars: number, color: string } => {
+  if (score === undefined || score === null) return { stars: 0, color: 'text-muted-foreground' };
+  if (score >= 81) return { stars: 5, color: 'text-yellow-400' };
+  if (score >= 61) return { stars: 4, color: 'text-yellow-400' };
+  if (score >= 41) return { stars: 3, color: 'text-yellow-400' };
+  if (score >= 21) return { stars: 2, color: 'text-yellow-400' };
+  if (score > 0) return { stars: 1, color: 'text-yellow-400' };
+  return { stars: 0, color: 'text-muted-foreground' };
+};
+
 
 const rowVariants = {
   hidden: { opacity: 0, x: -20 },
@@ -392,8 +405,15 @@ export default function LeaderboardPage() {
       <Dialog open={!!selectedUser} onOpenChange={(isOpen) => !isOpen && setSelectedUser(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="font-headline text-2xl">{selectedUser?.displayName}님이 만든 퀴즈</DialogTitle>
-            <DialogDescription>이 사용자가 만들어서 공개한 퀴즈 목록입니다.</DialogDescription>
+            <div className="flex items-center gap-4">
+              <Avatar className="h-14 w-14">
+                <PixelAvatar pixels={selectedUser?.pixelAvatar ? JSON.parse(selectedUser.pixelAvatar) : null} />
+              </Avatar>
+              <div>
+                <DialogTitle className="font-headline text-2xl">{selectedUser?.displayName}님이 만든 퀴즈</DialogTitle>
+                <DialogDescription>이 사용자가 만들어서 공개한 퀴즈 목록입니다.</DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
           <ScrollArea className="h-96 pr-4">
             <div className="space-y-4 py-4">
@@ -406,10 +426,12 @@ export default function LeaderboardPage() {
                         공개된 퀴즈가 없습니다.
                     </div>
                 ) : (
-                    userGameSets.map(set => (
+                    userGameSets.map(set => {
+                      const { stars, color } = getStarRating(set.evaluationScore);
+                      return (
                         <Card key={set.id}>
-                            <CardContent className="p-4 flex items-center justify-between">
-                                <div>
+                            <CardContent className="p-4 flex items-center justify-between gap-2">
+                                <div className="flex-grow">
                                     <h4 className="font-semibold">{set.title}</h4>
                                     <p className="text-sm text-muted-foreground">
                                         {[set.grade, set.semester, set.subject].filter(Boolean).join(' / ')}
@@ -418,18 +440,33 @@ export default function LeaderboardPage() {
                                         {' · '}
                                         활용 {set.playCount || 0}회
                                     </p>
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <div className={cn("flex items-center gap-1 mt-1", color)}>
+                                            <Sparkles className="h-4 w-4" />
+                                            {Array.from({ length: 5 }).map((_, i) => (
+                                                <Star key={i} className={cn("h-4 w-4", i < stars ? "fill-current" : "text-gray-300")} />
+                                            ))}
+                                          </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>AI 평가 점수: {set.evaluationScore ?? '미평가'}</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex-shrink-0 flex items-center gap-2">
                                   <Button variant="secondary" size="sm" onClick={() => setSelectedGameSetForPreview(set)}>미리보기</Button>
                                   <Button asChild size="sm">
-                                      <Link href={`/game-rooms/new?gameSetId=${set.id}`}>
+                                      <Link href={`/game-rooms/new?gameSetId=${set.id}&joinType=remote`}>
                                           <Users className="mr-2 h-4 w-4" />방 만들기
                                       </Link>
                                   </Button>
                                 </div>
                             </CardContent>
                         </Card>
-                    ))
+                    )})
                 )}
             </div>
           </ScrollArea>
