@@ -27,10 +27,10 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { db, auth } from '@/lib/firebase';
-import type { User, GameSet, School } from '@/lib/types';
+import type { User, GameSet, School, Question } from '@/lib/types';
 import { getLevelInfo } from '@/lib/level-system';
 import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
-import { Crown, Loader2, School as SchoolIcon, BookOpen, Users } from 'lucide-react';
+import { Crown, Loader2, School as SchoolIcon, BookOpen, Users, HelpCircle, Star } from 'lucide-react';
 import { useEffect, useState, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -39,6 +39,8 @@ import { Combobox } from '@/components/ui/combobox';
 import { MotionDiv } from '@/components/motion-div';
 import { Button } from '@/components/ui/button';
 import { PixelAvatar } from '@/components/pixel-avatar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import Image from 'next/image';
 
 async function getLeaderboardData(): Promise<User[]> {
   const usersRef = collection(db, 'users');
@@ -124,6 +126,7 @@ export default function LeaderboardPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userGameSets, setUserGameSets] = useState<GameSet[]>([]);
   const [isUserSetsLoading, setIsUserSetsLoading] = useState(false);
+  const [selectedGameSetForPreview, setSelectedGameSetForPreview] = useState<GameSet | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -416,11 +419,14 @@ export default function LeaderboardPage() {
                                         활용 {set.playCount || 0}회
                                     </p>
                                 </div>
-                                <Button asChild size="sm">
-                                    <Link href={`/game-rooms/new?gameSetId=${set.id}`}>
-                                        <Users className="mr-2 h-4 w-4" />방 만들기
-                                    </Link>
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                  <Button variant="secondary" size="sm" onClick={() => setSelectedGameSetForPreview(set)}>미리보기</Button>
+                                  <Button asChild size="sm">
+                                      <Link href={`/game-rooms/new?gameSetId=${set.id}`}>
+                                          <Users className="mr-2 h-4 w-4" />방 만들기
+                                      </Link>
+                                  </Button>
+                                </div>
                             </CardContent>
                         </Card>
                     ))
@@ -429,6 +435,69 @@ export default function LeaderboardPage() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+      
+      {selectedGameSetForPreview && (
+        <Dialog open={!!selectedGameSetForPreview} onOpenChange={(isOpen) => !isOpen && setSelectedGameSetForPreview(null)}>
+          <DialogContent className="max-w-5xl">
+            <DialogHeader>
+              <DialogTitle className="font-headline text-2xl">{selectedGameSetForPreview.title}</DialogTitle>
+              <DialogDescription>
+                 {[selectedGameSetForPreview.grade, selectedGameSetForPreview.semester, selectedGameSetForPreview.subject, selectedGameSetForPreview.unit].filter(Boolean).join(' / ')}
+                 {' · '}
+                총 {selectedGameSetForPreview.questions.length}개의 질문이 있습니다.
+              </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="h-96 pr-6">
+                <div className="space-y-4">
+                    {selectedGameSetForPreview.questions.map((q, index) => (
+                        <div key={index} className="p-4 rounded-md border bg-muted/50">
+                            <div className="flex justify-between items-start">
+                                <p className="font-semibold text-base whitespace-pre-wrap">{`질문 ${index + 1}. ${q.question}`}</p>
+                                <div className="flex items-center gap-2 text-sm">
+                                    <span className="flex items-center gap-1 font-semibold text-primary">
+                                        <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
+                                        {q.points === -1 ? '랜덤' : `${q.points}점`}
+                                    </span>
+                                    {q.points === -1 && (
+                                      <TooltipProvider>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p>10-50점 사이의 랜덤 점수가 부여됩니다.</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                      </TooltipProvider>
+                                    )}
+                                </div>
+                            </div>
+                            
+                            {q.imageUrl && (
+                                <div className="mt-2 relative aspect-video">
+                                    <Image src={encodeURI(q.imageUrl)} alt={`질문 ${index + 1} 이미지`} fill className="rounded-md object-contain" unoptimized={true} />
+                                </div>
+                            )}
+
+                            {q.type === 'multipleChoice' && q.options && (
+                                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {q.options.map((option, optIndex) => {
+                                        return (
+                                            <div key={optIndex} className="flex items-center gap-2 text-sm p-2 rounded-md bg-background/50">
+                                                <span>{option}</span>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+
+                        </div>
+                    ))}
+                </div>
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }
