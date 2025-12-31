@@ -250,7 +250,7 @@ export default function GamePage() {
         handleCloseDialogs();
       }
     }
-  }, [gameRoom, gameSet, blocks]);
+  }, [gameRoom, gameSet, blocks, currentQuestionInfo, showMysteryBoxPopup, showMysteryChoicePopup]);
 
 
   // Initialize game board
@@ -573,34 +573,34 @@ export default function GamePage() {
   };
 
   const handleToggleMysteryVote = (effectType: MysteryEffectType) => {
-    if (!user || !gameRoom || !gameRoomId) return;
-
+    if (!user || !gameRoom || !gameRoomId || typeof gameRoomId !== 'string') return;
+  
     const roomRef = doc(db, 'game-rooms', gameRoomId);
-    
+  
     runTransaction(db, async (transaction) => {
       const roomDoc = await transaction.get(roomRef);
       if (!roomDoc.exists()) {
         throw "Game room not found.";
       }
-      
+  
       const currentRoomData = roomDoc.data() as GameRoom;
       const userIdToUpdate = user.uid;
-      
-      const newVotes = { ...(currentRoomData.mysteryEffectVotes || {}) };
-      
+      const newVotes: GameRoom['mysteryEffectVotes'] = { ...(currentRoomData.mysteryEffectVotes || {}) };
+  
       if (!newVotes[effectType]) {
         newVotes[effectType] = [];
       }
-      
-      const userIndex = newVotes[effectType].indexOf(userIdToUpdate);
-      
-      if (userIndex > -1) {
-        newVotes[effectType] = newVotes[effectType].filter(uid => uid !== userIdToUpdate);
+  
+      const userIndex = newVotes[effectType]?.indexOf(userIdToUpdate);
+  
+      if (userIndex !== undefined && userIndex > -1) {
+        newVotes[effectType] = newVotes[effectType]?.filter(uid => uid !== userIdToUpdate);
       } else {
-        newVotes[effectType] = [...newVotes[effectType], userIdToUpdate];
+        newVotes[effectType] = [...(newVotes[effectType] || []), userIdToUpdate];
       }
       
       transaction.update(roomRef, { mysteryEffectVotes: newVotes });
+  
     }).catch(error => {
       console.error("Error toggling mystery vote:", error);
       toast({ variant: "destructive", title: "오류", description: `투표 중 오류가 발생했습니다: ${error}` });
@@ -1007,7 +1007,11 @@ export default function GamePage() {
       </Dialog>
 
       {/* Mystery Box Settings Popup */}
-      <Dialog open={showMysterySettings} onOpenChange={(isOpen) => !isOpen && setShowMysterySettings(false)}>
+      <Dialog open={showMysterySettings} onOpenChange={(isOpen) => {
+        if (!isOpen && !isSubmitting) {
+          setShowMysterySettings(false);
+        }
+      }}>
           <DialogContent className="max-w-3xl">
               <DialogHeader>
                   <DialogTitle className="font-headline text-2xl flex items-center gap-2"><Gift className="text-primary"/>미스터리 박스 설정</DialogTitle>
@@ -1020,7 +1024,11 @@ export default function GamePage() {
                   {allMysteryEffects.map(effect => {
                       const votes = gameRoom?.mysteryEffectVotes?.[effect.type] || [];
                       const currentUserUid = user?.uid;
-                      const isCheckedByCurrentUser = currentUserUid ? votes.includes(currentUserUid) : false;
+                      let isCheckedByCurrentUser = false;
+
+                      if (currentUserUid) {
+                          isCheckedByCurrentUser = votes.includes(currentUserUid);
+                      }
 
                       return (
                           <div 
@@ -1039,15 +1047,31 @@ export default function GamePage() {
                                   <p className="text-sm text-muted-foreground">{effect.description}</p>
                                   {gameRoom?.joinType === 'remote' && gameRoom.playerUIDs && (
                                        <div className="flex items-center gap-2 pt-2">
-                                          {gameRoom.playerUIDs.map(uid => (
-                                              <div 
-                                                  key={uid} 
-                                                  className={cn(
-                                                      "w-4 h-4 rounded-full",
-                                                      votes.includes(uid) ? 'bg-primary' : 'bg-muted'
-                                                  )}
-                                              />
-                                          ))}
+                                            <div className="flex -space-x-2 overflow-hidden">
+                                                {votes.map(uid => {
+                                                    const voter = players.find(p => p.uid === uid);
+                                                    if (!voter) return null;
+
+                                                    let pixelAvatarData = null;
+                                                    if (voter.pixelAvatar) {
+                                                        try { pixelAvatarData = JSON.parse(voter.pixelAvatar); } catch(e) {}
+                                                    }
+                                                    return (
+                                                        <TooltipProvider key={uid}>
+                                                            <Tooltip>
+                                                                <TooltipTrigger>
+                                                                    <Avatar className="h-6 w-6 border-2 border-background">
+                                                                        {pixelAvatarData ? <PixelAvatar pixels={pixelAvatarData} /> : <AvatarFallback>{voter.nickname.substring(0,1)}</AvatarFallback>}
+                                                                    </Avatar>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>
+                                                                    <p>{voter.nickname}</p>
+                                                                </TooltipContent>
+                                                            </Tooltip>
+                                                        </TooltipProvider>
+                                                    )
+                                                })}
+                                            </div>
                                       </div>
                                   )}
                               </Label>
