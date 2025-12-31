@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2 } from 'lucide-react';
+import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2, Gem, Package, Send } from 'lucide-react';
 import { getLevelInfo } from '@/lib/level-system';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
@@ -26,6 +26,8 @@ import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MotionDiv } from '@/components/motion-div';
 import { PixelAvatar } from '@/components/pixel-avatar';
+import { cn } from '@/lib/utils';
+
 
 const sellItemSchema = z.object({
   name: z.string().min(1, '상품명을 입력해주세요.').max(30, '상품명은 30자 이내로 입력해주세요.'),
@@ -53,6 +55,10 @@ export default function MyClassPage() {
   
   const [evictCandidate, setEvictCandidate] = useState<User | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<ClassStoreItem | null>(null);
+
+  const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
+  const [studentSellingItems, setStudentSellingItems] = useState<ClassStoreItem[]>([]);
+  const [isStudentDetailsLoading, setIsStudentDetailsLoading] = useState(false);
 
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -272,6 +278,25 @@ export default function MyClassPage() {
       toast({ variant: 'destructive', title: '오류', description: '상품 삭제 중 오류가 발생했습니다.' });
     }
   };
+  
+  const handleStudentClick = async (student: User) => {
+    if (!isTeacher) return;
+
+    setSelectedStudent(student);
+    setIsStudentDetailsLoading(true);
+
+    try {
+        const sellingItemsQuery = query(collection(db, 'class-store-items'), where('sellerId', '==', student.uid));
+        const sellingItemsSnapshot = await getDocs(sellingItemsQuery);
+        const sellingItems = sellingItemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClassStoreItem));
+        setStudentSellingItems(sellingItems);
+    } catch (error) {
+        console.error("Error fetching student's selling items:", error);
+        toast({ variant: 'destructive', title: '오류', description: '학생의 판매 상품 목록을 불러오는 데 실패했습니다.' });
+    } finally {
+        setIsStudentDetailsLoading(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -359,7 +384,14 @@ export default function MyClassPage() {
                         const displayName = member.name || member.displayName;
 
                         return (
-                          <TableRow key={member.uid} className={member.uid === user?.uid ? 'bg-primary/10' : ''}>
+                          <TableRow 
+                            key={member.uid} 
+                            className={cn(
+                                member.uid === user?.uid ? 'bg-primary/10' : '',
+                                isTeacher ? 'cursor-pointer hover:bg-muted/50' : ''
+                            )}
+                            onClick={() => handleStudentClick(member)}
+                          >
                             <TableCell className="font-bold text-center text-lg">
                               {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
                             </TableCell>
@@ -381,7 +413,11 @@ export default function MyClassPage() {
                             {isTeacher && (
                                 <TableCell className="text-right">
                                     {member.uid !== user?.uid && (
-                                        <Button variant="destructive" size="sm" onClick={() => setEvictCandidate(member)}>
+                                        <Button 
+                                            variant="destructive" 
+                                            size="sm" 
+                                            onClick={(e) => { e.stopPropagation(); setEvictCandidate(member);}}
+                                        >
                                             <MinusCircle className="mr-2 h-4 w-4"/> 퇴장
                                         </Button>
                                     )}
@@ -598,6 +634,83 @@ export default function MyClassPage() {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+
+    {/* Student Details Dialog */}
+    <Dialog open={!!selectedStudent} onOpenChange={(isOpen) => !isOpen && setSelectedStudent(null)}>
+      <DialogContent className="max-w-2xl">
+        {selectedStudent && (
+          <>
+            <DialogHeader>
+              <div className="flex items-center gap-4">
+                <Avatar className="h-14 w-14">
+                  <PixelAvatar pixels={selectedStudent.pixelAvatar ? JSON.parse(selectedStudent.pixelAvatar) : null} />
+                </Avatar>
+                <div>
+                  <DialogTitle className="font-headline text-2xl">{selectedStudent.name || selectedStudent.displayName}</DialogTitle>
+                  <DialogDescription>학생의 상세 정보입니다.</DialogDescription>
+                </div>
+              </div>
+            </DialogHeader>
+
+            <div className="py-4">
+                <p className="text-lg font-semibold flex items-center gap-2">
+                    <Gem className="w-5 h-5 text-blue-500" />
+                    보유 학급 포인트: 
+                    <span className="text-primary font-bold">{(selectedStudent.classPoints || 0).toLocaleString()}</span>
+                </p>
+            </div>
+            
+            <Tabs defaultValue="inventory" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="inventory">보유 상품</TabsTrigger>
+                <TabsTrigger value="selling">판매 중인 상품</TabsTrigger>
+              </TabsList>
+              <TabsContent value="inventory" className="mt-4">
+                <ScrollArea className="h-64">
+                    {selectedStudent.inventory && Object.keys(selectedStudent.inventory).length > 0 ? (
+                        <div className="space-y-2 pr-4">
+                            {Object.entries(selectedStudent.inventory).map(([itemName, itemDetails]) => (
+                                <Card key={itemName} className="p-3">
+                                    <h4 className="font-semibold">{itemName}</h4>
+                                    <p className="text-sm text-muted-foreground">보유 수량: {itemDetails.quantity}</p>
+                                </Card>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-10 text-muted-foreground">
+                            보유 중인 상품이 없습니다.
+                        </div>
+                    )}
+                </ScrollArea>
+              </TabsContent>
+              <TabsContent value="selling" className="mt-4">
+                <ScrollArea className="h-64">
+                    {isStudentDetailsLoading ? (
+                        <div className="flex justify-center items-center h-full">
+                            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                        </div>
+                    ) : studentSellingItems.length > 0 ? (
+                        <div className="space-y-2 pr-4">
+                             {studentSellingItems.map((item) => (
+                                <Card key={item.id} className="p-3">
+                                    <h4 className="font-semibold">{item.name}</h4>
+                                    <p className="text-sm text-muted-foreground">가격: {item.price} / 남은 수량: {item.quantity}</p>
+                                </Card>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-10 text-muted-foreground">
+                            판매 중인 상품이 없습니다.
+                        </div>
+                    )}
+                </ScrollArea>
+              </TabsContent>
+            </Tabs>
+
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
     </>
   );
 }
