@@ -2,7 +2,7 @@
 
 'use client';
 
-import { Avatar, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Card,
   CardContent,
@@ -1694,4 +1694,5 @@ const handleDeleteSellingItem = async () => {
     </>
   );
 }
+
 
