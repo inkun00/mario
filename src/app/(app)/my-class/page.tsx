@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -11,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2, Gem, Package, Send } from 'lucide-react';
+import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2, Gem, Package, Send, ArrowRightLeft, ArrowLeft, ArrowRight, Gift } from 'lucide-react';
 import { getLevelInfo } from '@/lib/level-system';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
@@ -27,6 +26,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { MotionDiv } from '@/components/motion-div';
 import { PixelAvatar } from '@/components/pixel-avatar';
 import { cn } from '@/lib/utils';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 
 
 const sellItemSchema = z.object({
@@ -59,6 +61,11 @@ export default function MyClassPage() {
   const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
   const [studentSellingItems, setStudentSellingItems] = useState<ClassStoreItem[]>([]);
   const [isStudentDetailsLoading, setIsStudentDetailsLoading] = useState(false);
+
+  const [managementAction, setManagementAction] = useState<'sendPoints' | 'takePoints' | 'sendItem' | 'takeItem' | null>(null);
+  const [managementAmount, setManagementAmount] = useState(0);
+  const [managementItem, setManagementItem] = useState('');
+  const [isManagementLoading, setIsManagementLoading] = useState(false);
 
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -297,6 +304,82 @@ export default function MyClassPage() {
         setIsStudentDetailsLoading(false);
     }
   };
+
+  const handleManagementAction = async () => {
+    if (!selectedStudent || !managementAction || !isTeacher) return;
+
+    setIsManagementLoading(true);
+    const studentRef = doc(db, 'users', selectedStudent.uid);
+
+    try {
+        if (managementAction === 'sendPoints' || managementAction === 'takePoints') {
+            if (managementAmount <= 0) throw "포인트는 0보다 커야 합니다.";
+            const amount = managementAction === 'sendPoints' ? managementAmount : -managementAmount;
+            await updateDoc(studentRef, { classPoints: increment(amount) });
+            toast({ title: '성공', description: `${selectedStudent.displayName} 학생의 포인트를 ${Math.abs(amount)} 만큼 ${amount > 0 ? '보냈습니다' : '가져왔습니다'}.`});
+        
+        } else if (managementAction === 'sendItem' || managementAction === 'takeItem') {
+            if (!managementItem) throw "상품을 선택해주세요.";
+            const amount = managementAction === 'sendItem' ? managementAmount : -managementAmount;
+
+            await runTransaction(db, async (transaction) => {
+                const studentDoc = await transaction.get(studentRef);
+                if (!studentDoc.exists()) throw "학생 정보를 찾을 수 없습니다.";
+                
+                const studentData = studentDoc.data() as User;
+                const inventory = { ...(studentData.inventory || {}) };
+                const currentQuantity = inventory[managementItem]?.quantity || 0;
+                
+                if (amount < 0 && currentQuantity < Math.abs(amount)) {
+                    throw "가져올 상품의 수량이 부족합니다.";
+                }
+
+                const newQuantity = currentQuantity + amount;
+
+                if (newQuantity > 0) {
+                    inventory[managementItem] = {
+                        ...inventory[managementItem],
+                        itemId: inventory[managementItem]?.itemId || 'teacher_sent',
+                        quantity: newQuantity,
+                        description: inventory[managementItem]?.description || '선생님이 보낸 상품'
+                    };
+                } else {
+                    delete inventory[managementItem];
+                }
+                transaction.update(studentRef, { inventory: inventory });
+            });
+
+            toast({ title: '성공', description: `${selectedStudent.displayName} 학생에게 '${managementItem}' 상품을 ${Math.abs(amount)}개 ${amount > 0 ? '보냈습니다' : '가져왔습니다'}.`});
+        }
+        
+        // Optimistic update of student data in the dialog
+        const updatedStudent = { ...selectedStudent };
+        if (managementAction === 'sendPoints' || managementAction === 'takePoints') {
+            const amount = managementAction === 'sendPoints' ? managementAmount : -managementAmount;
+            updatedStudent.classPoints = (updatedStudent.classPoints || 0) + amount;
+        } else {
+            const amount = managementAction === 'sendItem' ? managementAmount : -managementAmount;
+            const inventory = { ...(updatedStudent.inventory || {}) };
+            const currentQuantity = inventory[managementItem]?.quantity || 0;
+            const newQuantity = currentQuantity + amount;
+            if (newQuantity > 0) {
+                inventory[managementItem] = { ...inventory[managementItem], itemId: 'teacher_sent', quantity: newQuantity };
+            } else {
+                delete inventory[managementItem];
+            }
+            updatedStudent.inventory = inventory;
+        }
+        setSelectedStudent(updatedStudent);
+        
+        setManagementAction(null);
+
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: '오류', description: typeof error === 'string' ? error : error.message || "작업 처리 중 오류가 발생했습니다."});
+    } finally {
+        setIsManagementLoading(false);
+    }
+  };
+
 
   if (isLoading) {
     return (
@@ -652,12 +735,18 @@ export default function MyClassPage() {
               </div>
             </DialogHeader>
 
-            <div className="py-4">
+            <div className="py-4 space-y-4">
                 <p className="text-lg font-semibold flex items-center gap-2">
                     <Gem className="w-5 h-5 text-blue-500" />
                     보유 학급 포인트: 
                     <span className="text-primary font-bold">{(selectedStudent.classPoints || 0).toLocaleString()}</span>
                 </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setManagementAction('sendPoints')}><ArrowRight className="w-4 h-4 mr-1"/>포인트 보내기</Button>
+                    <Button variant="outline" size="sm" onClick={() => setManagementAction('takePoints')}><ArrowLeft className="w-4 h-4 mr-1"/>포인트 가져오기</Button>
+                    <Button variant="outline" size="sm" onClick={() => setManagementAction('sendItem')}><Gift className="w-4 h-4 mr-1"/>상품 보내기</Button>
+                    <Button variant="outline" size="sm" onClick={() => setManagementAction('takeItem')}><Package className="w-4 h-4 mr-1"/>상품 가져오기</Button>
+                </div>
             </div>
             
             <Tabs defaultValue="inventory" className="w-full">
@@ -706,10 +795,78 @@ export default function MyClassPage() {
                 </ScrollArea>
               </TabsContent>
             </Tabs>
-
           </>
         )}
       </DialogContent>
+    </Dialog>
+
+    {/* Student Management Dialog */}
+    <Dialog open={!!managementAction} onOpenChange={(isOpen) => !isOpen && setManagementAction(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>
+                    {managementAction === 'sendPoints' && '포인트 보내기'}
+                    {managementAction === 'takePoints' && '포인트 가져오기'}
+                    {managementAction === 'sendItem' && '상품 보내기'}
+                    {managementAction === 'takeItem' && '상품 가져오기'}
+                </DialogTitle>
+                <DialogDescription>
+                    {selectedStudent?.displayName} 학생에게 작업을 수행합니다.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+                {(managementAction === 'sendPoints' || managementAction === 'takePoints') && (
+                    <div className="space-y-2">
+                        <Label htmlFor="manage-points">포인트</Label>
+                        <Input 
+                            id="manage-points"
+                            type="number"
+                            value={managementAmount}
+                            onChange={(e) => setManagementAmount(parseInt(e.target.value) || 0)}
+                        />
+                    </div>
+                )}
+                 {(managementAction === 'sendItem' || managementAction === 'takeItem') && (
+                    <>
+                        <div className="space-y-2">
+                            <Label>상품</Label>
+                            <Select 
+                                onValueChange={setManagementItem}
+                                disabled={managementAction === 'takeItem' && (!selectedStudent?.inventory || Object.keys(selectedStudent.inventory).length === 0)}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="상품 선택..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {managementAction === 'sendItem' && classStoreItems.map(item => (
+                                        <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>
+                                    ))}
+                                    {managementAction === 'takeItem' && selectedStudent?.inventory && Object.keys(selectedStudent.inventory).map(itemName => (
+                                        <SelectItem key={itemName} value={itemName}>{itemName}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="manage-quantity">수량</Label>
+                            <Input 
+                                id="manage-quantity"
+                                type="number"
+                                min="1"
+                                value={managementAmount}
+                                onChange={(e) => setManagementAmount(parseInt(e.target.value) || 1)}
+                            />
+                        </div>
+                    </>
+                )}
+            </div>
+            <DialogFooter>
+                <Button variant="ghost" onClick={() => setManagementAction(null)}>취소</Button>
+                <Button onClick={handleManagementAction} disabled={isManagementLoading}>
+                    {isManagementLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : '확인'}
+                </Button>
+            </DialogFooter>
+        </DialogContent>
     </Dialog>
     </>
   );
