@@ -22,15 +22,26 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription
+  DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { db, auth } from '@/lib/firebase';
-import type { User, GameSet, School, Question } from '@/lib/types';
+import type { User, GameSet, School, Question, GameRoom } from '@/lib/types';
 import { getLevelInfo } from '@/lib/level-system';
 import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
-import { Crown, Loader2, School as SchoolIcon, BookOpen, Users, HelpCircle, Star, Sparkles } from 'lucide-react';
+import { Crown, Loader2, School as SchoolIcon, BookOpen, Users, HelpCircle, Star, Sparkles, Tv, Smartphone } from 'lucide-react';
 import { useEffect, useState, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -140,6 +151,7 @@ export default function LeaderboardPage() {
   const [userGameSets, setUserGameSets] = useState<GameSet[]>([]);
   const [isUserSetsLoading, setIsUserSetsLoading] = useState(false);
   const [selectedGameSetForPreview, setSelectedGameSetForPreview] = useState<GameSet | null>(null);
+  const [gameCreationCandidate, setGameCreationCandidate] = useState<GameSet | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -364,7 +376,8 @@ export default function LeaderboardPage() {
                                         <TableHead>퀴즈 제목</TableHead>
                                         <TableHead>제작자</TableHead>
                                         <TableHead className="text-center">문제 수</TableHead>
-                                        <TableHead className="text-right">활용 횟수</TableHead>
+                                        <TableHead className="text-center">활용 횟수</TableHead>
+                                        <TableHead className="text-right w-[120px]">작업</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -377,9 +390,12 @@ export default function LeaderboardPage() {
                                                     {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Link href={`/dashboard?gameSetId=${gameSet.id}`} className="font-medium hover:underline flex items-center gap-2">
+                                                    <span 
+                                                      className="font-medium hover:underline flex items-center gap-2 cursor-pointer"
+                                                      onClick={() => setSelectedGameSetForPreview(gameSet)}
+                                                    >
                                                         <BookOpen className="w-4 h-4 text-muted-foreground"/> {gameSet.title}
-                                                    </Link>
+                                                    </span>
                                                 </TableCell>
                                                 <TableCell 
                                                     className={`font-medium ${isClickable ? 'cursor-pointer hover:underline' : ''}`}
@@ -388,7 +404,12 @@ export default function LeaderboardPage() {
                                                     {gameSet.creatorNickname}
                                                 </TableCell>
                                                 <TableCell className="text-center">{gameSet.questions.length}개</TableCell>
-                                                <TableCell className="text-right font-bold text-primary">{gameSet.playCount || 0}</TableCell>
+                                                <TableCell className="text-center font-bold text-primary">{gameSet.playCount || 0}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <Button size="sm" onClick={() => setGameCreationCandidate(gameSet)}>
+                                                        <Users className="mr-2 h-4 w-4"/>방 만들기
+                                                    </Button>
+                                                </TableCell>
                                             </TableRow>
                                         )
                                     })}
@@ -458,10 +479,10 @@ export default function LeaderboardPage() {
                                 </div>
                                 <div className="flex-shrink-0 flex items-center gap-2">
                                   <Button variant="secondary" size="sm" onClick={() => setSelectedGameSetForPreview(set)}>미리보기</Button>
-                                  <Button asChild size="sm">
-                                      <Link href={`/game-rooms/new?gameSetId=${set.id}&joinType=remote`}>
-                                          <Users className="mr-2 h-4 w-4" />방 만들기
-                                      </Link>
+                                  <Button asChild size="sm" onClick={() => setGameCreationCandidate(set)}>
+                                      <span className="flex items-center cursor-pointer">
+                                        <Users className="mr-2 h-4 w-4" />방 만들기
+                                      </span>
                                   </Button>
                                 </div>
                             </CardContent>
@@ -535,6 +556,31 @@ export default function LeaderboardPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      <AlertDialog open={!!gameCreationCandidate} onOpenChange={(isOpen) => !isOpen && setGameCreationCandidate(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>어떤 방식으로 플레이할까요?</AlertDialogTitle>
+            <AlertDialogDescription>
+              친구들과 함께 플레이할 방식을 선택해주세요.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+              <Button variant="outline" className="h-24 flex-col gap-2" asChild>
+                  <Link href={`/game-rooms/new?gameSetId=${gameCreationCandidate?.id}&joinType=local`}>
+                      <Tv className="w-8 h-8"/>
+                      <span className="font-semibold">한 기기로 여러 명이 플레이</span>
+                  </Link>
+              </Button>
+              <Button variant="outline" className="h-24 flex-col gap-2" asChild>
+                   <Link href={`/game-rooms/new?gameSetId=${gameCreationCandidate?.id}&joinType=remote`}>
+                      <Smartphone className="w-8 h-8"/>
+                      <span className="font-semibold">여러 기기로 플레이</span>
+                  </Link>
+              </Button>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
