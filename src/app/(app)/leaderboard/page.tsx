@@ -498,12 +498,39 @@ export default function LeaderboardPage() {
         <Dialog open={!!selectedGameSetForPreview} onOpenChange={(isOpen) => !isOpen && setSelectedGameSetForPreview(null)}>
           <DialogContent className="max-w-5xl">
             <DialogHeader>
-              <DialogTitle className="font-headline text-2xl">{selectedGameSetForPreview.title}</DialogTitle>
-              <DialogDescription>
-                 {[selectedGameSetForPreview.grade, selectedGameSetForPreview.semester, selectedGameSetForPreview.subject, selectedGameSetForPreview.unit].filter(Boolean).join(' / ')}
-                 {' · '}
-                총 {selectedGameSetForPreview.questions.length}개의 질문이 있습니다.
-              </DialogDescription>
+                <div className="flex justify-between items-start">
+                    <div>
+                        <DialogTitle className="font-headline text-2xl">{selectedGameSetForPreview.title}</DialogTitle>
+                        <DialogDescription>
+                           {[selectedGameSetForPreview.grade, selectedGameSetForPreview.semester, selectedGameSetForPreview.subject, selectedGameSetForPreview.unit].filter(Boolean).join(' / ')}
+                           {' · '}
+                          총 {selectedGameSetForPreview.questions.length}개의 질문이 있습니다.
+                        </DialogDescription>
+                    </div>
+                    {(selectedGameSetForPreview.evaluationScore !== undefined && selectedGameSetForPreview.evaluationScore !== null) && (() => {
+                        const { stars, color } = getStarRating(selectedGameSetForPreview.evaluationScore);
+                        return (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <div className="flex flex-col items-end gap-1">
+                                            <div className={cn("flex items-center gap-1", color)}>
+                                                <Sparkles className="h-4 w-4" />
+                                                {Array.from({ length: 5 }).map((_, i) => (
+                                                    <Star key={i} className={cn("h-4 w-4", i < stars ? "fill-current" : "text-gray-300")} />
+                                                ))}
+                                            </div>
+                                            <span className="text-xs text-muted-foreground">AI 평가 점수: {selectedGameSetForPreview.evaluationScore}</span>
+                                        </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>AI 평가 점수: {selectedGameSetForPreview.evaluationScore ?? '미평가'}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        );
+                    })()}
+                </div>
             </DialogHeader>
             <ScrollArea className="h-96 pr-6">
                 <div className="space-y-4">
