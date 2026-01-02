@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2, Gem, Package, Send, ArrowRightLeft, ArrowLeft, ArrowRight, Gift, Settings, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2, Gem, Package, Send, ArrowRightLeft, ArrowLeft, ArrowRight, Gift, Settings, AlertTriangle, ShieldCheck, Undo2 } from 'lucide-react';
 import { getLevelInfo } from '@/lib/level-system';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
@@ -477,6 +477,98 @@ export default function MyClassPage() {
             setSelectedItemForDescription(item);
         }
     }
+    
+    const handleItemAction = async () => {
+      if (!selectedItem || !itemAction || !user) return;
+      
+      setIsItemActionLoading(true);
+      const userRef = doc(db, 'users', user.uid);
+
+      try {
+        await runTransaction(db, async (transaction) => {
+          const userDoc = await transaction.get(userRef);
+          if (!userDoc.exists()) throw "내 정보를 찾을 수 없습니다.";
+          const currentUserData = userDoc.data() as User;
+          const inventory = { ...currentUserData.inventory };
+          const item = inventory[selectedItem.name];
+
+          if (!item || item.quantity < actionQuantity) throw "상품 수량이 부족합니다.";
+
+          switch (itemAction) {
+              case 'use':
+                  // 'use' is just removing from inventory in this context
+                  if (item.quantity > actionQuantity) {
+                      item.quantity -= actionQuantity;
+                  } else {
+                      delete inventory[selectedItem.name];
+                  }
+                  transaction.update(userRef, { inventory: inventory });
+                  break;
+              
+              case 'send':
+                  if (!sendRecipient) throw "받는 사람을 선택해주세요.";
+                  const recipientRef = doc(db, 'users', sendRecipient);
+                  const recipientDoc = await transaction.get(recipientRef);
+                  if (!recipientDoc.exists()) throw "받는 사람의 정보를 찾을 수 없습니다.";
+
+                  // Remove from sender's inventory
+                  if (item.quantity > actionQuantity) {
+                      item.quantity -= actionQuantity;
+                  } else {
+                      delete inventory[selectedItem.name];
+                  }
+                  transaction.update(userRef, { inventory: inventory });
+
+                  // Add to recipient's inventory
+                  const recipientData = recipientDoc.data() as User;
+                  const recipientInventory = { ...recipientData.inventory };
+                  const recipientItem = recipientInventory[selectedItem.name];
+                  const newQuantity = (recipientItem?.quantity || 0) + actionQuantity;
+                  recipientInventory[selectedItem.name] = {
+                      ...item,
+                      quantity: newQuantity,
+                  };
+                  transaction.update(recipientRef, { inventory: recipientInventory });
+                  break;
+
+              case 'refund':
+                   if (!item.price || !item.sellerId) throw "환불 정보를 찾을 수 없습니다.";
+                   const refundAmount = item.price * actionQuantity;
+                   
+                   // Remove item from user
+                   if (item.quantity > actionQuantity) {
+                        item.quantity -= actionQuantity;
+                   } else {
+                       delete inventory[selectedItem.name];
+                   }
+                   
+                   // Give points back to user
+                   transaction.update(userRef, { 
+                     inventory: inventory,
+                     classPoints: increment(refundAmount),
+                   });
+
+                   // Take points from seller
+                   const sellerRef = doc(db, 'users', item.sellerId);
+                   transaction.update(sellerRef, { classPoints: increment(-refundAmount) });
+
+                   // Add item back to store
+                   const storeItemRef = doc(db, 'class-store-items', item.itemId);
+                   transaction.update(storeItemRef, { quantity: increment(actionQuantity) });
+                  break;
+          }
+        });
+
+        toast({ title: '성공', description: `'${selectedItem.name}' ${actionQuantity}개를 처리했습니다.` });
+        setSelectedItem(null);
+        setItemAction(null);
+
+      } catch (error: any) {
+        toast({ variant: 'destructive', title: '오류', description: typeof error === 'string' ? error : error.message });
+      } finally {
+        setIsItemActionLoading(false);
+      }
+    };
 
 
   if (isLoading) {
@@ -852,6 +944,62 @@ export default function MyClassPage() {
       </Card>
     </MotionDiv>
     
+    {/* Item Action Dialog */}
+    <Dialog open={!!selectedItem} onOpenChange={(isOpen) => !isOpen && setSelectedItem(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>{selectedItem?.name}</DialogTitle>
+                <DialogDescription>{selectedItem?.details.description}</DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+                <div className="flex justify-center gap-2">
+                    <Button variant={itemAction === 'use' ? 'default' : 'outline'} onClick={() => setItemAction('use')}>사용</Button>
+                    <Button variant={itemAction === 'send' ? 'default' : 'outline'} onClick={() => setItemAction('send')}>보내기</Button>
+                    {selectedItem?.details.price && <Button variant={itemAction === 'refund' ? 'default' : 'outline'} onClick={() => setItemAction('refund')}>환불</Button>}
+                </div>
+                
+                {itemAction && (
+                    <div className="p-4 border rounded-md space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="quantity">수량</Label>
+                            <Input 
+                                id="quantity"
+                                type="number" 
+                                min="1" 
+                                max={selectedItem?.details.quantity} 
+                                value={actionQuantity} 
+                                onChange={(e) => setActionQuantity(Number(e.target.value))}
+                            />
+                        </div>
+                        {itemAction === 'send' && (
+                            <div className="space-y-2">
+                                <Label>받는 사람</Label>
+                                <Combobox
+                                    options={classMembers.filter(m => m.uid !== user?.uid).map(m => ({ value: m.uid, label: m.displayName }))}
+                                    value={sendRecipient}
+                                    onValueChange={setSendRecipient}
+                                    placeholder="보낼 친구 선택..."
+                                />
+                            </div>
+                        )}
+                        {itemAction === 'refund' && (
+                           <p className="text-sm text-center text-primary">
+                                환불 시 {((selectedItem?.details.price || 0) * actionQuantity).toLocaleString()} 학급 포인트가 반환됩니다.
+                            </p>
+                        )}
+                    </div>
+                )}
+            </div>
+            <DialogFooter>
+                <Button variant="ghost" onClick={() => setSelectedItem(null)}>취소</Button>
+                <Button onClick={handleItemAction} disabled={!itemAction || isItemActionLoading}>
+                    {isItemActionLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : '확인'}
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+
     {/* Item Description Dialog */}
     <Dialog open={!!selectedItemForDescription} onOpenChange={(isOpen) => !isOpen && setSelectedItemForDescription(null)}>
         <DialogContent>
