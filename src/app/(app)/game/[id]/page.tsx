@@ -148,6 +148,7 @@ export default function GamePage() {
         const roomRef = doc(db, 'game-rooms', gameRoomId as string);
         updateDoc(roomRef, { currentAnswerResult: result }).then(() => {
             setTimeout(async () => {
+                if (!gameRoom) return;
                 const updatedGameState = {...gameRoom.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
                 const nextTurn = getNextTurnUID();
                  await updateDoc(roomRef, {
@@ -160,7 +161,7 @@ export default function GamePage() {
         });
       }
     }
-  }, [isMyTurn, currentQuestionInfo, gameRoom?.gameState, gameRoomId, toast]);
+  }, [isMyTurn, currentQuestionInfo, gameRoom, gameRoomId, toast]);
 
   useEffect(() => {
     if (gameRoom?.timeLimit && gameRoom.timeLimit > 0 && currentQuestionInfo && !gameRoom.currentAnswerResult) {
