@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
@@ -1264,12 +1263,12 @@ export default function GamePage() {
                     </div>
                     
                     {gameRoom?.timeLimit && gameRoom.timeLimit > 0 && currentQuestionInfo && (
-                      <div className="mt-4 space-y-1">
-                          <Progress value={timeProgress} className="h-2" />
-                          <p className="text-sm text-muted-foreground text-center">남은 시간: {Math.ceil(timeRemaining / 1000)}초</p>
-                      </div>
+                        <div className="mt-4 space-y-1">
+                            <Progress value={timeProgress} className="h-2" />
+                            <p className="text-sm text-muted-foreground text-center">남은 시간: {Math.ceil(timeRemaining / 1000)}초</p>
+                        </div>
                     )}
-
+                    
                     <Button className="w-full mt-4" onClick={handleSubmitAnswer} disabled={isSubmitting || ((gameRoom?.joinType === 'remote' && !isMyTurn) || !userAnswer)}>
                         {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
                     </Button>
@@ -1384,3 +1383,5 @@ export default function GamePage() {
     </>
   );
 }
+
+    
