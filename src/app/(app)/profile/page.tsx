@@ -121,7 +121,6 @@ export default function ProfilePage() {
   const [reviewQuestions, setReviewQuestions] = useState<ReviewQuestion[]>([]);
   const [solvedReviewQuestions, setSolvedReviewQuestions] = useState<SolvedIncorrectAnswer[]>([]);
   const [subjectStats, setSubjectStats] = useState<SubjectStat[]>([]);
-  const [sellingItems, setSellingItems] = useState<ClassStoreItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -149,13 +148,6 @@ export default function ProfilePage() {
   const [joinClassCode, setJoinClassCode] = useState('');
   const [isLeaveClassDialogOpen, setIsLeaveClassDialogOpen] = useState(false);
 
-  const [selectedItem, setSelectedItem] = useState<{name: string, details: {itemId: string, quantity: number, description?: string, sellerId?: string, sellerNickname?: string, price?: number}} | null>(null);
-  const [itemAction, setItemAction] = useState<'use' | 'send' | 'refund' | null>(null);
-  const [actionQuantity, setActionQuantity] = useState(1);
-  const [sendRecipient, setSendRecipient] = useState('');
-  const [classmates, setClassmates] = useState<{value: string, label: string}[]>([]);
-  const [isItemActionLoading, setIsItemActionLoading] = useState(false);
-  
   const [isSendPointsDialogOpen, setIsSendPointsDialogOpen] = useState(false);
   const [sendPointsAmount, setSendPointsAmount] = useState(0);
   const [sendPointsRecipient, setSendPointsRecipient] = useState('');
@@ -163,14 +155,8 @@ export default function ProfilePage() {
 
   const [isAvatarEditorOpen, setIsAvatarEditorOpen] = useState(false);
   const [currentPixelAvatar, setCurrentPixelAvatar] = useState<string[][] | null>(null);
-  const [isRefundConfirmationOpen, setIsRefundConfirmationOpen] = useState(false);
-  const [refundCandidate, setRefundCandidate] = useState<{name: string, details: {itemId: string, quantity: number, description?: string, sellerId?: string, sellerNickname?: string, price?: number}} | null>(null);
   
-  const [selectedSellingItem, setSelectedSellingItem] = useState<ClassStoreItem | null>(null);
-  const [itemBuyers, setItemBuyers] = useState<ItemBuyer[]>([]);
-  const [isBuyersLoading, setIsBuyersLoading] = useState(false);
-  const [editItemDescription, setEditItemDescription] = useState('');
-  const [editItemQuantity, setEditItemQuantity] = useState(0);
+  const [classmates, setClassmates] = useState<{value: string, label: string}[]>([]);
 
 
   const fetchProfileData = useCallback(async () => {
@@ -185,16 +171,14 @@ export default function ProfilePage() {
     const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
     const solvedIncorrectAnswersRef = collection(db, 'users', user.uid, 'solved-incorrect-answers');
     const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
-    const sellingItemsQuery = query(collection(db, 'class-store-items'), where('sellerId', '==', user.uid));
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
     try {
-      const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot, sellingItemsSnapshot] = await Promise.all([
+      const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot] = await Promise.all([
         getDoc(userRef),
         getDocs(query(incorrectAnswersRef, where('timestamp', '<=', oneDayAgo), orderBy('timestamp', 'asc'))),
         getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
         getDocs(subjectStatsRef),
-        getDocs(sellingItemsQuery),
       ]);
 
       if (userSnap.exists()) {
@@ -224,7 +208,6 @@ export default function ProfilePage() {
       setReviewQuestions(incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer)));
       setSolvedReviewQuestions(solvedIncorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer)));
       setSubjectStats(transformStats(subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat))));
-      setSellingItems(sellingItemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClassStoreItem)));
     } catch (error) {
         console.error("Error fetching profile data:", error);
         toast({ variant: 'destructive', title: '오류', description: '프로필 데이터를 불러오는 중 오류가 발생했습니다.' });
@@ -537,230 +520,6 @@ export default function ProfilePage() {
     setShowIncorrectAnswersDialog(true);
   };
   
-  const closeItemDialogs = () => {
-    setSelectedItem(null);
-    setItemAction(null);
-    setActionQuantity(1);
-    setSendRecipient('');
-  };
-
-  const handleUseItem = async () => {
-    if (!user || !selectedItem || actionQuantity <= 0) return;
-
-    setIsItemActionLoading(true);
-    try {
-      await runTransaction(db, async (transaction) => {
-        const userRef = doc(db, 'users', user.uid);
-        const userDoc = await transaction.get(userRef);
-
-        if (!userDoc.exists()) throw "사용자 정보를 찾을 수 없습니다.";
-        
-        const currentInventory = userDoc.data().inventory || {};
-        const itemToUse = currentInventory[selectedItem.name];
-
-        if (!itemToUse || itemToUse.quantity < actionQuantity) {
-          throw "사용할 아이템의 수량이 부족합니다.";
-        }
-
-        const newQuantity = itemToUse.quantity - actionQuantity;
-        if (newQuantity > 0) {
-          currentInventory[selectedItem.name].quantity = newQuantity;
-        } else {
-          delete currentInventory[selectedItem.name];
-        }
-
-        transaction.update(userRef, { inventory: currentInventory });
-      });
-
-      toast({ title: "아이템 사용", description: `'${selectedItem.name}' ${actionQuantity}개를 사용했습니다.` });
-      // Optimistic update
-      setUserData(prev => {
-        if (!prev || !selectedItem) return prev;
-        const newInventory = {...(prev.inventory || {})};
-        const newQuantity = (newInventory[selectedItem.name]?.quantity || 0) - actionQuantity;
-        if (newQuantity > 0) {
-            newInventory[selectedItem.name].quantity = newQuantity;
-        } else {
-            delete newInventory[selectedItem.name];
-        }
-        return {...prev, inventory: newInventory};
-      });
-      closeItemDialogs();
-
-    } catch (error) {
-      toast({ variant: "destructive", title: "오류", description: typeof error === 'string' ? error : "아이템 사용 중 오류가 발생했습니다."});
-    } finally {
-      setIsItemActionLoading(false);
-    }
-  };
-
-  const handleSendItem = async () => {
-    if (!user || !selectedItem || !sendRecipient || actionQuantity <= 0) {
-      toast({ variant: 'destructive', title: '오류', description: '받는 사람과 수량을 확인해주세요.'});
-      return;
-    };
-    
-    setIsItemActionLoading(true);
-    try {
-      await runTransaction(db, async (transaction) => {
-        const senderRef = doc(db, 'users', user.uid);
-        const recipientRef = doc(db, 'users', sendRecipient);
-
-        const [senderDoc, recipientDoc] = await Promise.all([
-          transaction.get(senderRef),
-          transaction.get(recipientRef)
-        ]);
-
-        if (!senderDoc.exists() || !recipientDoc.exists()) throw "사용자 정보를 찾을 수 없습니다.";
-        
-        // Sender logic
-        const senderInventory = senderDoc.data().inventory || {};
-        const itemToSend = senderInventory[selectedItem.name];
-
-        if (!itemToSend || itemToSend.quantity < actionQuantity) throw "보유 수량이 부족합니다.";
-
-        const newSenderQuantity = itemToSend.quantity - actionQuantity;
-        if (newSenderQuantity > 0) {
-          senderInventory[selectedItem.name].quantity = newSenderQuantity;
-        } else {
-          delete senderInventory[selectedItem.name];
-        }
-        transaction.update(senderRef, { inventory: senderInventory });
-
-        // Recipient logic
-        const recipientInventory = recipientDoc.data().inventory || {};
-        const currentRecipientQuantity = recipientInventory[selectedItem.name]?.quantity || 0;
-        recipientInventory[selectedItem.name] = { 
-            itemId: itemToSend.itemId,
-            quantity: currentRecipientQuantity + actionQuantity,
-            description: selectedItem.details.description,
-            sellerId: itemToSend.sellerId,
-            sellerNickname: itemToSend.sellerNickname,
-            price: itemToSend.price,
-        };
-        transaction.update(recipientRef, { inventory: recipientInventory });
-      });
-
-      toast({ title: '전송 완료', description: `'${selectedItem.name}' ${actionQuantity}개를 성공적으로 보냈습니다.` });
-      // Optimistic update
-      setUserData(prev => {
-        if (!prev || !selectedItem) return prev;
-        const newInventory = {...(prev.inventory || {})};
-        const newQuantity = (newInventory[selectedItem.name]?.quantity || 0) - actionQuantity;
-        if (newQuantity > 0) {
-            newInventory[selectedItem.name].quantity = newQuantity;
-        } else {
-            delete newInventory[selectedItem.name];
-        }
-        return {...prev, inventory: newInventory};
-      });
-      closeItemDialogs();
-
-    } catch (error) {
-       toast({ variant: "destructive", title: "오류", description: typeof error === 'string' ? error : "아이템 전송 중 오류가 발생했습니다."});
-    } finally {
-      setIsItemActionLoading(false);
-    }
-  };
-
-  const handleRefundItem = async () => {
-    if (!user || !refundCandidate) return;
-    setIsRefundConfirmationOpen(false);
-    setIsItemActionLoading(true);
-
-    const { name, details } = refundCandidate;
-    const { sellerId, price, itemId } = details;
-
-    if (!sellerId || typeof price !== 'number') {
-        toast({ variant: 'destructive', title: '환불 불가', description: '이 상품은 환불할 수 없습니다.' });
-        setIsItemActionLoading(false);
-        return;
-    }
-
-    try {
-        await runTransaction(db, async (transaction) => {
-            const buyerRef = doc(db, 'users', user.uid);
-            const sellerRef = doc(db, 'users', sellerId);
-            const itemRef = doc(db, 'class-store-items', itemId);
-
-            const [buyerDoc, sellerDoc, itemDoc] = await Promise.all([
-                transaction.get(buyerRef),
-                transaction.get(sellerRef),
-                transaction.get(itemRef)
-            ]);
-
-            if (!buyerDoc.exists()) throw '구매자 정보를 찾을 수 없습니다.';
-            if (!sellerDoc.exists()) throw '판매자 정보를 찾을 수 없습니다.';
-
-            const buyerData = buyerDoc.data();
-            const buyerInventory = buyerData.inventory || {};
-
-            if (!buyerInventory[name] || buyerInventory[name].quantity < 1) {
-                throw '환불할 상품이 없습니다.';
-            }
-
-            // 1. Update buyer's inventory
-            const newQuantity = buyerInventory[name].quantity - 1;
-            if (newQuantity > 0) {
-                buyerInventory[name].quantity = newQuantity;
-            } else {
-                delete buyerInventory[name];
-            }
-            transaction.update(buyerRef, { inventory: buyerInventory });
-
-            // 2. Refund points to buyer
-            transaction.update(buyerRef, { classPoints: increment(price) });
-
-            // 3. Deduct points from seller
-            transaction.update(sellerRef, { classPoints: increment(-price) });
-
-            // 4. Update store item quantity
-            if (itemDoc.exists()) {
-                transaction.update(itemRef, { quantity: increment(1) });
-            } else {
-                // If item was deleted, re-create it
-                const originalItemData = {
-                  sellerId: sellerId,
-                  sellerName: details.sellerNickname || '', // Should ideally get from seller doc
-                  sellerNickname: details.sellerNickname || '',
-                  classId: buyerData.classId,
-                  name: name,
-                  price: price,
-                  description: details.description || '',
-                  quantity: 1,
-                  createdAt: serverTimestamp(),
-                }
-                transaction.set(itemRef, originalItemData);
-            }
-        });
-
-        toast({ title: '환불 완료', description: `'${name}' 상품을 환불하고 ${price} 포인트를 돌려받았습니다.` });
-        
-        setUserData(prev => {
-            if (!prev) return null;
-            const newInventory = {...prev.inventory};
-            if (newInventory[name]) {
-                newInventory[name].quantity -= 1;
-                if (newInventory[name].quantity <= 0) {
-                    delete newInventory[name];
-                }
-            }
-            return {
-                ...prev,
-                inventory: newInventory,
-                classPoints: (prev.classPoints || 0) + price
-            };
-        });
-
-    } catch (error) {
-        toast({ variant: 'destructive', title: '환불 실패', description: typeof error === 'string' ? error : '환불 처리 중 오류가 발생했습니다.' });
-    } finally {
-        setIsItemActionLoading(false);
-        setRefundCandidate(null);
-        closeItemDialogs();
-    }
-};
-
   const handleOpenSendPointsDialog = useCallback(() => {
     setIsSendPointsDialogOpen(true);
   }, []);
@@ -836,83 +595,6 @@ export default function ProfilePage() {
     }
   };
 
-  const handleOpenSellingItemDialog = async (item: ClassStoreItem) => {
-    setSelectedSellingItem(item);
-    setEditItemDescription(item.description);
-    setEditItemQuantity(item.quantity);
-    
-    setIsBuyersLoading(true);
-    setItemBuyers([]);
-    
-    if (!userData?.classId && userData?.role !== 'teacher') {
-        setIsBuyersLoading(false);
-        return;
-    }
-
-    const classId = userData.role === 'teacher' ? user?.uid : userData.classId;
-
-    try {
-        const q = query(collection(db, 'users'), where('classId', '==', classId));
-        const usersSnapshot = await getDocs(q);
-        const buyers: ItemBuyer[] = [];
-        usersSnapshot.forEach(userDoc => {
-            const userData = userDoc.data() as User;
-            if (userData.inventory && userData.inventory[item.name]) {
-                buyers.push({
-                    uid: userData.uid,
-                    name: userData.name || '',
-                    nickname: userData.displayName,
-                    quantity: userData.inventory[item.name].quantity,
-                });
-            }
-        });
-        setItemBuyers(buyers);
-    } catch (e) {
-        console.error("Error fetching item buyers:", e);
-        toast({variant: 'destructive', title: '오류', description: '구매자 정보를 불러오는 중 오류 발생'});
-    } finally {
-        setIsBuyersLoading(false);
-    }
-};
-
-const handleUpdateSellingItem = async () => {
-    if (!selectedSellingItem) return;
-
-    try {
-        const itemRef = doc(db, 'class-store-items', selectedSellingItem.id);
-        await updateDoc(itemRef, {
-            description: editItemDescription,
-            quantity: editItemQuantity,
-        });
-
-        // Optimistic update
-        setSellingItems(prev => prev.map(item => 
-            item.id === selectedSellingItem.id 
-                ? { ...item, description: editItemDescription, quantity: editItemQuantity }
-                : item
-        ));
-        
-        toast({ title: '성공', description: '상품 정보가 업데이트되었습니다.'});
-        setSelectedSellingItem(null);
-    } catch (e) {
-        console.error("Error updating selling item:", e);
-        toast({variant: 'destructive', title: '오류', description: '상품 정보 업데이트 중 오류 발생'});
-    }
-};
-
-const handleDeleteSellingItem = async () => {
-    if (!selectedSellingItem) return;
-    try {
-        await deleteDoc(doc(db, 'class-store-items', selectedSellingItem.id));
-        setSellingItems(prev => prev.filter(item => item.id !== selectedSellingItem.id));
-        toast({ title: '삭제 완료', description: `'${selectedSellingItem.name}' 상품을 매장에서 삭제했습니다.` });
-        setSelectedSellingItem(null);
-    } catch (e) {
-        console.error("Error deleting selling item:", e);
-        toast({variant: 'destructive', title: '오류', description: '상품 삭제 중 오류 발생'});
-    }
-};
-  
   const xpForNextLevel = nextLevelInfo ? nextLevelInfo.xpThreshold - (levelInfo?.xpThreshold || 0) : 0;
   const currentXpProgress = userData ? userData.xp - (levelInfo?.xpThreshold || 0) : 0;
   const progressPercentage = xpForNextLevel > 0 ? (currentXpProgress / xpForNextLevel) * 100 : 100;
@@ -1054,77 +736,6 @@ const handleDeleteSellingItem = async () => {
               <p className="text-sm text-muted-foreground">전체 정답률</p>
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-            <CardTitle className="font-headline flex items-center gap-2"><Package className="text-primary"/>보유 상품</CardTitle>
-        </CardHeader>
-        <CardContent>
-            {userData.inventory && Object.keys(userData.inventory).length > 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {Object.entries(userData.inventory).map(([itemName, itemDetails]) => (
-                        <Card 
-                          key={itemName} 
-                          className="p-4 text-center cursor-pointer hover:shadow-md hover:border-primary transition flex flex-col"
-                          onClick={() => setSelectedItem({ name: itemName, details: itemDetails })}
-                        >
-                            <CardTitle className="text-base">{itemName}</CardTitle>
-                            <CardDescription className="mt-1">수량: {itemDetails.quantity}</CardDescription>
-                            {itemDetails.sellerNickname && (
-                                <CardDescription className="text-xs mt-auto pt-2">판매자: {itemDetails.sellerNickname}</CardDescription>
-                            )}
-                        </Card>
-                    ))}
-                </div>
-            ) : (
-                <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                    <p className="text-muted-foreground">아직 보유한 상품이 없습니다.</p>
-                </div>
-            )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-headline flex items-center gap-2">
-            <Send className="text-primary"/>판매 중인 상품
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {sellingItems.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {sellingItems.map((item) => (
-                <Card key={item.id} className="flex flex-col">
-                  <CardHeader>
-                    <CardTitle className="text-lg">{item.name}</CardTitle>
-                    <CardDescription className="text-sm text-primary font-bold">
-                      {item.price.toLocaleString()} 포인트
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="flex-grow">
-                    <p className="text-sm text-muted-foreground line-clamp-2">
-                      {item.description}
-                    </p>
-                    <p className="text-sm mt-2">
-                      남은 수량: <span className="font-bold">{item.quantity}</span>
-                    </p>
-                  </CardContent>
-                  <CardFooter>
-                    <Button variant="outline" className="w-full" onClick={() => handleOpenSellingItemDialog(item)}>
-                      <Settings className="mr-2 h-4 w-4" />
-                      관리
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 border-2 border-dashed rounded-lg">
-              <p className="text-muted-foreground">현재 판매 중인 상품이 없습니다.</p>
-            </div>
-          )}
         </CardContent>
       </Card>
       
@@ -1349,107 +960,6 @@ const handleDeleteSellingItem = async () => {
         </DialogContent>
     </Dialog>
 
-
-    {/* Item Management Dialog */}
-    <Dialog open={!!selectedItem} onOpenChange={(isOpen) => !isOpen && closeItemDialogs()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{selectedItem?.name}</DialogTitle>
-          <DialogDescription>
-            {selectedItem?.details.description || "아이템 설명이 없습니다."}
-            {selectedItem?.details.price && (
-                <div className="text-sm text-primary font-semibold mt-2">
-                    구매 가격: {selectedItem.details.price.toLocaleString()} 포인트
-                </div>
-            )}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid grid-cols-1 gap-4 py-4 sm:grid-cols-3">
-            <Button variant="outline" onClick={() => setItemAction('use')}>
-              <MinusCircle className="mr-2 h-4 w-4" />
-              사용하기
-            </Button>
-            <Button variant="outline" onClick={() => setItemAction('send')}>
-              <Send className="mr-2 h-4 w-4" />
-              보내기
-            </Button>
-             <Button 
-                variant="outline"
-                onClick={() => {
-                    setRefundCandidate(selectedItem);
-                    setIsRefundConfirmationOpen(true);
-                    closeItemDialogs();
-                }}
-                disabled={!selectedItem?.details.sellerId || !selectedItem?.details.price || selectedItem?.details.price === 0}
-            >
-              <Undo2 className="mr-2 h-4 w-4" />
-              환불하기
-            </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
-    
-    {/* Refund Confirmation Dialog */}
-    <AlertDialog open={isRefundConfirmationOpen} onOpenChange={setIsRefundConfirmationOpen}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>정말 환불하시겠습니까?</AlertDialogTitle>
-                <AlertDialogDescription>
-                    '{refundCandidate?.name}' 상품을 환불합니다. 상품 가격인 {refundCandidate?.details.price?.toLocaleString()} 포인트를 돌려받으며, 상품은 인벤토리에서 사라집니다. 이 작업은 되돌릴 수 없습니다.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel onClick={() => setRefundCandidate(null)}>취소</AlertDialogCancel>
-                <AlertDialogAction onClick={handleRefundItem}>환불</AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
-    
-    {/* Item Action Dialog (Use/Send) */}
-    <Dialog open={!!itemAction} onOpenChange={(isOpen) => !isOpen && closeItemDialogs()}>
-        <DialogContent>
-            <DialogHeader>
-                 <DialogTitle>
-                    {itemAction === 'use' ? '아이템 사용하기' : '아이템 보내기'}
-                </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-                <p><strong>아이템:</strong> {selectedItem?.name}</p>
-                <div className="space-y-2">
-                    <Label htmlFor="quantity">수량</Label>
-                    <Input 
-                        id="quantity"
-                        type="number"
-                        min="1"
-                        max={selectedItem?.details.quantity}
-                        value={actionQuantity}
-                        onChange={(e) => setActionQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                    />
-                </div>
-                {itemAction === 'send' && (
-                    <div className="space-y-2">
-                        <Label>받는 사람</Label>
-                        <Combobox
-                          options={classmates}
-                          value={sendRecipient}
-                          onValueChange={setSendRecipient}
-                          placeholder="학급 친구 선택..."
-                          searchPlaceholder="이름으로 검색..."
-                          notFoundMessage="해당하는 친구가 없습니다."
-                        />
-                    </div>
-                )}
-            </div>
-            <DialogFooter>
-                <Button variant="secondary" onClick={closeItemDialogs}>취소</Button>
-                <Button onClick={itemAction === 'use' ? handleUseItem : handleSendItem} disabled={isItemActionLoading}>
-                    {isItemActionLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                    {itemAction === 'use' ? '사용' : '전송'}
-                </Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
-    
     {/* Send Points Dialog */}
     <Dialog open={isSendPointsDialogOpen} onOpenChange={setIsSendPointsDialogOpen}>
         <DialogContent>
@@ -1620,79 +1130,9 @@ const handleDeleteSellingItem = async () => {
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
-
-    {/* Selling Item Management Dialog */}
-    <Dialog open={!!selectedSellingItem} onOpenChange={(isOpen) => !isOpen && setSelectedSellingItem(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>판매 상품 관리: {selectedSellingItem?.name}</DialogTitle>
-          </DialogHeader>
-          <Tabs defaultValue="manage">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="manage">정보 수정</TabsTrigger>
-              <TabsTrigger value="buyers">구매자 목록</TabsTrigger>
-            </TabsList>
-            <TabsContent value="manage" className="pt-4">
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="item-desc">설명</Label>
-                  <Textarea 
-                    id="item-desc"
-                    value={editItemDescription}
-                    onChange={(e) => setEditItemDescription(e.target.value)}
-                    placeholder="상품 설명을 입력하세요."
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="item-quantity">수량</Label>
-                  <Input 
-                    id="item-quantity"
-                    type="number"
-                    min="0"
-                    value={editItemQuantity}
-                    onChange={(e) => setEditItemQuantity(parseInt(e.target.value) || 0)}
-                  />
-                </div>
-              </div>
-              <DialogFooter className="mt-6 gap-2">
-                <Button variant="destructive" onClick={handleDeleteSellingItem}><Trash2 className="mr-2 h-4 w-4" /> 판매 중지</Button>
-                <Button onClick={handleUpdateSellingItem}><Save className="mr-2 h-4 w-4" /> 정보 저장</Button>
-              </DialogFooter>
-            </TabsContent>
-            <TabsContent value="buyers" className="pt-4">
-              {isBuyersLoading ? (
-                <div className="flex justify-center items-center h-48">
-                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                </div>
-              ) : itemBuyers.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground">
-                  아직 이 상품을 구매한 학생이 없습니다.
-                </div>
-              ) : (
-                <ScrollArea className="h-64">
-                    {itemBuyers.map(buyer => (
-                        <div key={buyer.uid} className="flex items-center justify-between p-2 rounded-md hover:bg-secondary">
-                             <div className="flex items-center gap-2">
-                                <Avatar className="h-8 w-8">
-                                    <AvatarImage src={`https://api.dicebear.com/8.x/pixel-art/svg?seed=${buyer.nickname}`} />
-                                    <AvatarFallback>{buyer.nickname.substring(0,1)}</AvatarFallback>
-                                </Avatar>
-                                <div>
-                                    <p className="font-semibold">{buyer.nickname}</p>
-                                    <p className="text-xs text-muted-foreground">{buyer.name}</p>
-                                </div>
-                            </div>
-                            <p className="text-sm font-medium">보유 수량: {buyer.quantity}</p>
-                        </div>
-                    ))}
-                </ScrollArea>
-              )}
-            </TabsContent>
-          </Tabs>
-        </DialogContent>
-    </Dialog>
     </>
   );
 }
+
 
 

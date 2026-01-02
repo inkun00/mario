@@ -5,12 +5,12 @@ import { useEffect, useState, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe, runTransaction, updateDoc, deleteDoc, increment } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import type { User, ClassStoreItem } from '@/lib/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import type { User, ClassStoreItem, ItemBuyer } from '@/lib/types';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2, Gem, Package, Send, ArrowRightLeft, ArrowLeft, ArrowRight, Gift } from 'lucide-react';
+import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2, Gem, Package, Send, ArrowRightLeft, ArrowLeft, ArrowRight, Gift, Settings } from 'lucide-react';
 import { getLevelInfo } from '@/lib/level-system';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
@@ -49,6 +49,7 @@ export default function MyClassPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [classStoreItems, setClassStoreItems] = useState<ClassStoreItem[]>([]);
+  const [sellingItems, setSellingItems] = useState<ClassStoreItem[]>([]);
   const [isStoreLoading, setIsStoreLoading] = useState(true);
 
   const [isSellItemDialogOpen, setIsSellItemDialogOpen] = useState(false);
@@ -67,6 +68,21 @@ export default function MyClassPage() {
   const [managementItem, setManagementItem] = useState('');
   const [isManagementLoading, setIsManagementLoading] = useState(false);
 
+  const [selectedItem, setSelectedItem] = useState<{name: string, details: {itemId: string, quantity: number, description?: string, sellerId?: string, sellerNickname?: string, price?: number}} | null>(null);
+  const [itemAction, setItemAction] = useState<'use' | 'send' | 'refund' | null>(null);
+  const [actionQuantity, setActionQuantity] = useState(1);
+  const [sendRecipient, setSendRecipient] = useState('');
+  const [classmates, setClassmates] = useState<{value: string, label: string}[]>([]);
+  const [isItemActionLoading, setIsItemActionLoading] = useState(false);
+
+  const [isRefundConfirmationOpen, setIsRefundConfirmationOpen] = useState(false);
+  const [refundCandidate, setRefundCandidate] = useState<{name: string, details: {itemId: string, quantity: number, description?: string, sellerId?: string, sellerNickname?: string, price?: number}} | null>(null);
+  
+  const [selectedSellingItem, setSelectedSellingItem] = useState<ClassStoreItem | null>(null);
+  const [itemBuyers, setItemBuyers] = useState<ItemBuyer[]>([]);
+  const [isBuyersLoading, setIsBuyersLoading] = useState(false);
+  const [editItemDescription, setEditItemDescription] = useState('');
+  const [editItemQuantity, setEditItemQuantity] = useState(0);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBuying, setIsBuying] = useState<string | null>(null);
@@ -90,54 +106,59 @@ export default function MyClassPage() {
 
     let unsubscribeStore: Unsubscribe | undefined;
     let unsubscribeMembers: Unsubscribe | undefined;
+    let unsubscribeUser: Unsubscribe | undefined;
 
     const fetchClassData = async () => {
       setIsLoading(true);
 
       const userRef = doc(db, 'users', user.uid);
-      const userSnap = await getDoc(userRef);
+      unsubscribeUser = onSnapshot(userRef, (userSnap) => {
+        if (userSnap.exists()) {
+            const currentUserData = userSnap.data() as User;
+            setUserData(currentUserData);
+            
+            const targetClassId = currentUserData.role === 'teacher' ? user.uid : currentUserData.classId;
 
-      if (userSnap.exists()) {
-        const currentUserData = userSnap.data() as User;
-        setUserData(currentUserData);
-
-        const targetClassId = currentUserData.role === 'teacher' ? user.uid : currentUserData.classId;
-
-        if (targetClassId) {
-          const membersQuery = query(collection(db, 'users'), where('classId', '==', targetClassId));
-          const teacherQuery = query(collection(db, 'users'), where('uid', '==', targetClassId));
-          
-          if (currentUserData.role === 'teacher') {
-            setTeacher(currentUserData);
-          } else {
-            const teacherSnapshot = await getDocs(teacherQuery);
-            if (!teacherSnapshot.empty) {
-              setTeacher(teacherSnapshot.docs[0].data() as User);
+            if (targetClassId) {
+                const membersQuery = query(collection(db, 'users'), where('classId', '==', targetClassId));
+                const teacherQuery = query(collection(db, 'users'), where('uid', '==', targetClassId));
+                
+                if (currentUserData.role === 'teacher') {
+                    setTeacher(currentUserData);
+                } else {
+                    getDocs(teacherQuery).then(teacherSnapshot => {
+                        if (!teacherSnapshot.empty) {
+                            setTeacher(teacherSnapshot.docs[0].data() as User);
+                        }
+                    });
+                }
+                
+                if (unsubscribeMembers) unsubscribeMembers();
+                unsubscribeMembers = onSnapshot(membersQuery, (snapshot) => {
+                    const members = snapshot.docs.map(doc => doc.data() as User);
+                    setClassMembers(members.sort((a, b) => b.xp - a.xp));
+                });
+                
+                // Fetch class store items
+                setIsStoreLoading(true);
+                const storeQuery = query(collection(db, 'class-store-items'), where('classId', '==', targetClassId));
+                if (unsubscribeStore) unsubscribeStore();
+                unsubscribeStore = onSnapshot(storeQuery, (snapshot) => {
+                    const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClassStoreItem));
+                    setClassStoreItems(items);
+                    setSellingItems(items.filter(item => item.sellerId === user.uid));
+                    setIsStoreLoading(false);
+                }, (error) => {
+                    console.error("Error fetching store items:", error);
+                    toast({ variant: "destructive", title: "오류", description: "학급 매장 상품을 불러오는 중 오류가 발생했습니다."});
+                    setIsStoreLoading(false);
+                });
+            } else {
+                setIsStoreLoading(false);
             }
-          }
-          
-          unsubscribeMembers = onSnapshot(membersQuery, (snapshot) => {
-              const members = snapshot.docs.map(doc => doc.data() as User);
-              setClassMembers(members.sort((a, b) => b.xp - a.xp));
-          });
-          
-          // Fetch class store items
-          setIsStoreLoading(true);
-          const storeQuery = query(collection(db, 'class-store-items'), where('classId', '==', targetClassId));
-          unsubscribeStore = onSnapshot(storeQuery, (snapshot) => {
-            const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClassStoreItem));
-            setClassStoreItems(items);
-            setIsStoreLoading(false);
-          }, (error) => {
-            console.error("Error fetching store items:", error);
-            toast({ variant: "destructive", title: "오류", description: "학급 매장 상품을 불러오는 중 오류가 발생했습니다."});
-            setIsStoreLoading(false);
-          });
-        } else {
-            setIsStoreLoading(false);
         }
-      }
-      setIsLoading(false);
+        setIsLoading(false);
+      });
     };
 
     fetchClassData();
@@ -145,6 +166,7 @@ export default function MyClassPage() {
     return () => {
         if (unsubscribeStore) unsubscribeStore();
         if (unsubscribeMembers) unsubscribeMembers();
+        if (unsubscribeUser) unsubscribeUser();
     };
   }, [user, toast]);
 
@@ -200,7 +222,6 @@ export default function MyClassPage() {
         if (!itemDoc.exists()) throw "상품 정보를 찾을 수 없거나 이미 판매되었습니다.";
 
         const buyerData = buyerDoc.data() as User;
-        const sellerData = sellerDoc.data() as User;
         const itemData = itemDoc.data() as ClassStoreItem;
         
         if ((buyerData.classPoints || 0) < itemData.price) {
@@ -389,6 +410,36 @@ export default function MyClassPage() {
         setIsManagementLoading(false);
     }
   };
+
+    const handleUpdateSellingItem = async () => {
+        if (!selectedSellingItem) return;
+
+        try {
+            const itemRef = doc(db, 'class-store-items', selectedSellingItem.id);
+            await updateDoc(itemRef, {
+                description: editItemDescription,
+                quantity: editItemQuantity,
+            });
+
+            toast({ title: '성공', description: '상품 정보가 업데이트되었습니다.'});
+            setSelectedSellingItem(null);
+        } catch (e) {
+            console.error("Error updating selling item:", e);
+            toast({variant: 'destructive', title: '오류', description: '상품 정보 업데이트 중 오류 발생'});
+        }
+    };
+
+    const handleDeleteSellingItem = async () => {
+        if (!selectedSellingItem) return;
+        try {
+            await deleteDoc(doc(db, 'class-store-items', selectedSellingItem.id));
+            toast({ title: '삭제 완료', description: `'${selectedSellingItem.name}' 상품을 매장에서 삭제했습니다.` });
+            setSelectedSellingItem(null);
+        } catch (e) {
+            console.error("Error deleting selling item:", e);
+            toast({variant: 'destructive', title: '오류', description: '상품 삭제 중 오류 발생'});
+        }
+    };
 
 
   if (isLoading) {
@@ -675,6 +726,78 @@ export default function MyClassPage() {
                           </Dialog>
                       </CardContent>
                   </Card>
+                  <div className="mt-6 space-y-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="font-headline flex items-center gap-2"><Package className="text-primary"/>보유 상품</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {userData.inventory && Object.keys(userData.inventory).length > 0 ? (
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    {Object.entries(userData.inventory).map(([itemName, itemDetails]) => (
+                                        <Card 
+                                          key={itemName} 
+                                          className="p-4 text-center cursor-pointer hover:shadow-md hover:border-primary transition flex flex-col"
+                                          onClick={() => setSelectedItem({ name: itemName, details: itemDetails })}
+                                        >
+                                            <CardTitle className="text-base">{itemName}</CardTitle>
+                                            <CardDescription className="mt-1">수량: {itemDetails.quantity}</CardDescription>
+                                            {itemDetails.sellerNickname && (
+                                                <CardDescription className="text-xs mt-auto pt-2">판매자: {itemDetails.sellerNickname}</CardDescription>
+                                            )}
+                                        </Card>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                                    <p className="text-muted-foreground">아직 보유한 상품이 없습니다.</p>
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                          <CardTitle className="font-headline flex items-center gap-2">
+                            <Send className="text-primary"/>판매 중인 상품
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {sellingItems.length > 0 ? (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                              {sellingItems.map((item) => (
+                                <Card key={item.id} className="flex flex-col">
+                                  <CardHeader>
+                                    <CardTitle className="text-lg">{item.name}</CardTitle>
+                                    <CardDescription className="text-sm text-primary font-bold">
+                                      {item.price.toLocaleString()} 포인트
+                                    </CardDescription>
+                                  </CardHeader>
+                                  <CardContent className="flex-grow">
+                                    <p className="text-sm text-muted-foreground line-clamp-2">
+                                      {item.description}
+                                    </p>
+                                    <p className="text-sm mt-2">
+                                      남은 수량: <span className="font-bold">{item.quantity}</span>
+                                    </p>
+                                  </CardContent>
+                                  <CardFooter>
+                                    <Button variant="outline" className="w-full" onClick={() => setSelectedSellingItem(item)}>
+                                      <Settings className="mr-2 h-4 w-4" />
+                                      관리
+                                    </Button>
+                                  </CardFooter>
+                                </Card>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                              <p className="text-muted-foreground">현재 판매 중인 상품이 없습니다.</p>
+                            </div>
+                          )}
+                        </CardContent>
+                    </Card>
+                  </div>
               </TabsContent>
             </Tabs>
           )}
@@ -877,6 +1000,75 @@ export default function MyClassPage() {
                     {isManagementLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : '확인'}
                 </Button>
             </DialogFooter>
+        </DialogContent>
+    </Dialog>
+     {/* Selling Item Management Dialog */}
+    <Dialog open={!!selectedSellingItem} onOpenChange={(isOpen) => !isOpen && setSelectedSellingItem(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>판매 상품 관리: {selectedSellingItem?.name}</DialogTitle>
+          </DialogHeader>
+          <Tabs defaultValue="manage">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="manage">정보 수정</TabsTrigger>
+              <TabsTrigger value="buyers">구매자 목록</TabsTrigger>
+            </TabsList>
+            <TabsContent value="manage" className="pt-4">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="item-desc">설명</Label>
+                  <Textarea 
+                    id="item-desc"
+                    value={editItemDescription}
+                    onChange={(e) => setEditItemDescription(e.target.value)}
+                    placeholder="상품 설명을 입력하세요."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="item-quantity">수량</Label>
+                  <Input 
+                    id="item-quantity"
+                    type="number"
+                    min="0"
+                    value={editItemQuantity}
+                    onChange={(e) => setEditItemQuantity(parseInt(e.target.value) || 0)}
+                  />
+                </div>
+              </div>
+              <DialogFooter className="mt-6 gap-2">
+                <Button variant="destructive" onClick={handleDeleteSellingItem}><Trash2 className="mr-2 h-4 w-4" /> 판매 중지</Button>
+                <Button onClick={handleUpdateSellingItem}><Save className="mr-2 h-4 w-4" /> 정보 저장</Button>
+              </DialogFooter>
+            </TabsContent>
+            <TabsContent value="buyers" className="pt-4">
+              {isBuyersLoading ? (
+                <div className="flex justify-center items-center h-48">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              ) : itemBuyers.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground">
+                  아직 이 상품을 구매한 학생이 없습니다.
+                </div>
+              ) : (
+                <ScrollArea className="h-64">
+                    {itemBuyers.map(buyer => (
+                        <div key={buyer.uid} className="flex items-center justify-between p-2 rounded-md hover:bg-secondary">
+                             <div className="flex items-center gap-2">
+                                <Avatar className="h-8 w-8">
+                                    <AvatarFallback>{buyer.nickname.substring(0,1)}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <p className="font-semibold">{buyer.nickname}</p>
+                                    <p className="text-xs text-muted-foreground">{buyer.name}</p>
+                                </div>
+                            </div>
+                            <p className="text-sm font-medium">보유 수량: {buyer.quantity}</p>
+                        </div>
+                    ))}
+                </ScrollArea>
+              )}
+            </TabsContent>
+          </Tabs>
         </DialogContent>
     </Dialog>
     </>
