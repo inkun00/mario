@@ -123,8 +123,76 @@ export default function GamePage() {
   const [isFinishingGame, setIsFinishingGame] = useState(false);
   const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
 
+  const [timeRemaining, setTimeRemaining] = useState(0);
+  const [timeProgress, setTimeProgress] = useState(100);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
   // useRef to hold a reference to the unsubscribe function
   const unsubscribeRef = useRef<() => void | undefined>();
+  
+  const handleTimeOut = useCallback(() => {
+    if (gameRoom?.joinType === 'local' || isMyTurn) {
+      toast({
+        variant: 'destructive',
+        title: '시간 초과!',
+        description: '시간이 모두 지났습니다. 오답으로 처리됩니다.',
+      });
+      // A simplified version of submit answer for timeout
+      if (currentQuestionInfo) {
+        const result: AnswerResult = {
+          isCorrect: false,
+          userAnswer: '시간 초과',
+          correctAnswer: currentQuestionInfo.question.answer || currentQuestionInfo.question.correctAnswer || '',
+          pointsAwarded: 0,
+        };
+        const roomRef = doc(db, 'game-rooms', gameRoomId as string);
+        updateDoc(roomRef, { currentAnswerResult: result }).then(() => {
+            setTimeout(async () => {
+                const updatedGameState = {...gameRoom.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
+                const nextTurn = getNextTurnUID();
+                 await updateDoc(roomRef, {
+                    gameState: updatedGameState,
+                    currentTurn: nextTurn,
+                    currentAnswerResult: null,
+                    questionStartTime: null,
+                });
+            }, 3000);
+        });
+      }
+    }
+  }, [isMyTurn, currentQuestionInfo, gameRoom?.gameState, gameRoomId, toast]);
+
+  useEffect(() => {
+    if (gameRoom?.timeLimit && gameRoom.timeLimit > 0 && currentQuestionInfo && !gameRoom.currentAnswerResult) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      
+      const startTime = gameRoom.questionStartTime?.toDate() || new Date();
+      const endTime = new Date(startTime.getTime() + gameRoom.timeLimit * 1000);
+      
+      timerRef.current = setInterval(() => {
+        const now = new Date();
+        const remaining = Math.max(0, endTime.getTime() - now.getTime());
+        setTimeRemaining(remaining);
+        
+        const progress = (remaining / (gameRoom.timeLimit! * 1000)) * 100;
+        setTimeProgress(progress);
+
+        if (remaining === 0) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          handleTimeOut();
+        }
+      }, 100);
+
+      return () => {
+        if (timerRef.current) clearInterval(timerRef.current);
+      };
+    } else {
+        if (timerRef.current) clearInterval(timerRef.current);
+        setTimeProgress(100);
+    }
+  }, [gameRoom?.timeLimit, currentQuestionInfo, gameRoom?.questionStartTime, handleTimeOut, gameRoom?.currentAnswerResult]);
+
+
 
   // Fetch GameRoom and GameSet data
   useEffect(() => {
@@ -346,7 +414,7 @@ export default function GamePage() {
     const newGameState: GameRoom['gameState'] = { ...gameRoom.gameState, [String(block.id)]: 'flipping' };
     
     const roomRef = doc(db, 'game-rooms', gameRoomId);
-    updateDoc(roomRef, { gameState: newGameState });
+    updateDoc(roomRef, { gameState: newGameState, questionStartTime: serverTimestamp() });
   };
 
   const handleShowHint = () => {
@@ -400,6 +468,8 @@ export default function GamePage() {
      const canAct = gameRoom.joinType === 'local' || isMyTurn;
      if (!canAct) return;
 
+    if (timerRef.current) clearInterval(timerRef.current);
+
     const currentQuestion = currentQuestionInfo.question;
 
     setIsSubmitting(true);
@@ -417,7 +487,7 @@ export default function GamePage() {
     };
     
     const roomRef = doc(db, 'game-rooms', gameRoomId);
-    await updateDoc(roomRef, { currentAnswerResult: result });
+    await updateDoc(roomRef, { currentAnswerResult: result, questionStartTime: null });
 
 
     setTimeout(async () => {
@@ -887,6 +957,12 @@ export default function GamePage() {
                       )}
                   </h2>
                   <p className="text-muted-foreground">점수를 얻을 질문을 선택하세요.</p>
+                  {gameRoom.timeLimit && gameRoom.timeLimit > 0 && currentQuestionInfo && (
+                      <div className="mt-2 space-y-1">
+                          <Progress value={timeProgress} className="h-2" />
+                          <p className="text-sm text-muted-foreground">남은 시간: {Math.ceil(timeRemaining / 1000)}초</p>
+                      </div>
+                  )}
               </div>
             <div className="grid grid-cols-5 md:grid-cols-6 lg:grid-cols-7 gap-2 sm:gap-4">
               {blocks.map((block, index) => {

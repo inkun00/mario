@@ -130,6 +130,8 @@ export interface GameRoom {
   mysteryEffectVotes?: Record<string, string[]>; // key: effectType, value: array of player uids
   joinType: JoinType;
   createdAt: Timestamp;
+  timeLimit?: number; // in seconds, 0 for unlimited
+  questionStartTime?: Timestamp;
   localPlayers?: LocalPlayer[];
   answerLogs?: AnswerLog[];
   gameStartedAt?: any;

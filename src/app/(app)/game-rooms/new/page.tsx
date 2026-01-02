@@ -21,6 +21,13 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense, useCallback } from 'react';
 import { Users, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 function generateRoomId() {
   const chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789';
@@ -46,6 +53,7 @@ function NewGameRoomPageContents() {
   const [roomTitle, setRoomTitle] = useState('');
   const [password, setPassword] = useState('');
   const [usePassword, setUsePassword] = useState(false);
+  const [timeLimit, setTimeLimit] = useState<string>("0");
   
   const handleCreateRoom = useCallback(async () => {
     if (!user || !gameSet || !joinType) return;
@@ -102,6 +110,7 @@ function NewGameRoomPageContents() {
         mysteryBoxEnabled: true,
         isMysterySettingDone: false,
         joinType: joinType,
+        timeLimit: parseInt(timeLimit, 10),
         ...(usePassword && password && { password }),
         mysteryEffectVotes: {},
         joinRequests: [],
@@ -125,7 +134,7 @@ function NewGameRoomPageContents() {
         toast({ variant: 'destructive', title: '오류', description: '게임방 생성에 실패했습니다.' });
         setIsCreating(false);
     }
-  }, [user, gameSet, joinType, roomTitle, usePassword, password, toast, router]);
+  }, [user, gameSet, joinType, roomTitle, usePassword, password, timeLimit, toast, router]);
 
   useEffect(() => {
     if (loadingUser) return;
@@ -198,6 +207,23 @@ function NewGameRoomPageContents() {
                     onChange={(e) => setRoomTitle(e.target.value)}
                   />
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="time-limit">문제당 시간제한</Label>
+                  <Select value={timeLimit} onValueChange={setTimeLimit}>
+                    <SelectTrigger id="time-limit">
+                      <SelectValue placeholder="시간 제한 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">제한 없음</SelectItem>
+                      <SelectItem value="30">30초</SelectItem>
+                      <SelectItem value="60">1분</SelectItem>
+                      <SelectItem value="120">2분</SelectItem>
+                      <SelectItem value="180">3분</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="flex items-center justify-between">
                   <Label htmlFor="use-password" className="flex flex-col gap-1">
                       <span>비밀번호 사용</span>
