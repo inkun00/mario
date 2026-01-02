@@ -50,7 +50,6 @@ export default function MyClassPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   const [classStoreItems, setClassStoreItems] = useState<ClassStoreItem[]>([]);
-  const [sellingItems, setSellingItems] = useState<ClassStoreItem[]>([]);
   const [isStoreLoading, setIsStoreLoading] = useState(true);
 
   const [isSellItemDialogOpen, setIsSellItemDialogOpen] = useState(false);
@@ -151,7 +150,6 @@ export default function MyClassPage() {
                 unsubscribeStore = onSnapshot(storeQuery, (snapshot) => {
                     const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClassStoreItem));
                     setClassStoreItems(items);
-                    setSellingItems(items.filter(item => item.sellerId === user.uid));
                     setIsStoreLoading(false);
                 }, (error) => {
                     console.error("Error fetching store items:", error);
@@ -505,6 +503,8 @@ export default function MyClassPage() {
   const isTeacher = userData.role === 'teacher';
   const hasClass = (isTeacher && userData.classCode) || (!isTeacher && userData.classId);
   const teacherSellingItems = isTeacher ? classStoreItems.filter(item => item.sellerId === user?.uid) : [];
+  const sellingItems = isTeacher ? [] : classStoreItems.filter(item => item.sellerId === user?.uid);
+
 
   return (
     <>
@@ -672,27 +672,29 @@ export default function MyClassPage() {
                                               <TableCell>{item.sellerName || item.sellerNickname}</TableCell>
                                               <TableCell className="text-center">{item.quantity}</TableCell>
                                               <TableCell className="text-right font-bold text-primary">{item.price.toLocaleString()}</TableCell>
-                                              <TableCell className="text-center space-x-2">
-                                                {item.sellerId !== user?.uid && !isTeacher && (
-                                                  <Button 
-                                                    size="sm" 
-                                                    disabled={!!isBuying || !!item.report}
-                                                    onClick={() => handleBuyItem(item)}
-                                                    title={item.report ? '신고된 상품은 구매할 수 없습니다.' : ''}
-                                                  >
-                                                    {isBuying === item.id ? <Loader2 className="w-4 h-4 animate-spin"/> : '구매'}
-                                                  </Button>
-                                                )}
-                                                 {item.sellerId !== user?.uid && !isTeacher && !item.report && (
-                                                  <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8"
-                                                    onClick={() => setReportCandidate(item)}
-                                                  >
-                                                    <AlertTriangle className="w-4 h-4" />
-                                                  </Button>
-                                                )}
+                                              <TableCell className="text-center">
+                                                <div className="flex items-center justify-center gap-2">
+                                                  {item.sellerId !== user?.uid && !isTeacher && (
+                                                    <Button 
+                                                      size="sm" 
+                                                      disabled={!!isBuying || !!item.report}
+                                                      onClick={() => handleBuyItem(item)}
+                                                      title={item.report ? '신고된 상품은 구매할 수 없습니다.' : ''}
+                                                    >
+                                                      {isBuying === item.id ? <Loader2 className="w-4 h-4 animate-spin"/> : '구매'}
+                                                    </Button>
+                                                  )}
+                                                  {item.sellerId !== user?.uid && !isTeacher && !item.report && (
+                                                    <Button
+                                                      variant="ghost"
+                                                      size="icon"
+                                                      className="h-8 w-8 text-destructive hover:text-destructive"
+                                                      onClick={() => setReportCandidate(item)}
+                                                    >
+                                                      <AlertTriangle className="w-4 h-4" />
+                                                    </Button>
+                                                  )}
+                                                </div>
                                               </TableCell>
                                             </TableRow>
                                           ))}
