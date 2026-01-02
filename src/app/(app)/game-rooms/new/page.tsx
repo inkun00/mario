@@ -104,6 +104,7 @@ function NewGameRoomPageContents() {
         joinType: joinType,
         ...(usePassword && password && { password }),
         mysteryEffectVotes: {},
+        joinRequests: [],
       };
 
       await setDoc(doc(db, "game-rooms", newRoomId), {

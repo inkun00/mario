@@ -135,6 +135,7 @@ export interface GameRoom {
   gameStartedAt?: any;
   currentAnswerResult?: AnswerResult | null;
   currentMysteryEffect?: MysteryEffect | null;
+  joinRequests?: string[];
 }
 
 export interface CorrectAnswer {
