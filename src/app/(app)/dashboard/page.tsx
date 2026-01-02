@@ -48,6 +48,7 @@ import { ADMIN_EMAILS } from '@/lib/admins';
 import { cn } from '@/lib/utils';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { MotionDiv } from '@/components/motion-div';
+import { evaluateQuizSet } from '@/ai/flows/validate-quiz-set-flow';
 
 
 const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '음악', '미술', '체육', '영어', '창체'];
@@ -85,6 +86,7 @@ export default function DashboardPage() {
   const [openGameRooms, setOpenGameRooms] = useState<OpenGameRoom[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [isEvaluating, setIsEvaluating] = useState<string | null>(null);
   const [loadingRooms, setLoadingRooms] = useState(true);
   
   const [selectedGameSet, setSelectedGameSet] = useState<GameSetDocument | null>(null);
@@ -409,7 +411,41 @@ export default function DashboardPage() {
   };
 
   const handlePreview = async (set: GameSetDocument) => {
-    setSelectedGameSet(set);
+    if (set.evaluationScore === undefined || set.evaluationScore === null) {
+      setIsEvaluating(set.id);
+      try {
+        toast({ title: 'AI 평가 중', description: '퀴즈 세트의 교육적 가치를 AI가 분석하고 있습니다. 잠시만 기다려주세요.'});
+        const result = await evaluateQuizSet({
+          title: set.title,
+          description: set.description,
+          grade: set.grade || '',
+          subject: set.subject || '',
+          unit: set.unit || '',
+          questions: set.questions,
+        });
+
+        const gameSetRef = doc(db, 'game-sets', set.id);
+        await updateDoc(gameSetRef, { evaluationScore: result.score });
+
+        const updatedSet = { ...set, evaluationScore: result.score };
+        setSelectedGameSet(updatedSet);
+
+        // Update local state to reflect the new score
+        setAllGameSets(prev => prev.map(s => s.id === set.id ? updatedSet : s));
+        setFilteredGameSets(prev => prev.map(s => s.id === set.id ? updatedSet : s));
+        
+        toast({ title: 'AI 평가 완료', description: `평가 점수는 ${result.score}점입니다.`});
+
+      } catch (error) {
+        console.error('Error evaluating quiz set:', error);
+        toast({ variant: 'destructive', title: '오류', description: 'AI 평가 중 오류가 발생했습니다.'});
+        setSelectedGameSet(set); // Show preview even if evaluation fails
+      } finally {
+        setIsEvaluating(null);
+      }
+    } else {
+      setSelectedGameSet(set);
+    }
   };
 
 
@@ -681,8 +717,8 @@ export default function DashboardPage() {
                       </div>
                     </CardHeader>
                     <CardFooter className="mt-auto flex flex-wrap justify-end items-center gap-2 p-4 pt-0 pr-4">
-                      <Button variant="secondary" size="sm" onClick={() => handlePreview(set)}>
-                        미리보기
+                      <Button variant="secondary" size="sm" onClick={() => handlePreview(set)} disabled={isEvaluating === set.id}>
+                        {isEvaluating === set.id ? <Loader2 className="h-4 w-4 animate-spin" /> : '미리보기'}
                       </Button>
                       {(isCreator || isAdmin) && !isDisabled && (
                         <>
