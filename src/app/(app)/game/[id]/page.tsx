@@ -958,12 +958,6 @@ export default function GamePage() {
                       )}
                   </h2>
                   <p className="text-muted-foreground">점수를 얻을 질문을 선택하세요.</p>
-                  {gameRoom.timeLimit && gameRoom.timeLimit > 0 && currentQuestionInfo && (
-                      <div className="mt-2 space-y-1">
-                          <Progress value={timeProgress} className="h-2" />
-                          <p className="text-sm text-muted-foreground">남은 시간: {Math.ceil(timeRemaining / 1000)}초</p>
-                      </div>
-                  )}
               </div>
             <div className="grid grid-cols-5 md:grid-cols-6 lg:grid-cols-7 gap-2 sm:gap-4">
               {blocks.map((block, index) => {
@@ -1269,7 +1263,14 @@ export default function GamePage() {
                         </div>
                     </div>
                     
-                    <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting || ((gameRoom?.joinType === 'remote' && !isMyTurn) || !userAnswer)}>
+                    {gameRoom?.timeLimit && gameRoom.timeLimit > 0 && currentQuestionInfo && (
+                      <div className="mt-4 space-y-1">
+                          <Progress value={timeProgress} className="h-2" />
+                          <p className="text-sm text-muted-foreground text-center">남은 시간: {Math.ceil(timeRemaining / 1000)}초</p>
+                      </div>
+                    )}
+
+                    <Button className="w-full mt-4" onClick={handleSubmitAnswer} disabled={isSubmitting || ((gameRoom?.joinType === 'remote' && !isMyTurn) || !userAnswer)}>
                         {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
                     </Button>
                 </>
