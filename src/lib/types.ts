@@ -196,6 +196,13 @@ export interface School {
   members: User[];
 }
 
+export interface ItemReport {
+  reporterId: string;
+  reporterName: string;
+  reason: string;
+  reportedAt: any;
+}
+
 export interface ClassStoreItem {
   id: string; // document id
   sellerId: string; // user.uid
@@ -207,6 +214,7 @@ export interface ClassStoreItem {
   description: string;
   quantity: number;
   createdAt: any; // serverTimestamp
+  report?: ItemReport | null;
 }
 
 export interface ItemBuyer {

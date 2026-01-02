@@ -1,16 +1,17 @@
 
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe, runTransaction, updateDoc, deleteDoc, increment } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import type { User, ClassStoreItem, ItemBuyer } from '@/lib/types';
+import type { User, ClassStoreItem, ItemBuyer, ItemReport } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2, Gem, Package, Send, ArrowRightLeft, ArrowLeft, ArrowRight, Gift, Settings } from 'lucide-react';
+import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2, Gem, Package, Send, ArrowRightLeft, ArrowLeft, ArrowRight, Gift, Settings, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { getLevelInfo } from '@/lib/level-system';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
@@ -57,7 +58,12 @@ export default function MyClassPage() {
   const [selectedItemForDescription, setSelectedItemForDescription] = useState<ClassStoreItem | null>(null);
   
   const [evictCandidate, setEvictCandidate] = useState<User | null>(null);
-  const [deleteCandidate, setDeleteCandidate] = useState<ClassStoreItem | null>(null);
+  
+  const [reportCandidate, setReportCandidate] = useState<ClassStoreItem | null>(null);
+  const [reportReason, setReportReason] = useState('');
+  const [isReporting, setIsReporting] = useState(false);
+
+  const [reportedItemDetails, setReportedItemDetails] = useState<ClassStoreItem | null>(null);
 
   const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
   const [studentSellingItems, setStudentSellingItems] = useState<ClassStoreItem[]>([]);
@@ -72,7 +78,6 @@ export default function MyClassPage() {
   const [itemAction, setItemAction] = useState<'use' | 'send' | 'refund' | null>(null);
   const [actionQuantity, setActionQuantity] = useState(1);
   const [sendRecipient, setSendRecipient] = useState('');
-  const [classmates, setClassmates] = useState<{value: string, label: string}[]>([]);
   const [isItemActionLoading, setIsItemActionLoading] = useState(false);
 
   const [isRefundConfirmationOpen, setIsRefundConfirmationOpen] = useState(false);
@@ -231,6 +236,10 @@ export default function MyClassPage() {
         if (itemData.quantity <= 0) {
             throw "상품의 재고가 없습니다.";
         }
+        
+        if (itemData.report) {
+            throw "신고된 상품으로 구매할 수 없습니다.";
+        }
 
         // 1. Decrement buyer's points
         transaction.update(buyerRef, {
@@ -289,24 +298,6 @@ export default function MyClassPage() {
     }
   };
 
-  const handleDeleteItem = async () => {
-    if (!deleteCandidate) return;
-
-    if (!isTeacher && deleteCandidate.sellerId !== user?.uid) {
-        toast({ variant: 'destructive', title: '권한 없음', description: '자신이 등록한 상품만 삭제할 수 있습니다.' });
-        return;
-    }
-    
-    try {
-      await deleteDoc(doc(db, 'class-store-items', deleteCandidate.id));
-      toast({ title: '삭제 완료', description: `'${deleteCandidate.name}' 상품을 삭제했습니다.` });
-      setDeleteCandidate(null);
-    } catch (error) {
-      console.error('Error deleting item:', error);
-      toast({ variant: 'destructive', title: '오류', description: '상품 삭제 중 오류가 발생했습니다.' });
-    }
-  };
-  
   const handleStudentClick = async (student: User) => {
     if (!isTeacher) return;
 
@@ -440,6 +431,54 @@ export default function MyClassPage() {
             toast({variant: 'destructive', title: '오류', description: '상품 삭제 중 오류 발생'});
         }
     };
+
+    const handleReportItem = async () => {
+        if (!reportCandidate || !reportReason.trim() || !user || !userData) return;
+        setIsReporting(true);
+        
+        try {
+            const reportData: ItemReport = {
+                reporterId: user.uid,
+                reporterName: userData.displayName,
+                reason: reportReason,
+                reportedAt: serverTimestamp(),
+            };
+
+            const itemRef = doc(db, 'class-store-items', reportCandidate.id);
+            await updateDoc(itemRef, { report: reportData });
+            
+            toast({ title: '신고 완료', description: '상품이 신고되었습니다. 선생님이 검토할 예정입니다.' });
+            setReportCandidate(null);
+            setReportReason('');
+
+        } catch (error) {
+            console.error("Error reporting item:", error);
+            toast({ variant: "destructive", title: "신고 실패", description: "상품 신고 중 오류가 발생했습니다."});
+        } finally {
+            setIsReporting(false);
+        }
+    };
+    
+    const handleClearReport = async () => {
+        if (!reportedItemDetails || !isTeacher) return;
+        try {
+            const itemRef = doc(db, 'class-store-items', reportedItemDetails.id);
+            await updateDoc(itemRef, { report: null });
+            toast({ title: '신고 해제 완료', description: `'${reportedItemDetails.name}' 상품의 신고가 해제되었습니다.` });
+            setReportedItemDetails(null);
+        } catch (error) {
+            console.error("Error clearing report:", error);
+            toast({ variant: 'destructive', title: '오류', description: '신고 해제 중 오류가 발생했습니다.'});
+        }
+    }
+    
+    const handleItemClick = (item: ClassStoreItem) => {
+        if (isTeacher && item.report) {
+            setReportedItemDetails(item);
+        } else {
+            setSelectedItemForDescription(item);
+        }
+    }
 
 
   if (isLoading) {
@@ -615,37 +654,43 @@ export default function MyClassPage() {
                                             <TableHead>판매자</TableHead>
                                             <TableHead className="text-center">수량</TableHead>
                                             <TableHead className="text-right">가격 (포인트)</TableHead>
-                                            <TableHead className="w-[100px] text-center">동작</TableHead>
+                                            <TableHead className="w-[120px] text-center">동작</TableHead>
                                           </TableRow>
                                         </TableHeader>
                                         <TableBody>
                                           {classStoreItems.map((item) => (
-                                            <TableRow key={item.id}>
+                                            <TableRow key={item.id} className={cn(item.report && 'bg-destructive/10')}>
                                               <TableCell 
                                                 className="font-medium cursor-pointer hover:underline"
-                                                onClick={() => setSelectedItemForDescription(item)}
+                                                onClick={() => handleItemClick(item)}
                                               >
-                                                {item.name}
+                                                <div className="flex items-center gap-2">
+                                                  {item.report && <AlertTriangle className="w-4 h-4 text-destructive" />}
+                                                  {item.name}
+                                                </div>
                                               </TableCell>
                                               <TableCell>{item.sellerName || item.sellerNickname}</TableCell>
                                               <TableCell className="text-center">{item.quantity}</TableCell>
                                               <TableCell className="text-right font-bold text-primary">{item.price.toLocaleString()}</TableCell>
-                                              <TableCell className="text-center">
-                                                {isTeacher || item.sellerId === user?.uid ? (
-                                                  <Button
-                                                    variant="destructive"
-                                                    size="sm"
-                                                    onClick={() => setDeleteCandidate(item)}
-                                                  >
-                                                    <Trash2 className="w-4 h-4" />
-                                                  </Button>
-                                                ) : (
+                                              <TableCell className="text-center space-x-2">
+                                                {item.sellerId !== user?.uid && !isTeacher && (
                                                   <Button 
                                                     size="sm" 
-                                                    disabled={!!isBuying}
+                                                    disabled={!!isBuying || !!item.report}
                                                     onClick={() => handleBuyItem(item)}
+                                                    title={item.report ? '신고된 상품은 구매할 수 없습니다.' : ''}
                                                   >
                                                     {isBuying === item.id ? <Loader2 className="w-4 h-4 animate-spin"/> : '구매'}
+                                                  </Button>
+                                                )}
+                                                 {item.sellerId !== user?.uid && !isTeacher && !item.report && (
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8"
+                                                    onClick={() => setReportCandidate(item)}
+                                                  >
+                                                    <AlertTriangle className="w-4 h-4" />
                                                   </Button>
                                                 )}
                                               </TableCell>
@@ -836,21 +881,67 @@ export default function MyClassPage() {
         </AlertDialogContent>
     </AlertDialog>
 
-    {/* Delete Item Confirmation Dialog */}
-    <AlertDialog open={!!deleteCandidate} onOpenChange={(isOpen) => !isOpen && setDeleteCandidate(null)}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>정말 이 상품을 삭제하시겠습니까?</AlertDialogTitle>
-          <AlertDialogDescription>
-            '{deleteCandidate?.name}' 상품을 매장에서 영구적으로 삭제합니다. 이 작업은 되돌릴 수 없습니다.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>취소</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDeleteItem} className="bg-destructive hover:bg-destructive/90">삭제</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    {/* Report Item Dialog */}
+    <Dialog open={!!reportCandidate} onOpenChange={(isOpen) => {if(!isOpen) { setReportCandidate(null); setReportReason('')}}}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>상품 신고하기: {reportCandidate?.name}</DialogTitle>
+                <DialogDescription>
+                    부적절하거나 규칙에 어긋나는 상품이라고 생각되면 신고해주세요. 신고 내용은 선생님만 확인할 수 있습니다.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+                <Textarea 
+                    placeholder="신고 사유를 구체적으로 입력해주세요."
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                />
+            </div>
+            <DialogFooter>
+                 <Button variant="ghost" onClick={() => {setReportCandidate(null); setReportReason('')}}>취소</Button>
+                <Button onClick={handleReportItem} disabled={isReporting || !reportReason.trim()}>
+                    {isReporting ? <Loader2 className="w-4 h-4 animate-spin"/> : '제출하기'}
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+    
+    {/* Reported Item Details Dialog (for teacher) */}
+    <Dialog open={!!reportedItemDetails} onOpenChange={(isOpen) => !isOpen && setReportedItemDetails(null)}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive"/>신고된 상품 정보</DialogTitle>
+                <DialogDescription>
+                    '{reportedItemDetails?.name}' 상품에 대한 신고 내역입니다.
+                </DialogDescription>
+            </DialogHeader>
+            {reportedItemDetails?.report && (
+                 <div className="py-4 space-y-4">
+                    <div className="space-y-1">
+                        <h4 className="font-semibold">신고자</h4>
+                        <p className="text-sm text-muted-foreground">{reportedItemDetails.report.reporterName}</p>
+                    </div>
+                     <div className="space-y-1">
+                        <h4 className="font-semibold">신고 사유</h4>
+                        <p className="text-sm p-3 bg-muted rounded-md whitespace-pre-wrap">{reportedItemDetails.report.reason}</p>
+                    </div>
+                     <div className="space-y-1">
+                        <h4 className="font-semibold">신고 시간</h4>
+                        <p className="text-sm text-muted-foreground">
+                            {new Date(reportedItemDetails.report.reportedAt.toDate()).toLocaleString()}
+                        </p>
+                    </div>
+                 </div>
+            )}
+            <DialogFooter>
+                <Button variant="ghost" onClick={() => setReportedItemDetails(null)}>닫기</Button>
+                <Button onClick={handleClearReport}>
+                    <ShieldCheck className="mr-2 h-4 w-4"/> 신고 해제하기
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
 
     {/* Student Details Dialog */}
     <Dialog open={!!selectedStudent} onOpenChange={(isOpen) => !isOpen && setSelectedStudent(null)}>
