@@ -105,7 +105,6 @@ export default function GamePage() {
   const [currentPoints, setCurrentPoints] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');
   const [showHint, setShowHint] = useState(false);
-  const [spectatorAnswerResult, setSpectatorAnswerResult] = useState<{isCorrect: boolean, correctAnswer: string} | null>(null);
   const [answeredQuestions, setAnsweredQuestions] = useState<Record<number, boolean>>({});
   
   const isMyTurn = gameRoom?.currentTurn === user?.uid;
@@ -307,7 +306,6 @@ export default function GamePage() {
             setCurrentPoints(points);
             setShowHint(false);
             setUserAnswer(''); // Reset local answer
-            setSpectatorAnswerResult(null);
             setCurrentQuestionInfo({ question: block.question, blockId: block.id });
           }
         } else if (block.type === 'mystery') {
@@ -459,7 +457,6 @@ export default function GamePage() {
       setShowMysteryBoxPopup(false);
       setPlayerForSwap(null);
       setUserAnswer('');
-      setSpectatorAnswerResult(null);
     }
     if (showMysteryChoicePopup) {
       setShowMysteryChoicePopup(false);
@@ -554,11 +551,6 @@ export default function GamePage() {
         }, 5000); // 5초 후에 Firestore 업데이트 및 다이얼로그 닫기
     } else { // Spectator answer
         setIsSubmitting(true);
-        setSpectatorAnswerResult({
-            isCorrect: isCorrect,
-            correctAnswer: currentQuestion.answer || currentQuestion.correctAnswer || '',
-        });
-        
         if (isCorrect) {
             const roomRef = doc(db, 'game-rooms', gameRoomId);
             await updateDoc(roomRef, {
@@ -1211,7 +1203,7 @@ export default function GamePage() {
                 )}
             </DialogHeader>
             
-            {isMyTurn && answerResult ? (
+            {answerResult ? (
                 <div className="py-4 text-center space-y-4">
                     {answerResult.isCorrect ? (
                         <div className="flex flex-col items-center gap-2 text-green-600">
@@ -1231,22 +1223,6 @@ export default function GamePage() {
                                 <p>내가 제출한 답: <span className="font-semibold">{answerResult.userAnswer}</span></p>
                                 <p>정답: <span className="font-semibold">{answerResult.correctAnswer}</span></p>
                             </div>
-                        </div>
-                    )}
-                </div>
-            ) : !isMyTurn && spectatorAnswerResult ? (
-                 <div className="py-4 text-center space-y-4">
-                    {spectatorAnswerResult.isCorrect ? (
-                        <div className="flex flex-col items-center gap-2 text-green-600">
-                            <CheckCircle className="w-20 h-20" />
-                            <p className="text-2xl font-bold">정답입니다!</p>
-                            <p className="text-muted-foreground">게임 종료 후 보너스 점수가 지급됩니다.</p>
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center gap-2 text-destructive">
-                            <XCircle className="w-20 h-20" />
-                            <p className="text-2xl font-bold">오답입니다...</p>
-                            <p>정답: <span className="font-semibold">{spectatorAnswerResult.correctAnswer}</span></p>
                         </div>
                     )}
                 </div>
@@ -1304,16 +1280,16 @@ export default function GamePage() {
                         </div>
                     </div>
                     
+                    <Button className="w-full mt-4" onClick={handleSubmitAnswer} disabled={isSubmitting || !userAnswer || answeredQuestions[currentQuestionInfo.blockId]}>
+                        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
+                    </Button>
+                    
                     {gameRoom?.timeLimit && gameRoom.timeLimit > 0 && currentQuestionInfo && !answerResult && (
                         <div className="mt-4 space-y-1">
                             <Progress value={timeProgress} className="h-2" />
                             <p className="text-sm text-muted-foreground text-center">남은 시간: {Math.ceil(timeRemaining / 1000)}초</p>
                         </div>
                     )}
-                    
-                    <Button className="w-full mt-4" onClick={handleSubmitAnswer} disabled={isSubmitting || !userAnswer || answeredQuestions[currentQuestionInfo.blockId]}>
-                        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
-                    </Button>
                 </>
             )}
         </DialogContent>
@@ -1425,5 +1401,3 @@ export default function GamePage() {
     </>
   );
 }
-
-    
