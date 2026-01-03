@@ -1203,7 +1203,7 @@ export default function GamePage() {
                 )}
             </DialogHeader>
             
-            {answerResult ? (
+            {answerResult && isMyTurn ? (
                 <div className="py-4 text-center space-y-4">
                     {answerResult.isCorrect ? (
                         <div className="flex flex-col items-center gap-2 text-green-600">
@@ -1242,7 +1242,7 @@ export default function GamePage() {
                                     placeholder="정답을 입력하세요" 
                                     value={userAnswer}
                                     onChange={(e) => setUserAnswer(e.target.value)}
-                                    disabled={isSubmitting || answeredQuestions[currentQuestionInfo.blockId]}
+                                    disabled={isSubmitting || (currentQuestionInfo && answeredQuestions[currentQuestionInfo.blockId])}
                                 />
                             )}
                             {currentQuestionInfo?.question?.type === 'multipleChoice' && currentQuestionInfo?.question.options && (
@@ -1250,7 +1250,7 @@ export default function GamePage() {
                                   value={userAnswer} 
                                   onValueChange={setUserAnswer} 
                                   className="space-y-2" 
-                                  disabled={isSubmitting || answeredQuestions[currentQuestionInfo.blockId]}
+                                  disabled={isSubmitting || (currentQuestionInfo && answeredQuestions[currentQuestionInfo.blockId])}
                                 >
                                     {currentQuestionInfo.question.options.map((option, index) => (
                                         <div key={index} className="flex items-center space-x-2">
@@ -1265,7 +1265,7 @@ export default function GamePage() {
                                   value={userAnswer} 
                                   onValueChange={setUserAnswer} 
                                   className="grid grid-cols-2 gap-4" 
-                                  disabled={isSubmitting || answeredQuestions[currentQuestionInfo.blockId]}
+                                  disabled={isSubmitting || (currentQuestionInfo && answeredQuestions[currentQuestionInfo.blockId])}
                                 >
                                     <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'O' && 'border-primary bg-primary/10')}>
                                         <RadioGroupItem value="O" id="option-o" className="sr-only"/>
@@ -1280,7 +1280,7 @@ export default function GamePage() {
                         </div>
                     </div>
                     
-                    <Button className="w-full mt-4" onClick={handleSubmitAnswer} disabled={isSubmitting || !userAnswer || answeredQuestions[currentQuestionInfo.blockId]}>
+                    <Button className="w-full mt-4" onClick={handleSubmitAnswer} disabled={isSubmitting || !userAnswer || !currentQuestionInfo || answeredQuestions[currentQuestionInfo.blockId]}>
                         {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
                     </Button>
                     
