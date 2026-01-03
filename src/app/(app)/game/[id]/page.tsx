@@ -105,6 +105,8 @@ export default function GamePage() {
   const [currentPoints, setCurrentPoints] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');
   const [showHint, setShowHint] = useState(false);
+  const [spectatorAnswerResult, setSpectatorAnswerResult] = useState<{isCorrect: boolean, correctAnswer: string} | null>(null);
+  const [answeredQuestions, setAnsweredQuestions] = useState<Record<number, boolean>>({});
   
   const isMyTurn = gameRoom?.currentTurn === user?.uid;
   
@@ -130,7 +132,7 @@ export default function GamePage() {
   const unsubscribeRef = useRef<() => void | undefined>();
   
   const handleTimeOut = useCallback(() => {
-    if (gameRoom?.joinType === 'local' || isMyTurn) {
+    if (isMyTurn) {
       toast({
         variant: 'destructive',
         title: '시간 초과!',
@@ -138,6 +140,7 @@ export default function GamePage() {
       });
       // A simplified version of submit answer for timeout
       if (currentQuestionInfo) {
+        if (!gameRoom) return;
         const result: AnswerResult = {
           isCorrect: false,
           userAnswer: '시간 초과',
@@ -304,6 +307,7 @@ export default function GamePage() {
             setCurrentPoints(points);
             setShowHint(false);
             setUserAnswer(''); // Reset local answer
+            setSpectatorAnswerResult(null);
             setCurrentQuestionInfo({ question: block.question, blockId: block.id });
           }
         } else if (block.type === 'mystery') {
@@ -377,8 +381,7 @@ export default function GamePage() {
   const handleMysteryBoxChoice = async (chosenEffect: MysteryEffect) => {
     if (!gameRoom || typeof gameRoomId !== 'string') return;
     
-    const canAct = gameRoom.joinType === 'local' || isMyTurn;
-    if (!canAct) return;
+    if (!isMyTurn) return;
 
     setShowMysteryChoicePopup(false);
 
@@ -419,7 +422,9 @@ export default function GamePage() {
 
   const handleShowHint = () => {
     setShowHint(true);
-    setCurrentPoints(prev => Math.floor(prev / 2));
+    if (isMyTurn) {
+      setCurrentPoints(prev => Math.floor(prev / 2));
+    }
   };
 
   const getNextTurnUID = (): string => {
@@ -454,6 +459,7 @@ export default function GamePage() {
       setShowMysteryBoxPopup(false);
       setPlayerForSwap(null);
       setUserAnswer('');
+      setSpectatorAnswerResult(null);
     }
     if (showMysteryChoicePopup) {
       setShowMysteryChoicePopup(false);
@@ -465,97 +471,113 @@ export default function GamePage() {
       toast({ variant: 'destructive', title: '오류', description: '답변을 선택하거나 입력해주세요.'});
       return;
     }
-     const canAct = gameRoom.joinType === 'local' || isMyTurn;
-     if (!canAct) return;
-
-    if (timerRef.current) clearInterval(timerRef.current);
 
     const currentQuestion = currentQuestionInfo.question;
-
-    setIsSubmitting(true);
-
     const isCorrect = (currentQuestion.type === 'subjective' && userAnswer.trim().toLowerCase() === currentQuestion.answer?.trim().toLowerCase())
       || (currentQuestion.type !== 'subjective' && userAnswer === currentQuestion.correctAnswer);
 
-    const pointsToAward = isCorrect ? currentPoints : 0;
-    
-    const result: AnswerResult = {
-        isCorrect: isCorrect,
-        userAnswer: userAnswer,
-        correctAnswer: currentQuestion.answer || currentQuestion.correctAnswer || '',
-        pointsAwarded: pointsToAward,
-    };
-    
-    const roomRef = doc(db, 'game-rooms', gameRoomId);
-    await updateDoc(roomRef, { currentAnswerResult: result, questionStartTime: null });
+    if (isMyTurn) {
+        if (timerRef.current) clearInterval(timerRef.current);
+        setIsSubmitting(true);
+        const pointsToAward = isCorrect ? currentPoints : 0;
+        
+        const result: AnswerResult = {
+            isCorrect: isCorrect,
+            userAnswer: userAnswer,
+            correctAnswer: currentQuestion.answer || currentQuestion.correctAnswer || '',
+            pointsAwarded: pointsToAward,
+        };
+        
+        const roomRef = doc(db, 'game-rooms', gameRoomId);
+        await updateDoc(roomRef, { currentAnswerResult: result, questionStartTime: null });
 
 
-    setTimeout(async () => {
-        try {
-            await runTransaction(db, async (transaction) => {
-              const roomDoc = await transaction.get(roomRef);
-              if (!roomDoc.exists()) {
-                  throw "Game room not found.";
-              }
-              const currentRoomData = roomDoc.data() as GameRoom;
+        setTimeout(async () => {
+            try {
+                await runTransaction(db, async (transaction) => {
+                  const roomDoc = await transaction.get(roomRef);
+                  if (!roomDoc.exists()) {
+                      throw "Game room not found.";
+                  }
+                  const currentRoomData = roomDoc.data() as GameRoom;
 
-              const newLogEntry: AnswerLog = {
-                  id: uuidv4(),
-                  userId: currentRoomData.currentTurn,
-                  question: currentQuestion,
-                  userAnswer: userAnswer,
-                  isCorrect: isCorrect,
-                  pointsAwarded: pointsToAward,
-                  timestamp: Timestamp.now(),
-              };
-              
-              const newGameState: GameRoom['gameState'] = {...currentRoomData.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
-              
-              const totalQuestions = gameSet.questions.length;
-              const mysteryBlockCount = currentRoomData.mysteryBoxEnabled ? Math.round(totalQuestions * 0.3) : 0;
-              const totalBlocks = totalQuestions + mysteryBlockCount;
-              const allAnswered = Object.keys(newGameState).length >= totalBlocks;
-              
-              const updateData: Partial<GameRoom> = {
-                  answerLogs: [...(currentRoomData.answerLogs || []), newLogEntry], 
-                  gameState: newGameState,
-                  currentAnswerResult: null,
-              };
-              
-              if (allAnswered) {
-                updateData.status = 'finished';
-              } else {
-                updateData.currentTurn = getNextTurnUID();
-              }
-              
-              if (!isCorrect) {
-                const incorrectLogData: IncorrectAnswer = {
-                    id: uuidv4(),
-                    userId: currentRoomData.currentTurn,
-                    question: currentQuestion,
-                    userAnswer: userAnswer,
-                    timestamp: new Date(),
-                };
-                const incorrectLogRef = doc(db, 'users', currentRoomData.currentTurn, 'incorrect-answers', incorrectLogData.id);
-                transaction.set(incorrectLogRef, incorrectLogData);
-              }
+                  const newLogEntry: AnswerLog = {
+                      id: uuidv4(),
+                      userId: currentRoomData.currentTurn,
+                      question: currentQuestion,
+                      userAnswer: userAnswer,
+                      isCorrect: isCorrect,
+                      pointsAwarded: pointsToAward,
+                      timestamp: Timestamp.now(),
+                  };
+                  
+                  const newGameState: GameRoom['gameState'] = {...currentRoomData.gameState, [String(currentQuestionInfo.blockId)]: 'answered'};
+                  
+                  const totalQuestions = gameSet.questions.length;
+                  const mysteryBlockCount = currentRoomData.mysteryBoxEnabled ? Math.round(totalQuestions * 0.3) : 0;
+                  const totalBlocks = totalQuestions + mysteryBlockCount;
+                  const allAnswered = Object.keys(newGameState).length >= totalBlocks;
+                  
+                  const updateData: Partial<GameRoom> = {
+                      answerLogs: [...(currentRoomData.answerLogs || []), newLogEntry], 
+                      gameState: newGameState,
+                      currentAnswerResult: null,
+                  };
+                  
+                  if (allAnswered) {
+                    updateData.status = 'finished';
+                  } else {
+                    updateData.currentTurn = getNextTurnUID();
+                  }
+                  
+                  if (!isCorrect) {
+                    const incorrectLogData: IncorrectAnswer = {
+                        id: uuidv4(),
+                        userId: currentRoomData.currentTurn,
+                        question: currentQuestion,
+                        userAnswer: userAnswer,
+                        timestamp: new Date(),
+                    };
+                    const incorrectLogRef = doc(db, 'users', currentRoomData.currentTurn, 'incorrect-answers', incorrectLogData.id);
+                    transaction.set(incorrectLogRef, incorrectLogData);
+                  }
 
-              transaction.update(roomRef, updateData as any);
+                  transaction.update(roomRef, updateData as any);
+                });
+                
+            } catch(error: any) {
+                 toast({variant: 'destructive', title: '오류', description: `답변 제출 중 오류가 발생했습니다: ${error.message}`});
+            } finally {
+                setIsSubmitting(false);
+                setAnsweredQuestions(prev => ({...prev, [currentQuestionInfo.blockId]: true}));
+            }
+        }, 5000); // 5초 후에 Firestore 업데이트 및 다이얼로그 닫기
+    } else { // Spectator answer
+        setIsSubmitting(true);
+        setSpectatorAnswerResult({
+            isCorrect: isCorrect,
+            correctAnswer: currentQuestion.answer || currentQuestion.correctAnswer || '',
+        });
+        
+        if (isCorrect) {
+            const roomRef = doc(db, 'game-rooms', gameRoomId);
+            await updateDoc(roomRef, {
+                [`bonusPoints.${user.uid}`]: increment(10)
             });
-            
-        } catch(error: any) {
-             toast({variant: 'destructive', title: '오류', description: `답변 제출 중 오류가 발생했습니다: ${error.message}`});
-        } finally {
-            setIsSubmitting(false);
+            toast({ title: "정답!", description: "게임 종료 후 보너스 점수가 지급됩니다." });
+        } else {
+             toast({ variant: "destructive", title: "오답", description: "아쉽지만 오답입니다." });
         }
-    }, 5000); // 5초 후에 Firestore 업데이트 및 다이얼로그 닫기
+        
+        setAnsweredQuestions(prev => ({...prev, [currentQuestionInfo.blockId]: true}));
+        setIsSubmitting(false);
+    }
   }
 
 
   const handleMysteryEffect = async () => {
     if (!gameRoom?.currentMysteryEffect || !gameRoom || typeof gameRoomId !== 'string' || !gameSet || !user) return;
-    const canAct = gameRoom.joinType === 'local' || isMyTurn;
-    if (!canAct) return;
+    if (!isMyTurn) return;
   
     setIsSubmitting(true);
     
@@ -680,7 +702,7 @@ export default function GamePage() {
 
   const handleConfirmMysterySettings = async () => {
     if (!gameRoom || typeof gameRoomId !== 'string' || !user) return;
-    const canConfirm = gameRoom.joinType === 'local' || user.uid === gameRoom.hostId;
+    const canConfirm = user.uid === gameRoom.hostId;
     if (!canConfirm) return;
 
     setIsSubmitting(true);
@@ -810,6 +832,10 @@ export default function GamePage() {
                     totalXpGained += log.pointsAwarded;
                  }
             });
+            
+            const bonusPoints = gameRoom.bonusPoints?.[uid] || 0;
+            totalXpGained += bonusPoints;
+
 
             if (totalXpGained !== 0) {
                 batch.update(userRef, {
@@ -948,10 +974,8 @@ export default function GamePage() {
                   <h2 className="text-2xl font-bold font-headline">
                       {gameRoom.status === 'setting-mystery' && !gameRoom.isMysterySettingDone ? (
                           <span>미스터리 박스 설정을 기다리는 중...</span>
-                      ) : gameRoom.joinType === 'local' ? (
-                          <span><span className="text-primary">{currentTurnPlayer?.nickname || ''}</span>님, 박스를 선택하여 문제를 풀어보세요!</span>
                       ) : isMyTurn ? (
-                          <span className="text-primary">내 차례입니다!</span>
+                          <span className="text-primary">내 차례입니다! 박스를 선택하여 문제를 풀어보세요!</span>
                       ) : (
                           <span><span className="text-primary">{currentTurnPlayer?.nickname || ''}</span>님의 차례입니다!</span>
                       )}
@@ -1058,7 +1082,7 @@ export default function GamePage() {
           </DialogHeader>
           <div className="flex justify-center items-center gap-4 sm:gap-8 py-8">
             {mysteryOptions.map((option, index) => {
-                const canClick = gameRoom?.joinType === 'local' || isMyTurn;
+                const canClick = isMyTurn;
                 return (
                   <div 
                     key={index} 
@@ -1150,7 +1174,7 @@ export default function GamePage() {
                   })}
               </div>
               <DialogFooter>
-                  {(gameRoom?.joinType === 'local' || isHost) && (
+                  {(isHost) && (
                       <Button onClick={handleConfirmMysterySettings} disabled={isSubmitting}>
                          {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin"/> : null}
                           설정 완료 및 게임 시작
@@ -1162,21 +1186,23 @@ export default function GamePage() {
 
 
       {/* Question Popup */}
-      <Dialog open={!!gameRoom?.currentAnswerResult || !!currentQuestionInfo} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
+      <Dialog open={!!currentQuestionInfo} onOpenChange={(isOpen) => !isOpen && handleCloseDialogs()}>
         <DialogContent className="max-w-2xl">
             <DialogHeader>
                 <div className="flex justify-between items-center">
                     <DialogTitle className="font-headline text-2xl flex items-center gap-2">
                         질문
-                        <span className="flex items-center gap-1 font-semibold text-primary text-base">
-                            <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
-                            {currentPoints}점
-                        </span>
+                        {isMyTurn && (
+                            <span className="flex items-center gap-1 font-semibold text-primary text-base">
+                                <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
+                                {currentPoints}점
+                            </span>
+                        )}
                     </DialogTitle>
                     {currentQuestionInfo?.question.hint && !showHint && (
-                        <Button variant="outline" size="sm" onClick={handleShowHint} disabled={isSubmitting || (gameRoom?.joinType === 'remote' && !isMyTurn)}>
+                        <Button variant="outline" size="sm" onClick={handleShowHint} disabled={isSubmitting}>
                             <Lightbulb className="w-4 h-4 mr-2" />
-                            힌트 보기 (점수 절반)
+                            힌트 보기 {isMyTurn && '(점수 절반)'}
                         </Button>
                     )}
                 </div>
@@ -1185,7 +1211,7 @@ export default function GamePage() {
                 )}
             </DialogHeader>
             
-            {answerResult ? (
+            {isMyTurn && answerResult ? (
                 <div className="py-4 text-center space-y-4">
                     {answerResult.isCorrect ? (
                         <div className="flex flex-col items-center gap-2 text-green-600">
@@ -1208,6 +1234,22 @@ export default function GamePage() {
                         </div>
                     )}
                 </div>
+            ) : !isMyTurn && spectatorAnswerResult ? (
+                 <div className="py-4 text-center space-y-4">
+                    {spectatorAnswerResult.isCorrect ? (
+                        <div className="flex flex-col items-center gap-2 text-green-600">
+                            <CheckCircle className="w-20 h-20" />
+                            <p className="text-2xl font-bold">정답입니다!</p>
+                            <p className="text-muted-foreground">게임 종료 후 보너스 점수가 지급됩니다.</p>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center gap-2 text-destructive">
+                            <XCircle className="w-20 h-20" />
+                            <p className="text-2xl font-bold">오답입니다...</p>
+                            <p>정답: <span className="font-semibold">{spectatorAnswerResult.correctAnswer}</span></p>
+                        </div>
+                    )}
+                </div>
             ) : (
                 <>
                     <div className="py-4 space-y-6">
@@ -1224,7 +1266,7 @@ export default function GamePage() {
                                     placeholder="정답을 입력하세요" 
                                     value={userAnswer}
                                     onChange={(e) => setUserAnswer(e.target.value)}
-                                    disabled={isSubmitting || (gameRoom?.joinType === 'remote' && !isMyTurn)}
+                                    disabled={isSubmitting || answeredQuestions[currentQuestionInfo.blockId]}
                                 />
                             )}
                             {currentQuestionInfo?.question?.type === 'multipleChoice' && currentQuestionInfo?.question.options && (
@@ -1232,7 +1274,7 @@ export default function GamePage() {
                                   value={userAnswer} 
                                   onValueChange={setUserAnswer} 
                                   className="space-y-2" 
-                                  disabled={isSubmitting || (gameRoom?.joinType === 'remote' && !isMyTurn)}
+                                  disabled={isSubmitting || answeredQuestions[currentQuestionInfo.blockId]}
                                 >
                                     {currentQuestionInfo.question.options.map((option, index) => (
                                         <div key={index} className="flex items-center space-x-2">
@@ -1247,7 +1289,7 @@ export default function GamePage() {
                                   value={userAnswer} 
                                   onValueChange={setUserAnswer} 
                                   className="grid grid-cols-2 gap-4" 
-                                  disabled={isSubmitting || (gameRoom?.joinType === 'remote' && !isMyTurn)}
+                                  disabled={isSubmitting || answeredQuestions[currentQuestionInfo.blockId]}
                                 >
                                     <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'O' && 'border-primary bg-primary/10')}>
                                         <RadioGroupItem value="O" id="option-o" className="sr-only"/>
@@ -1262,14 +1304,14 @@ export default function GamePage() {
                         </div>
                     </div>
                     
-                    {gameRoom?.timeLimit && gameRoom.timeLimit > 0 && currentQuestionInfo && (
+                    {gameRoom?.timeLimit && gameRoom.timeLimit > 0 && currentQuestionInfo && !answerResult && (
                         <div className="mt-4 space-y-1">
                             <Progress value={timeProgress} className="h-2" />
                             <p className="text-sm text-muted-foreground text-center">남은 시간: {Math.ceil(timeRemaining / 1000)}초</p>
                         </div>
                     )}
                     
-                    <Button className="w-full mt-4" onClick={handleSubmitAnswer} disabled={isSubmitting || ((gameRoom?.joinType === 'remote' && !isMyTurn) || !userAnswer)}>
+                    <Button className="w-full mt-4" onClick={handleSubmitAnswer} disabled={isSubmitting || !userAnswer || answeredQuestions[currentQuestionInfo.blockId]}>
                         {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
                     </Button>
                 </>
@@ -1297,7 +1339,7 @@ export default function GamePage() {
                   {mysteryBoxEffect?.type === 'swap' && (
                     <div className="text-left space-y-2">
                       <Label className="font-semibold">바꿀 플레이어 선택:</Label>
-                      <RadioGroup value={playerForSwap || ''} onValueChange={setPlayerForSwap} className="space-y-2" disabled={isSubmitting || (gameRoom?.joinType === 'remote' && !isMyTurn)}>
+                      <RadioGroup value={playerForSwap || ''} onValueChange={setPlayerForSwap} className="space-y-2" disabled={isSubmitting || !isMyTurn}>
                           {players.filter(p => p.uid !== gameRoom?.currentTurn).map((player) => {
                              let pixelAvatarData = null;
                               if (player.pixelAvatar) {
@@ -1318,7 +1360,7 @@ export default function GamePage() {
                     </div>
                   )}
               </div>
-              {(gameRoom?.joinType === 'local' || isMyTurn) && (
+              {(isMyTurn) && (
                 <Button className="w-full" onClick={handleMysteryEffect} disabled={isSubmitting || (mysteryBoxEffect?.type === 'swap' && !playerForSwap)}>
                     {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "효과 적용"}
                 </Button>

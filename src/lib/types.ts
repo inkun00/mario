@@ -138,6 +138,7 @@ export interface GameRoom {
   currentAnswerResult?: AnswerResult | null;
   currentMysteryEffect?: MysteryEffect | null;
   joinRequests?: string[];
+  bonusPoints?: Record<string, number>; // Key: userId, Value: total bonus points
 }
 
 export interface CorrectAnswer {
