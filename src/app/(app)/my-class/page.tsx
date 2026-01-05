@@ -62,13 +62,13 @@ interface EmojiSelectorProps {
 const EmojiSelector = React.memo(function EmojiSelector({ value, onChange }: EmojiSelectorProps) {
     return (
         <ScrollArea className="h-48">
-            <div className="grid grid-cols-8 gap-1">
+             <div className="grid grid-cols-8 gap-1">
                 {Object.entries(emojiCategories).map(([category, emojis]) => (
                     <React.Fragment key={category}>
                         <div className="col-span-8 text-sm font-medium text-muted-foreground pt-2">{category}</div>
-                        {emojis.map((emoji, index) => (
+                        {emojis.map((emoji) => (
                            <div
-                              key={`emoji-${category}-${index}`}
+                              key={emoji}
                               onClick={() => onChange(emoji)}
                               className={cn(
                                 "text-2xl p-2 rounded-md cursor-pointer transition-all flex items-center justify-center aspect-square",
@@ -181,10 +181,10 @@ export default function MyClassPage() {
                         setClassMembers([currentUserData, ...members].sort((a, b) => b.xp - a.xp));
                     });
                 } else {
-                    const teacherQuery = query(collection(db, 'users'), where('uid', '==', targetClassId));
-                    getDocs(teacherQuery).then(teacherSnapshot => {
-                        if (!teacherSnapshot.empty) {
-                            const teacherData = { uid: teacherSnapshot.docs[0].id, ...teacherSnapshot.docs[0].data() } as User;
+                    const teacherRef = doc(db, 'users', targetClassId);
+                    onSnapshot(teacherRef, (teacherSnapshot) => {
+                        if (teacherSnapshot.exists()) {
+                            const teacherData = { uid: teacherSnapshot.id, ...teacherSnapshot.data() } as User;
                             setTeacher(teacherData);
                             if (unsubscribeMembers) unsubscribeMembers();
                             unsubscribeMembers = onSnapshot(membersQuery, (snapshot) => {
@@ -592,7 +592,6 @@ export default function MyClassPage() {
 
           if (!item || item.quantity < actionQuantity) throw "상품 수량이 부족합니다.";
           
-          const batch = writeBatch(db);
 
           switch (itemAction) {
               case 'use':
@@ -712,8 +711,7 @@ export default function MyClassPage() {
 
   const isTeacher = userData.role === 'teacher';
   const hasClass = (isTeacher && userData.classCode) || (!isTeacher && userData.classId);
-  const teacherSellingItems = isTeacher ? classStoreItems.filter(item => item.sellerId === user?.uid) : [];
-  const sellingItems = isTeacher ? [] : classStoreItems.filter(item => item.sellerId === user?.uid);
+  const sellingItems = classStoreItems.filter(item => item.sellerId === user?.uid);
 
   const chartData = studentPointLogs.reduce((acc, log) => {
     if (!log.timestamp) return acc;
@@ -1418,7 +1416,7 @@ export default function MyClassPage() {
                                     <SelectValue placeholder="상품 선택..." />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {managementAction === 'sendItem' && teacherSellingItems.map(item => (
+                                    {managementAction === 'sendItem' && sellingItems.map(item => (
                                         <SelectItem key={item.id} value={item.name}>{item.name} (재고: {item.quantity})</SelectItem>
                                     ))}
                                     {managementAction === 'takeItem' && selectedStudent?.inventory && Object.keys(selectedStudent.inventory).map(itemName => (
