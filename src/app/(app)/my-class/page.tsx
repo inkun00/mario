@@ -44,13 +44,9 @@ const sellItemSchema = z.object({
 type SellItemFormValues = z.infer<typeof sellItemSchema>;
 
 const emojiCategories = {
-  '학습': ['📝', '📚', '💡', '💯', '✨', '🎁', '🎟️', '⏰', '⏳', '🔑', '🤫', '👨‍🏫', '👩‍🏫', '✅', '✔️', '🥇', '🥈', '🥉', '🏅', '🏆'],
-  '활동': ['🎨', '🎤', '🎭', '⚽', '🏀', '⚾', '🎲', '🧩', '🎮', '🪄', '🤝', '♻️', '📢', '🏃‍♂️', '🤸‍♀️', '🕺', '💃', '🙌'],
-  '서비스': ['💌', '🎉', '🙏', '😇', '😈', '💪', '💖', '👑', '💎', '🛡️', '⚔️', '🤝', '🚀', '🌟'],
-  '음식': ['🍎', '🍔', '🍕', '🍟', '🍿', '🍫', '🍬', '🍭', '🍪', '🍩', '🍦', '🥤', '🍉', '🍓', '🍑', '🥝', '🥦', '🥕'],
-  '동물': ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵'],
-  '사물': ['💰', '💣', '📦', '✉️', '📱', '💻', '🖥️', '📷', '📹', '📺', '🎸', '🎹', '🚗', '🚲', '✈️', '🎈', '✂️', '📌', '📎', '✒️', '✏️', '🖍️', '🖌️', '📏', '📐', '🧭', '🔭', '🔬', '💡', '🔦', '🔋', '🔌', '🔧', '🔨', '🔩', '⚙️', '🔫', '🏹', '🛡️', '⚔️', '🔑', '🔒', '🔓', '🔔', '📢', '📣', '📡', '🔭', '📰', '🗞️', '📚', '📖', '📕', '📗', '📘', '📙', '📓', '📔', '📒', '📑', '🔖', '🏷️', '✉️', '📧', '📨', '📤', '📥', '📦', '📫', '📪', '📬', '📭', '📮', '🧼', '🧽', '🧴', '🪥', '🦷', '🚽', '🧻', '🚿', '🛁', '🪣', '🧺', '🧦', '🧤', '🧣', '🧢', '👒', '👓', '🕶️', '☂️', '🌂'],
-  '기타': ['❓', '❗️', '➡️', '↪️', '🔄', '🆓', '➕', '➖', '➗', '✖️', '👻', '💀', '👽', '🤖', '👾', '🤡', '🤠', '🦄']
+  '간식': ['🍕', '🍔', '🍟', '🌭', '🍿', '🥨', '🍪', '🍩', '🍦', '🍰', '🍫', '🍬', '🍭', '🍮', '🍯', '🍎', '🍇', '🍉', '🍓', '🍑', '🥝', '🥤', '🧃', '🥛', '☕'],
+  '학교 및 학습': ['📚', '📖', '📝', '✏️', '🖍️', '🖌️', '✂️', '📏', '📐', '📌', '📎', '📓', '📒', '💼', '🎒', '🏫', '🔔', '⏰', '🗓️', '📋', '💯', '🏅', '🏆', '🥇', '🥈', '🥉', '🎓', '👨‍🏫', '👩‍🏫'],
+  '상업 및 서비스': ['💰', '🪙', '💵', '💳', '🧾', '🏷️', '📦', '🎁', '🎉', '💌', '💎', '👑', '🌟', '✨', '🚀', '🤝', '💪', '🙏', '😇', '😈', '💡', '🎮', '🎨', '🎯', '🪄', '♻️', '📢', '❓'],
 };
 
 export default function MyClassPage() {
@@ -841,33 +837,36 @@ export default function MyClassPage() {
                                                 <FormItem className="space-y-3">
                                                     <FormLabel>아이콘</FormLabel>
                                                     <FormControl>
-                                                        <ScrollArea className="h-96">
+                                                        <ScrollArea className="h-48">
                                                             <RadioGroup
                                                                 onValueChange={field.onChange}
                                                                 defaultValue={field.value}
-                                                                className="flex flex-wrap gap-2"
+                                                                className="grid grid-cols-8 gap-1"
                                                             >
-                                                                {Object.entries(emojiCategories).flatMap(([category, emojis]) =>
-                                                                    emojis.map((emoji, index) => {
-                                                                        const id = `emoji-${category}-${index}`;
-                                                                        return (
-                                                                            <FormItem key={id} className="flex items-center space-x-1 space-y-0">
-                                                                                <FormControl>
-                                                                                    <RadioGroupItem value={emoji} id={id} className="sr-only" />
-                                                                                </FormControl>
-                                                                                <Label
-                                                                                    htmlFor={id}
-                                                                                    className={cn(
-                                                                                        "text-2xl p-2 rounded-md cursor-pointer transition-all",
-                                                                                        field.value === emoji ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-accent"
-                                                                                    )}
-                                                                                >
-                                                                                    {emoji}
-                                                                                </Label>
-                                                                            </FormItem>
-                                                                        );
-                                                                    })
-                                                                )}
+                                                                {Object.entries(emojiCategories).map(([category, emojis]) => (
+                                                                    <React.Fragment key={category}>
+                                                                        <div className="col-span-8 text-sm font-medium text-muted-foreground pt-2">{category}</div>
+                                                                        {emojis.map((emoji, index) => {
+                                                                            const id = `emoji-${category}-${index}`;
+                                                                            return (
+                                                                                <FormItem key={id} className="flex items-center space-x-1 space-y-0">
+                                                                                    <FormControl>
+                                                                                        <RadioGroupItem value={emoji} id={id} className="sr-only" />
+                                                                                    </FormControl>
+                                                                                    <Label
+                                                                                        htmlFor={id}
+                                                                                        className={cn(
+                                                                                            "text-2xl p-2 rounded-md cursor-pointer transition-all flex items-center justify-center aspect-square",
+                                                                                            field.value === emoji ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-accent"
+                                                                                        )}
+                                                                                    >
+                                                                                        {emoji}
+                                                                                    </Label>
+                                                                                </FormItem>
+                                                                            );
+                                                                        })}
+                                                                    </React.Fragment>
+                                                                ))}
                                                             </RadioGroup>
                                                         </ScrollArea>
                                                     </FormControl>
