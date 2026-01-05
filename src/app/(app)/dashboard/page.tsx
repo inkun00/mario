@@ -526,7 +526,7 @@ export default function DashboardPage() {
     <>
       <div className="flex flex-col gap-8">
         <div>
-          <h1 className="text-3xl font-bold font-headline">안녕하세요, {user?.displayName || '게스트'}님!</h1>
+          <h1 className="text-3xl font-bold font-headline">안녕하세요, {(user && !loadingUser) ? user.displayName : '게스트'}님!</h1>
           <p className="text-muted-foreground mt-1">오늘도 즐거운 학습을 시작해볼까요?</p>
         </div>
 
@@ -1055,6 +1055,8 @@ export default function DashboardPage() {
     </>
   );
 }
+
+    
 
     
 
