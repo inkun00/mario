@@ -46,8 +46,8 @@ type SellItemFormValues = z.infer<typeof sellItemSchema>;
 const emojiCategories = {
   '학습': ['📝', '📚', '💡', '💯', '✨', '🎁', '🎟️', '⏰', '⏳', '🔑'],
   '감정': ['😀', '😍', '😎', '🎉', '🙏', '😭', '😴', '😇', '😈', '😱'],
-  '사물': ['🍎', '🍔', '💖', '👑', '💎', '💰', '💣', '🛡️', '⚔️', '📦'],
-  '기타': ['🎲', '🪄', '♻️', '❓', '❗️', '➡️', '↪️', '🔄', '🆓', '🤫']
+  '사물': ['🍎', '🍔', '💖', '👑', '💎', '💰', '💣', '🛡️', '⚔️', '📦', '🎁', '✉️', '📱', '💻', '🖥️', '📷', '📹', '📺'],
+  '기타': ['🎲', '🪄', '♻️', '❓', '❗️', '➡️', '↪️', '🔄', '🆓', '🤫', '➕', '➖', '➗', '✖️', '👻', '💀', '👽']
 };
 
 export default function MyClassPage() {
@@ -835,37 +835,43 @@ export default function MyClassPage() {
                                             control={form.control}
                                             name="emoji"
                                             render={({ field }) => (
-                                              <FormItem className="space-y-3">
-                                                <FormLabel>아이콘</FormLabel>
-                                                <FormControl>
-                                                  <RadioGroup
-                                                    onValueChange={field.onChange}
-                                                    defaultValue={field.value}
-                                                    className="flex flex-wrap gap-2"
-                                                  >
-                                                  {Object.entries(emojiCategories).flatMap(([category, emojis]) => 
-                                                    emojis.map(emoji => (
-                                                      <FormItem key={emoji} className="flex items-center space-x-1 space-y-0">
-                                                        <FormControl>
-                                                          <RadioGroupItem value={emoji} className="sr-only" />
-                                                        </FormControl>
-                                                        <Label
-                                                          className={cn(
-                                                            "text-2xl p-2 rounded-md cursor-pointer transition-all",
-                                                            field.value === emoji ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-accent"
-                                                          )}
-                                                        >
-                                                          {emoji}
-                                                        </Label>
-                                                      </FormItem>
-                                                    ))
-                                                  )}
-                                                  </RadioGroup>
-                                                </FormControl>
-                                                <FormMessage />
-                                              </FormItem>
+                                                <FormItem className="space-y-3">
+                                                    <FormLabel>아이콘</FormLabel>
+                                                    <FormControl>
+                                                        <ScrollArea className="h-24">
+                                                            <RadioGroup
+                                                                onValueChange={field.onChange}
+                                                                defaultValue={field.value}
+                                                                className="flex flex-wrap gap-2"
+                                                            >
+                                                                {Object.entries(emojiCategories).flatMap(([category, emojis]) =>
+                                                                    emojis.map(emoji => {
+                                                                        const id = `emoji-${emoji}`;
+                                                                        return (
+                                                                            <FormItem key={id} className="flex items-center space-x-1 space-y-0">
+                                                                                <FormControl>
+                                                                                    <RadioGroupItem value={emoji} id={id} className="sr-only" />
+                                                                                </FormControl>
+                                                                                <Label
+                                                                                    htmlFor={id}
+                                                                                    className={cn(
+                                                                                        "text-2xl p-2 rounded-md cursor-pointer transition-all",
+                                                                                        field.value === emoji ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-accent"
+                                                                                    )}
+                                                                                >
+                                                                                    {emoji}
+                                                                                </Label>
+                                                                            </FormItem>
+                                                                        );
+                                                                    })
+                                                                )}
+                                                            </RadioGroup>
+                                                        </ScrollArea>
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                </FormItem>
                                             )}
-                                          />
+                                        />
                                           <FormField
                                               control={form.control}
                                               name="price"
