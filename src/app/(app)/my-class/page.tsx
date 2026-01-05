@@ -6,7 +6,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe, runTransaction, updateDoc, deleteDoc, increment, orderBy, writeBatch } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import type { User, ClassStoreItem, ItemBuyer, ItemReport, PointLog } from '@/lib/types';
+import type { User, ClassStoreItem, ItemBuyer, ItemReport, PointLog, PointAcquisitionRule } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -47,10 +47,10 @@ type SellItemFormValues = z.infer<typeof sellItemSchema>;
 
 const emojiCategories = {
   '간식': ['🍕', '🍔', '🍟', '🌭', '🍿', '🥨', '🍪', '🍩', '🍦', '🍰', '🍫', '🍬', '🍭', '🍮', '🍯', '🍎', '🍇', '🍉', '🍓', '🍑', '🥝', '🥤', '🧃', '🥛', '☕'],
-  '학교 및 학습': ['📝', '✏️', '🖍️', '🖌️', '✂️', '📏', '📐', '📌', '📎', '📓', '📒', '💼', '🎒', '🏫', '🔔', '⏰', '🗓️', '📋', '💯', '🏅', '🏆', '🥇', '🥈', '🥉', '🎓', '👨‍🏫', '👩‍🏫', '✨', '🎁', '🎟️', '🤫', '✅', '✔️'],
-  '상업 및 서비스': ['💰', '🪙', '💵', '💳', '🧾', '🏷️', '🎉', '💌', '💎', '👑', '🌟', '🚀', '🤝', '💪', '🙏', '😇', '😈'],
+  '학교 및 학습': ['📚', '📖', '📝', '✏️', '🖍️', '🖌️', '✂️', '📏', '📐', '📌', '📎', '📓', '📒', '💼', '🎒', '🏫', '🔔', '⏰', '🗓️', '📋', '💯', '🏅', '🏆', '🥇', '🥈', '🥉', '🎓', '👨‍🏫', '👩‍🏫', '✨', '💡', '🔑'],
+  '상업 및 서비스': ['💰', '🪙', '💵', '💳', '🧾', '🏷️', '📦', '🎁', '🎉', '💌', '💎', '👑', '🌟', '🚀', '🤝', '💪', '🙏', '😇', '😈', '🛡️', '⚔️'],
   '동물': ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦'],
-  '사물': ['📱', '💻', '🖥️', '📷', '📹', '📺', '🎸', '🎹', '🚗', '🚲', '✈️', '🎈', '💡', '🔦', '🔋', '🔌', '🔧', '🔨', '🔩', '⚙️', '🔫', '🏹', '🛡️', '⚔️', '🔑', '🔒', '🔓', '📣', '📡', '📰', '🗞️', '📚', '📖', '📕', '📗', '📘', '📙', '📔', '📑', '🔖', '📧', '📨', '📤', '📥', '📫', '📪', '📬', '📭', '📮', '🧼', '🧽', '🧴', '🪥', '🦷', '🚽', '🧻', '🚿', '🛁', '🪣', '🧺', '🧦', '🧤', '🧣', '🧢', '👒', '👓', '🕶️', '☂️', '🌂', '💣', '📦', '✉️', '🧭', '🔭', '🔬'],
+  '사물': ['📱', '💻', '🖥️', '📷', '📹', '📺', '🎸', '🎹', '🚗', '🚲', '✈️', '🎈'],
   '기타': ['❓', '❗️', '👻', '💀', '👽', '🤖', '👾', '🤡', '🤠', '🦄', '➡️', '↪️', '🔄', '🆓', '➕', '➖', '➗', '✖️'],
 };
 
@@ -60,29 +60,29 @@ interface EmojiSelectorProps {
 }
 
 const EmojiSelector = React.memo(function EmojiSelector({ value, onChange }: EmojiSelectorProps) {
-  return (
-    <ScrollArea className="h-48">
-        <div className="grid grid-cols-8 gap-1">
-            {Object.entries(emojiCategories).map(([category, emojis]) => (
-                <React.Fragment key={category}>
-                    <div className="col-span-8 text-sm font-medium text-muted-foreground pt-2">{category}</div>
-                    {emojis.map((emoji, index) => (
-                      <div
-                          key={`emoji-${category}-${index}`}
-                          onClick={() => onChange(emoji)}
-                          className={cn(
-                              "text-2xl p-2 rounded-md cursor-pointer transition-all flex items-center justify-center aspect-square",
-                              value === emoji ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-accent"
-                          )}
-                      >
-                          {emoji}
-                      </div>
-                    ))}
-                </React.Fragment>
-            ))}
-        </div>
-    </ScrollArea>
-  );
+    return (
+        <ScrollArea className="h-48">
+            <div className="grid grid-cols-8 gap-1">
+                {Object.entries(emojiCategories).map(([category, emojis]) => (
+                    <React.Fragment key={category}>
+                        <div className="col-span-8 text-sm font-medium text-muted-foreground pt-2">{category}</div>
+                        {emojis.map((emoji, index) => (
+                           <div
+                              key={`emoji-${category}-${index}`}
+                              onClick={() => onChange(emoji)}
+                              className={cn(
+                                "text-2xl p-2 rounded-md cursor-pointer transition-all flex items-center justify-center aspect-square",
+                                value === emoji ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-accent"
+                              )}
+                            >
+                              {emoji}
+                            </div>
+                        ))}
+                    </React.Fragment>
+                ))}
+            </div>
+        </ScrollArea>
+    );
 });
 EmojiSelector.displayName = 'EmojiSelector';
 
@@ -651,14 +651,14 @@ export default function MyClassPage() {
                      classPoints: increment(refundAmount),
                    });
                    const buyerRefundLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
-                   transaction.set(buyerRefundLogRef, { id: buyerRefundLogRef.id, userId: user.uid, type: 'ITEM_REFUND_BUYER', amount: refundAmount, timestamp: serverTimestamp(), description: `'${item.name}' ${actionQuantity}개 환불`, relatedUserId: item.sellerId, relatedItemId: item.itemId } as PointLog);
+                   transaction.set(buyerRefundLogRef, { id: buyerRefundLogRef.id, userId: user.uid, type: 'ITEM_REFUND_BUYER', amount: refundAmount, timestamp: serverTimestamp(), description: `'${selectedItem.name}' ${actionQuantity}개 환불`, relatedUserId: item.sellerId, relatedItemId: item.itemId } as PointLog);
 
 
                    // Take points from seller
                    const sellerRef = doc(db, 'users', item.sellerId);
                    transaction.update(sellerRef, { classPoints: increment(-refundAmount) });
                    const sellerRefundLogRef = doc(collection(db, 'users', item.sellerId, 'pointLogs'));
-                   transaction.set(sellerRefundLogRef, { id: sellerRefundLogRef.id, userId: item.sellerId, type: 'ITEM_REFUND_SELLER', amount: -refundAmount, timestamp: serverTimestamp(), description: `'${item.name}' ${actionQuantity}개 환불 처리`, relatedUserId: user.uid, relatedItemId: item.itemId } as PointLog);
+                   transaction.set(sellerRefundLogRef, { id: sellerRefundLogRef.id, userId: item.sellerId, type: 'ITEM_REFUND_SELLER', amount: -refundAmount, timestamp: serverTimestamp(), description: `'${selectedItem.name}' ${actionQuantity}개 환불 처리`, relatedUserId: user.uid, relatedItemId: item.itemId } as PointLog);
 
                    // Add item back to store
                    const storeItemRef = doc(db, 'class-store-items', item.itemId);
