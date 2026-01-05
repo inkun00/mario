@@ -121,9 +121,9 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
     const userRef = doc(db, 'users', user.uid);
-    const unsubUser = onSnapshot(userRef, (doc) => {
-      if (doc.exists()) {
-        const userData = doc.data() as FsUser;
+    const unsubUser = onSnapshot(userRef, (userDoc) => {
+      if (userDoc.exists()) {
+        const userData = userDoc.data() as FsUser;
         setCurrentUserData(userData);
         if (userData.classId && userData.role !== 'teacher') {
           const teacherRef = doc(db, 'users', userData.classId);
@@ -1055,5 +1055,7 @@ export default function DashboardPage() {
     </>
   );
 }
+
+    
 
     
