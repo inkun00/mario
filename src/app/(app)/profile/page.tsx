@@ -35,7 +35,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, ClassStoreItem, ItemBuyer } from '@/lib/types';
+import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, ClassStoreItem, ItemBuyer, PointAcquisitionRule } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
 import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2 } from 'lucide-react';
@@ -158,6 +158,9 @@ export default function ProfilePage() {
   
   const [classmates, setClassmates] = useState<{value: string, label: string}[]>([]);
 
+  const [isPointManagementDialogOpen, setIsPointManagementDialogOpen] = useState(false);
+  const [pointRule, setPointRule] = useState<PointAcquisitionRule>('all');
+
 
   const fetchProfileData = useCallback(async () => {
     if (!user) {
@@ -184,6 +187,7 @@ export default function ProfilePage() {
       if (userSnap.exists()) {
         const fetchedUserData = userSnap.data() as User;
         setUserData(fetchedUserData);
+        setPointRule(fetchedUserData.pointAcquisitionRule || 'all');
         if (fetchedUserData.pixelAvatar) {
             try {
                 setCurrentPixelAvatar(JSON.parse(fetchedUserData.pixelAvatar));
@@ -595,6 +599,21 @@ export default function ProfilePage() {
     }
   };
 
+  const handleSavePointRule = async () => {
+    if (!user) return;
+    try {
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, {
+            pointAcquisitionRule: pointRule,
+        });
+        toast({ title: '저장 완료', description: '포인트 획득 규칙이 저장되었습니다.' });
+        setIsPointManagementDialogOpen(false);
+    } catch (error) {
+        console.error('Error saving point rule:', error);
+        toast({ variant: 'destructive', title: '오류', description: '규칙 저장 중 오류가 발생했습니다.'});
+    }
+  }
+
   const xpForNextLevel = nextLevelInfo ? nextLevelInfo.xpThreshold - (levelInfo?.xpThreshold || 0) : 0;
   const currentXpProgress = userData ? userData.xp - (levelInfo?.xpThreshold || 0) : 0;
   const progressPercentage = xpForNextLevel > 0 ? (currentXpProgress / xpForNextLevel) * 100 : 100;
@@ -748,6 +767,9 @@ export default function ProfilePage() {
               <>
                 <Button variant="outline" onClick={() => setIsClassCodeDialog(true)}>
                    <Edit className="mr-2 h-4 w-4"/> 학급 코드 관리
+                </Button>
+                 <Button variant="outline" onClick={() => setIsPointManagementDialogOpen(true)}>
+                    <Settings className="mr-2 h-4 w-4"/> 학급 포인트 관리
                 </Button>
                  <Button variant="outline" onClick={() => setIsSendPointsDialogOpen(true)} disabled={!canSendPoints}>
                     <Send className="mr-2 h-4 w-4"/> 학급 포인트 보내기
@@ -1094,6 +1116,56 @@ export default function ProfilePage() {
         </AlertDialogContent>
     </AlertDialog>
 
+     <Dialog open={isPointManagementDialogOpen} onOpenChange={setIsPointManagementDialogOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>학급 포인트 관리</DialogTitle>
+                <DialogDescription>학생들의 학급 포인트 획득 규칙을 설정합니다.</DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+                <RadioGroup value={pointRule} onValueChange={(value: PointAcquisitionRule) => setPointRule(value)}>
+                    <div className="space-y-1 rounded-md border p-3">
+                        <div className="flex items-center gap-2">
+                            <RadioGroupItem value="teacher_only" id="teacher_only" />
+                            <Label htmlFor="teacher_only" className="font-medium">
+                                우리 학급 교사가 만든 퀴즈만
+                            </Label>
+                        </div>
+                        <p className="text-xs text-muted-foreground ml-6">
+                            학생들은 현재 학급의 선생님이 만든 퀴즈를 플레이할 때만 학급 포인트를 얻습니다.
+                        </p>
+                    </div>
+                    <div className="space-y-1 rounded-md border p-3">
+                        <div className="flex items-center gap-2">
+                            <RadioGroupItem value="class_only" id="class_only" />
+                            <Label htmlFor="class_only" className="font-medium">
+                                우리 학급 구성원이 만든 모든 퀴즈
+                            </Label>
+                        </div>
+                        <p className="text-xs text-muted-foreground ml-6">
+                            학생들은 같은 학급의 교사 또는 다른 학생들이 만든 퀴즈를 플레이할 때 학급 포인트를 얻습니다.
+                        </p>
+                    </div>
+                    <div className="space-y-1 rounded-md border p-3">
+                       <div className="flex items-center gap-2">
+                            <RadioGroupItem value="all" id="all" />
+                            <Label htmlFor="all" className="font-medium">
+                                모든 퀴즈
+                            </Label>
+                        </div>
+                        <p className="text-xs text-muted-foreground ml-6">
+                            학생들은 플랫폼에 있는 모든 공개 퀴즈를 플레이할 때 학급 포인트를 얻습니다.
+                        </p>
+                    </div>
+                </RadioGroup>
+            </div>
+            <DialogFooter>
+                <Button variant="ghost" onClick={() => setIsPointManagementDialogOpen(false)}>취소</Button>
+                <Button onClick={handleSavePointRule}>저장</Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
     <AlertDialog open={isJoinClassDialog} onOpenChange={setIsJoinClassDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -1133,6 +1205,7 @@ export default function ProfilePage() {
     </>
   );
 }
+
 
 
 

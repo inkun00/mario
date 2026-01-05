@@ -2,6 +2,8 @@
 
 import { Timestamp } from 'firebase/firestore';
 
+export type PointAcquisitionRule = 'teacher_only' | 'class_only' | 'all';
+
 export interface User {
   uid: string;
   email: string | null;
@@ -31,6 +33,7 @@ export interface User {
     }
   };
   pixelAvatar?: string; // JSON string of string[][]
+  pointAcquisitionRule?: PointAcquisitionRule;
 }
 
 export interface Question {
