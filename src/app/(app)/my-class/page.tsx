@@ -4,14 +4,14 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe, runTransaction, updateDoc, deleteDoc, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe, runTransaction, updateDoc, deleteDoc, increment, orderBy } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { User, ClassStoreItem, ItemBuyer, ItemReport, PointLog } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2, Gem, Package, Send, ArrowRightLeft, ArrowLeft, ArrowRight, Gift, Settings, AlertTriangle, ShieldCheck, Undo2 } from 'lucide-react';
+import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2, Gem, Package, Send, ArrowRightLeft, ArrowLeft, ArrowRight, Gift, Settings, AlertTriangle, ShieldCheck, Undo2, LineChart } from 'lucide-react';
 import { getLevelInfo } from '@/lib/level-system';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
@@ -30,8 +30,9 @@ import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Combobox } from '@/components/ui/combobox';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { v4 as uuidv4 } from 'uuid';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
 
 
 const sellItemSchema = z.object({
@@ -61,25 +62,25 @@ interface EmojiSelectorProps {
 const EmojiSelector = React.memo(function EmojiSelector({ value, onChange }: EmojiSelectorProps) {
   return (
     <ScrollArea className="h-48">
-        <div className="grid grid-cols-8 gap-1">
-            {Object.entries(emojiCategories).map(([category, emojis]) => (
-                <React.Fragment key={category}>
-                    <div className="col-span-8 text-sm font-medium text-muted-foreground pt-2">{category}</div>
-                    {emojis.map((emoji, index) => (
-                        <div
-                            key={`emoji-${category}-${index}`}
-                            onClick={() => onChange(emoji)}
-                            className={cn(
-                                "text-2xl p-2 rounded-md cursor-pointer transition-all flex items-center justify-center aspect-square",
-                                value === emoji ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-accent"
-                            )}
-                        >
-                            {emoji}
-                        </div>
-                    ))}
-                </React.Fragment>
+      <div className="grid grid-cols-8 gap-1">
+        {Object.entries(emojiCategories).map(([category, emojis]) => (
+          <React.Fragment key={category}>
+            <div className="col-span-8 text-sm font-medium text-muted-foreground pt-2">{category}</div>
+            {emojis.map((emoji, index) => (
+              <div
+                key={`emoji-${category}-${index}`}
+                onClick={() => onChange(emoji)}
+                className={cn(
+                  "text-2xl p-2 rounded-md cursor-pointer transition-all flex items-center justify-center aspect-square",
+                  value === emoji ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-accent"
+                )}
+              >
+                {emoji}
+              </div>
             ))}
-        </div>
+          </React.Fragment>
+        ))}
+      </div>
     </ScrollArea>
   );
 });
@@ -109,6 +110,7 @@ export default function MyClassPage() {
   const [reportedItemDetails, setReportedItemDetails] = useState<ClassStoreItem | null>(null);
 
   const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
+  const [studentPointLogs, setStudentPointLogs] = useState<PointLog[]>([]);
   const [studentSellingItems, setStudentSellingItems] = useState<ClassStoreItem[]>([]);
   const [isStudentDetailsLoading, setIsStudentDetailsLoading] = useState(false);
 
@@ -366,12 +368,22 @@ export default function MyClassPage() {
 
     try {
         const sellingItemsQuery = query(collection(db, 'class-store-items'), where('sellerId', '==', student.uid));
-        const sellingItemsSnapshot = await getDocs(sellingItemsQuery);
+        const pointLogsQuery = query(collection(db, 'users', student.uid, 'pointLogs'), orderBy('timestamp', 'asc'));
+
+        const [sellingItemsSnapshot, pointLogsSnapshot] = await Promise.all([
+            getDocs(sellingItemsQuery),
+            getDocs(pointLogsQuery)
+        ]);
+
         const sellingItems = sellingItemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClassStoreItem));
+        const pointLogs = pointLogsSnapshot.docs.map(doc => doc.data() as PointLog);
+        
         setStudentSellingItems(sellingItems);
+        setStudentPointLogs(pointLogs);
+
     } catch (error) {
-        console.error("Error fetching student's selling items:", error);
-        toast({ variant: 'destructive', title: '오류', description: '학생의 판매 상품 목록을 불러오는 데 실패했습니다.' });
+        console.error("Error fetching student details:", error);
+        toast({ variant: 'destructive', title: '오류', description: '학생의 상세 정보를 불러오는 데 실패했습니다.' });
     } finally {
         setIsStudentDetailsLoading(false);
     }
@@ -695,6 +707,25 @@ export default function MyClassPage() {
   const teacherSellingItems = isTeacher ? classStoreItems.filter(item => item.sellerId === user?.uid) : [];
   const sellingItems = isTeacher ? [] : classStoreItems.filter(item => item.sellerId === user?.uid);
 
+  const chartData = studentPointLogs.reduce((acc, log) => {
+    const date = (log.timestamp as any)?.toDate().toLocaleDateString();
+    const lastEntry = acc[acc.length - 1];
+    const newTotal = (lastEntry ? lastEntry.totalPoints : 0) + log.amount;
+
+    if (lastEntry && lastEntry.date === date) {
+      lastEntry.totalPoints = newTotal;
+    } else {
+      acc.push({ date, totalPoints: newTotal });
+    }
+    return acc;
+  }, [] as { date: string; totalPoints: number }[]);
+
+  const chartConfig = {
+    totalPoints: {
+      label: "누적 포인트",
+      color: "hsl(var(--primary))",
+    },
+  };
 
   return (
     <>
@@ -1194,7 +1225,7 @@ export default function MyClassPage() {
                      <div className="space-y-1">
                         <h4 className="font-semibold">신고 시간</h4>
                         <p className="text-sm text-muted-foreground">
-                            {new Date(reportedItemDetails.report.reportedAt.toDate()).toLocaleString()}
+                            {new Date((reportedItemDetails.report.reportedAt as any).toDate()).toLocaleString()}
                         </p>
                     </div>
                  </div>
@@ -1211,7 +1242,7 @@ export default function MyClassPage() {
 
     {/* Student Details Dialog */}
     <Dialog open={!!selectedStudent} onOpenChange={(isOpen) => !isOpen && setSelectedStudent(null)}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl min-h-[80vh]">
         {selectedStudent && (
           <>
             <DialogHeader>
@@ -1221,32 +1252,75 @@ export default function MyClassPage() {
                 </Avatar>
                 <div>
                   <DialogTitle className="font-headline text-2xl">{selectedStudent.name || selectedStudent.displayName}</DialogTitle>
-                  <DialogDescription>학생의 상세 정보입니다.</DialogDescription>
+                  <DialogDescription>학생의 상세 정보 및 포인트 활동 내역입니다.</DialogDescription>
                 </div>
               </div>
             </DialogHeader>
 
-            <div className="py-4 space-y-4">
-                <p className="text-lg font-semibold flex items-center gap-2">
-                    <Gem className="w-5 h-5 text-blue-500" />
-                    보유 학급 포인트: 
-                    <span className="text-primary font-bold">{(selectedStudent.classPoints || 0).toLocaleString()}</span>
-                </p>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setManagementAction('sendPoints')}><ArrowRight className="w-4 h-4 mr-1"/>포인트 보내기</Button>
-                    <Button variant="outline" size="sm" onClick={() => setManagementAction('takePoints')}><ArrowLeft className="w-4 h-4 mr-1"/>포인트 가져오기</Button>
-                    <Button variant="outline" size="sm" onClick={() => setManagementAction('sendItem')}><Gift className="w-4 h-4 mr-1"/>상품 보내기</Button>
-                    <Button variant="outline" size="sm" onClick={() => setManagementAction('takeItem')}><Package className="w-4 h-4 mr-1"/>상품 가져오기</Button>
-                </div>
-            </div>
-            
-            <Tabs defaultValue="inventory" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+            <Tabs defaultValue="overview" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="overview">개요</TabsTrigger>
                 <TabsTrigger value="inventory">보유 상품</TabsTrigger>
                 <TabsTrigger value="selling">판매 중인 상품</TabsTrigger>
               </TabsList>
+              <TabsContent value="overview" className="mt-4">
+                <div className="space-y-4">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-lg flex items-center gap-2"><LineChart className="w-5 h-5 text-primary"/>포인트 활동</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                             {isStudentDetailsLoading ? (
+                                <div className="flex justify-center items-center h-56"><Loader2 className="w-8 h-8 animate-spin"/></div>
+                            ) : chartData.length > 0 ? (
+                                <>
+                                    <ChartContainer config={chartConfig} className="h-56 w-full">
+                                        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                            <CartesianGrid vertical={false} />
+                                            <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
+                                            <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
+                                            <ChartTooltip content={<ChartTooltipContent />} />
+                                            <Area dataKey="totalPoints" type="monotone" fill="var(--color-totalPoints)" fillOpacity={0.4} stroke="var(--color-totalPoints)" />
+                                        </AreaChart>
+                                    </ChartContainer>
+                                    <ScrollArea className="h-56 mt-4">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>시간</TableHead>
+                                                    <TableHead>내용</TableHead>
+                                                    <TableHead className="text-right">포인트</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {[...studentPointLogs].reverse().map(log => (
+                                                    <TableRow key={log.id}>
+                                                        <TableCell className="text-xs">{new Date((log.timestamp as any)?.toDate()).toLocaleString()}</TableCell>
+                                                        <TableCell>{log.description}</TableCell>
+                                                        <TableCell className={cn("text-right font-semibold", log.amount > 0 ? "text-green-600" : "text-red-600")}>
+                                                            {log.amount > 0 ? '+' : ''}{log.amount.toLocaleString()}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </ScrollArea>
+                                </>
+                            ) : (
+                                <div className="text-center py-10 text-muted-foreground">포인트 활동 내역이 없습니다.</div>
+                            )}
+                        </CardContent>
+                    </Card>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setManagementAction('sendPoints')}><ArrowRight className="w-4 h-4 mr-1"/>포인트 보내기</Button>
+                        <Button variant="outline" size="sm" onClick={() => setManagementAction('takePoints')}><ArrowLeft className="w-4 h-4 mr-1"/>포인트 가져오기</Button>
+                        <Button variant="outline" size="sm" onClick={() => setManagementAction('sendItem')}><Gift className="w-4 h-4 mr-1"/>상품 보내기</Button>
+                        <Button variant="outline" size="sm" onClick={() => setManagementAction('takeItem')}><Package className="w-4 h-4 mr-1"/>상품 가져오기</Button>
+                    </div>
+                </div>
+              </TabsContent>
               <TabsContent value="inventory" className="mt-4">
-                <ScrollArea className="h-64">
+                <ScrollArea className="h-[60vh]">
                     {selectedStudent.inventory && Object.keys(selectedStudent.inventory).length > 0 ? (
                         <div className="space-y-2 pr-4">
                             {Object.entries(selectedStudent.inventory).map(([itemName, itemDetails]) => (
@@ -1267,7 +1341,7 @@ export default function MyClassPage() {
                 </ScrollArea>
               </TabsContent>
               <TabsContent value="selling" className="mt-4">
-                <ScrollArea className="h-64">
+                <ScrollArea className="h-[60vh]">
                     {isStudentDetailsLoading ? (
                         <div className="flex justify-center items-center h-full">
                             <Loader2 className="w-8 h-8 animate-spin text-primary" />
