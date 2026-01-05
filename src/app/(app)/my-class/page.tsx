@@ -47,6 +47,9 @@ const emojiCategories = {
   '간식': ['🍕', '🍔', '🍟', '🌭', '🍿', '🥨', '🍪', '🍩', '🍦', '🍰', '🍫', '🍬', '🍭', '🍮', '🍯', '🍎', '🍇', '🍉', '🍓', '🍑', '🥝', '🥤', '🧃', '🥛', '☕'],
   '학교 및 학습': ['📚', '📖', '📝', '✏️', '🖍️', '🖌️', '✂️', '📏', '📐', '📌', '📎', '📓', '📒', '💼', '🎒', '🏫', '🔔', '⏰', '🗓️', '📋', '💯', '🏅', '🏆', '🥇', '🥈', '🥉', '🎓', '👨‍🏫', '👩‍🏫', '✨', '💡', '🔑'],
   '상업 및 서비스': ['💰', '🪙', '💵', '💳', '🧾', '🏷️', '📦', '🎁', '🎉', '💌', '💎', '👑', '🌟', '🚀', '🤝', '💪', '🙏', '😇', '😈', '🛡️', '⚔️'],
+  '동물': ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦'],
+  '사물': ['💣', '📱', '💻', '🖥️', '📷', '📹', '📺', '🎸', '🎹', '🚗', '🚲', '✈️', '🎈'],
+  '기타': ['❓', '❗️', '👻', '💀', '👽', '🤖', '👾', '🤡', '🤠', '🦄', '➡️', '↪️', '🔄', '🆓', '➕', '➖', '➗', '✖️'],
 };
 
 interface EmojiSelectorProps {
@@ -61,27 +64,25 @@ const EmojiSelector = React.memo(function EmojiSelector({ value, onChange }: Emo
         {Object.entries(emojiCategories).map(([category, emojis]) => (
           <React.Fragment key={category}>
             <div className="col-span-8 text-sm font-medium text-muted-foreground pt-2">{category}</div>
-            {emojis.map((emoji, index) => {
-              const id = `emoji-${category}-${index}`;
-              return (
-                <div
-                  key={id}
-                  onClick={() => onChange(emoji)}
-                  className={cn(
-                    "text-2xl p-2 rounded-md cursor-pointer transition-all flex items-center justify-center aspect-square",
-                    value === emoji ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-accent"
-                  )}
-                >
-                  {emoji}
-                </div>
-              );
-            })}
+            {emojis.map((emoji, index) => (
+              <div
+                key={`emoji-${category}-${index}`}
+                onClick={() => onChange(emoji)}
+                className={cn(
+                  "text-2xl p-2 rounded-md cursor-pointer transition-all flex items-center justify-center aspect-square",
+                  value === emoji ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-accent"
+                )}
+              >
+                {emoji}
+              </div>
+            ))}
           </React.Fragment>
         ))}
       </div>
     </ScrollArea>
   );
 });
+EmojiSelector.displayName = 'EmojiSelector';
 
 export default function MyClassPage() {
   const [user] = useAuthState(auth);
@@ -1382,4 +1383,3 @@ export default function MyClassPage() {
     </>
   );
 }
-
