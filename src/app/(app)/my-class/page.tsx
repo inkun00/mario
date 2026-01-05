@@ -708,7 +708,7 @@ export default function MyClassPage() {
   const sellingItems = isTeacher ? [] : classStoreItems.filter(item => item.sellerId === user?.uid);
 
   const chartData = studentPointLogs.reduce((acc, log) => {
-    const date = (log.timestamp as any)?.toDate().toLocaleDateString();
+    const date = (log.timestamp as any)?.toDate().toISOString().split('T')[0];
     const lastEntry = acc[acc.length - 1];
     const newTotal = (lastEntry ? lastEntry.totalPoints : 0) + log.amount;
 
@@ -1511,3 +1511,4 @@ export default function MyClassPage() {
     </>
   );
 }
+
