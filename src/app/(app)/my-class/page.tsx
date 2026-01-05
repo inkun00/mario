@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
-import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe, runTransaction, updateDoc, deleteDoc, increment, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe, runTransaction, updateDoc, deleteDoc, increment, orderBy, writeBatch } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import type { User, ClassStoreItem, ItemBuyer, ItemReport, PointLog } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -400,7 +400,7 @@ export default function MyClassPage() {
             if (managementAmount <= 0) throw "포인트는 0보다 커야 합니다.";
             const amount = managementAction === 'sendPoints' ? managementAmount : -managementAmount;
             
-            const batch = db.batch();
+            const batch = writeBatch(db);
             
             batch.update(studentRef, { classPoints: increment(amount) });
             
