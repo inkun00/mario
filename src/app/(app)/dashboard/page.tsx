@@ -30,10 +30,10 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn, ShieldCheck, List, Gamepad2, Sparkles, Smartphone, Tv } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn, ShieldCheck, List, Gamepad2, Sparkles, Smartphone, Tv, Gem } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe, updateDoc, increment, arrayUnion, getDoc, serverTimestamp, Timestamp, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { GameSet, User as FsUser, GameRoom } from '@/lib/types';
@@ -113,7 +113,64 @@ export default function DashboardPage() {
   const [searchSubject, setSearchSubject] = useState('');
 
   const isAdmin = user ? ADMIN_EMAILS.includes(user.email || '') : false;
+
+  const [currentUserData, setCurrentUserData] = useState<FsUser | null>(null);
+  const [teacherData, setTeacherData] = useState<FsUser | null>(null);
+  const [classmateIds, setClassmateIds] = useState<string[]>([]);
   
+  useEffect(() => {
+    if (!user) return;
+    const userRef = doc(db, 'users', user.uid);
+    const unsubUser = onSnapshot(userRef, (doc) => {
+      if (doc.exists()) {
+        const userData = doc.data() as FsUser;
+        setCurrentUserData(userData);
+        if (userData.classId && userData.role !== 'teacher') {
+          const teacherRef = doc(db, 'users', userData.classId);
+          const unsubTeacher = onSnapshot(teacherRef, (teacherDoc) => {
+            if (teacherDoc.exists()) {
+              setTeacherData(teacherDoc.data() as FsUser);
+            }
+          });
+          const classmatesQuery = query(collection(db, 'users'), where('classId', '==', userData.classId));
+          const unsubClassmates = onSnapshot(classmatesQuery, (snapshot) => {
+            setClassmateIds(snapshot.docs.map(d => d.id));
+          });
+          return () => {
+            unsubTeacher();
+            unsubClassmates();
+          }
+        } else if (userData.role === 'teacher') {
+          setTeacherData(userData);
+           const classmatesQuery = query(collection(db, 'users'), where('classId', '==', user.uid));
+           const unsubClassmates = onSnapshot(classmatesQuery, (snapshot) => {
+            setClassmateIds(snapshot.docs.map(d => d.id));
+          });
+          return () => unsubClassmates();
+        }
+      }
+    });
+    return () => unsubUser();
+  }, [user]);
+
+  const canEarnClassPoints = (gameSet: GameSetDocument): boolean => {
+    if (!teacherData || !user || currentUserData?.role === 'teacher') return false;
+
+    const rule = teacherData.pointAcquisitionRule || 'all';
+    const teacherId = teacherData.uid;
+
+    switch (rule) {
+      case 'teacher_only':
+        return gameSet.creatorId === teacherId;
+      case 'class_only':
+        return gameSet.creatorId === teacherId || classmateIds.includes(gameSet.creatorId);
+      case 'all':
+        return true;
+      default:
+        return false;
+    }
+  };
+
   useEffect(() => {
     setLoading(true);
 
@@ -620,6 +677,7 @@ export default function DashboardPage() {
                 const isTopSet = !set.isDisabled && filteredGameSets.indexOf(set) < 5;
                 const isDisabled = set.isDisabled === true;
                 const { stars, color } = getStarRating(set.evaluationScore);
+                const isPointEligible = canEarnClassPoints(set);
                 
                 let createRoomButton;
                 if (isDisabled) {
@@ -665,6 +723,18 @@ export default function DashboardPage() {
                           <div>
                               <div className="flex items-center gap-2">
                                   <CardTitle className="font-headline">{set.title}</CardTitle>
+                                  {isPointEligible && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger>
+                                          <Gem className="w-4 h-4 text-blue-500" />
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>이 퀴즈로 학급 포인트를 얻을 수 있습니다.</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
                                   {set.isPublic ? (
                                       <TooltipProvider>
                                           <Tooltip>
@@ -985,3 +1055,5 @@ export default function DashboardPage() {
     </>
   );
 }
+
+    
