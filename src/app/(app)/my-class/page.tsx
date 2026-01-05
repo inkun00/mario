@@ -840,7 +840,7 @@ export default function MyClassPage() {
                                                         <ScrollArea className="h-48">
                                                             <RadioGroup
                                                                 onValueChange={field.onChange}
-                                                                defaultValue={field.value}
+                                                                value={field.value}
                                                                 className="grid grid-cols-8 gap-1"
                                                             >
                                                                 {Object.entries(emojiCategories).map(([category, emojis]) => (
