@@ -132,6 +132,7 @@ export default function MyClassPage() {
   const [isBuyersLoading, setIsBuyersLoading] = useState(false);
   const [editItemDescription, setEditItemDescription] = useState('');
   const [editItemQuantity, setEditItemQuantity] = useState(0);
+  const [editItemPrice, setEditItemPrice] = useState(0);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBuying, setIsBuying] = useState<string | null>(null);
@@ -506,6 +507,7 @@ export default function MyClassPage() {
             await updateDoc(itemRef, {
                 description: editItemDescription,
                 quantity: editItemQuantity,
+                price: editItemPrice,
             });
 
             toast({ title: '성공', description: '상품 정보가 업데이트되었습니다.'});
@@ -669,7 +671,7 @@ export default function MyClassPage() {
                      transaction.set(storeItemRef, {
                         ...item,
                         quantity: actionQuantity,
-                        sellerName: item.sellerNickname, // Ensure correct field name
+                        sellerNickname: item.sellerNickname, 
                      });
                    }
                   break;
@@ -1073,7 +1075,12 @@ export default function MyClassPage() {
                                     </p>
                                   </CardContent>
                                   <CardFooter>
-                                    <Button variant="outline" className="w-full" onClick={() => setSelectedSellingItem(item)}>
+                                    <Button variant="outline" className="w-full" onClick={() => {
+                                      setSelectedSellingItem(item);
+                                      setEditItemDescription(item.description);
+                                      setEditItemQuantity(item.quantity);
+                                      setEditItemPrice(item.price);
+                                    }}>
                                       <Settings className="mr-2 h-4 w-4" />
                                       관리
                                     </Button>
@@ -1466,6 +1473,16 @@ export default function MyClassPage() {
                     value={editItemDescription}
                     onChange={(e) => setEditItemDescription(e.target.value)}
                     placeholder="상품 설명을 입력하세요."
+                  />
+                </div>
+                 <div className="space-y-2">
+                  <Label htmlFor="item-price">가격</Label>
+                  <Input 
+                    id="item-price"
+                    type="number"
+                    min="0"
+                    value={editItemPrice}
+                    onChange={(e) => setEditItemPrice(parseInt(e.target.value) || 0)}
                   />
                 </div>
                 <div className="space-y-2">
