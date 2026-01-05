@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe, runTransaction, updateDoc, deleteDoc, increment } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
