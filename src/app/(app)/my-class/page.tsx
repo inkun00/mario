@@ -62,25 +62,25 @@ interface EmojiSelectorProps {
 const EmojiSelector = React.memo(function EmojiSelector({ value, onChange }: EmojiSelectorProps) {
   return (
     <ScrollArea className="h-48">
-      <div className="grid grid-cols-8 gap-1">
-        {Object.entries(emojiCategories).map(([category, emojis]) => (
-          <React.Fragment key={category}>
-            <div className="col-span-8 text-sm font-medium text-muted-foreground pt-2">{category}</div>
-            {emojis.map((emoji, index) => (
-              <div
-                key={`emoji-${category}-${index}`}
-                onClick={() => onChange(emoji)}
-                className={cn(
-                  "text-2xl p-2 rounded-md cursor-pointer transition-all flex items-center justify-center aspect-square",
-                  value === emoji ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-accent"
-                )}
-              >
-                {emoji}
-              </div>
+        <div className="grid grid-cols-8 gap-1">
+            {Object.entries(emojiCategories).map(([category, emojis]) => (
+                <React.Fragment key={category}>
+                    <div className="col-span-8 text-sm font-medium text-muted-foreground pt-2">{category}</div>
+                    {emojis.map((emoji, index) => (
+                      <div
+                          key={`emoji-${category}-${index}`}
+                          onClick={() => onChange(emoji)}
+                          className={cn(
+                              "text-2xl p-2 rounded-md cursor-pointer transition-all flex items-center justify-center aspect-square",
+                              value === emoji ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-accent"
+                          )}
+                      >
+                          {emoji}
+                      </div>
+                    ))}
+                </React.Fragment>
             ))}
-          </React.Fragment>
-        ))}
-      </div>
+        </div>
     </ScrollArea>
   );
 });
@@ -164,30 +164,36 @@ export default function MyClassPage() {
       const userRef = doc(db, 'users', user.uid);
       unsubscribeUser = onSnapshot(userRef, (userSnap) => {
         if (userSnap.exists()) {
-            const currentUserData = userSnap.data() as User;
+            const currentUserData = { uid: userSnap.id, ...userSnap.data() } as User;
             setUserData(currentUserData);
             
             const targetClassId = currentUserData.role === 'teacher' ? user.uid : currentUserData.classId;
 
             if (targetClassId) {
                 const membersQuery = query(collection(db, 'users'), where('classId', '==', targetClassId));
-                const teacherQuery = query(collection(db, 'users'), where('uid', '==', targetClassId));
                 
                 if (currentUserData.role === 'teacher') {
                     setTeacher(currentUserData);
+                    if (unsubscribeMembers) unsubscribeMembers();
+                    unsubscribeMembers = onSnapshot(membersQuery, (snapshot) => {
+                        const members = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
+                        // Also include the teacher in the list
+                        setClassMembers([currentUserData, ...members].sort((a, b) => b.xp - a.xp));
+                    });
                 } else {
+                    const teacherQuery = query(collection(db, 'users'), where('uid', '==', targetClassId));
                     getDocs(teacherQuery).then(teacherSnapshot => {
                         if (!teacherSnapshot.empty) {
-                            setTeacher(teacherSnapshot.docs[0].data() as User);
+                            const teacherData = { uid: teacherSnapshot.docs[0].id, ...teacherSnapshot.docs[0].data() } as User;
+                            setTeacher(teacherData);
+                            if (unsubscribeMembers) unsubscribeMembers();
+                            unsubscribeMembers = onSnapshot(membersQuery, (snapshot) => {
+                                const members = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
+                                setClassMembers([teacherData, ...members].sort((a, b) => b.xp - a.xp));
+                            });
                         }
                     });
                 }
-                
-                if (unsubscribeMembers) unsubscribeMembers();
-                unsubscribeMembers = onSnapshot(membersQuery, (snapshot) => {
-                    const members = snapshot.docs.map(doc => doc.data() as User);
-                    setClassMembers(members.sort((a, b) => b.xp - a.xp));
-                });
                 
                 // Fetch class store items
                 setIsStoreLoading(true);
@@ -204,6 +210,8 @@ export default function MyClassPage() {
                 });
             } else {
                 setIsStoreLoading(false);
+                setClassMembers([]);
+                setTeacher(null);
             }
         }
         setIsLoading(false);
@@ -584,7 +592,7 @@ export default function MyClassPage() {
 
           if (!item || item.quantity < actionQuantity) throw "상품 수량이 부족합니다.";
           
-          const batch = db.batch();
+          const batch = writeBatch(db);
 
           switch (itemAction) {
               case 'use':
@@ -708,6 +716,7 @@ export default function MyClassPage() {
   const sellingItems = isTeacher ? [] : classStoreItems.filter(item => item.sellerId === user?.uid);
 
   const chartData = studentPointLogs.reduce((acc, log) => {
+    if (!log.timestamp) return acc;
     const date = (log.timestamp as any)?.toDate().toISOString().split('T')[0];
     const lastEntry = acc[acc.length - 1];
     const newTotal = (lastEntry ? lastEntry.totalPoints : 0) + log.amount;
@@ -795,7 +804,7 @@ export default function MyClassPage() {
                                 member.uid === user?.uid ? 'bg-primary/10' : '',
                                 isTeacher ? 'cursor-pointer hover:bg-muted/50' : ''
                             )}
-                            onClick={() => handleStudentClick(member)}
+                            onClick={() => isTeacher && handleStudentClick(member)}
                           >
                             <TableCell className="font-bold text-center text-lg">
                               {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
@@ -891,7 +900,7 @@ export default function MyClassPage() {
                                                   {item.name}
                                                 </div>
                                               </TableCell>
-                                              <TableCell>{item.sellerName || item.sellerNickname}</TableCell>
+                                              <TableCell>{item.sellerNickname}</TableCell>
                                               <TableCell className="text-center">{item.quantity}</TableCell>
                                               <TableCell className="text-right font-bold text-primary">{item.price.toLocaleString()}</TableCell>
                                               <TableCell className="text-center">
@@ -1511,4 +1520,3 @@ export default function MyClassPage() {
     </>
   );
 }
-
