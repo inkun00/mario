@@ -4,6 +4,30 @@ import { Timestamp } from 'firebase/firestore';
 
 export type PointAcquisitionRule = 'teacher_only' | 'class_only' | 'all';
 
+export type PointLogType = 
+  | 'QUIZ_REWARD'      // 퀴즈 풀고 보상
+  | 'REVIEW_REWARD'    // 오답노트 복습 보상
+  | 'ITEM_PURCHASE'    // 아이템 구매 (포인트 차감)
+  | 'ITEM_SALE'        // 아이템 판매 (포인트 획득)
+  | 'ITEM_REFUND_BUYER'// 아이템 환불 (구매자 포인트 환급)
+  | 'ITEM_REFUND_SELLER'// 아이템 환불 (판매자 포인트 차감)
+  | 'SEND_POINTS'      // 포인트 보내기 (차감)
+  | 'RECEIVE_POINTS'   // 포인트 받기 (획득)
+  | 'TEACHER_GRANT'    // 교사 지급
+  | 'TEACHER_DEDUCT';  // 교사 회수
+
+export interface PointLog {
+  id: string;
+  userId: string;
+  type: PointLogType;
+  amount: number; // 양수는 획득, 음수는 사용
+  timestamp: any;
+  description: string; // 예: "숙제 면제권 구매", "'사회 퀴즈' 완료", "김땡땡에게 보내기"
+  relatedUserId?: string; // 예: 포인트를 보내거나 받은 상대방 ID
+  relatedItemId?: string; // 예: 구매/판매한 아이템 ID
+}
+
+
 export interface User {
   uid: string;
   email: string | null;

@@ -6,7 +6,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe, runTransaction, updateDoc, deleteDoc, increment } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import type { User, ClassStoreItem, ItemBuyer, ItemReport } from '@/lib/types';
+import type { User, ClassStoreItem, ItemBuyer, ItemReport, PointLog } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -31,6 +31,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Combobox } from '@/components/ui/combobox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { v4 as uuidv4 } from 'uuid';
 
 
 const sellItemSchema = z.object({
@@ -60,25 +61,25 @@ interface EmojiSelectorProps {
 const EmojiSelector = React.memo(function EmojiSelector({ value, onChange }: EmojiSelectorProps) {
   return (
     <ScrollArea className="h-48">
-      <div className="grid grid-cols-8 gap-1">
-        {Object.entries(emojiCategories).map(([category, emojis]) => (
-          <React.Fragment key={category}>
-            <div className="col-span-8 text-sm font-medium text-muted-foreground pt-2">{category}</div>
-            {emojis.map((emoji, index) => (
-              <div
-                key={`emoji-${category}-${index}`}
-                onClick={() => onChange(emoji)}
-                className={cn(
-                  "text-2xl p-2 rounded-md cursor-pointer transition-all flex items-center justify-center aspect-square",
-                  value === emoji ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-accent"
-                )}
-              >
-                {emoji}
-              </div>
+        <div className="grid grid-cols-8 gap-1">
+            {Object.entries(emojiCategories).map(([category, emojis]) => (
+                <React.Fragment key={category}>
+                    <div className="col-span-8 text-sm font-medium text-muted-foreground pt-2">{category}</div>
+                    {emojis.map((emoji, index) => (
+                        <div
+                            key={`emoji-${category}-${index}`}
+                            onClick={() => onChange(emoji)}
+                            className={cn(
+                                "text-2xl p-2 rounded-md cursor-pointer transition-all flex items-center justify-center aspect-square",
+                                value === emoji ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-accent"
+                            )}
+                        >
+                            {emoji}
+                        </div>
+                    ))}
+                </React.Fragment>
             ))}
-          </React.Fragment>
-        ))}
-      </div>
+        </div>
     </ScrollArea>
   );
 });
@@ -268,6 +269,7 @@ export default function MyClassPage() {
         if (!itemDoc.exists()) throw "상품 정보를 찾을 수 없거나 이미 판매되었습니다.";
 
         const buyerData = buyerDoc.data() as User;
+        const sellerData = sellerDoc.data() as User;
         const itemData = itemDoc.data() as ClassStoreItem;
         
         if ((buyerData.classPoints || 0) < itemData.price) {
@@ -282,11 +284,20 @@ export default function MyClassPage() {
             throw "신고된 상품으로 구매할 수 없습니다.";
         }
 
-        // 1. Decrement buyer's points
-        transaction.update(buyerRef, {
-          classPoints: increment(-itemData.price),
-        });
-        
+        // 1. Decrement buyer's points and log it
+        transaction.update(buyerRef, { classPoints: increment(-itemData.price) });
+        const buyerLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
+        transaction.set(buyerLogRef, {
+            id: buyerLogRef.id,
+            userId: user.uid,
+            type: 'ITEM_PURCHASE',
+            amount: -itemData.price,
+            timestamp: serverTimestamp(),
+            description: `'${item.name}' 구매`,
+            relatedUserId: item.sellerId,
+            relatedItemId: item.id
+        } as PointLog);
+
         // 2. Add item to buyer's inventory
         const newInventory = { ...buyerData.inventory };
         const currentQuantity = newInventory[itemData.name]?.quantity || 0;
@@ -301,16 +312,23 @@ export default function MyClassPage() {
         };
         transaction.update(buyerRef, { inventory: newInventory });
 
-        // 3. Increment seller's points
-        transaction.update(sellerRef, {
-          classPoints: increment(itemData.price),
-        });
+        // 3. Increment seller's points and log it
+        transaction.update(sellerRef, { classPoints: increment(itemData.price) });
+        const sellerLogRef = doc(collection(db, 'users', item.sellerId, 'pointLogs'));
+        transaction.set(sellerLogRef, {
+            id: sellerLogRef.id,
+            userId: item.sellerId,
+            type: 'ITEM_SALE',
+            amount: itemData.price,
+            timestamp: serverTimestamp(),
+            description: `'${item.name}' 판매`,
+            relatedUserId: user.uid,
+            relatedItemId: item.id
+        } as PointLog);
 
         // 4. Decrement item quantity or delete
         if (itemData.quantity > 1) {
-          transaction.update(itemRef, {
-            quantity: itemData.quantity - 1,
-          });
+          transaction.update(itemRef, { quantity: itemData.quantity - 1 });
         } else {
           transaction.delete(itemRef);
         }
@@ -369,7 +387,23 @@ export default function MyClassPage() {
         if (managementAction === 'sendPoints' || managementAction === 'takePoints') {
             if (managementAmount <= 0) throw "포인트는 0보다 커야 합니다.";
             const amount = managementAction === 'sendPoints' ? managementAmount : -managementAmount;
-            await updateDoc(studentRef, { classPoints: increment(amount) });
+            
+            const batch = db.batch();
+            
+            batch.update(studentRef, { classPoints: increment(amount) });
+            
+            const logDocRef = doc(collection(db, 'users', selectedStudent.uid, 'pointLogs'));
+            batch.set(logDocRef, {
+                id: logDocRef.id,
+                userId: selectedStudent.uid,
+                type: amount > 0 ? 'TEACHER_GRANT' : 'TEACHER_DEDUCT',
+                amount: amount,
+                timestamp: serverTimestamp(),
+                description: `선생님 ${amount > 0 ? '지급' : '회수'}`
+            } as PointLog);
+
+            await batch.commit();
+
             toast({ title: '성공', description: `${selectedStudent.displayName} 학생의 포인트를 ${Math.abs(amount)} 만큼 ${amount > 0 ? '보냈습니다' : '가져왔습니다'}.`});
         
         } else if (managementAction === 'sendItem' || managementAction === 'takeItem') {
@@ -537,10 +571,11 @@ export default function MyClassPage() {
           const item = inventory[selectedItem.name];
 
           if (!item || item.quantity < actionQuantity) throw "상품 수량이 부족합니다.";
+          
+          const batch = db.batch();
 
           switch (itemAction) {
               case 'use':
-                  // 'use' is just removing from inventory in this context
                   if (item.quantity > actionQuantity) {
                       item.quantity -= actionQuantity;
                   } else {
@@ -562,6 +597,9 @@ export default function MyClassPage() {
                       delete inventory[selectedItem.name];
                   }
                   transaction.update(userRef, { inventory: inventory });
+                  
+                  const senderLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
+                  transaction.set(senderLogRef, { id: senderLogRef.id, userId: user.uid, type: 'SEND_POINTS', amount: 0, timestamp: serverTimestamp(), description: `'${selectedItem.name}' ${actionQuantity}개 보내기`, relatedUserId: sendRecipient, relatedItemId: item.itemId } as PointLog);
 
                   // Add to recipient's inventory
                   const recipientData = recipientDoc.data() as User;
@@ -573,32 +611,48 @@ export default function MyClassPage() {
                       quantity: newQuantity,
                   };
                   transaction.update(recipientRef, { inventory: recipientInventory });
+
+                  const recipientLogRef = doc(collection(db, 'users', sendRecipient, 'pointLogs'));
+                  transaction.set(recipientLogRef, { id: recipientLogRef.id, userId: sendRecipient, type: 'RECEIVE_POINTS', amount: 0, timestamp: serverTimestamp(), description: `'${selectedItem.name}' ${actionQuantity}개 받기`, relatedUserId: user.uid, relatedItemId: item.itemId } as PointLog);
                   break;
 
               case 'refund':
                    if (!item.price || !item.sellerId) throw "환불 정보를 찾을 수 없습니다.";
                    const refundAmount = item.price * actionQuantity;
                    
-                   // Remove item from user
+                   // Remove item from user and give points back
                    if (item.quantity > actionQuantity) {
                         item.quantity -= actionQuantity;
                    } else {
                        delete inventory[selectedItem.name];
                    }
-                   
-                   // Give points back to user
                    transaction.update(userRef, { 
                      inventory: inventory,
                      classPoints: increment(refundAmount),
                    });
+                   const buyerRefundLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
+                   transaction.set(buyerRefundLogRef, { id: buyerRefundLogRef.id, userId: user.uid, type: 'ITEM_REFUND_BUYER', amount: refundAmount, timestamp: serverTimestamp(), description: `'${item.name}' ${actionQuantity}개 환불`, relatedUserId: item.sellerId, relatedItemId: item.itemId } as PointLog);
+
 
                    // Take points from seller
                    const sellerRef = doc(db, 'users', item.sellerId);
                    transaction.update(sellerRef, { classPoints: increment(-refundAmount) });
+                   const sellerRefundLogRef = doc(collection(db, 'users', item.sellerId, 'pointLogs'));
+                   transaction.set(sellerRefundLogRef, { id: sellerRefundLogRef.id, userId: item.sellerId, type: 'ITEM_REFUND_SELLER', amount: -refundAmount, timestamp: serverTimestamp(), description: `'${item.name}' ${actionQuantity}개 환불 처리`, relatedUserId: user.uid, relatedItemId: item.itemId } as PointLog);
 
                    // Add item back to store
                    const storeItemRef = doc(db, 'class-store-items', item.itemId);
-                   transaction.update(storeItemRef, { quantity: increment(actionQuantity) });
+                   const storeItemDoc = await transaction.get(storeItemRef);
+                   if (storeItemDoc.exists()) {
+                     transaction.update(storeItemRef, { quantity: increment(actionQuantity) });
+                   } else {
+                     // If item was deleted, re-create it
+                     transaction.set(storeItemRef, {
+                        ...item,
+                        quantity: actionQuantity,
+                        sellerName: item.sellerNickname, // Ensure correct field name
+                     });
+                   }
                   break;
           }
         });

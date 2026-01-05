@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { doc, onSnapshot, getDoc, updateDoc, Timestamp, writeBatch, increment, collection, setDoc, deleteDoc, serverTimestamp, deleteField, getDocs, where, query, collectionGroup, runTransaction } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer, SubjectStat, MysteryEffect, AnswerResult } from '@/lib/types';
+import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer, SubjectStat, MysteryEffect, AnswerResult, User, PointLog } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb, Save, StopCircle, Check, CheckCircle, XCircle, X } from 'lucide-react';
 import Image from 'next/image';
@@ -775,95 +775,109 @@ export default function GamePage() {
     setIsFinishingGame(true);
     try {
         const batch = writeBatch(db);
+        
+        // 1. Get all player and teacher data first
         const playerUIDs = Object.keys(gameRoom.players);
-        if (playerUIDs.length === 0) {
-            throw new Error("저장할 플레이어를 찾을 수 없습니다.");
-        }
+        const allUserUIDs = new Set(playerUIDs);
+        if (gameSet.creatorId) allUserUIDs.add(gameSet.creatorId);
+        
+        const userDocs = new Map<string, User>();
+        const teacherDocs = new Map<string, User>();
 
-        // 1. Calculate stats locally from game logs
-        const userStatsToUpdate: {
-            [uid: string]: {
-                [subject: string]: {
-                    [unit: string]: { correct: number; incorrect: number };
-                };
-            };
-        } = {};
-
-        playerUIDs.forEach(uid => {
-            userStatsToUpdate[uid] = {};
-        });
-
-        (gameRoom.answerLogs || []).forEach(log => {
-            if (!log.userId || !gameRoom.players[log.userId]) return;
-
-            const { question, isCorrect } = log;
-            if (question?.subject && question?.unit) {
-                const { subject, unit } = question;
-                if (!userStatsToUpdate[log.userId][subject]) {
-                    userStatsToUpdate[log.userId][subject] = {};
-                }
-                if (!userStatsToUpdate[log.userId][subject][unit]) {
-                    userStatsToUpdate[log.userId][subject][unit] = { correct: 0, incorrect: 0 };
-                }
-
-                if (isCorrect) {
-                    userStatsToUpdate[log.userId][subject][unit].correct += 1;
-                } else {
-                    userStatsToUpdate[log.userId][subject][unit].incorrect += 1;
+        for (const uid of Array.from(allUserUIDs)) {
+            const userRef = doc(db, 'users', uid);
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+                const userData = userSnap.data() as User;
+                userDocs.set(uid, userData);
+                if (userData.role === 'teacher' && userData.classId) {
+                    const teacherRef = doc(db, 'users', userData.classId);
+                    const teacherSnap = await getDoc(teacherRef);
+                    if (teacherSnap.exists()) {
+                        teacherDocs.set(userData.classId, teacherSnap.data() as User);
+                    }
                 }
             }
-        });
-
-        // 2. Prepare batch updates
+        }
+        
         for (const uid of playerUIDs) {
             const userRef = doc(db, 'users', uid);
-            let totalXpGained = 0;
-            
-            (gameRoom.answerLogs || []).forEach(log => {
-                 if (log.userId === uid && typeof log.pointsAwarded === 'number') {
-                    totalXpGained += log.pointsAwarded;
-                 }
-            });
-            
+            const userData = userDocs.get(uid);
+            if (!userData) continue;
+
+            const player = gameRoom.players[uid];
+            const finalScore = finalScores.find(p => p.uid === uid)?.score || 0;
             const bonusPoints = gameRoom.bonusPoints?.[uid] || 0;
-            totalXpGained += bonusPoints;
+            let totalXpGained = finalScore + bonusPoints;
+            let totalClassPointsGained = 0;
 
+            const teacher = userData.classId ? userDocs.get(userData.classId) || teacherDocs.get(userData.classId) : undefined;
+            const pointRule = teacher?.pointAcquisitionRule || 'all';
 
-            if (totalXpGained !== 0) {
-                batch.update(userRef, {
-                    xp: increment(totalXpGained),
-                    classPoints: increment(totalXpGained),
-                });
+            const canEarnClassPoints = 
+              pointRule === 'all' ||
+              (pointRule === 'teacher_only' && gameSet.creatorId === teacher?.uid) ||
+              (pointRule === 'class_only' && (gameSet.creatorId === teacher?.uid || userDocs.get(gameSet.creatorId)?.classId === teacher?.uid));
+
+            if (canEarnClassPoints) {
+                totalClassPointsGained = totalXpGained;
             }
-            
+
+            if (totalXpGained > 0) {
+              batch.update(userRef, { xp: increment(totalXpGained) });
+              const logDoc = doc(collection(db, 'users', uid, 'pointLogs'));
+              batch.set(logDoc, {
+                  id: logDoc.id,
+                  userId: uid,
+                  type: 'QUIZ_REWARD',
+                  amount: totalXpGained,
+                  timestamp: serverTimestamp(),
+                  description: `'${gameSet.title}' 퀴즈 보상`
+              } as PointLog);
+            }
+            if (totalClassPointsGained > 0) {
+                batch.update(userRef, { classPoints: increment(totalClassPointsGained) });
+            }
+
             const playedGameSetRef = doc(db, 'users', uid, 'playedGameSets', gameRoomId);
             batch.set(playedGameSetRef, {
                 gameSetId: gameSet.id, playedAt: serverTimestamp(), gameRoomId,
             });
-
-            for (const subject in userStatsToUpdate[uid]) {
+            
+            // Stats update logic remains same
+            const userStatsToUpdate: { [subject: string]: { [unit: string]: { correct: number; incorrect: number } } } = {};
+             (gameRoom.answerLogs || []).forEach(log => {
+                if (log.userId === uid) {
+                    const { question, isCorrect } = log;
+                    if (question?.subject && question?.unit) {
+                        const { subject, unit } = question;
+                        if (!userStatsToUpdate[subject]) userStatsToUpdate[subject] = {};
+                        if (!userStatsToUpdate[subject][unit]) userStatsToUpdate[subject][unit] = { correct: 0, incorrect: 0 };
+                        if (isCorrect) userStatsToUpdate[subject][unit].correct++;
+                        else userStatsToUpdate[subject][unit].incorrect++;
+                    }
+                }
+            });
+            for (const subject in userStatsToUpdate) {
                 const statRef = doc(db, "users", uid, "subjectStats", subject);
                 const subjectUpdate: any = {};
-                let totalCorrectForSubject = 0;
-                let totalIncorrectForSubject = 0;
-
-                for (const unit in userStatsToUpdate[uid][subject]) {
-                    const unitData = userStatsToUpdate[uid][subject][unit];
+                let totalCorrectForSubject = 0, totalIncorrectForSubject = 0;
+                for (const unit in userStatsToUpdate[subject]) {
+                    const unitData = userStatsToUpdate[subject][unit];
                     subjectUpdate[`units.${unit}.totalCorrect`] = increment(unitData.correct);
                     subjectUpdate[`units.${unit}.totalIncorrect`] = increment(unitData.incorrect);
                     totalCorrectForSubject += unitData.correct;
                     totalIncorrectForSubject += unitData.incorrect;
                 }
-
                 subjectUpdate['totalCorrect'] = increment(totalCorrectForSubject);
                 subjectUpdate['totalIncorrect'] = increment(totalIncorrectForSubject);
-                // Use set with merge to create the doc if it doesn't exist or update if it does.
                 batch.set(statRef, subjectUpdate, { merge: true });
             }
         }
         
         // Reward creator
-        if (gameSet.creatorId && !playerUIDs.includes(gameSet.creatorId)) {
+        const creator = userDocs.get(gameSet.creatorId);
+        if (creator && !playerUIDs.includes(gameSet.creatorId)) {
             const creatorRef = doc(db, 'users', gameSet.creatorId);
             let bonusMultiplier = 0;
             if (gameSet.evaluationScore) {
@@ -882,7 +896,6 @@ export default function GamePage() {
         const gameRoomRef = doc(db, 'game-rooms', gameRoomId);
         batch.update(gameRoomRef, { status: 'finished' });
 
-        // 3. Commit batch
         await batch.commit();
 
         toast({ title: "저장 완료!", description: "게임 결과가 성공적으로 저장되었습니다." });
