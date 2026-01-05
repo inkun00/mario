@@ -30,6 +30,7 @@ import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Combobox } from '@/components/ui/combobox';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 
 
 const sellItemSchema = z.object({
@@ -37,10 +38,17 @@ const sellItemSchema = z.object({
   price: z.coerce.number().min(1, '가격은 1 이상이어야 합니다.'),
   description: z.string().min(1, '제품 설명을 입력해주세요.').max(200, '설명은 200자 이내로 입력해주세요.'),
   quantity: z.coerce.number().min(1, '수량은 1 이상이어야 합니다.'),
+  emoji: z.string().optional(),
 });
 
 type SellItemFormValues = z.infer<typeof sellItemSchema>;
 
+const emojiCategories = {
+  '학습': ['📝', '📚', '💡', '💯', '✨', '🎁', '🎟️', '⏰', '⏳', '🔑'],
+  '감정': ['😀', '😍', '😎', '🎉', '🙏', '😭', '😴', '😇', '😈', '😱'],
+  '사물': ['🍎', '🍔', '💖', '👑', '💎', '💰', '💣', '🛡️', '⚔️', '📦'],
+  '기타': ['🎲', '🪄', '♻️', '❓', '❗️', '➡️', '↪️', '🔄', '🆓', '🤫']
+};
 
 export default function MyClassPage() {
   const [user] = useAuthState(auth);
@@ -53,6 +61,7 @@ export default function MyClassPage() {
   const [isStoreLoading, setIsStoreLoading] = useState(true);
 
   const [isSellItemDialogOpen, setIsSellItemDialogOpen] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<{name: string, details: {itemId: string, quantity: number, description?: string, sellerId?: string, sellerNickname?: string, price?: number, emoji?: string}} | null>(null);
   const [isBuyItemDialogOpen, setIsBuyItemDialogOpen] = useState(false);
   const [selectedItemForDescription, setSelectedItemForDescription] = useState<ClassStoreItem | null>(null);
   
@@ -72,8 +81,7 @@ export default function MyClassPage() {
   const [managementAmount, setManagementAmount] = useState(1);
   const [managementItem, setManagementItem] = useState('');
   const [isManagementLoading, setIsManagementLoading] = useState(false);
-
-  const [selectedItem, setSelectedItem] = useState<{name: string, details: {itemId: string, quantity: number, description?: string, sellerId?: string, sellerNickname?: string, price?: number}} | null>(null);
+  
   const [itemAction, setItemAction] = useState<'use' | 'send' | 'refund' | null>(null);
   const [actionQuantity, setActionQuantity] = useState(1);
   const [sendRecipient, setSendRecipient] = useState('');
@@ -99,6 +107,7 @@ export default function MyClassPage() {
       price: 1,
       description: '',
       quantity: 1,
+      emoji: '📝',
     }
   });
 
@@ -253,7 +262,8 @@ export default function MyClassPage() {
             description: itemData.description,
             sellerId: item.sellerId,
             sellerNickname: item.sellerNickname,
-            price: item.price
+            price: item.price,
+            emoji: item.emoji,
         };
         transaction.update(buyerRef, { inventory: newInventory });
 
@@ -757,6 +767,7 @@ export default function MyClassPage() {
                                                 onClick={() => handleItemClick(item)}
                                               >
                                                 <div className="flex items-center gap-2">
+                                                  {item.emoji && <span className="text-lg">{item.emoji}</span>}
                                                   {item.report && <AlertTriangle className="w-4 h-4 text-destructive" />}
                                                   {item.name}
                                                 </div>
@@ -802,7 +813,7 @@ export default function MyClassPage() {
                                       <Repeat className="mr-2 h-4 w-4"/> 물건 팔기
                                   </Button>
                               </DialogTrigger>
-                              <DialogContent>
+                              <DialogContent className="max-w-lg">
                                   <DialogHeader>
                                       <DialogTitle>판매할 물건 등록하기</DialogTitle>
                                       <DialogDescription>판매할 상품의 정보를 입력해주세요.</DialogDescription>
@@ -819,6 +830,41 @@ export default function MyClassPage() {
                                                       <FormMessage />
                                                   </FormItem>
                                               )}
+                                          />
+                                          <FormField
+                                            control={form.control}
+                                            name="emoji"
+                                            render={({ field }) => (
+                                              <FormItem className="space-y-3">
+                                                <FormLabel>아이콘</FormLabel>
+                                                <FormControl>
+                                                  <RadioGroup
+                                                    onValueChange={field.onChange}
+                                                    defaultValue={field.value}
+                                                    className="flex flex-wrap gap-2"
+                                                  >
+                                                  {Object.entries(emojiCategories).flatMap(([category, emojis]) => 
+                                                    emojis.map(emoji => (
+                                                      <FormItem key={emoji} className="flex items-center space-x-1 space-y-0">
+                                                        <FormControl>
+                                                          <RadioGroupItem value={emoji} className="sr-only" />
+                                                        </FormControl>
+                                                        <Label
+                                                          className={cn(
+                                                            "text-2xl p-2 rounded-md cursor-pointer transition-all",
+                                                            field.value === emoji ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-accent"
+                                                          )}
+                                                        >
+                                                          {emoji}
+                                                        </Label>
+                                                      </FormItem>
+                                                    ))
+                                                  )}
+                                                  </RadioGroup>
+                                                </FormControl>
+                                                <FormMessage />
+                                              </FormItem>
+                                            )}
                                           />
                                           <FormField
                                               control={form.control}
@@ -876,9 +922,10 @@ export default function MyClassPage() {
                                     {Object.entries(userData.inventory).map(([itemName, itemDetails]) => (
                                         <Card 
                                           key={itemName} 
-                                          className="p-4 text-center cursor-pointer hover:shadow-md hover:border-primary transition flex flex-col"
+                                          className="p-4 text-center cursor-pointer hover:shadow-md hover:border-primary transition flex flex-col items-center gap-2"
                                           onClick={() => setSelectedItem({ name: itemName, details: itemDetails })}
                                         >
+                                            <div className="text-4xl">{itemDetails.emoji || '📦'}</div>
                                             <CardTitle className="text-base">{itemName}</CardTitle>
                                             <CardDescription className="mt-1">수량: {itemDetails.quantity}</CardDescription>
                                             {itemDetails.sellerNickname && (
@@ -906,11 +953,12 @@ export default function MyClassPage() {
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                               {sellingItems.map((item) => (
                                 <Card key={item.id} className="flex flex-col">
-                                  <CardHeader>
-                                    <CardTitle className="text-lg">{item.name}</CardTitle>
-                                    <CardDescription className="text-sm text-primary font-bold">
-                                      {item.price.toLocaleString()} 포인트
-                                    </CardDescription>
+                                  <CardHeader className="items-center">
+                                      <div className="text-5xl mb-2">{item.emoji || '📦'}</div>
+                                      <CardTitle className="text-lg text-center">{item.name}</CardTitle>
+                                      <CardDescription className="text-sm text-primary font-bold">
+                                        {item.price.toLocaleString()} 포인트
+                                      </CardDescription>
                                   </CardHeader>
                                   <CardContent className="flex-grow">
                                     <p className="text-sm text-muted-foreground line-clamp-2">
@@ -947,8 +995,9 @@ export default function MyClassPage() {
     {/* Item Action Dialog */}
     <Dialog open={!!selectedItem} onOpenChange={(isOpen) => !isOpen && setSelectedItem(null)}>
         <DialogContent>
-            <DialogHeader>
-                <DialogTitle>{selectedItem?.name}</DialogTitle>
+            <DialogHeader className="items-center text-center">
+                <div className="text-6xl mb-2">{selectedItem?.details.emoji || '📦'}</div>
+                <DialogTitle className="text-2xl">{selectedItem?.name}</DialogTitle>
                 <DialogDescription>{selectedItem?.details.description}</DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-4">
@@ -1002,15 +1051,16 @@ export default function MyClassPage() {
 
     {/* Item Description Dialog */}
     <Dialog open={!!selectedItemForDescription} onOpenChange={(isOpen) => !isOpen && setSelectedItemForDescription(null)}>
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>{selectedItemForDescription?.name}</DialogTitle>
+        <DialogContent className="text-center">
+            <DialogHeader className="items-center">
+                <div className="text-6xl mb-2">{selectedItemForDescription?.emoji || '📦'}</div>
+                <DialogTitle className="text-2xl">{selectedItemForDescription?.name}</DialogTitle>
                 <DialogDescription>
                     {selectedItemForDescription?.description || "설명이 없는 상품입니다."}
                 </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-                <Button onClick={() => setSelectedItemForDescription(null)}>닫기</Button>
+                <Button onClick={() => setSelectedItemForDescription(null)} className="w-full">닫기</Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>
@@ -1134,9 +1184,12 @@ export default function MyClassPage() {
                     {selectedStudent.inventory && Object.keys(selectedStudent.inventory).length > 0 ? (
                         <div className="space-y-2 pr-4">
                             {Object.entries(selectedStudent.inventory).map(([itemName, itemDetails]) => (
-                                <Card key={itemName} className="p-3">
-                                    <h4 className="font-semibold">{itemName}</h4>
-                                    <p className="text-sm text-muted-foreground">보유 수량: {itemDetails.quantity}</p>
+                                <Card key={itemName} className="p-3 flex items-center gap-4">
+                                    <div className="text-3xl">{itemDetails.emoji || '📦'}</div>
+                                    <div>
+                                        <h4 className="font-semibold">{itemName}</h4>
+                                        <p className="text-sm text-muted-foreground">보유 수량: {itemDetails.quantity}</p>
+                                    </div>
                                 </Card>
                             ))}
                         </div>
@@ -1156,9 +1209,12 @@ export default function MyClassPage() {
                     ) : studentSellingItems.length > 0 ? (
                         <div className="space-y-2 pr-4">
                              {studentSellingItems.map((item) => (
-                                <Card key={item.id} className="p-3">
-                                    <h4 className="font-semibold">{item.name}</h4>
-                                    <p className="text-sm text-muted-foreground">가격: {item.price} / 남은 수량: {item.quantity}</p>
+                                <Card key={item.id} className="p-3 flex items-center gap-4">
+                                  <div className="text-3xl">{item.emoji || '📦'}</div>
+                                    <div>
+                                        <h4 className="font-semibold">{item.name}</h4>
+                                        <p className="text-sm text-muted-foreground">가격: {item.price} / 남은 수량: {item.quantity}</p>
+                                    </div>
                                 </Card>
                             ))}
                         </div>

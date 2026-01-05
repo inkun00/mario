@@ -27,6 +27,7 @@ export interface User {
       sellerId?: string; // 판매자 ID
       sellerNickname?: string; // 판매자 닉네임
       price?: number; // 구매 당시 가격
+      emoji?: string;
     }
   };
   pixelAvatar?: string; // JSON string of string[][]
@@ -217,6 +218,7 @@ export interface ClassStoreItem {
   price: number;
   description: string;
   quantity: number;
+  emoji?: string;
   createdAt: any; // serverTimestamp
   report?: ItemReport | null;
 }
