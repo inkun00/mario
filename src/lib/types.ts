@@ -25,6 +25,7 @@ export interface PointLog {
   description: string; // 예: "숙제 면제권 구매", "'사회 퀴즈' 완료", "김땡땡에게 보내기"
   relatedUserId?: string; // 예: 포인트를 보내거나 받은 상대방 ID
   relatedItemId?: string; // 예: 구매/판매한 아이템 ID
+  relatedQuestion?: Question; // 퀴즈 보상과 관련된 질문 정보
 }
 
 

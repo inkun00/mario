@@ -6,12 +6,12 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe, runTransaction, updateDoc, deleteDoc, increment, orderBy, writeBatch } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
-import type { User, ClassStoreItem, ItemBuyer, ItemReport, PointLog, PointAcquisitionRule } from '@/lib/types';
+import type { User, ClassStoreItem, ItemBuyer, ItemReport, PointLog, PointAcquisitionRule, Question } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2, Gem, Package, Send, ArrowRightLeft, ArrowLeft, ArrowRight, Gift, Settings, AlertTriangle, ShieldCheck, Undo2, LineChart } from 'lucide-react';
+import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2, Gem, Package, Send, ArrowRightLeft, ArrowLeft, ArrowRight, Gift, Settings, AlertTriangle, ShieldCheck, Undo2, LineChart, Library } from 'lucide-react';
 import { getLevelInfo } from '@/lib/level-system';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
@@ -32,7 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Combobox } from '@/components/ui/combobox';
 import { v4 as uuidv4 } from 'uuid';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart } from 'recharts';
 
 
 const sellItemSchema = z.object({
@@ -86,6 +86,18 @@ const EmojiSelector = React.memo(function EmojiSelector({ value, onChange }: Emo
 });
 EmojiSelector.displayName = 'EmojiSelector';
 
+interface AggregatedStat {
+    total: number;
+    correct: number;
+    accuracy: number;
+}
+
+interface LearningAnalysisData {
+    subjectStats: Record<string, AggregatedStat>;
+    unitStats: Record<string, AggregatedStat>;
+    lowAccuracyQuestions: (PointLog & { accuracy: number })[];
+}
+
 export default function MyClassPage() {
   const [user] = useAuthState(auth);
   const [userData, setUserData] = useState<User | null>(null);
@@ -137,6 +149,9 @@ export default function MyClassPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBuying, setIsBuying] = useState<string | null>(null);
   const { toast } = useToast();
+
+  const [learningAnalysisData, setLearningAnalysisData] = useState<LearningAnalysisData | null>(null);
+  const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
 
   const form = useForm<SellItemFormValues>({
     resolver: zodResolver(sellItemSchema),
@@ -227,6 +242,81 @@ export default function MyClassPage() {
         if (unsubscribeUser) unsubscribeUser();
     };
   }, [user, toast]);
+
+    const handleTabChange = useCallback(async (tab: string) => {
+        if (tab === 'analysis' && !learningAnalysisData && classMembers.length > 1) {
+            setIsAnalysisLoading(true);
+            try {
+                const studentIds = classMembers.filter(m => m.role !== 'teacher').map(m => m.uid);
+                const allLogs: PointLog[] = [];
+                
+                for (const id of studentIds) {
+                    const logsQuery = query(collection(db, `users/${id}/pointLogs`), where('type', '==', 'QUIZ_REWARD'));
+                    const logSnapshot = await getDocs(logsQuery);
+                    logSnapshot.forEach(doc => {
+                        const logData = doc.data() as PointLog;
+                        if (logData.relatedQuestion) {
+                            allLogs.push(logData);
+                        }
+                    });
+                }
+                
+                const subjectStats: Record<string, { total: number; correct: number }> = {};
+                const unitStats: Record<string, { total: number; correct: number }> = {};
+                const questionStats: Record<string, { total: number; correct: number; question: Question }> = {};
+
+                allLogs.forEach(log => {
+                    const question = log.relatedQuestion as Question;
+                    if (!question || !question.subject) return;
+
+                    const isCorrect = log.amount > 0;
+                    
+                    // Subject stats
+                    if (!subjectStats[question.subject]) subjectStats[question.subject] = { total: 0, correct: 0 };
+                    subjectStats[question.subject].total++;
+                    if (isCorrect) subjectStats[question.subject].correct++;
+
+                    // Unit stats (simple aggregation for now)
+                    if (question.unit) {
+                        const simpleUnit = question.unit.trim();
+                        if (!unitStats[simpleUnit]) unitStats[simpleUnit] = { total: 0, correct: 0 };
+                        unitStats[simpleUnit].total++;
+                        if (isCorrect) unitStats[simpleUnit].correct++;
+                    }
+
+                    // Question stats
+                    const questionKey = `${question.subject}-${question.unit}-${question.question}`;
+                    if (!questionStats[questionKey]) questionStats[questionKey] = { total: 0, correct: 0, question: question };
+                    questionStats[questionKey].total++;
+                    if (isCorrect) questionStats[questionKey].correct++;
+                });
+
+                const toAggr = (stats: Record<string, { total: number; correct: number }>): Record<string, AggregatedStat> => {
+                    return Object.entries(stats).reduce((acc, [key, val]) => {
+                        acc[key] = { ...val, accuracy: val.total > 0 ? (val.correct / val.total) * 100 : 0 };
+                        return acc;
+                    }, {} as Record<string, AggregatedStat>);
+                }
+
+                const lowAccuracyQuestions = Object.values(questionStats)
+                    .map(stat => ({ ...stat.question, accuracy: stat.total > 0 ? (stat.correct / stat.total) * 100 : 0 } as any))
+                    .filter(q => q.accuracy < 100)
+                    .sort((a, b) => a.accuracy - b.accuracy)
+                    .slice(0, 10);
+
+                setLearningAnalysisData({
+                    subjectStats: toAggr(subjectStats),
+                    unitStats: toAggr(unitStats),
+                    lowAccuracyQuestions,
+                });
+            } catch (e) {
+                console.error("Error analyzing learning data:", e);
+                toast({ variant: 'destructive', title: '오류', description: '학습 데이터 분석 중 오류가 발생했습니다.'});
+            } finally {
+                setIsAnalysisLoading(false);
+            }
+        }
+    }, [learningAnalysisData, classMembers, toast]);
 
   async function handleSellItem(data: SellItemFormValues) {
     if (!user || !userData) return;
@@ -735,6 +825,25 @@ export default function MyClassPage() {
       color: "hsl(var(--primary))",
     },
   };
+  
+    const analysisChartData = learningAnalysisData
+        ? Object.entries(learningAnalysisData.subjectStats)
+            .map(([subject, data]) => ({ name: subject, 정답률: data.accuracy }))
+            .sort((a,b) => b.정답률 - a.정답률)
+        : [];
+    const analysisUnitChartData = learningAnalysisData
+        ? Object.entries(learningAnalysisData.unitStats)
+            .map(([unit, data]) => ({ name: unit, 정답률: data.accuracy }))
+            .sort((a,b) => b.정답률 - a.정답률)
+        : [];
+    
+    const analysisChartConfig = {
+        정답률: {
+            label: "정답률 (%)",
+            color: "hsl(var(--primary))",
+        },
+    };
+
 
   return (
     <>
@@ -763,11 +872,84 @@ export default function MyClassPage() {
               </p>
             </div>
           ) : (
-            <Tabs defaultValue="ranking" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
+            <Tabs defaultValue="ranking" className="w-full" onValueChange={handleTabChange}>
+              <TabsList className={cn("grid w-full", isTeacher ? "grid-cols-3" : "grid-cols-2")}>
+                {isTeacher && <TabsTrigger value="analysis">학습 분석</TabsTrigger>}
                 <TabsTrigger value="ranking">우리 학급 랭킹</TabsTrigger>
                 <TabsTrigger value="store">학급 매장</TabsTrigger>
               </TabsList>
+              {isTeacher && (
+                <TabsContent value="analysis" className="mt-4">
+                     {isAnalysisLoading ? (
+                         <div className="flex justify-center items-center h-64">
+                             <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                             <p className="ml-2">학습 데이터를 분석하는 중...</p>
+                         </div>
+                     ) : !learningAnalysisData ? (
+                         <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                             <p className="text-muted-foreground">분석할 학습 데이터가 부족합니다.</p>
+                         </div>
+                     ) : (
+                         <div className="space-y-8">
+                             <Card>
+                                 <CardHeader>
+                                     <CardTitle>과목별 정답률</CardTitle>
+                                 </CardHeader>
+                                 <CardContent>
+                                     <ChartContainer config={analysisChartConfig} className="h-64 w-full">
+                                         <BarChart data={analysisChartData} accessibilityLayer>
+                                             <CartesianGrid vertical={false} />
+                                             <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
+                                             <YAxis domain={[0, 100]} unit="%" />
+                                             <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+                                             <Bar dataKey="정답률" fill="var(--color-정답률)" radius={4} />
+                                         </BarChart>
+                                     </ChartContainer>
+                                 </CardContent>
+                             </Card>
+                              <Card>
+                                 <CardHeader>
+                                     <CardTitle>단원별 정답률 (상위 10개)</CardTitle>
+                                 </CardHeader>
+                                 <CardContent>
+                                     <ChartContainer config={analysisChartConfig} className="h-64 w-full">
+                                         <BarChart data={analysisUnitChartData.slice(0,10)} layout="vertical" accessibilityLayer>
+                                             <CartesianGrid horizontal={false} />
+                                             <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tickMargin={8} width={100} fontSize={12} />
+                                             <XAxis type="number" domain={[0, 100]} unit="%" />
+                                             <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+                                             <Bar dataKey="정답률" fill="var(--color-정답률)" radius={4} />
+                                         </BarChart>
+                                     </ChartContainer>
+                                 </CardContent>
+                             </Card>
+                             <Card>
+                                <CardHeader>
+                                    <CardTitle>정답률이 낮은 문제 TOP 10</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>문제</TableHead>
+                                                <TableHead className="text-right">정답률</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {learningAnalysisData.lowAccuracyQuestions.map((q, i) => (
+                                                <TableRow key={i}>
+                                                    <TableCell className="max-w-sm truncate">{q.question}</TableCell>
+                                                    <TableCell className="text-right font-semibold text-destructive">{q.accuracy.toFixed(1)}%</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </CardContent>
+                             </Card>
+                         </div>
+                     )}
+                </TabsContent>
+              )}
               <TabsContent value="ranking" className="mt-4">
                 {classMembers.length === 0 ? (
                   <div className="text-center py-12 border-2 border-dashed rounded-lg">

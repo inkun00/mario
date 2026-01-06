@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
@@ -520,22 +521,38 @@ export default function GamePage() {
                       gameState: newGameState,
                       currentAnswerResult: null,
                   };
-                  
+
                   if (allAnswered) {
                     updateData.status = 'finished';
                   } else {
                     updateData.currentTurn = getNextTurnUID();
                   }
+
+                  const playerUID = currentRoomData.currentTurn;
+                  
+                  // Log point for quiz reward if correct
+                  if (isCorrect) {
+                      const quizLogRef = doc(collection(db, 'users', playerUID, 'pointLogs'));
+                      transaction.set(quizLogRef, {
+                          id: quizLogRef.id,
+                          userId: playerUID,
+                          type: 'QUIZ_REWARD',
+                          amount: pointsToAward,
+                          timestamp: serverTimestamp(),
+                          description: `'${gameSet.title}' 퀴즈 정답`,
+                          relatedQuestion: currentQuestion,
+                      } as PointLog);
+                  }
                   
                   if (!isCorrect) {
                     const incorrectLogData: IncorrectAnswer = {
                         id: uuidv4(),
-                        userId: currentRoomData.currentTurn,
+                        userId: playerUID,
                         question: currentQuestion,
                         userAnswer: userAnswer,
                         timestamp: new Date(),
                     };
-                    const incorrectLogRef = doc(db, 'users', currentRoomData.currentTurn, 'incorrect-answers', incorrectLogData.id);
+                    const incorrectLogRef = doc(db, 'users', playerUID, 'incorrect-answers', incorrectLogData.id);
                     transaction.set(incorrectLogRef, incorrectLogData);
                   }
 
