@@ -95,7 +95,7 @@ interface AggregatedStat {
 interface LearningAnalysisData {
     subjectStats: Record<string, AggregatedStat>;
     unitStats: Record<string, AggregatedStat>;
-    lowAccuracyQuestions: (PointLog & { accuracy: number })[];
+    lowAccuracyQuestions: (Question & { accuracy: number })[];
 }
 
 export default function MyClassPage() {
@@ -299,7 +299,7 @@ export default function MyClassPage() {
                 }
 
                 const lowAccuracyQuestions = Object.values(questionStats)
-                    .map(stat => ({ ...stat.question, accuracy: stat.total > 0 ? (stat.correct / stat.total) * 100 : 0 } as any))
+                    .map(stat => ({ ...stat.question, accuracy: stat.total > 0 ? (stat.correct / stat.total) * 100 : 0 }))
                     .filter(q => q.accuracy < 100)
                     .sort((a, b) => a.accuracy - b.accuracy)
                     .slice(0, 10);
@@ -885,7 +885,7 @@ export default function MyClassPage() {
                              <Loader2 className="w-8 h-8 animate-spin text-primary" />
                              <p className="ml-2">학습 데이터를 분석하는 중...</p>
                          </div>
-                     ) : !learningAnalysisData ? (
+                     ) : !learningAnalysisData || Object.keys(learningAnalysisData.subjectStats).length === 0 ? (
                          <div className="text-center py-12 border-2 border-dashed rounded-lg">
                              <p className="text-muted-foreground">분석할 학습 데이터가 부족합니다.</p>
                          </div>
