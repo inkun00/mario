@@ -61,14 +61,15 @@ Context for the quiz:
 Please adhere to the following instructions:
 1.  **Analyze the Document**: Thoroughly review the content of the PDF provided.
     - PDF Document: {{media url=pdfDataUri}}
-2.  **Generate Diverse Questions**: Create a mix of question types ('subjective', 'multipleChoice', 'ox').
-3.  **Content Requirements**:
+2.  **Language**: All questions, options, answers, and hints MUST be written in Korean.
+3.  **Generate Diverse Questions**: Create a mix of question types ('subjective', 'multipleChoice', 'ox').
+4.  **Content Requirements**:
     - For 'multipleChoice' questions, you MUST provide exactly 4 unique options.
     - For 'subjective' questions, provide a clear and concise answer.
     - For 'ox' questions, the correctAnswer must be either "O" or "X".
-4.  **Assign Points**: Assign a point value between 10 and 50 for each question based on its difficulty.
-5.  **Hints**: Provide a helpful but not-too-obvious hint for some of the more difficult questions.
-6.  **Ensure Accuracy**: All questions, options, and answers must be factually correct based on the PDF content.
+5.  **Assign Points**: Assign a point value between 10 and 50 for each question based on its difficulty.
+6.  **Hints**: Provide a helpful but not-too-obvious hint for some of the more difficult questions.
+7.  **Ensure Accuracy**: All questions, options, and answers must be factually correct based on the PDF content.
 
 Generate the questions and format the output according to the specified JSON schema.
 `,
