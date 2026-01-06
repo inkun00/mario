@@ -1233,7 +1233,7 @@ export default function GamePage() {
                 )}
             </DialogHeader>
             
-            {answerResult && isMyTurn ? (
+            {answerResult ? (
                 <div className="py-4 text-center space-y-4">
                     {answerResult.isCorrect ? (
                         <div className="flex flex-col items-center gap-2 text-green-600">
