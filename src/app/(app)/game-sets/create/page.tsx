@@ -242,8 +242,8 @@ export default function CreateGameSetPage() {
 
   const handlePdfGenerate = async () => {
     if (!pdfFile) {
-        toast({ variant: 'destructive', title: '파일 오류', description: 'PDF 파일을 선택해주세요.' });
-        return;
+      toast({ variant: 'destructive', title: '파일 오류', description: 'PDF 파일을 선택해주세요.' });
+      return;
     }
 
     setIsLoading(true);
@@ -251,55 +251,61 @@ export default function CreateGameSetPage() {
     setIsPdfDialogOpen(false);
 
     try {
-        const fileReader = new FileReader();
-        fileReader.readAsDataURL(pdfFile);
-        fileReader.onload = async (e) => {
-            const pdfDataUri = e.target?.result as string;
-            if (!pdfDataUri) {
-                throw new Error("PDF 파일을 읽는 데 실패했습니다.");
-            }
+      const fileReader = new FileReader();
+      fileReader.readAsDataURL(pdfFile);
 
-            const currentValues = form.getValues();
-            const result = await generateQuestionsFromPdf({
-                pdfDataUri,
-                grade: currentValues.grade,
-                subject: currentValues.subject,
-                unit: currentValues.unit,
-            });
-            
-            if (result.title) form.setValue('title', result.title);
-            if (result.grade) form.setValue('grade', result.grade);
-            if (result.semester) form.setValue('semester', result.semester);
-            if (result.subject) form.setValue('subject', result.subject);
-            if (result.unit) form.setValue('unit', result.unit);
+      fileReader.onload = async (e) => {
+        try {
+          const pdfDataUri = e.target?.result as string;
+          if (!pdfDataUri) {
+            throw new Error("PDF 파일을 읽는 데 실패했습니다.");
+          }
 
+          const currentValues = form.getValues();
+          const result = await generateQuestionsFromPdf({
+            pdfDataUri,
+            grade: currentValues.grade,
+            subject: currentValues.subject,
+            unit: currentValues.unit,
+          });
 
-            const newQuestions = result.questions.map(q => ({
-                ...q,
-                options: q.options || ['', '', '', ''],
-                answer: q.answer || '',
-                hint: q.hint || '',
-                imageUrl: q.imageUrl || '',
-                correctAnswer: q.correctAnswer || '',
-            }));
+          if (result.title) form.setValue('title', result.title);
+          if (result.grade) form.setValue('grade', result.grade);
+          if (result.semester) form.setValue('semester', result.semester);
+          if (result.subject) form.setValue('subject', result.subject);
+          if (result.unit) form.setValue('unit', result.unit);
 
-            if (newQuestions.length > 0) {
-              replace(newQuestions);
-            }
-            
-            toast({ title: '성공!', description: `${result.questions.length}개의 문제가 자동으로 생성되었습니다.` });
-            setPdfFile(null);
-        };
+          const newQuestions = result.questions.map(q => ({
+            ...q,
+            options: q.options || ['', '', '', ''],
+            answer: q.answer || '',
+            hint: q.hint || '',
+            imageUrl: q.imageUrl || '',
+            correctAnswer: q.correctAnswer || '',
+          }));
 
-        fileReader.onerror = () => {
-            throw new Error("PDF 파일 처리 중 오류가 발생했습니다.");
+          if (newQuestions.length > 0) {
+            replace(newQuestions);
+          }
+
+          toast({ title: '성공!', description: `${result.questions.length}개의 문제가 자동으로 생성되었습니다.` });
+          setPdfFile(null);
+        } catch (error: any) {
+          toast({ variant: 'destructive', title: 'AI 생성 오류', description: `PDF에서 문제를 생성하는 중 오류가 발생했습니다: ${error.message}` });
+        } finally {
+          setIsLoading(false);
+          setLoadingMessage('');
         }
+      };
+
+      fileReader.onerror = () => {
+        throw new Error("PDF 파일 처리 중 오류가 발생했습니다.");
+      }
 
     } catch (error: any) {
-        toast({ variant: 'destructive', title: 'AI 생성 오류', description: `PDF에서 문제를 생성하는 중 오류가 발생했습니다: ${error.message}` });
-    } finally {
-        setIsLoading(false);
-        setLoadingMessage('');
+      toast({ variant: 'destructive', title: '파일 처리 오류', description: error.message });
+      setIsLoading(false);
+      setLoadingMessage('');
     }
   };
   
