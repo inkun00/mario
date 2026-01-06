@@ -1039,11 +1039,11 @@ export default function MyClassPage() {
                                        </CardHeader>
                                        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
                                            <div className="p-4 bg-secondary rounded-lg">
-                                               <p className="text-sm text-muted-foreground">학급 총 보유 포인트</p>
+                                               <p className="text-sm text-muted-foreground">총 보유 포인트</p>
                                                <p className="text-3xl font-bold text-primary">{pointAnalysisData.totalHeldPoints.toLocaleString()}</p>
                                            </div>
                                             <div className="p-4 bg-secondary rounded-lg">
-                                               <p className="text-sm text-muted-foreground">학급 총 소비 포인트</p>
+                                               <p className="text-sm text-muted-foreground">소비 포인트</p>
                                                <p className="text-3xl font-bold text-destructive">{pointAnalysisData.totalSpentPoints.toLocaleString()}</p>
                                            </div>
                                        </CardContent>
@@ -1866,5 +1866,6 @@ export default function MyClassPage() {
     </>
   );
 }
+
 
 
