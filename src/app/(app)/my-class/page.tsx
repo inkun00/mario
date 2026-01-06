@@ -619,6 +619,17 @@ export default function MyClassPage() {
             toast({variant: 'destructive', title: '오류', description: '상품 삭제 중 오류 발생'});
         }
     };
+    
+    const handleDeleteItem = async (item: ClassStoreItem) => {
+        try {
+            await deleteDoc(doc(db, 'class-store-items', item.id));
+            toast({ title: '상품 삭제', description: `'${item.name}' 상품이 매점에서 삭제되었습니다.` });
+        } catch (error) {
+            console.error("Error deleting item:", error);
+            toast({ variant: "destructive", title: "오류", description: "상품 삭제 중 오류가 발생했습니다." });
+        }
+    };
+
 
     const handleReportItem = async () => {
         if (!reportCandidate || !reportReason.trim() || !user || !userData) return;
@@ -1087,25 +1098,36 @@ export default function MyClassPage() {
                                               <TableCell className="text-right font-bold text-primary">{item.price.toLocaleString()}</TableCell>
                                               <TableCell className="text-center">
                                                 <div className="flex items-center justify-center gap-2">
-                                                  {item.sellerId !== user?.uid && !isTeacher && (
-                                                    <Button 
-                                                      size="sm" 
-                                                      disabled={!!isBuying || !!item.report}
-                                                      onClick={() => handleBuyItem(item)}
-                                                      title={item.report ? '신고된 상품은 구매할 수 없습니다.' : ''}
-                                                    >
-                                                      {isBuying === item.id ? <Loader2 className="w-4 h-4 animate-spin"/> : '구매'}
-                                                    </Button>
-                                                  )}
-                                                  {item.sellerId !== user?.uid && !isTeacher && !item.report && (
+                                                  {isTeacher ? (
                                                     <Button
-                                                      variant="ghost"
-                                                      size="icon"
-                                                      className="h-8 w-8 text-destructive hover:text-destructive"
-                                                      onClick={() => setReportCandidate(item)}
+                                                        variant="destructive"
+                                                        size="sm"
+                                                        onClick={() => handleDeleteItem(item)}
+                                                        title="이 상품을 매점에서 삭제합니다."
                                                     >
-                                                      <AlertTriangle className="w-4 h-4" />
+                                                        판매 중지
                                                     </Button>
+                                                  ) : item.sellerId !== user?.uid && (
+                                                    <>
+                                                        <Button 
+                                                            size="sm" 
+                                                            disabled={!!isBuying || !!item.report}
+                                                            onClick={() => handleBuyItem(item)}
+                                                            title={item.report ? '신고된 상품은 구매할 수 없습니다.' : ''}
+                                                        >
+                                                            {isBuying === item.id ? <Loader2 className="w-4 h-4 animate-spin"/> : '구매'}
+                                                        </Button>
+                                                        {!item.report && (
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                                                onClick={() => setReportCandidate(item)}
+                                                            >
+                                                                <AlertTriangle className="w-4 h-4" />
+                                                            </Button>
+                                                        )}
+                                                    </>
                                                   )}
                                                 </div>
                                               </TableCell>
@@ -1717,3 +1739,4 @@ export default function MyClassPage() {
     </>
   );
 }
+
