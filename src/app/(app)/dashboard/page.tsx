@@ -290,7 +290,7 @@ export default function DashboardPage() {
       });
 
       const finalSets = Object.values(combinedSets).sort(
-        (a, b) => (b.playCount || 0) - (a.playCount || 0) || (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)
+        (a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0)
       );
 
       setAllGameSets(finalSets);
@@ -1055,6 +1055,8 @@ export default function DashboardPage() {
     </>
   );
 }
+
+    
 
     
 
