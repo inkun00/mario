@@ -33,6 +33,11 @@ export type PdfQuestionGenerationInput = z.infer<typeof PdfQuestionGenerationInp
 // Define the output schema for the flow
 const PdfQuestionGenerationOutputSchema = z.object({
   questions: z.array(GeneratedQuestionSchema).describe('An array of generated quiz questions.'),
+  title: z.string().optional().describe('A suitable title for the quiz set based on the document content.'),
+  grade: z.string().optional().describe('The grade level identified from the document (e.g., "5학년").'),
+  semester: z.string().optional().describe('The semester identified from the document (e.g., "1학기").'),
+  subject: z.string().optional().describe('The subject identified from the document (e.g., "사회").'),
+  unit: z.string().optional().describe('The unit or chapter title identified from the document.'),
 });
 export type PdfQuestionGenerationOutput = z.infer<typeof PdfQuestionGenerationOutputSchema>;
 
@@ -51,9 +56,9 @@ const generateQuestionsPrompt = ai.definePrompt({
   output: { schema: PdfQuestionGenerationOutputSchema },
   model: 'googleai/gemini-2.5-flash',
   prompt: `You are an expert educator in South Korea specializing in creating quiz content for students.
-Your task is to analyze the provided PDF document and generate a set of at least 5-10 diverse and high-quality quiz questions based on its content.
+Your task is to analyze the provided PDF document and generate a set of at least 5-10 diverse and high-quality quiz questions based on its content. You must also extract metadata about the quiz.
 
-Context for the quiz:
+Context for the quiz (use if provided, otherwise infer from the document):
 - Grade: {{grade}}
 - Subject: {{subject}}
 - Unit: {{unit}}
@@ -61,17 +66,23 @@ Context for the quiz:
 Please adhere to the following instructions:
 1.  **Analyze the Document**: Thoroughly review the content of the PDF provided.
     - PDF Document: {{media url=pdfDataUri}}
-2.  **Language**: All questions, options, answers, and hints MUST be written in Korean.
-3.  **Generate Diverse Questions**: Create a mix of question types ('subjective', 'multipleChoice', 'ox').
-4.  **Content Requirements**:
+2.  **Extract Metadata**: From the document's content, identify and extract the following information. If it's not explicitly mentioned, leave the field blank.
+    - A suitable \`title\` for the quiz set.
+    - The \`grade\` (e.g., "5학년").
+    - The \`semester\` (e.g., "1학기", "2학기").
+    - The \`subject\` (e.g., "국어", "수학", "사회").
+    - The \`unit\` or chapter title.
+3.  **Language**: All generated content (title, questions, options, answers, hints, metadata) MUST be written in Korean.
+4.  **Generate Diverse Questions**: Create a mix of question types ('subjective', 'multipleChoice', 'ox').
+5.  **Content Requirements**:
     - For 'multipleChoice' questions, you MUST provide exactly 4 unique options.
     - For 'subjective' questions, provide a clear and concise answer.
     - For 'ox' questions, the correctAnswer must be either "O" or "X".
-5.  **Assign Points**: Assign a point value between 10 and 50 for each question based on its difficulty.
-6.  **Hints**: Provide a helpful but not-too-obvious hint for some of the more difficult questions.
-7.  **Ensure Accuracy**: All questions, options, and answers must be factually correct based on the PDF content.
+6.  **Assign Points**: Assign a point value between 10 and 50 for each question based on its difficulty.
+7.  **Hints**: Provide a helpful but not-too-obvious hint for some of the more difficult questions.
+8.  **Ensure Accuracy**: All questions, options, and answers must be factually correct based on the PDF content.
 
-Generate the questions and format the output according to the specified JSON schema.
+Generate the questions and metadata, then format the output according to the specified JSON schema.
 `,
 });
 

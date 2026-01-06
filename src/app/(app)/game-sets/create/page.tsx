@@ -143,6 +143,21 @@ export default function CreateGameSetPage() {
   const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
 
+  const fetchUserData = useCallback(async () => {
+    if (!user) return;
+    const userRef = doc(db, 'users', user.uid);
+    const docSnap = await getDoc(userRef);
+    if (docSnap.exists()) {
+      setUserData(docSnap.data() as User);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      fetchUserData();
+    }
+  }, [user, fetchUserData]);
+  
   const isTeacher = userData?.role === 'teacher';
 
   const form = useForm<GameSetFormValues>({
@@ -166,22 +181,6 @@ export default function CreateGameSetPage() {
     control: form.control,
     name: 'questions',
   });
-
-  const fetchUserData = useCallback(async () => {
-    if (!user) return;
-    const userRef = doc(db, 'users', user.uid);
-    const docSnap = await getDoc(userRef);
-    if (docSnap.exists()) {
-      setUserData(docSnap.data() as User);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    if (user) {
-      fetchUserData();
-    }
-  }, [user, fetchUserData]);
-
 
   async function onSubmit(data: GameSetFormValues) {
     setIsLoading(true);
@@ -267,6 +266,13 @@ export default function CreateGameSetPage() {
                 subject: currentValues.subject,
                 unit: currentValues.unit,
             });
+            
+            if (result.title) form.setValue('title', result.title);
+            if (result.grade) form.setValue('grade', result.grade);
+            if (result.semester) form.setValue('semester', result.semester);
+            if (result.subject) form.setValue('subject', result.subject);
+            if (result.unit) form.setValue('unit', result.unit);
+
 
             const newQuestions = result.questions.map(q => ({
                 ...q,
@@ -277,7 +283,10 @@ export default function CreateGameSetPage() {
                 correctAnswer: q.correctAnswer || '',
             }));
 
-            replace(newQuestions);
+            if (newQuestions.length > 0) {
+              replace(newQuestions);
+            }
+            
             toast({ title: '성공!', description: `${result.questions.length}개의 문제가 자동으로 생성되었습니다.` });
             setPdfFile(null);
         };
@@ -398,7 +407,7 @@ export default function CreateGameSetPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>학년</FormLabel>
-                           <Select onValueChange={field.onChange} defaultValue={field.value}>
+                           <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="학년 선택" />
@@ -423,7 +432,7 @@ export default function CreateGameSetPage() {
                                 <FormControl>
                                 <RadioGroup
                                   onValueChange={field.onChange}
-                                  defaultValue={field.value}
+                                  value={field.value}
                                   className="flex items-center gap-4 h-10"
                                 >
                                   <FormItem className="flex items-center space-x-2">
@@ -450,7 +459,7 @@ export default function CreateGameSetPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>과목</FormLabel>
-                           <Select onValueChange={field.onChange} defaultValue={field.value}>
+                           <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="과목 선택" />
