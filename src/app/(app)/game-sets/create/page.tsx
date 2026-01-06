@@ -304,6 +304,16 @@ export default function CreateGameSetPage() {
 
   return (
     <div className="container mx-auto py-8">
+      {isLoading && (
+        <div className="fixed inset-x-0 top-16 z-50 p-4">
+          <div className="container mx-auto">
+            <div className="bg-secondary p-3 rounded-lg flex items-center justify-center shadow-lg">
+              <Loader2 className="mr-3 h-5 w-5 animate-spin text-primary" />
+              <span className="font-semibold">{loadingMessage}</span>
+            </div>
+          </div>
+        </div>
+      )}
        {isTeacher && (
         <Dialog open={isPdfDialogOpen} onOpenChange={setIsPdfDialogOpen}>
             <DialogTrigger asChild>
