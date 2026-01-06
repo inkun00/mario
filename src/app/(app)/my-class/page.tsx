@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -1052,15 +1053,15 @@ export default function MyClassPage() {
                                            <CardTitle>인기 판매 상품 TOP 10</CardTitle>
                                        </CardHeader>
                                        <CardContent>
-                                           <ResponsiveContainer width="100%" height={300}>
-                                             <BarChart data={pointAnalysisChartData} layout="vertical">
-                                               <CartesianGrid strokeDasharray="3 3" />
-                                               <XAxis type="number" />
-                                               <YAxis dataKey="name" type="category" width={80} />
-                                               <ChartTooltip cursor={{ fill: 'hsl(var(--muted))' }} content={<ChartTooltipContent />} />
-                                               <Bar dataKey="count" name="판매량" fill="hsl(var(--primary))" radius={4} />
-                                             </BarChart>
-                                           </ResponsiveContainer>
+                                            <ChartContainer config={pointAnalysisChartConfig} className="w-full h-[300px]">
+                                                <BarChart accessibilityLayer data={pointAnalysisChartData} layout="vertical">
+                                                    <CartesianGrid strokeDasharray="3 3" />
+                                                    <XAxis type="number" />
+                                                    <YAxis dataKey="name" type="category" width={80} />
+                                                    <ChartTooltip cursor={{ fill: 'hsl(var(--muted))' }} content={<ChartTooltipContent />} />
+                                                    <Bar dataKey="count" name="판매량" fill="var(--color-count)" radius={4} />
+                                                </BarChart>
+                                            </ChartContainer>
                                        </CardContent>
                                    </Card>
                                </div>
@@ -1861,3 +1862,4 @@ export default function MyClassPage() {
     </>
   );
 }
+
