@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe, runTransaction, updateDoc, deleteDoc, increment, orderBy, writeBatch } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2, Gem, Package, Send, ArrowRightLeft, ArrowLeft, ArrowRight, Gift, Settings, AlertTriangle, ShieldCheck, Undo2, LineChart, Library } from 'lucide-react';
+import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2, Gem, Package, Send, ArrowRightLeft, ArrowLeft, ArrowRight, Gift, Settings, AlertTriangle, ShieldCheck, Undo2, LineChart, Library, BarChartHorizontal } from 'lucide-react';
 import { getLevelInfo } from '@/lib/level-system';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
@@ -32,7 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Combobox } from '@/components/ui/combobox';
 import { v4 as uuidv4 } from 'uuid';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart } from 'recharts';
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart, ResponsiveContainer } from 'recharts';
 
 
 const sellItemSchema = z.object({
@@ -98,6 +98,13 @@ interface LearningAnalysisData {
     lowAccuracyQuestions: (Question & { accuracy: number })[];
 }
 
+interface PointAnalysisData {
+  totalHeldPoints: number;
+  totalSpentPoints: number;
+  topSoldItems: { name: string; count: number }[];
+}
+
+
 export default function MyClassPage() {
   const [user] = useAuthState(auth);
   const [userData, setUserData] = useState<User | null>(null);
@@ -151,6 +158,7 @@ export default function MyClassPage() {
   const { toast } = useToast();
 
   const [learningAnalysisData, setLearningAnalysisData] = useState<LearningAnalysisData | null>(null);
+  const [pointAnalysisData, setPointAnalysisData] = useState<PointAnalysisData | null>(null);
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
 
   const form = useForm<SellItemFormValues>({
@@ -194,7 +202,7 @@ export default function MyClassPage() {
                     unsubscribeMembers = onSnapshot(membersQuery, (snapshot) => {
                         const members = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
                         // Also include the teacher in the list
-                        setClassMembers([currentUserData, ...members].sort((a, b) => b.xp - a.xp));
+                        setClassMembers([currentUserData, ...members].sort((a, b) => (b.classPoints || 0) - (a.classPoints || 0)));
                     });
                 } else {
                     const teacherRef = doc(db, 'users', targetClassId);
@@ -205,7 +213,7 @@ export default function MyClassPage() {
                             if (unsubscribeMembers) unsubscribeMembers();
                             unsubscribeMembers = onSnapshot(membersQuery, (snapshot) => {
                                 const members = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
-                                setClassMembers([teacherData, ...members].sort((a, b) => b.xp - a.xp));
+                                setClassMembers([teacherData, ...members].sort((a, b) => (b.classPoints || 0) - (a.classPoints || 0)));
                             });
                         }
                     });
@@ -244,7 +252,9 @@ export default function MyClassPage() {
   }, [user, toast]);
 
     const handleTabChange = useCallback(async (tab: string) => {
-        if (tab === 'analysis' && !learningAnalysisData && classMembers.length > 1) {
+        if (!classMembers || classMembers.length <= 1) return;
+
+        if (tab === 'analysis' && !learningAnalysisData) {
             setIsAnalysisLoading(true);
             try {
                 const studentIds = classMembers.filter(m => m.role !== 'teacher').map(m => m.uid);
@@ -315,8 +325,48 @@ export default function MyClassPage() {
             } finally {
                 setIsAnalysisLoading(false);
             }
+        } else if (tab === 'point-analysis' && !pointAnalysisData) {
+            setIsAnalysisLoading(true);
+            try {
+                const studentIds = classMembers.filter(m => m.role !== 'teacher').map(m => m.uid);
+                const allLogs: PointLog[] = [];
+                
+                for (const id of studentIds) {
+                    const logsQuery = query(collection(db, `users/${id}/pointLogs`));
+                    const logSnapshot = await getDocs(logsQuery);
+                    logSnapshot.forEach(doc => allLogs.push(doc.data() as PointLog));
+                }
+                
+                const totalHeldPoints = classMembers.reduce((sum, member) => sum + (member.classPoints || 0), 0);
+                const totalSpentPoints = allLogs
+                    .filter(log => log.type === 'ITEM_PURCHASE')
+                    .reduce((sum, log) => sum - log.amount, 0);
+
+                const itemPurchaseCounts: Record<string, number> = {};
+                allLogs.filter(log => log.type === 'ITEM_PURCHASE').forEach(log => {
+                    const itemName = log.description.replace('\' 구매', '').replace('\'', '');
+                    itemPurchaseCounts[itemName] = (itemPurchaseCounts[itemName] || 0) + 1;
+                });
+
+                const topSoldItems = Object.entries(itemPurchaseCounts)
+                    .map(([name, count]) => ({ name, count }))
+                    .sort((a, b) => b.count - a.count)
+                    .slice(0, 10);
+
+                setPointAnalysisData({
+                    totalHeldPoints,
+                    totalSpentPoints,
+                    topSoldItems,
+                });
+
+            } catch (e) {
+                console.error("Error analyzing point data:", e);
+                toast({ variant: 'destructive', title: '오류', description: '포인트 데이터 분석 중 오류가 발생했습니다.'});
+            } finally {
+                setIsAnalysisLoading(false);
+            }
         }
-    }, [learningAnalysisData, classMembers, toast]);
+    }, [learningAnalysisData, pointAnalysisData, classMembers, toast]);
 
   async function handleSellItem(data: SellItemFormValues) {
     if (!user || !userData) return;
@@ -854,6 +904,14 @@ export default function MyClassPage() {
             color: "hsl(var(--primary))",
         },
     };
+    
+    const pointAnalysisChartData = pointAnalysisData?.topSoldItems || [];
+    const pointAnalysisChartConfig = {
+        count: {
+            label: "판매 수량",
+            color: "hsl(var(--accent-foreground))",
+        }
+    };
 
 
   return (
@@ -887,7 +945,7 @@ export default function MyClassPage() {
               <TabsList className={cn("grid w-full", isTeacher ? "grid-cols-3" : "grid-cols-2")}>
                 {isTeacher && <TabsTrigger value="analysis">학습 분석</TabsTrigger>}
                 <TabsTrigger value="ranking">우리 학급 랭킹</TabsTrigger>
-                <TabsTrigger value="store">학급 매장</TabsTrigger>
+                <TabsTrigger value="store">학급 매점</TabsTrigger>
               </TabsList>
               {isTeacher && (
                 <TabsContent value="analysis" className="mt-4">
@@ -974,7 +1032,7 @@ export default function MyClassPage() {
                         <TableHead>이름</TableHead>
                         <TableHead>학교</TableHead>
                         <TableHead className="text-center">레벨</TableHead>
-                        <TableHead className="text-right">경험치 (XP)</TableHead>
+                        <TableHead className="text-right">학급 포인트</TableHead>
                          {isTeacher && <TableHead className="text-right w-[100px]">작업</TableHead>}
                       </TableRow>
                     </TableHeader>
@@ -1016,7 +1074,10 @@ export default function MyClassPage() {
                             </TableCell>
                             <TableCell>{member.schoolName}</TableCell>
                             <TableCell className="text-center font-medium">Lv. {levelInfo.level}</TableCell>
-                            <TableCell className="text-right font-bold text-primary">{member.xp.toLocaleString()}</TableCell>
+                            <TableCell className="text-right font-bold text-primary flex items-center justify-end gap-1">
+                                <Gem className="w-4 h-4 text-blue-500" />
+                                {(member.classPoints || 0).toLocaleString()}
+                            </TableCell>
                             {isTeacher && (
                                 <TableCell className="text-right">
                                     {member.uid !== user?.uid && (
@@ -1038,268 +1099,329 @@ export default function MyClassPage() {
                 )}
               </TabsContent>
               <TabsContent value="store" className="mt-4">
-                  <Card>
-                      <CardHeader>
-                          <div className="flex justify-between items-center">
-                              <div>
-                                  <CardTitle className="flex items-center gap-2"><Store className="text-primary"/>학급 매점</CardTitle>
-                                  <CardDescription>학급 포인트를 사용하여 다양한 아이템을 구매하거나 판매할 수 있습니다.</CardDescription>
-                              </div>
-                              <div className="text-sm font-bold text-blue-500">내 포인트: {(userData.classPoints || 0).toLocaleString()}</div>
-                          </div>
-                      </CardHeader>
-                      <CardContent className="flex flex-col sm:flex-row gap-4">
-                        <Dialog open={isBuyItemDialogOpen} onOpenChange={setIsBuyItemDialogOpen}>
-                              <DialogTrigger asChild>
-                                  <Button className="w-full">
-                                      <ShoppingCart className="mr-2 h-4 w-4"/> 물건 사기
-                                  </Button>
-                              </DialogTrigger>
-                              <DialogContent className="max-w-4xl">
-                                  <DialogHeader>
-                                      <DialogTitle>학급 매점</DialogTitle>
-                                      <DialogDescription>판매 중인 물품 목록입니다. 상품명을 클릭하여 설명을 볼 수 있습니다.</DialogDescription>
-                                  </DialogHeader>
-                                  <ScrollArea className="h-[34rem]">
-                                    {isStoreLoading ? (
-                                      <div className="flex justify-center items-center h-full">
-                                        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                                      </div>
-                                    ) : classStoreItems.length === 0 ? (
-                                      <div className="text-center py-12">
-                                        <p className="text-muted-foreground">아직 판매 중인 상품이 없습니다.</p>
-                                      </div>
-                                    ) : (
-                                      <Table>
-                                        <TableHeader>
-                                          <TableRow>
-                                            <TableHead>상품명</TableHead>
-                                            <TableHead>판매자</TableHead>
-                                            <TableHead className="text-center">수량</TableHead>
-                                            <TableHead className="text-right">가격 (포인트)</TableHead>
-                                            <TableHead className="w-[120px] text-center">동작</TableHead>
-                                          </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                          {classStoreItems.map((item) => (
-                                            <TableRow key={item.id} className={cn(item.report && 'bg-destructive/10')}>
-                                              <TableCell 
-                                                className="font-medium cursor-pointer hover:underline"
-                                                onClick={() => handleItemClick(item)}
-                                              >
-                                                <div className="flex items-center gap-2">
-                                                  {item.emoji && <span className="text-lg">{item.emoji}</span>}
-                                                  {item.report && <AlertTriangle className="w-4 h-4 text-destructive" />}
-                                                  {item.name}
-                                                </div>
-                                              </TableCell>
-                                              <TableCell>{item.sellerNickname}</TableCell>
-                                              <TableCell className="text-center">{item.quantity}</TableCell>
-                                              <TableCell className="text-right font-bold text-primary">{item.price.toLocaleString()}</TableCell>
-                                              <TableCell className="text-center">
-                                                <div className="flex items-center justify-center gap-2">
-                                                  {isTeacher ? (
-                                                    <Button
-                                                        variant="destructive"
-                                                        size="sm"
-                                                        onClick={() => handleDeleteItem(item)}
-                                                        title="이 상품을 매점에서 삭제합니다."
+                  <Tabs defaultValue="main" onValueChange={handleTabChange}>
+                    <div className="flex justify-between items-center">
+                        <TabsList className={cn("grid w-full", isTeacher ? "grid-cols-2" : "grid-cols-1")}>
+                            <TabsTrigger value="main">매점 메인</TabsTrigger>
+                            {isTeacher && <TabsTrigger value="point-analysis">포인트 유통 현황</TabsTrigger>}
+                        </TabsList>
+                        <div className="text-sm font-bold text-blue-500 flex items-center gap-1 shrink-0 ml-4">
+                            <Gem className="w-4 h-4" />
+                            <span>내 포인트: {(userData.classPoints || 0).toLocaleString()}</span>
+                        </div>
+                    </div>
+                    <TabsContent value="main" className="mt-4">
+                        <Card>
+                            <CardHeader>
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <CardTitle className="flex items-center gap-2"><Store className="text-primary"/>학급 매점</CardTitle>
+                                        <CardDescription>학급 포인트를 사용하여 다양한 아이템을 구매하거나 판매할 수 있습니다.</CardDescription>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent className="flex flex-col sm:flex-row gap-4">
+                                <Dialog open={isBuyItemDialogOpen} onOpenChange={setIsBuyItemDialogOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button className="w-full">
+                                            <ShoppingCart className="mr-2 h-4 w-4"/> 물건 사기
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="max-w-4xl">
+                                        <DialogHeader>
+                                            <DialogTitle>학급 매점</DialogTitle>
+                                            <DialogDescription>판매 중인 물품 목록입니다. 상품명을 클릭하여 설명을 볼 수 있습니다.</DialogDescription>
+                                        </DialogHeader>
+                                        <ScrollArea className="h-[34rem]">
+                                            {isStoreLoading ? (
+                                            <div className="flex justify-center items-center h-full">
+                                                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                                            </div>
+                                            ) : classStoreItems.length === 0 ? (
+                                            <div className="text-center py-12">
+                                                <p className="text-muted-foreground">아직 판매 중인 상품이 없습니다.</p>
+                                            </div>
+                                            ) : (
+                                            <Table>
+                                                <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>상품명</TableHead>
+                                                    <TableHead>판매자</TableHead>
+                                                    <TableHead className="text-center">수량</TableHead>
+                                                    <TableHead className="text-right">가격 (포인트)</TableHead>
+                                                    <TableHead className="w-[120px] text-center">동작</TableHead>
+                                                </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                {classStoreItems.map((item) => (
+                                                    <TableRow key={item.id} className={cn(item.report && 'bg-destructive/10')}>
+                                                    <TableCell 
+                                                        className="font-medium cursor-pointer hover:underline"
+                                                        onClick={() => handleItemClick(item)}
                                                     >
-                                                        판매 중지
-                                                    </Button>
-                                                  ) : item.sellerId !== user?.uid && (
-                                                    <>
-                                                        <Button 
-                                                            size="sm" 
-                                                            disabled={!!isBuying || !!item.report}
-                                                            onClick={() => handleBuyItem(item)}
-                                                            title={item.report ? '신고된 상품은 구매할 수 없습니다.' : ''}
-                                                        >
-                                                            {isBuying === item.id ? <Loader2 className="w-4 h-4 animate-spin"/> : '구매'}
-                                                        </Button>
-                                                        {!item.report && (
+                                                        <div className="flex items-center gap-2">
+                                                        {item.emoji && <span className="text-lg">{item.emoji}</span>}
+                                                        {item.report && <AlertTriangle className="w-4 h-4 text-destructive" />}
+                                                        {item.name}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell>{item.sellerNickname}</TableCell>
+                                                    <TableCell className="text-center">{item.quantity}</TableCell>
+                                                    <TableCell className="text-right font-bold text-primary">{item.price.toLocaleString()}</TableCell>
+                                                    <TableCell className="text-center">
+                                                        <div className="flex items-center justify-center gap-2">
+                                                        {isTeacher ? (
                                                             <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-8 w-8 text-destructive hover:text-destructive"
-                                                                onClick={() => setReportCandidate(item)}
+                                                                variant="destructive"
+                                                                size="sm"
+                                                                onClick={() => handleDeleteItem(item)}
+                                                                title="이 상품을 매점에서 삭제합니다."
                                                             >
-                                                                <AlertTriangle className="w-4 h-4" />
+                                                                판매 중지
                                                             </Button>
+                                                        ) : item.sellerId !== user?.uid && (
+                                                            <>
+                                                                <Button 
+                                                                    size="sm" 
+                                                                    disabled={!!isBuying || !!item.report}
+                                                                    onClick={() => handleBuyItem(item)}
+                                                                    title={item.report ? '신고된 상품은 구매할 수 없습니다.' : ''}
+                                                                >
+                                                                    {isBuying === item.id ? <Loader2 className="w-4 h-4 animate-spin"/> : '구매'}
+                                                                </Button>
+                                                                {!item.report && (
+                                                                    <Button
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-8 w-8 text-destructive hover:text-destructive"
+                                                                        onClick={() => setReportCandidate(item)}
+                                                                    >
+                                                                        <AlertTriangle className="w-4 h-4" />
+                                                                    </Button>
+                                                                )}
+                                                            </>
                                                         )}
-                                                    </>
-                                                  )}
-                                                </div>
-                                              </TableCell>
-                                            </TableRow>
-                                          ))}
-                                        </TableBody>
-                                      </Table>
-                                    )}
-                                  </ScrollArea>
-                              </DialogContent>
-                          </Dialog>
-                          <Dialog open={isSellItemDialogOpen} onOpenChange={setIsSellItemDialogOpen}>
-                              <DialogTrigger asChild>
-                                  <Button className="w-full" variant="secondary">
-                                      <Repeat className="mr-2 h-4 w-4"/> 물건 팔기
-                                  </Button>
-                              </DialogTrigger>
-                              <DialogContent className="max-w-lg">
-                                  <DialogHeader>
-                                      <DialogTitle>판매할 물건 등록하기</DialogTitle>
-                                      <DialogDescription>판매할 상품의 정보를 입력해주세요.</DialogDescription>
-                                  </DialogHeader>
-                                  <Form {...form}>
-                                      <form onSubmit={form.handleSubmit(handleSellItem)} className="space-y-4">
-                                          <FormField
-                                              control={form.control}
-                                              name="name"
-                                              render={({ field }) => (
-                                                  <FormItem>
-                                                      <FormLabel>상품명</FormLabel>
-                                                      <FormControl><Input {...field} placeholder="예: 숙제 1회 면제권" /></FormControl>
-                                                      <FormMessage />
-                                                  </FormItem>
-                                              )}
-                                          />
-                                        <FormField
-                                          control={form.control}
-                                          name="emoji"
-                                          render={({ field }) => (
-                                            <FormItem className="space-y-3">
-                                              <FormLabel>아이콘</FormLabel>
-                                              <FormControl>
-                                                <EmojiSelector value={field.value} onChange={field.onChange} />
-                                              </FormControl>
-                                              <FormMessage />
-                                            </FormItem>
-                                          )}
-                                        />
-                                          <FormField
-                                              control={form.control}
-                                              name="price"
-                                              render={({ field }) => (
-                                                  <FormItem>
-                                                      <FormLabel>가격 (학급 포인트)</FormLabel>
-                                                      <FormControl><Input type="number" {...field} /></FormControl>
-                                                      <FormMessage />
-                                                  </FormItem>
-                                              )}
-                                          />
-                                          <FormField
-                                              control={form.control}
-                                              name="description"
-                                              render={({ field }) => (
-                                                  <FormItem>
-                                                      <FormLabel>제품 설명</FormLabel>
-                                                      <FormControl><Textarea {...field} placeholder="상품에 대해 자세히 설명해주세요." /></FormControl>
-                                                      <FormMessage />
-                                                  </FormItem>
-                                              )}
-                                          />
-                                          <FormField
-                                              control={form.control}
-                                              name="quantity"
-                                              render={({ field }) => (
-                                                  <FormItem>
-                                                      <FormLabel>수량</FormLabel>
-                                                      <FormControl><Input type="number" {...field} /></FormControl>
-                                                      <FormMessage />
-                                                  </FormItem>
-                                              )}
-                                          />
-                                          <DialogFooter>
-                                              <Button type="submit" disabled={isSubmitting}>
-                                                  {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                                                  저장하기
-                                              </Button>
-                                          </DialogFooter>
-                                      </form>
-                                  </Form>
-                              </DialogContent>
-                          </Dialog>
-                      </CardContent>
-                  </Card>
-                  <div className="mt-6 space-y-6">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="font-headline flex items-center gap-2"><Package className="text-primary"/>보유 상품</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {userData.inventory && Object.keys(userData.inventory).length > 0 ? (
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    {Object.entries(userData.inventory).map(([itemName, itemDetails]) => (
-                                        <Card 
-                                          key={itemName} 
-                                          className="p-4 text-center cursor-pointer hover:shadow-md hover:border-primary transition flex flex-col items-center gap-2"
-                                          onClick={() => setSelectedItem({ name: itemName, details: itemDetails })}
-                                        >
-                                            <div className="text-4xl">{itemDetails.emoji || '📦'}</div>
-                                            <CardTitle className="text-base">{itemName}</CardTitle>
-                                            <CardDescription className="mt-1">수량: {itemDetails.quantity}</CardDescription>
-                                            {itemDetails.sellerNickname && (
-                                                <CardDescription className="text-xs mt-auto pt-2">판매자: {itemDetails.sellerNickname}</CardDescription>
+                                                        </div>
+                                                    </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                                </TableBody>
+                                            </Table>
                                             )}
+                                        </ScrollArea>
+                                    </DialogContent>
+                                </Dialog>
+                                <Dialog open={isSellItemDialogOpen} onOpenChange={setIsSellItemDialogOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button className="w-full" variant="secondary">
+                                            <Repeat className="mr-2 h-4 w-4"/> 물건 팔기
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent className="max-w-lg">
+                                        <DialogHeader>
+                                            <DialogTitle>판매할 물건 등록하기</DialogTitle>
+                                            <DialogDescription>판매할 상품의 정보를 입력해주세요.</DialogDescription>
+                                        </DialogHeader>
+                                        <Form {...form}>
+                                            <form onSubmit={form.handleSubmit(handleSellItem)} className="space-y-4">
+                                                <FormField
+                                                    control={form.control}
+                                                    name="name"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>상품명</FormLabel>
+                                                            <FormControl><Input {...field} placeholder="예: 숙제 1회 면제권" /></FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                control={form.control}
+                                                name="emoji"
+                                                render={({ field }) => (
+                                                    <FormItem className="space-y-3">
+                                                    <FormLabel>아이콘</FormLabel>
+                                                    <FormControl>
+                                                        <EmojiSelector value={field.value} onChange={field.onChange} />
+                                                    </FormControl>
+                                                    <FormMessage />
+                                                    </FormItem>
+                                                )}
+                                                />
+                                                <FormField
+                                                    control={form.control}
+                                                    name="price"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>가격 (학급 포인트)</FormLabel>
+                                                            <FormControl><Input type="number" {...field} /></FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control}
+                                                    name="description"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>제품 설명</FormLabel>
+                                                            <FormControl><Textarea {...field} placeholder="상품에 대해 자세히 설명해주세요." /></FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <FormField
+                                                    control={form.control}
+                                                    name="quantity"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel>수량</FormLabel>
+                                                            <FormControl><Input type="number" {...field} /></FormControl>
+                                                            <FormMessage />
+                                                        </FormItem>
+                                                    )}
+                                                />
+                                                <DialogFooter>
+                                                    <Button type="submit" disabled={isSubmitting}>
+                                                        {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                                                        저장하기
+                                                    </Button>
+                                                </DialogFooter>
+                                            </form>
+                                        </Form>
+                                    </DialogContent>
+                                </Dialog>
+                            </CardContent>
+                        </Card>
+                        <div className="mt-6 space-y-6">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle className="font-headline flex items-center gap-2"><Package className="text-primary"/>보유 상품</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    {userData.inventory && Object.keys(userData.inventory).length > 0 ? (
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                            {Object.entries(userData.inventory).map(([itemName, itemDetails]) => (
+                                                <Card 
+                                                key={itemName} 
+                                                className="p-4 text-center cursor-pointer hover:shadow-md hover:border-primary transition flex flex-col items-center gap-2"
+                                                onClick={() => setSelectedItem({ name: itemName, details: itemDetails })}
+                                                >
+                                                    <div className="text-4xl">{itemDetails.emoji || '📦'}</div>
+                                                    <CardTitle className="text-base">{itemName}</CardTitle>
+                                                    <CardDescription className="mt-1">수량: {itemDetails.quantity}</CardDescription>
+                                                    {itemDetails.sellerNickname && (
+                                                        <CardDescription className="text-xs mt-auto pt-2">판매자: {itemDetails.sellerNickname}</CardDescription>
+                                                    )}
+                                                </Card>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                                            <p className="text-muted-foreground">아직 보유한 상품이 없습니다.</p>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            <Card>
+                                <CardHeader>
+                                <CardTitle className="font-headline flex items-center gap-2">
+                                    <Send className="text-primary"/>판매 중인 상품
+                                </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                {sellingItems.length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {sellingItems.map((item) => (
+                                        <Card key={item.id} className="flex flex-col">
+                                        <CardHeader className="items-center">
+                                            <div className="text-5xl mb-2">{item.emoji || '📦'}</div>
+                                            <CardTitle className="text-lg text-center">{item.name}</CardTitle>
+                                            <CardDescription className="text-sm text-primary font-bold">
+                                                {item.price.toLocaleString()} 포인트
+                                            </CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="flex-grow">
+                                            <p className="text-sm text-muted-foreground line-clamp-2">
+                                            {item.description}
+                                            </p>
+                                            <p className="text-sm mt-2">
+                                            남은 수량: <span className="font-bold">{item.quantity}</span>
+                                            </p>
+                                        </CardContent>
+                                        <CardFooter>
+                                            <Button variant="outline" className="w-full" onClick={() => {
+                                            setSelectedSellingItem(item);
+                                            setEditItemDescription(item.description);
+                                            setEditItemQuantity(item.quantity);
+                                            setEditItemPrice(item.price);
+                                            }}>
+                                            <Settings className="mr-2 h-4 w-4" />
+                                            관리
+                                            </Button>
+                                        </CardFooter>
                                         </Card>
                                     ))}
-                                </div>
-                            ) : (
-                                <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                                    <p className="text-muted-foreground">아직 보유한 상품이 없습니다.</p>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader>
-                          <CardTitle className="font-headline flex items-center gap-2">
-                            <Send className="text-primary"/>판매 중인 상품
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          {sellingItems.length > 0 ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                              {sellingItems.map((item) => (
-                                <Card key={item.id} className="flex flex-col">
-                                  <CardHeader className="items-center">
-                                      <div className="text-5xl mb-2">{item.emoji || '📦'}</div>
-                                      <CardTitle className="text-lg text-center">{item.name}</CardTitle>
-                                      <CardDescription className="text-sm text-primary font-bold">
-                                        {item.price.toLocaleString()} 포인트
-                                      </CardDescription>
-                                  </CardHeader>
-                                  <CardContent className="flex-grow">
-                                    <p className="text-sm text-muted-foreground line-clamp-2">
-                                      {item.description}
-                                    </p>
-                                    <p className="text-sm mt-2">
-                                      남은 수량: <span className="font-bold">{item.quantity}</span>
-                                    </p>
-                                  </CardContent>
-                                  <CardFooter>
-                                    <Button variant="outline" className="w-full" onClick={() => {
-                                      setSelectedSellingItem(item);
-                                      setEditItemDescription(item.description);
-                                      setEditItemQuantity(item.quantity);
-                                      setEditItemPrice(item.price);
-                                    }}>
-                                      <Settings className="mr-2 h-4 w-4" />
-                                      관리
-                                    </Button>
-                                  </CardFooter>
-                                </Card>
-                              ))}
-                            </div>
-                          ) : (
-                            <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                              <p className="text-muted-foreground">현재 판매 중인 상품이 없습니다.</p>
-                            </div>
-                          )}
-                        </CardContent>
-                    </Card>
-                  </div>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                                    <p className="text-muted-foreground">현재 판매 중인 상품이 없습니다.</p>
+                                    </div>
+                                )}
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </TabsContent>
+                     {isTeacher && (
+                       <TabsContent value="point-analysis" className="mt-4">
+                           {isAnalysisLoading ? (
+                               <div className="flex justify-center items-center h-64">
+                                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                                   <p className="ml-2">포인트 데이터를 분석하는 중...</p>
+                               </div>
+                           ) : !pointAnalysisData ? (
+                               <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                                   <p className="text-muted-foreground">분석할 포인트 데이터가 부족합니다.</p>
+                               </div>
+                           ) : (
+                               <div className="space-y-8">
+                                   <Card>
+                                       <CardHeader>
+                                           <CardTitle>포인트 유통 현황</CardTitle>
+                                       </CardHeader>
+                                       <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
+                                           <div className="p-4 bg-secondary rounded-lg">
+                                               <p className="text-sm text-muted-foreground">학급 총 보유 포인트</p>
+                                               <p className="text-3xl font-bold text-primary">{pointAnalysisData.totalHeldPoints.toLocaleString()}</p>
+                                           </div>
+                                            <div className="p-4 bg-secondary rounded-lg">
+                                               <p className="text-sm text-muted-foreground">학급 총 소비 포인트</p>
+                                               <p className="text-3xl font-bold text-destructive">{pointAnalysisData.totalSpentPoints.toLocaleString()}</p>
+                                           </div>
+                                       </CardContent>
+                                   </Card>
+                                    <Card>
+                                       <CardHeader>
+                                           <CardTitle>인기 판매 상품 TOP 10</CardTitle>
+                                       </CardHeader>
+                                       <CardContent>
+                                           <ResponsiveContainer width="100%" height={300}>
+                                             <BarChart data={pointAnalysisChartData} layout="vertical">
+                                               <CartesianGrid strokeDasharray="3 3" />
+                                               <XAxis type="number" />
+                                               <YAxis dataKey="name" type="category" width={80} />
+                                               <ChartTooltip cursor={{ fill: 'hsl(var(--muted))' }} content={<ChartTooltipContent />} />
+                                               <Bar dataKey="count" name="판매량" fill="hsl(var(--primary))" radius={4} />
+                                             </BarChart>
+                                           </ResponsiveContainer>
+                                       </CardContent>
+                                   </Card>
+                               </div>
+                           )}
+                       </TabsContent>
+                   )}
+                  </Tabs>
               </TabsContent>
             </Tabs>
           )}
