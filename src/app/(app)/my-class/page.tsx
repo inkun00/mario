@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -202,7 +201,7 @@ export default function MyClassPage() {
                     unsubscribeMembers = onSnapshot(membersQuery, (snapshot) => {
                         const members = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
                         // Also include the teacher in the list
-                        setClassMembers([currentUserData, ...members].sort((a, b) => (b.classPoints || 0) - (a.classPoints || 0)));
+                        setClassMembers([currentUserData, ...members].sort((a, b) => (b.xp || 0) - (a.xp || 0)));
                     });
                 } else {
                     const teacherRef = doc(db, 'users', targetClassId);
@@ -213,7 +212,7 @@ export default function MyClassPage() {
                             if (unsubscribeMembers) unsubscribeMembers();
                             unsubscribeMembers = onSnapshot(membersQuery, (snapshot) => {
                                 const members = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
-                                setClassMembers([teacherData, ...members].sort((a, b) => (b.classPoints || 0) - (a.classPoints || 0)));
+                                setClassMembers([teacherData, ...members].sort((a, b) => (b.xp || 0) - (a.xp || 0)));
                             });
                         }
                     });
@@ -942,8 +941,9 @@ export default function MyClassPage() {
             </div>
           ) : (
             <Tabs defaultValue="ranking" className="w-full" onValueChange={handleTabChange}>
-              <TabsList className={cn("grid w-full", isTeacher ? "grid-cols-3" : "grid-cols-2")}>
+              <TabsList className={cn("grid w-full", isTeacher ? "grid-cols-4" : "grid-cols-2")}>
                 {isTeacher && <TabsTrigger value="analysis">학습 분석</TabsTrigger>}
+                {isTeacher && <TabsTrigger value="point-analysis">포인트 유통 현황</TabsTrigger>}
                 <TabsTrigger value="ranking">우리 학급 랭킹</TabsTrigger>
                 <TabsTrigger value="store">학급 매점</TabsTrigger>
               </TabsList>
@@ -1019,6 +1019,54 @@ export default function MyClassPage() {
                      )}
                 </TabsContent>
               )}
+               {isTeacher && (
+                       <TabsContent value="point-analysis" className="mt-4">
+                           {isAnalysisLoading ? (
+                               <div className="flex justify-center items-center h-64">
+                                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                                   <p className="ml-2">포인트 데이터를 분석하는 중...</p>
+                               </div>
+                           ) : !pointAnalysisData ? (
+                               <div className="text-center py-12 border-2 border-dashed rounded-lg">
+                                   <p className="text-muted-foreground">분석할 포인트 데이터가 부족합니다.</p>
+                               </div>
+                           ) : (
+                               <div className="space-y-8">
+                                   <Card>
+                                       <CardHeader>
+                                           <CardTitle>포인트 유통 현황</CardTitle>
+                                       </CardHeader>
+                                       <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
+                                           <div className="p-4 bg-secondary rounded-lg">
+                                               <p className="text-sm text-muted-foreground">학급 총 보유 포인트</p>
+                                               <p className="text-3xl font-bold text-primary">{pointAnalysisData.totalHeldPoints.toLocaleString()}</p>
+                                           </div>
+                                            <div className="p-4 bg-secondary rounded-lg">
+                                               <p className="text-sm text-muted-foreground">학급 총 소비 포인트</p>
+                                               <p className="text-3xl font-bold text-destructive">{pointAnalysisData.totalSpentPoints.toLocaleString()}</p>
+                                           </div>
+                                       </CardContent>
+                                   </Card>
+                                    <Card>
+                                       <CardHeader>
+                                           <CardTitle>인기 판매 상품 TOP 10</CardTitle>
+                                       </CardHeader>
+                                       <CardContent>
+                                           <ResponsiveContainer width="100%" height={300}>
+                                             <BarChart data={pointAnalysisChartData} layout="vertical">
+                                               <CartesianGrid strokeDasharray="3 3" />
+                                               <XAxis type="number" />
+                                               <YAxis dataKey="name" type="category" width={80} />
+                                               <ChartTooltip cursor={{ fill: 'hsl(var(--muted))' }} content={<ChartTooltipContent />} />
+                                               <Bar dataKey="count" name="판매량" fill="hsl(var(--primary))" radius={4} />
+                                             </BarChart>
+                                           </ResponsiveContainer>
+                                       </CardContent>
+                                   </Card>
+                               </div>
+                           )}
+                       </TabsContent>
+                   )}
               <TabsContent value="ranking" className="mt-4">
                 {classMembers.length === 0 ? (
                   <div className="text-center py-12 border-2 border-dashed rounded-lg">
@@ -1053,9 +1101,9 @@ export default function MyClassPage() {
                             key={member.uid} 
                             className={cn(
                                 member.uid === user?.uid ? 'bg-primary/10' : '',
-                                isTeacher ? 'cursor-pointer hover:bg-muted/50' : ''
+                                isTeacher && member.uid !== user?.uid ? 'cursor-pointer hover:bg-muted/50' : ''
                             )}
-                            onClick={() => isTeacher && handleStudentClick(member)}
+                            onClick={() => isTeacher && member.uid !== user?.uid && handleStudentClick(member)}
                           >
                             <TableCell className="font-bold text-center text-lg">
                               {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
@@ -1099,11 +1147,10 @@ export default function MyClassPage() {
                 )}
               </TabsContent>
               <TabsContent value="store" className="mt-4">
-                  <Tabs defaultValue="main" onValueChange={handleTabChange}>
+                  <Tabs defaultValue="main">
                     <div className="flex justify-between items-center">
-                        <TabsList className={cn("grid w-full", isTeacher ? "grid-cols-2" : "grid-cols-1")}>
+                        <TabsList className="grid w-full grid-cols-1">
                             <TabsTrigger value="main">매점 메인</TabsTrigger>
-                            {isTeacher && <TabsTrigger value="point-analysis">포인트 유통 현황</TabsTrigger>}
                         </TabsList>
                         <div className="text-sm font-bold text-blue-500 flex items-center gap-1 shrink-0 ml-4">
                             <Gem className="w-4 h-4" />
@@ -1373,54 +1420,7 @@ export default function MyClassPage() {
                             </Card>
                         </div>
                     </TabsContent>
-                     {isTeacher && (
-                       <TabsContent value="point-analysis" className="mt-4">
-                           {isAnalysisLoading ? (
-                               <div className="flex justify-center items-center h-64">
-                                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                                   <p className="ml-2">포인트 데이터를 분석하는 중...</p>
-                               </div>
-                           ) : !pointAnalysisData ? (
-                               <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                                   <p className="text-muted-foreground">분석할 포인트 데이터가 부족합니다.</p>
-                               </div>
-                           ) : (
-                               <div className="space-y-8">
-                                   <Card>
-                                       <CardHeader>
-                                           <CardTitle>포인트 유통 현황</CardTitle>
-                                       </CardHeader>
-                                       <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
-                                           <div className="p-4 bg-secondary rounded-lg">
-                                               <p className="text-sm text-muted-foreground">학급 총 보유 포인트</p>
-                                               <p className="text-3xl font-bold text-primary">{pointAnalysisData.totalHeldPoints.toLocaleString()}</p>
-                                           </div>
-                                            <div className="p-4 bg-secondary rounded-lg">
-                                               <p className="text-sm text-muted-foreground">학급 총 소비 포인트</p>
-                                               <p className="text-3xl font-bold text-destructive">{pointAnalysisData.totalSpentPoints.toLocaleString()}</p>
-                                           </div>
-                                       </CardContent>
-                                   </Card>
-                                    <Card>
-                                       <CardHeader>
-                                           <CardTitle>인기 판매 상품 TOP 10</CardTitle>
-                                       </CardHeader>
-                                       <CardContent>
-                                           <ResponsiveContainer width="100%" height={300}>
-                                             <BarChart data={pointAnalysisChartData} layout="vertical">
-                                               <CartesianGrid strokeDasharray="3 3" />
-                                               <XAxis type="number" />
-                                               <YAxis dataKey="name" type="category" width={80} />
-                                               <ChartTooltip cursor={{ fill: 'hsl(var(--muted))' }} content={<ChartTooltipContent />} />
-                                               <Bar dataKey="count" name="판매량" fill="hsl(var(--primary))" radius={4} />
-                                             </BarChart>
-                                           </ResponsiveContainer>
-                                       </CardContent>
-                                   </Card>
-                               </div>
-                           )}
-                       </TabsContent>
-                   )}
+                   
                   </Tabs>
               </TabsContent>
             </Tabs>
@@ -1861,4 +1861,3 @@ export default function MyClassPage() {
     </>
   );
 }
-
