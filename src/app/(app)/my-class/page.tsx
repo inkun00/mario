@@ -32,7 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Combobox } from '@/components/ui/combobox';
 import { v4 as uuidv4 } from 'uuid';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart, ResponsiveContainer } from 'recharts';
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart, ResponsiveContainer, Cell } from 'recharts';
 
 
 const sellItemSchema = z.object({
@@ -909,7 +909,7 @@ export default function MyClassPage() {
     const pointAnalysisChartConfig = {
         count: {
             label: "판매 수량",
-            color: "hsl(var(--accent-foreground))",
+            color: "hsl(var(--chart-1))",
         }
     };
 
@@ -1059,7 +1059,11 @@ export default function MyClassPage() {
                                                     <XAxis type="number" />
                                                     <YAxis dataKey="name" type="category" width={80} />
                                                     <ChartTooltip cursor={{ fill: 'hsl(var(--muted))' }} content={<ChartTooltipContent />} />
-                                                    <Bar dataKey="count" name="판매량" fill="var(--color-count)" radius={4} />
+                                                    <Bar dataKey="count" name="판매량" radius={4}>
+                                                        {pointAnalysisChartData.map((_, index) => (
+                                                            <Cell key={`cell-${index}`} fill={`hsl(var(--chart-${(index % 5) + 1}))`} />
+                                                        ))}
+                                                    </Bar>
                                                 </BarChart>
                                             </ChartContainer>
                                        </CardContent>
@@ -1862,4 +1866,5 @@ export default function MyClassPage() {
     </>
   );
 }
+
 
