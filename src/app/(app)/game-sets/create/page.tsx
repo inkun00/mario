@@ -45,7 +45,7 @@ import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { auth, db } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { addDoc, collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
@@ -176,11 +176,11 @@ export default function CreateGameSetPage() {
     }
   }, [user]);
 
-  useState(() => {
+  useEffect(() => {
     if (user) {
       fetchUserData();
     }
-  });
+  }, [user, fetchUserData]);
 
 
   async function onSubmit(data: GameSetFormValues) {
