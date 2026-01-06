@@ -36,7 +36,7 @@ import Image from 'next/image';
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe, updateDoc, increment, arrayUnion, getDoc, serverTimestamp, Timestamp, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { GameSet, User as FsUser, GameRoom } from '@/lib/types';
+import type { GameSet, User as FsUser, GameRoom, PlayedGameSet } from '@/lib/types';
 import { auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -84,6 +84,7 @@ export default function DashboardPage() {
   const [filteredGameSets, setFilteredGameSets] = useState<GameSetDocument[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [openGameRooms, setOpenGameRooms] = useState<OpenGameRoom[]>([]);
+  const [playedGameSetIds, setPlayedGameSetIds] = useState<Set<string>>(new Set());
 
   const [loading, setLoading] = useState(true);
   const [isEvaluating, setIsEvaluating] = useState<string | null>(null);
@@ -151,6 +152,24 @@ export default function DashboardPage() {
       }
     });
     return () => unsubUser();
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+  
+    const playedSetsQuery = collection(db, 'users', user.uid, 'playedGameSets');
+    const unsubscribe = onSnapshot(playedSetsQuery, (snapshot) => {
+      const ids = new Set<string>();
+      snapshot.forEach((doc) => {
+        const data = doc.data() as PlayedGameSet;
+        if (data.gameSetId) {
+          ids.add(data.gameSetId);
+        }
+      });
+      setPlayedGameSetIds(ids);
+    });
+  
+    return () => unsubscribe();
   }, [user]);
 
   const canEarnClassPoints = (gameSet: GameSetDocument): boolean => {
@@ -678,6 +697,7 @@ export default function DashboardPage() {
                 const isDisabled = set.isDisabled === true;
                 const { stars, color } = getStarRating(set.evaluationScore);
                 const isPointEligible = canEarnClassPoints(set);
+                const hasPlayed = playedGameSetIds.has(set.id);
                 
                 let createRoomButton;
                 if (isDisabled) {
@@ -699,6 +719,23 @@ export default function DashboardPage() {
                         </TooltipTrigger>
                         <TooltipContent>
                           <p>자신이 만든 퀴즈로는 게임을 시작할 수 없습니다.</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  );
+                } else if (hasPlayed && !isAdmin) {
+                  createRoomButton = (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span tabIndex={0}>
+                            <Button size="sm" disabled={true}>
+                              <Users className="mr-2 h-4 w-4" />방 만들기
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>이미 플레이한 퀴즈입니다.</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
@@ -1055,6 +1092,8 @@ export default function DashboardPage() {
     </>
   );
 }
+
+    
 
     
 
