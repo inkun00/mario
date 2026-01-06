@@ -29,20 +29,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { PlusCircle, Trash2, Loader2, Save, Sparkles } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Save, Sparkles, Upload } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { auth, db } from '@/lib/firebase';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { addDoc, collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+import type { User } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { evaluateQuizSet } from '@/ai/flows/validate-quiz-set-flow';
+import { generateQuestionsFromPdf } from '@/ai/flows/generate-questions-from-pdf-flow';
 
 const questionSchema = z.object({
   question: z.string().min(1, '질문을 입력해주세요.'),
@@ -122,10 +133,16 @@ const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '�
 const pointMapping = [-1, 10, 20, 30, 40, 50];
 
 export default function CreateGameSetPage() {
+  const [user, loadingUser] = useAuthState(auth);
+  const [userData, setUserData] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('');
   const { toast } = useToast();
   const router = useRouter();
+  const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+
+  const isTeacher = userData?.role === 'teacher';
 
   const form = useForm<GameSetFormValues>({
     resolver: zodResolver(gameSetSchema),
@@ -144,16 +161,31 @@ export default function CreateGameSetPage() {
      mode: "onChange",
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: 'questions',
   });
 
+  const fetchUserData = useCallback(async () => {
+    if (!user) return;
+    const userRef = doc(db, 'users', user.uid);
+    const docSnap = await getDoc(userRef);
+    if (docSnap.exists()) {
+      setUserData(docSnap.data() as User);
+    }
+  }, [user]);
+
+  useState(() => {
+    if (user) {
+      fetchUserData();
+    }
+  });
+
+
   async function onSubmit(data: GameSetFormValues) {
     setIsLoading(true);
     setLoadingMessage('퀴즈 세트를 저장하는 중...');
-    const user = auth.currentUser;
-
+    
     if (!user) {
       toast({
         variant: 'destructive',
@@ -182,7 +214,7 @@ export default function CreateGameSetPage() {
       await addDoc(collection(db, 'game-sets'), {
         ...finalData,
         creatorId: user.uid,
-        creatorNickname: user.displayName || '이름없음',
+        creatorNickname: userData?.displayName || user.displayName || '이름없음',
         createdAt: serverTimestamp(),
         reportCount: 0,
         isDisabled: false,
@@ -207,6 +239,59 @@ export default function CreateGameSetPage() {
         setLoadingMessage('');
     }
   }
+
+  const handlePdfGenerate = async () => {
+    if (!pdfFile) {
+        toast({ variant: 'destructive', title: '파일 오류', description: 'PDF 파일을 선택해주세요.' });
+        return;
+    }
+
+    setIsLoading(true);
+    setLoadingMessage('PDF를 분석하여 문제를 생성하는 중입니다...');
+    setIsPdfDialogOpen(false);
+
+    try {
+        const fileReader = new FileReader();
+        fileReader.readAsDataURL(pdfFile);
+        fileReader.onload = async (e) => {
+            const pdfDataUri = e.target?.result as string;
+            if (!pdfDataUri) {
+                throw new Error("PDF 파일을 읽는 데 실패했습니다.");
+            }
+
+            const currentValues = form.getValues();
+            const result = await generateQuestionsFromPdf({
+                pdfDataUri,
+                grade: currentValues.grade,
+                subject: currentValues.subject,
+                unit: currentValues.unit,
+            });
+
+            const newQuestions = result.questions.map(q => ({
+                ...q,
+                options: q.options || ['', '', '', ''],
+                answer: q.answer || '',
+                hint: q.hint || '',
+                imageUrl: q.imageUrl || '',
+                correctAnswer: q.correctAnswer || '',
+            }));
+
+            replace(newQuestions);
+            toast({ title: '성공!', description: `${result.questions.length}개의 문제가 자동으로 생성되었습니다.` });
+            setPdfFile(null);
+        };
+
+        fileReader.onerror = () => {
+            throw new Error("PDF 파일 처리 중 오류가 발생했습니다.");
+        }
+
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'AI 생성 오류', description: `PDF에서 문제를 생성하는 중 오류가 발생했습니다: ${error.message}` });
+    } finally {
+        setIsLoading(false);
+        setLoadingMessage('');
+    }
+  };
   
   const { isValid, errors } = form.formState;
   
@@ -218,6 +303,36 @@ export default function CreateGameSetPage() {
 
   return (
     <div className="container mx-auto py-8">
+       {isTeacher && (
+        <Dialog open={isPdfDialogOpen} onOpenChange={setIsPdfDialogOpen}>
+            <DialogTrigger asChild>
+                <Button variant="outline" className="w-full mb-6">
+                    <Upload className="mr-2 h-4 w-4" /> PDF로 문제 자동 생성
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>PDF로 문제 자동 생성</DialogTitle>
+                    <DialogDescription>
+                        학습 자료 PDF를 업로드하면 AI가 분석하여 자동으로 문제를 만들어줍니다.
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    <Input 
+                        type="file" 
+                        accept="application/pdf"
+                        onChange={(e) => setPdfFile(e.target.files ? e.target.files[0] : null)}
+                    />
+                </div>
+                <DialogFooter>
+                    <Button variant="ghost" onClick={() => setIsPdfDialogOpen(false)}>취소</Button>
+                    <Button onClick={handlePdfGenerate} disabled={!pdfFile || isLoading}>
+                        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : null} 생성하기
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+      )}
       <Card>
         <CardHeader>
           <CardTitle className="font-headline text-2xl">새로운 퀴즈 세트 만들기</CardTitle>
