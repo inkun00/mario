@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -178,7 +179,7 @@ export default function ProfilePage() {
     const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
     const solvedIncorrectAnswersRef = collection(db, 'users', user.uid, 'solved-incorrect-answers');
     const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
-    const myGameSetsQuery = query(collection(db, 'game-sets'), where('creatorId', '==', user.uid), orderBy('createdAt', 'desc'));
+    const myGameSetsQuery = query(collection(db, 'game-sets'), where('creatorId', '==', user.uid));
 
     try {
       const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot, myGameSetsSnapshot] = await Promise.all([
@@ -217,7 +218,10 @@ export default function ProfilePage() {
       setReviewQuestions(incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer)));
       setSolvedReviewQuestions(solvedIncorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer)));
       setSubjectStats(transformStats(subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat))));
-      setMyGameSets(myGameSetsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSet)));
+      
+      const gameSets = myGameSetsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSet));
+      gameSets.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+      setMyGameSets(gameSets);
 
     } catch (error) {
         console.error("Error fetching profile data:", error);
