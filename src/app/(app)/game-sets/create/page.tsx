@@ -209,7 +209,21 @@ export default function CreateGameSetPage() {
       };
       
       setLoadingMessage('AI가 퀴즈의 교육적 가치를 분석하고 있습니다...');
-      const evaluationResult = await evaluateQuizSet(finalData);
+
+      const questionsForEval = finalData.questions.map(q => ({
+        question: q.question,
+        answer: q.answer,
+        correctAnswer: q.correctAnswer,
+      }));
+
+      const evaluationResult = await evaluateQuizSet({
+        title: finalData.title,
+        description: finalData.description,
+        grade: finalData.grade,
+        subject: finalData.subject,
+        unit: finalData.unit,
+        questions: questionsForEval,
+      });
 
       await addDoc(collection(db, 'game-sets'), {
         ...finalData,

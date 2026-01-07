@@ -188,7 +188,21 @@ export default function EditGameSetPage() {
 
     try {
       setLoadingMessage('AI가 퀴즈의 교육적 가치를 분석하고 있습니다...');
-      const evaluationResult = await evaluateQuizSet(data);
+
+      const questionsForEval = data.questions.map(q => ({
+        question: q.question,
+        answer: q.answer,
+        correctAnswer: q.correctAnswer,
+      }));
+
+      const evaluationResult = await evaluateQuizSet({
+        title: data.title,
+        description: data.description,
+        grade: data.grade,
+        subject: data.subject,
+        unit: data.unit,
+        questions: questionsForEval,
+      });
 
       const gameSetRef = doc(db, 'game-sets', gameSetId);
       const updateData = {

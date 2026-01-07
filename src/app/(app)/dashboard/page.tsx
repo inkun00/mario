@@ -515,13 +515,20 @@ export default function DashboardPage() {
       setIsEvaluating(set.id);
       try {
         toast({ title: 'AI 평가 중', description: '퀴즈 세트의 교육적 가치를 AI가 분석하고 있습니다. 잠시만 기다려주세요.'});
+        
+        const questionsForEval = set.questions.map(q => ({
+          question: q.question,
+          answer: q.answer,
+          correctAnswer: q.correctAnswer,
+        }));
+
         const result = await evaluateQuizSet({
           title: set.title,
           description: set.description,
           grade: set.grade || '',
           subject: set.subject || '',
           unit: set.unit || '',
-          questions: set.questions,
+          questions: questionsForEval,
         });
 
         const gameSetRef = doc(db, 'game-sets', set.id);
