@@ -1038,7 +1038,7 @@ export default function DashboardPage() {
                                 <div className="flex items-center gap-2">
                                   <span className="font-semibold text-sm">{comment.userNickname}</span>
                                   <span className="text-xs text-muted-foreground">
-                                    {formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko })}
+                                    {comment.createdAt && formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko })}
                                   </span>
                                 </div>
                                 <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
