@@ -2,7 +2,7 @@
 
 'use client';
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Card,
   CardContent,
@@ -36,10 +36,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, ClassStoreItem, ItemBuyer, PointAcquisitionRule, GameSet } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction } from 'firebase/firestore';
+import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, GameSet, GameSetComment, PlayedGameSet } from '@/lib/types';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction, addDoc } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
-import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye } from 'lucide-react';
+import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye, MessageSquare } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -55,6 +55,8 @@ import dynamic from 'next/dynamic';
 import { PixelAvatar } from '@/components/pixel-avatar';
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
+import { formatDistanceToNow } from 'date-fns';
+import { ko } from 'date-fns/locale';
 
 
 const PixelEditor = dynamic(() => import('@/components/pixel-editor').then(mod => mod.PixelEditor), {
@@ -160,12 +162,17 @@ export default function ProfilePage() {
   const [classmates, setClassmates] = useState<{value: string, label: string}[]>([]);
 
   const [isPointManagementDialogOpen, setIsPointManagementDialogOpen] = useState(false);
-  const [pointRule, setPointRule] = useState<PointAcquisitionRule>('all');
+  const [pointRule, setPointRule] = useState<'teacher_only' | 'class_only' | 'all'>('all');
 
   const [myGameSets, setMyGameSets] = useState<GameSet[]>([]);
   const [isLoadingMyGameSets, setIsLoadingMyGameSets] = useState(false);
   const [previewGameSet, setPreviewGameSet] = useState<GameSet | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<GameSet | null>(null);
+  
+  const [comments, setComments] = useState<GameSetComment[]>([]);
+  const [newComment, setNewComment] = useState("");
+  const [isPostingComment, setIsPostingComment] = useState(false);
+  const [playedGameSetIds, setPlayedGameSetIds] = useState<Set<string>>(new Set());
 
   const fetchProfileData = useCallback(async () => {
     if (!user) {
@@ -180,14 +187,16 @@ export default function ProfilePage() {
     const solvedIncorrectAnswersRef = collection(db, 'users', user.uid, 'solved-incorrect-answers');
     const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
     const myGameSetsQuery = query(collection(db, 'game-sets'), where('creatorId', '==', user.uid));
+    const playedSetsQuery = collection(db, 'users', user.uid, 'playedGameSets');
 
     try {
-      const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot, myGameSetsSnapshot] = await Promise.all([
+      const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot, myGameSetsSnapshot, playedSetsSnapshot] = await Promise.all([
         getDoc(userRef),
         getDocs(query(incorrectAnswersRef, where('timestamp', '<=', new Date(Date.now() - 24 * 60 * 60 * 1000)), orderBy('timestamp', 'asc'))),
         getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
         getDocs(subjectStatsRef),
         getDocs(myGameSetsQuery),
+        getDocs(playedSetsQuery),
       ]);
 
       if (userSnap.exists()) {
@@ -222,6 +231,15 @@ export default function ProfilePage() {
       const gameSets = myGameSetsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSet));
       gameSets.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
       setMyGameSets(gameSets);
+
+      const ids = new Set<string>();
+      playedSetsSnapshot.forEach((doc) => {
+        const data = doc.data() as PlayedGameSet;
+        if (data.gameSetId) {
+          ids.add(data.gameSetId);
+        }
+      });
+      setPlayedGameSetIds(ids);
 
     } catch (error) {
         console.error("Error fetching profile data:", error);
@@ -284,6 +302,43 @@ export default function ProfilePage() {
       fetchClassmates();
     }
   }, [userData, fetchClassmates]);
+
+  useEffect(() => {
+    if (!previewGameSet) {
+      setComments([]);
+      return;
+    }
+
+    const commentsQuery = query(collection(db, 'game-sets', previewGameSet.id, 'comments'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(commentsQuery, (snapshot) => {
+      const fetchedComments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSetComment));
+      setComments(fetchedComments);
+    });
+
+    return () => unsubscribe();
+  }, [previewGameSet]);
+
+  const handlePostComment = async () => {
+    if (!newComment.trim() || !user || !previewGameSet || !userData) return;
+
+    setIsPostingComment(true);
+    try {
+      const commentData = {
+        userId: user.uid,
+        userNickname: userData.displayName,
+        userAvatar: userData.pixelAvatar || null,
+        comment: newComment,
+        createdAt: serverTimestamp()
+      };
+      await addDoc(collection(db, 'game-sets', previewGameSet.id, 'comments'), commentData);
+      setNewComment("");
+    } catch (error) {
+      console.error("Error posting comment: ", error);
+      toast({ variant: "destructive", title: "오류", description: "댓글 작성 중 오류가 발생했습니다."});
+    } finally {
+      setIsPostingComment(false);
+    }
+  };
 
 
   const handleEdit = () => {
@@ -688,6 +743,7 @@ export default function ProfilePage() {
   }
 
   const canSendPoints = classmates.length > 0;
+  const hasUserPlayedSelectedSet = previewGameSet ? playedGameSetIds.has(previewGameSet.id) : false;
 
   return (
     <>
@@ -1157,21 +1213,78 @@ export default function ProfilePage() {
                     <DialogTitle>{previewGameSet.title}</DialogTitle>
                     <DialogDescription>{[previewGameSet.grade, previewGameSet.semester, previewGameSet.subject, previewGameSet.unit].filter(Boolean).join(' / ')}</DialogDescription>
                 </DialogHeader>
-                <ScrollArea className="h-96 pr-4">
-                    <div className="space-y-4">
-                        {previewGameSet.questions.map((q, index) => (
-                            <div key={index} className="p-4 rounded-md border bg-muted/50">
-                                <p className="font-semibold whitespace-pre-wrap">{index + 1}. {q.question}</p>
-                                {q.type === 'multipleChoice' && q.options && (
-                                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                                        {q.options.map((opt, i) => <div key={i} className={cn(q.correctAnswer === opt && "font-bold text-primary")}>- {opt}</div>)}
+                <Tabs defaultValue="questions" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="questions"><BookOpen className="mr-2 h-4 w-4"/>문제 목록</TabsTrigger>
+                    <TabsTrigger value="comments"><MessageSquare className="mr-2 h-4 w-4"/>댓글 ({comments.length})</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="questions">
+                    <ScrollArea className="h-96 pr-4">
+                        <div className="space-y-4">
+                            {previewGameSet.questions.map((q, index) => (
+                                <div key={index} className="p-4 rounded-md border bg-muted/50">
+                                    <p className="font-semibold whitespace-pre-wrap">{index + 1}. {q.question}</p>
+                                    {q.type === 'multipleChoice' && q.options && (
+                                        <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                                            {q.options.map((opt, i) => <div key={i} className={cn(q.correctAnswer === opt && "font-bold text-primary")}>- {opt}</div>)}
+                                        </div>
+                                    )}
+                                    <p className="mt-2 text-sm">정답: <span className="font-semibold text-primary">{q.correctAnswer || q.answer}</span></p>
+                                </div>
+                            ))}
+                        </div>
+                    </ScrollArea>
+                  </TabsContent>
+                  <TabsContent value="comments">
+                    <div className="flex flex-col h-96">
+                      <ScrollArea className="flex-grow pr-6">
+                        <div className="space-y-4">
+                          {comments.length === 0 ? (
+                            <div className="text-center py-12 text-muted-foreground">아직 댓글이 없습니다.</div>
+                          ) : (
+                            comments.map(comment => {
+                              let pixelAvatarData = null;
+                              if (comment.userAvatar) {
+                                try { pixelAvatarData = JSON.parse(comment.userAvatar); } catch (e) {}
+                              }
+                              return (
+                                <div key={comment.id} className="flex gap-3">
+                                  <Avatar className="h-9 w-9">
+                                    <PixelAvatar pixels={pixelAvatarData} />
+                                  </Avatar>
+                                  <div className="flex-grow">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold text-sm">{comment.userNickname}</span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {comment.createdAt && formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko })}
+                                      </span>
                                     </div>
-                                )}
-                                <p className="mt-2 text-sm">정답: <span className="font-semibold text-primary">{q.correctAnswer || q.answer}</span></p>
-                            </div>
-                        ))}
+                                    <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
+                                  </div>
+                                </div>
+                              )
+                            })
+                          )}
+                        </div>
+                      </ScrollArea>
+                      {hasUserPlayedSelectedSet && (
+                        <div className="mt-4 pt-4 border-t">
+                          <div className="flex gap-2">
+                            <Input 
+                              placeholder="댓글을 입력하세요..." 
+                              value={newComment}
+                              onChange={(e) => setNewComment(e.target.value)}
+                              disabled={isPostingComment}
+                            />
+                            <Button onClick={handlePostComment} disabled={isPostingComment || !newComment.trim()}>
+                              {isPostingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                </ScrollArea>
+                  </TabsContent>
+                </Tabs>
             </DialogContent>
         </Dialog>
     )}
@@ -1244,7 +1357,7 @@ export default function ProfilePage() {
                 <DialogDescription>학생들의 학급 포인트 획득 규칙을 설정합니다.</DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-4">
-                <RadioGroup value={pointRule} onValueChange={(value: PointAcquisitionRule) => setPointRule(value)}>
+                <RadioGroup value={pointRule} onValueChange={(value: 'teacher_only' | 'class_only' | 'all') => setPointRule(value)}>
                     <div className="space-y-1 rounded-md border p-3">
                         <div className="flex items-center gap-2">
                             <RadioGroupItem value="teacher_only" id="teacher_only" />
