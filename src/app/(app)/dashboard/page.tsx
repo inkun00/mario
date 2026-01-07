@@ -30,13 +30,13 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn, ShieldCheck, List, Gamepad2, Sparkles, Smartphone, Tv, Gem } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn, ShieldCheck, List, Gamepad2, Sparkles, Smartphone, Tv, Gem, MessageSquare, Send } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe, updateDoc, increment, arrayUnion, getDoc, serverTimestamp, Timestamp, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe, updateDoc, increment, arrayUnion, getDoc, serverTimestamp, Timestamp, getDocs, writeBatch, addDoc, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { GameSet, User as FsUser, GameRoom, PlayedGameSet } from '@/lib/types';
+import type { GameSet, User as FsUser, GameRoom, PlayedGameSet, GameSetComment } from '@/lib/types';
 import { auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -49,6 +49,11 @@ import { cn } from '@/lib/utils';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { MotionDiv } from '@/components/motion-div';
 import { evaluateQuizSet } from '@/ai/flows/validate-quiz-set-flow';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { PixelAvatar } from '@/components/pixel-avatar';
+import { formatDistanceToNow } from 'date-fns';
+import { ko } from 'date-fns/locale';
 
 
 const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '음악', '미술', '체육', '영어', '창체'];
@@ -106,6 +111,10 @@ export default function DashboardPage() {
   const [password, setPassword] = useState('');
   const [targetRoom, setTargetRoom] = useState<GameRoom | null>(null);
   const [targetRoomId, setTargetRoomId] = useState<string | null>(null);
+
+  const [comments, setComments] = useState<GameSetComment[]>([]);
+  const [newComment, setNewComment] = useState("");
+  const [isPostingComment, setIsPostingComment] = useState(false);
 
 
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -316,6 +325,21 @@ export default function DashboardPage() {
       setFilteredGameSets(finalSets);
   }, [publicSets, privateSets]);
 
+    useEffect(() => {
+    if (!selectedGameSet) {
+      setComments([]);
+      return;
+    }
+
+    const commentsQuery = query(collection(db, 'game-sets', selectedGameSet.id, 'comments'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(commentsQuery, (snapshot) => {
+      const fetchedComments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSetComment));
+      setComments(fetchedComments);
+    });
+
+    return () => unsubscribe();
+  }, [selectedGameSet]);
+
 
   const handleDelete = async () => {
     if (!deleteCandidate) return;
@@ -524,6 +548,28 @@ export default function DashboardPage() {
     }
   };
 
+  const handlePostComment = async () => {
+    if (!newComment.trim() || !user || !selectedGameSet || !currentUserData) return;
+
+    setIsPostingComment(true);
+    try {
+      const commentData = {
+        userId: user.uid,
+        userNickname: currentUserData.displayName,
+        userAvatar: currentUserData.pixelAvatar || null,
+        comment: newComment,
+        createdAt: serverTimestamp()
+      };
+      await addDoc(collection(db, 'game-sets', selectedGameSet.id, 'comments'), commentData);
+      setNewComment("");
+    } catch (error) {
+      console.error("Error posting comment: ", error);
+      toast({ variant: "destructive", title: "오류", description: "댓글 작성 중 오류가 발생했습니다."});
+    } finally {
+      setIsPostingComment(false);
+    }
+  };
+
 
   const indexOfLastItem = currentPage * ITEMS_PER_PAGE;
   const indexOfFirstItem = indexOfLastItem - ITEMS_PER_PAGE;
@@ -541,11 +587,13 @@ export default function DashboardPage() {
     visible: { opacity: 1, y: 0 },
   };
 
+  const hasUserPlayedSelectedSet = selectedGameSet ? playedGameSetIds.has(selectedGameSet.id) : false;
+
   return (
     <>
       <div className="flex flex-col gap-8">
         <div>
-          <h1 className="text-3xl font-bold font-headline">안녕하세요, {(user && !loadingUser) ? user.displayName : '게스트'}님!</h1>
+          <h1 className="text-3xl font-bold font-headline">안녕하세요, {(user && !loadingUser) ? currentUserData?.displayName || user.displayName : '게스트'}님!</h1>
           <p className="text-muted-foreground mt-1">오늘도 즐거운 학습을 시작해볼까요?</p>
         </div>
 
@@ -888,8 +936,6 @@ export default function DashboardPage() {
                       <DialogTitle className="font-headline text-2xl">{selectedGameSet.title}</DialogTitle>
                       <DialogDescription>
                          {[selectedGameSet.grade, selectedGameSet.semester, selectedGameSet.subject, selectedGameSet.unit].filter(Boolean).join(' / ')}
-                         {' · '}
-                        총 {selectedGameSet.questions.length}개의 질문이 있습니다.
                       </DialogDescription>
                   </div>
                   {(selectedGameSet.evaluationScore !== undefined && selectedGameSet.evaluationScore !== null) && (() => {
@@ -917,54 +963,110 @@ export default function DashboardPage() {
                   })()}
               </div>
             </DialogHeader>
-            <ScrollArea className="h-96 pr-6">
-                <div className="space-y-4">
-                    {selectedGameSet.questions.map((q, index) => (
-                        <div key={index} className="p-4 rounded-md border bg-muted/50">
-                            <div className="flex justify-between items-start">
-                                <p className="font-semibold text-base whitespace-pre-wrap">{`질문 ${index + 1}. ${q.question}`}</p>
-                                <div className="flex items-center gap-2 text-sm">
-                                    <span className="flex items-center gap-1 font-semibold text-primary">
-                                        <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
-                                        {q.points === -1 ? '랜덤' : `${q.points}점`}
-                                    </span>
-                                    {q.points === -1 && (
-                                      <TooltipProvider>
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <HelpCircle className="w-4 h-4 text-muted-foreground" />
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                <p>10-50점 사이의 랜덤 점수가 부여됩니다.</p>
-                                            </TooltipContent>
-                                        </Tooltip>
-                                      </TooltipProvider>
-                                    )}
+            <Tabs defaultValue="questions">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="questions"><Book className="w-4 h-4 mr-2" />문제 목록</TabsTrigger>
+                <TabsTrigger value="comments"><MessageSquare className="w-4 h-4 mr-2" />댓글 ({comments.length})</TabsTrigger>
+              </TabsList>
+              <TabsContent value="questions">
+                <ScrollArea className="h-96 pr-6">
+                    <div className="space-y-4">
+                        {selectedGameSet.questions.map((q, index) => (
+                            <div key={index} className="p-4 rounded-md border bg-muted/50">
+                                <div className="flex justify-between items-start">
+                                    <p className="font-semibold text-base whitespace-pre-wrap">{`질문 ${index + 1}. ${q.question}`}</p>
+                                    <div className="flex items-center gap-2 text-sm">
+                                        <span className="flex items-center gap-1 font-semibold text-primary">
+                                            <Star className="w-4 h-4 text-yellow-400 fill-yellow-400"/>
+                                            {q.points === -1 ? '랜덤' : `${q.points}점`}
+                                        </span>
+                                        {q.points === -1 && (
+                                          <TooltipProvider>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    <p>10-50점 사이의 랜덤 점수가 부여됩니다.</p>
+                                                </TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+                                        )}
+                                    </div>
                                 </div>
+                                
+                                {q.imageUrl && (
+                                    <div className="mt-2 relative aspect-video">
+                                        <Image src={encodeURI(q.imageUrl)} alt={`질문 ${index + 1} 이미지`} fill className="rounded-md object-contain" unoptimized={true} />
+                                    </div>
+                                )}
+
+                                {q.type === 'multipleChoice' && q.options && (
+                                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                        {q.options.map((option, optIndex) => {
+                                            return (
+                                                <div key={optIndex} className="flex items-center gap-2 text-sm p-2 rounded-md bg-background/50">
+                                                    <span>{option}</span>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                )}
                             </div>
-                            
-                            {q.imageUrl && (
-                                <div className="mt-2 relative aspect-video">
-                                    <Image src={encodeURI(q.imageUrl)} alt={`질문 ${index + 1} 이미지`} fill className="rounded-md object-contain" unoptimized={true} />
+                        ))}
+                    </div>
+                </ScrollArea>
+              </TabsContent>
+              <TabsContent value="comments">
+                <div className="flex flex-col h-96">
+                  <ScrollArea className="flex-grow pr-6">
+                    <div className="space-y-4">
+                      {comments.length === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground">아직 댓글이 없습니다.</div>
+                      ) : (
+                        comments.map(comment => {
+                          let pixelAvatarData = null;
+                          if (comment.userAvatar) {
+                            try { pixelAvatarData = JSON.parse(comment.userAvatar); } catch (e) {}
+                          }
+                          return (
+                            <div key={comment.id} className="flex gap-3">
+                              <Avatar className="h-9 w-9">
+                                <PixelAvatar pixels={pixelAvatarData} />
+                              </Avatar>
+                              <div className="flex-grow">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-sm">{comment.userNickname}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko })}
+                                  </span>
                                 </div>
-                            )}
-
-                            {q.type === 'multipleChoice' && q.options && (
-                                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    {q.options.map((option, optIndex) => {
-                                        return (
-                                            <div key={optIndex} className="flex items-center gap-2 text-sm p-2 rounded-md bg-background/50">
-                                                <span>{option}</span>
-                                            </div>
-                                        )
-                                    })}
-                                </div>
-                            )}
-
-                        </div>
-                    ))}
+                                <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+                  </ScrollArea>
+                  {hasUserPlayedSelectedSet && (
+                    <div className="mt-4 pt-4 border-t">
+                      <div className="flex gap-2">
+                        <Input 
+                          placeholder="댓글을 입력하세요..." 
+                          value={newComment}
+                          onChange={(e) => setNewComment(e.target.value)}
+                          disabled={isPostingComment}
+                        />
+                        <Button onClick={handlePostComment} disabled={isPostingComment || !newComment.trim()}>
+                          {isPostingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-            </ScrollArea>
+              </TabsContent>
+            </Tabs>
              <DialogFooter className="pt-4">
                 <Button variant="outline" onClick={() => { setReportCandidate(selectedGameSet); setSelectedGameSet(null);}}>
                     <AlertTriangle className="mr-2 h-4 w-4"/> 신고하기
@@ -1092,13 +1194,3 @@ export default function DashboardPage() {
     </>
   );
 }
-
-    
-
-    
-
-    
-
-    
-
-    

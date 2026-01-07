@@ -79,6 +79,15 @@ export interface Question {
   unit?: string;
 }
 
+export interface GameSetComment {
+  id: string;
+  userId: string;
+  userNickname: string;
+  userAvatar: string | null;
+  comment: string;
+  createdAt: Timestamp;
+}
+
 export interface GameSet {
   id: string;
   creatorId: string;
