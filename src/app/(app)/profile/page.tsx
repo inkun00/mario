@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -30,15 +29,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, ClassStoreItem, ItemBuyer, PointAcquisitionRule } from '@/lib/types';
+import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, ClassStoreItem, ItemBuyer, PointAcquisitionRule, GameSet } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
-import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2 } from 'lucide-react';
+import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -52,8 +52,8 @@ import Image from 'next/image';
 import { Combobox } from '@/components/ui/combobox';
 import dynamic from 'next/dynamic';
 import { PixelAvatar } from '@/components/pixel-avatar';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import Link from 'next/link';
 
 
 const PixelEditor = dynamic(() => import('@/components/pixel-editor').then(mod => mod.PixelEditor), {
@@ -161,6 +161,10 @@ export default function ProfilePage() {
   const [isPointManagementDialogOpen, setIsPointManagementDialogOpen] = useState(false);
   const [pointRule, setPointRule] = useState<PointAcquisitionRule>('all');
 
+  const [myGameSets, setMyGameSets] = useState<GameSet[]>([]);
+  const [isLoadingMyGameSets, setIsLoadingMyGameSets] = useState(false);
+  const [previewGameSet, setPreviewGameSet] = useState<GameSet | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<GameSet | null>(null);
 
   const fetchProfileData = useCallback(async () => {
     if (!user) {
@@ -174,14 +178,15 @@ export default function ProfilePage() {
     const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
     const solvedIncorrectAnswersRef = collection(db, 'users', user.uid, 'solved-incorrect-answers');
     const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const myGameSetsQuery = query(collection(db, 'game-sets'), where('creatorId', '==', user.uid), orderBy('createdAt', 'desc'));
 
     try {
-      const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot] = await Promise.all([
+      const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot, myGameSetsSnapshot] = await Promise.all([
         getDoc(userRef),
-        getDocs(query(incorrectAnswersRef, where('timestamp', '<=', oneDayAgo), orderBy('timestamp', 'asc'))),
+        getDocs(query(incorrectAnswersRef, where('timestamp', '<=', new Date(Date.now() - 24 * 60 * 60 * 1000)), orderBy('timestamp', 'asc'))),
         getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
         getDocs(subjectStatsRef),
+        getDocs(myGameSetsQuery),
       ]);
 
       if (userSnap.exists()) {
@@ -212,6 +217,8 @@ export default function ProfilePage() {
       setReviewQuestions(incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer)));
       setSolvedReviewQuestions(solvedIncorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer)));
       setSubjectStats(transformStats(subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat))));
+      setMyGameSets(myGameSetsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSet)));
+
     } catch (error) {
         console.error("Error fetching profile data:", error);
         toast({ variant: 'destructive', title: '오류', description: '프로필 데이터를 불러오는 중 오류가 발생했습니다.' });
@@ -614,6 +621,20 @@ export default function ProfilePage() {
     }
   }
 
+  const handleDeleteGameSet = async () => {
+    if (!deleteCandidate) return;
+    try {
+        await deleteDoc(doc(db, "game-sets", deleteCandidate.id));
+        setMyGameSets(prev => prev.filter(set => set.id !== deleteCandidate.id));
+        toast({ title: "성공", description: "퀴즈 세트를 삭제했습니다." });
+        setDeleteCandidate(null);
+    } catch (error) {
+        console.error("Error deleting document: ", error);
+        toast({ variant: "destructive", title: "오류", description: "퀴즈 세트 삭제 중 오류가 발생했습니다." });
+    }
+  };
+
+
   const xpForNextLevel = nextLevelInfo ? nextLevelInfo.xpThreshold - (levelInfo?.xpThreshold || 0) : 0;
   const currentXpProgress = userData ? userData.xp - (levelInfo?.xpThreshold || 0) : 0;
   const progressPercentage = xpForNextLevel > 0 ? (currentXpProgress / xpForNextLevel) * 100 : 100;
@@ -756,23 +777,14 @@ export default function ProfilePage() {
             </div>
           </div>
         </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader>
-            <CardTitle className="font-headline flex items-center gap-2">계정 및 학급 설정</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {userData.role === 'teacher' ? (
+        <CardFooter className="flex-wrap gap-2">
+             {userData.role === 'teacher' ? (
               <>
                 <Button variant="outline" onClick={() => setIsClassCodeDialog(true)}>
                    <Edit className="mr-2 h-4 w-4"/> 학급 코드 관리
                 </Button>
                  <Button variant="outline" onClick={() => setIsPointManagementDialogOpen(true)}>
                     <Settings className="mr-2 h-4 w-4"/> 학급 포인트 관리
-                </Button>
-                 <Button variant="outline" onClick={() => setIsSendPointsDialogOpen(true)} disabled={!canSendPoints}>
-                    <Send className="mr-2 h-4 w-4"/> 학급 포인트 보내기
                 </Button>
               </>
             ) : (
@@ -791,144 +803,207 @@ export default function ProfilePage() {
                 </Button>
               </>
             )}
-        </CardContent>
-      </Card>
-
-      <Card>
-          <CardHeader>
-              <CardTitle className="font-headline flex items-center gap-2">
-                  <BarChart2 className="text-primary"/> 과목별 성취도
-              </CardTitle>
-              <CardDescription>과목 및 단원별 정답률을 확인하고 약점을 보완해보세요.</CardDescription>
-          </CardHeader>
-          <CardContent>
-             {subjectStats.length === 0 ? (
-                <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                    <p className="text-muted-foreground">아직 학습 기록이 없습니다. 퀴즈를 풀고 다시 확인해주세요!</p>
-                </div>
-             ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Select value={selectedSubject} onValueChange={setSelectedSubject}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="과목 선택" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">전체 과목</SelectItem>
-                            {subjectStats.map(stat => (
-                                <SelectItem key={stat.id} value={stat.id}>{stat.id}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                     <Select value={selectedUnit} onValueChange={setSelectedUnit} disabled={selectedSubject === 'all' || availableUnits.length === 0}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="단원 선택" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">전체 단원</SelectItem>
-                            {availableUnits.map(unit => (
-                                <SelectItem key={unit} value={unit}>{unit}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4 text-center p-4 bg-secondary rounded-lg">
-                    <div>
-                        <p className="text-2xl font-bold text-blue-600">{filteredCorrect}</p>
-                        <p className="text-sm text-muted-foreground">정답</p>
-                    </div>
-                     <div className="cursor-pointer" onClick={handleShowIncorrectAnswers}>
-                        <p className="text-2xl font-bold text-red-600">{filteredIncorrect}</p>
-                        <p className="text-sm text-muted-foreground">오답</p>
-                    </div>
-                    <div>
-                        <p className="text-2xl font-bold text-primary">{filteredAccuracy}%</p>
-                        <p className="text-sm text-muted-foreground">정답률</p>
-                    </div>
-                  </div>
-                </div>
-             )}
-          </CardContent>
+        </CardFooter>
       </Card>
       
-      <Card>
-        <CardHeader>
-            <CardTitle className="font-headline flex items-center gap-2">
-                <FileWarning className="text-primary"/> 오답노트
-            </CardTitle>
-            <CardDescription>
-                틀렸던 문제들을 다시 풀어보고 점수를 만회하세요! 복습 효과를 높이기 위해 틀린 문제는 24시간 후에 공개됩니다.
-            </CardDescription>
-        </CardHeader>
-          <CardContent>
-              {reviewQuestions.length === 0 ? (
-                  <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                      <p className="text-muted-foreground">복습할 문제가 없습니다. 완벽해요!</p>
-                  </div>
-              ) : (
-                  <div className="space-y-4">
-                      {reviewQuestions.map((item, index) => {
-                        const question = item.question;
-                        return (
-                          <div key={item.id} className="p-4 border rounded-lg bg-background shadow-sm space-y-3">
-                              <p className="font-semibold text-base whitespace-pre-wrap">{question.question}</p>
-                              
-                              {question.imageUrl && (
-                                <div className="mt-2 relative aspect-video">
-                                    <Image src={encodeURI(question.imageUrl)} alt={`질문 ${index + 1} 이미지`} fill className="rounded-md object-contain" unoptimized={true} />
-                                </div>
-                              )}
-
-                              {question.type === 'subjective' && (
-                                <Input 
-                                    placeholder="정답을 입력하세요"
-                                    value={item.userReviewAnswer || ''}
-                                    onChange={(e) => handleReviewAnswerChange(index, e.target.value)}
-                                    disabled={item.isSubmitting}
-                                />
-                              )}
-                              {question.type === 'multipleChoice' && question.options && (
-                                <RadioGroup 
-                                    value={item.userReviewAnswer} 
-                                    onValueChange={(value) => handleReviewAnswerChange(index, value)} 
-                                    className="space-y-2" 
-                                    disabled={item.isSubmitting}
-                                >
-                                    {question.options.map((option, idx) => (
-                                        <div key={idx} className="flex items-center space-x-2">
-                                            <RadioGroupItem value={option} id={`review-${item.id}-option-${idx}`} />
-                                            <Label htmlFor={`review-${item.id}-option-${idx}`} className="flex-1 p-3 rounded-md border hover:border-primary cursor-pointer">{option}</Label>
+      <Tabs defaultValue="my-quizzes" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="my-quizzes">내가 만든 퀴즈</TabsTrigger>
+          <TabsTrigger value="achievement">과목별 성취도</TabsTrigger>
+          <TabsTrigger value="review-notes">오답노트</TabsTrigger>
+        </TabsList>
+        <TabsContent value="my-quizzes">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline flex items-center gap-2">
+                        <BookOpen className="text-primary"/> 내가 만든 퀴즈
+                    </CardTitle>
+                    <CardDescription>
+                        내가 직접 만든 퀴즈 목록입니다. 퀴즈를 수정하거나 삭제할 수 있습니다.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoadingMyGameSets ? (
+                        <div className="text-center py-8"><Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" /></div>
+                    ) : myGameSets.length === 0 ? (
+                        <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                            <p className="text-muted-foreground">아직 만든 퀴즈가 없습니다.</p>
+                             <Button asChild className="mt-4">
+                                <Link href="/game-sets/create">첫 번째 퀴즈 만들러 가기</Link>
+                            </Button>
+                        </div>
+                    ) : (
+                        <ScrollArea className="h-96 pr-4">
+                            <div className="space-y-2">
+                                {myGameSets.map(set => (
+                                    <Card key={set.id}>
+                                        <CardContent className="p-4 flex items-center justify-between gap-2">
+                                            <div className="flex-grow overflow-hidden">
+                                                <p className="font-semibold truncate">{set.title}</p>
+                                                <p className="text-sm text-muted-foreground">
+                                                    {set.questions.length} 문제 · {set.isPublic ? '공개' : '비공개'}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2 flex-shrink-0">
+                                                <Button variant="outline" size="sm" onClick={() => setPreviewGameSet(set)}>
+                                                    <Eye className="mr-2 h-4 w-4"/> 미리보기
+                                                </Button>
+                                                <Button variant="secondary" size="sm" asChild>
+                                                    <Link href={`/game-sets/edit/${set.id}`}>
+                                                        <Pencil className="mr-2 h-4 w-4"/> 수정
+                                                    </Link>
+                                                </Button>
+                                                <Button variant="destructive" size="sm" onClick={() => setDeleteCandidate(set)}>
+                                                    <Trash2 className="mr-2 h-4 w-4"/> 삭제
+                                                </Button>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        </ScrollArea>
+                    )}
+                </CardContent>
+            </Card>
+        </TabsContent>
+        <TabsContent value="achievement">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline flex items-center gap-2">
+                        <BarChart2 className="text-primary"/> 과목별 성취도
+                    </CardTitle>
+                    <CardDescription>과목 및 단원별 정답률을 확인하고 약점을 보완해보세요.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                {subjectStats.length === 0 ? (
+                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                        <p className="text-muted-foreground">아직 학습 기록이 없습니다. 퀴즈를 풀고 다시 확인해주세요!</p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="과목 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">전체 과목</SelectItem>
+                                {subjectStats.map(stat => (
+                                    <SelectItem key={stat.id} value={stat.id}>{stat.id}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Select value={selectedUnit} onValueChange={setSelectedUnit} disabled={selectedSubject === 'all' || availableUnits.length === 0}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="단원 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">전체 단원</SelectItem>
+                                {availableUnits.map(unit => (
+                                    <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 text-center p-4 bg-secondary rounded-lg">
+                        <div>
+                            <p className="text-2xl font-bold text-blue-600">{filteredCorrect}</p>
+                            <p className="text-sm text-muted-foreground">정답</p>
+                        </div>
+                        <div className="cursor-pointer" onClick={handleShowIncorrectAnswers}>
+                            <p className="text-2xl font-bold text-red-600">{filteredIncorrect}</p>
+                            <p className="text-sm text-muted-foreground">오답</p>
+                        </div>
+                        <div>
+                            <p className="text-2xl font-bold text-primary">{filteredAccuracy}%</p>
+                            <p className="text-sm text-muted-foreground">정답률</p>
+                        </div>
+                    </div>
+                    </div>
+                )}
+                </CardContent>
+            </Card>
+        </TabsContent>
+        <TabsContent value="review-notes">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline flex items-center gap-2">
+                        <FileWarning className="text-primary"/> 오답노트
+                    </CardTitle>
+                    <CardDescription>
+                        틀렸던 문제들을 다시 풀어보고 점수를 만회하세요! 복습 효과를 높이기 위해 틀린 문제는 24시간 후에 공개됩니다.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {reviewQuestions.length === 0 ? (
+                        <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                            <p className="text-muted-foreground">복습할 문제가 없습니다. 완벽해요!</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {reviewQuestions.map((item, index) => {
+                                const question = item.question;
+                                return (
+                                <div key={item.id} className="p-4 border rounded-lg bg-background shadow-sm space-y-3">
+                                    <p className="font-semibold text-base whitespace-pre-wrap">{question.question}</p>
+                                    
+                                    {question.imageUrl && (
+                                        <div className="mt-2 relative aspect-video">
+                                            <Image src={encodeURI(question.imageUrl)} alt={`질문 ${index + 1} 이미지`} fill className="rounded-md object-contain" unoptimized={true} />
                                         </div>
-                                    ))}
-                                </RadioGroup>
-                              )}
-                              {question.type === 'ox' && (
-                                <RadioGroup 
-                                    value={item.userReviewAnswer} 
-                                    onValueChange={(value) => handleReviewAnswerChange(index, value)} 
-                                    className="grid grid-cols-2 gap-4" 
-                                    disabled={item.isSubmitting}
-                                >
-                                    <Label htmlFor={`review-${item.id}-o`} className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", item.userReviewAnswer === 'O' && 'border-primary bg-primary/10')}>
-                                        <RadioGroupItem value="O" id={`review-${item.id}-o`} className="sr-only"/>O
-                                    </Label>
-                                    <Label htmlFor={`review-${item.id}-x`} className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", item.userReviewAnswer === 'X' && 'border-primary bg-primary/10')}>
-                                        <RadioGroupItem value="X" id={`review-${item.id}-x`} className="sr-only"/>X
-                                    </Label>
-                                </RadioGroup>
-                              )}
-                              
-                              <Button onClick={() => handleSubmitReview(index)} disabled={item.isSubmitting || !item.userReviewAnswer} className="w-full">
-                                  {item.isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "제출"}
-                              </Button>
-                          </div>
-                        )
-                      })}
-                  </div>
-              )}
-          </CardContent>
-      </Card>
+                                    )}
 
+                                    {question.type === 'subjective' && (
+                                        <Input 
+                                            placeholder="정답을 입력하세요"
+                                            value={item.userReviewAnswer || ''}
+                                            onChange={(e) => handleReviewAnswerChange(index, e.target.value)}
+                                            disabled={item.isSubmitting}
+                                        />
+                                    )}
+                                    {question.type === 'multipleChoice' && question.options && (
+                                        <RadioGroup 
+                                            value={item.userReviewAnswer} 
+                                            onValueChange={(value) => handleReviewAnswerChange(index, value)} 
+                                            className="space-y-2" 
+                                            disabled={item.isSubmitting}
+                                        >
+                                            {question.options.map((option, idx) => (
+                                                <div key={idx} className="flex items-center space-x-2">
+                                                    <RadioGroupItem value={option} id={`review-${item.id}-option-${idx}`} />
+                                                    <Label htmlFor={`review-${item.id}-option-${idx}`} className="flex-1 p-3 rounded-md border hover:border-primary cursor-pointer">{option}</Label>
+                                                </div>
+                                            ))}
+                                        </RadioGroup>
+                                    )}
+                                    {question.type === 'ox' && (
+                                        <RadioGroup 
+                                            value={item.userReviewAnswer} 
+                                            onValueChange={(value) => handleReviewAnswerChange(index, value)} 
+                                            className="grid grid-cols-2 gap-4" 
+                                            disabled={item.isSubmitting}
+                                        >
+                                            <Label htmlFor={`review-${item.id}-o`} className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", item.userReviewAnswer === 'O' && 'border-primary bg-primary/10')}>
+                                                <RadioGroupItem value="O" id={`review-${item.id}-o`} className="sr-only"/>O
+                                            </Label>
+                                            <Label htmlFor={`review-${item.id}-x`} className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", item.userReviewAnswer === 'X' && 'border-primary bg-primary/10')}>
+                                                <RadioGroupItem value="X" id={`review-${item.id}-x`} className="sr-only"/>X
+                                            </Label>
+                                        </RadioGroup>
+                                    )}
+                                    
+                                    <Button onClick={() => handleSubmitReview(index)} disabled={item.isSubmitting || !item.userReviewAnswer} className="w-full">
+                                        {item.isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "제출"}
+                                    </Button>
+                                </div>
+                                )
+                            })}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </TabsContent>
+      </Tabs>
 
       <Card>
         <CardHeader>
@@ -1025,8 +1100,8 @@ export default function ProfilePage() {
         </DialogContent>
     </Dialog>
 
-
-      <Dialog open={showIncorrectAnswersDialog} onOpenChange={setShowIncorrectAnswersDialog}>
+    {/* Incorrect Answers Dialog */}
+    <Dialog open={showIncorrectAnswersDialog} onOpenChange={setShowIncorrectAnswersDialog}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>오답 기록 확인하기</DialogTitle>
@@ -1068,8 +1143,50 @@ export default function ProfilePage() {
             </div>
           </ScrollArea>
         </DialogContent>
-      </Dialog>
+    </Dialog>
     
+    {/* My Game Set Preview Dialog */}
+    {previewGameSet && (
+        <Dialog open={!!previewGameSet} onOpenChange={() => setPreviewGameSet(null)}>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>{previewGameSet.title}</DialogTitle>
+                    <DialogDescription>{[previewGameSet.grade, previewGameSet.semester, previewGameSet.subject, previewGameSet.unit].filter(Boolean).join(' / ')}</DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="h-96 pr-4">
+                    <div className="space-y-4">
+                        {previewGameSet.questions.map((q, index) => (
+                            <div key={index} className="p-4 rounded-md border bg-muted/50">
+                                <p className="font-semibold whitespace-pre-wrap">{index + 1}. {q.question}</p>
+                                {q.type === 'multipleChoice' && q.options && (
+                                    <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                                        {q.options.map((opt, i) => <div key={i} className={cn(q.correctAnswer === opt && "font-bold text-primary")}>- {opt}</div>)}
+                                    </div>
+                                )}
+                                <p className="mt-2 text-sm">정답: <span className="font-semibold text-primary">{q.correctAnswer || q.answer}</span></p>
+                            </div>
+                        ))}
+                    </div>
+                </ScrollArea>
+            </DialogContent>
+        </Dialog>
+    )}
+
+    {/* Delete Game Set Confirmation */}
+    <AlertDialog open={!!deleteCandidate} onOpenChange={() => setDeleteCandidate(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>정말 삭제하시겠습니까?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    "{deleteCandidate?.title}" 퀴즈 세트를 삭제하면 되돌릴 수 없습니다.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>취소</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteGameSet} className="bg-destructive hover:bg-destructive/90">삭제</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
 
     {/* Dialogs for class and teacher management */}
     <AlertDialog open={isTeacherDialog} onOpenChange={setIsTeacherDialog}>
@@ -1205,8 +1322,3 @@ export default function ProfilePage() {
     </>
   );
 }
-
-
-
-
-
