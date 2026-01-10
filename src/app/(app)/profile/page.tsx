@@ -194,7 +194,7 @@ export default function ProfilePage() {
     const solvedIncorrectAnswersRef = collection(db, 'users', user.uid, 'solved-incorrect-answers');
     const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
     const myGameSetsQuery = query(collection(db, 'game-sets'), where('creatorId', '==', user.uid));
-    const playedSetsQuery = collection(db, 'users', user.uid, 'playedGameSets');
+    const playedSetsQuery = query(collection(db, 'users', user.uid, 'playedGameSets'));
 
     try {
       const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot, myGameSetsSnapshot, playedSetsSnapshot] = await Promise.all([
@@ -203,7 +203,7 @@ export default function ProfilePage() {
         getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
         getDocs(subjectStatsRef),
         getDocs(myGameSetsQuery),
-        getDocs(playedSetsSnapshot),
+        getDocs(playedSetsQuery),
       ]);
 
       if (userSnap.exists()) {
