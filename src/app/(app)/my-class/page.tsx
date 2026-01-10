@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2, Gem, Package, Send, ArrowRightLeft, ArrowLeft, ArrowRight, Gift, Settings, AlertTriangle, ShieldCheck, Undo2, LineChart, Library, BarChartHorizontal } from 'lucide-react';
+import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2, Gem, Package, Send, ArrowRightLeft, ArrowLeft, ArrowRight, Gift, Settings, AlertTriangle, ShieldCheck, Undo2, LineChart, Library, BarChartHorizontal, History } from 'lucide-react';
 import { getLevelInfo } from '@/lib/level-system';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
@@ -160,6 +160,7 @@ export default function MyClassPage() {
 
   const [learningAnalysisData, setLearningAnalysisData] = useState<LearningAnalysisData | null>(null);
   const [pointAnalysisData, setPointAnalysisData] = useState<PointAnalysisData | null>(null);
+  const [allClassPointLogs, setAllClassPointLogs] = useState<(PointLog & { studentName: string })[]>([]);
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
 
   const [isPointHistoryOpen, setIsPointHistoryOpen] = useState(false);
@@ -346,13 +347,20 @@ export default function MyClassPage() {
             setIsAnalysisLoading(true);
             try {
                 const studentIds = classMembers.filter(m => m.role !== 'teacher').map(m => m.uid);
-                const allLogs: PointLog[] = [];
+                const allLogs: (PointLog & { studentName: string })[] = [];
                 
                 for (const id of studentIds) {
+                    const student = classMembers.find(m => m.uid === id);
+                    if (!student) continue;
+
                     const logsQuery = query(collection(db, `users/${id}/pointLogs`));
                     const logSnapshot = await getDocs(logsQuery);
-                    logSnapshot.forEach(doc => allLogs.push(doc.data() as PointLog));
+                    logSnapshot.forEach(doc => {
+                        allLogs.push({ ...(doc.data() as PointLog), studentName: student.displayName });
+                    });
                 }
+                
+                setAllClassPointLogs(allLogs.sort((a, b) => (b.timestamp?.toDate()?.getTime() || 0) - (a.timestamp?.toDate()?.getTime() || 0)));
                 
                 const totalHeldPoints = classMembers.reduce((sum, member) => sum + (member.classPoints || 0), 0);
                 const totalSpentPoints = allLogs
@@ -1210,7 +1218,7 @@ export default function MyClassPage() {
                                            </div>
                                        </CardContent>
                                    </Card>
-                                   <Card>
+                                    <Card>
                                         <CardHeader>
                                             <CardTitle>포인트 일괄 보내기</CardTitle>
                                             <CardDescription>여러 학생에게 한 번에 포인트를 보낼 수 있습니다.</CardDescription>
@@ -1241,6 +1249,37 @@ export default function MyClassPage() {
                                             </ChartContainer>
                                        </CardContent>
                                    </Card>
+                                   <Card>
+                                        <CardHeader>
+                                            <CardTitle className="flex items-center gap-2"><History />전체 거래 기록</CardTitle>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <ScrollArea className="h-96">
+                                                <Table>
+                                                    <TableHeader>
+                                                        <TableRow>
+                                                            <TableHead>학생</TableHead>
+                                                            <TableHead>시간</TableHead>
+                                                            <TableHead>내용</TableHead>
+                                                            <TableHead className="text-right">포인트</TableHead>
+                                                        </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                        {allClassPointLogs.map(log => (
+                                                            <TableRow key={log.id}>
+                                                                <TableCell className="font-medium">{log.studentName}</TableCell>
+                                                                <TableCell className="text-xs">{log.timestamp ? new Date((log.timestamp as any)?.toDate()).toLocaleString() : ''}</TableCell>
+                                                                <TableCell>{log.description}</TableCell>
+                                                                <TableCell className={cn("text-right font-semibold", log.amount > 0 ? "text-green-600" : "text-red-600")}>
+                                                                {log.amount > 0 ? '+' : ''}{log.amount.toLocaleString()}
+                                                                </TableCell>
+                                                            </TableRow>
+                                                        ))}
+                                                    </TableBody>
+                                                </Table>
+                                            </ScrollArea>
+                                        </CardContent>
+                                    </Card>
                                </div>
                            )}
                        </TabsContent>
@@ -2219,6 +2258,7 @@ export default function MyClassPage() {
     </>
   );
 }
+
 
 
 
