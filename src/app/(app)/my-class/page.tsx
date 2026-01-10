@@ -165,6 +165,11 @@ export default function MyClassPage() {
   const [pointLogs, setPointLogs] = useState<PointLog[]>([]);
   const [isPointHistoryLoading, setIsPointHistoryLoading] = useState(false);
 
+  const [isSendPointsDialogOpen, setIsSendPointsDialogOpen] = useState(false);
+  const [sendPointsAmount, setSendPointsAmount] = useState(0);
+  const [sendPointsRecipient, setSendPointsRecipient] = useState('');
+  const [isSendingPoints, setIsSendingPoints] = useState(false);
+
   const form = useForm<SellItemFormValues>({
     resolver: zodResolver(sellItemSchema),
     defaultValues: {
@@ -861,6 +866,77 @@ export default function MyClassPage() {
       }
     }
 
+  const handleSendPoints = async () => {
+    if (!user || !userData || !sendPointsRecipient || sendPointsAmount <= 0) {
+      toast({ variant: 'destructive', title: '오류', description: '받는 사람과 보낼 금액을 확인해주세요.' });
+      return;
+    }
+    if (sendPointsAmount > (userData.classPoints || 0)) {
+        toast({ variant: 'destructive', title: '오류', description: '보유한 학급 포인트가 부족합니다.'});
+        return;
+    }
+
+    setIsSendingPoints(true);
+    const recipientUser = classMembers.find(m => m.uid === sendPointsRecipient);
+    const recipientName = recipientUser?.displayName || '친구';
+    
+    try {
+      await runTransaction(db, async (transaction) => {
+        const senderRef = doc(db, 'users', user.uid);
+        const recipientRef = doc(db, 'users', sendPointsRecipient);
+
+        const [senderDoc, recipientDoc] = await Promise.all([
+          transaction.get(senderRef),
+          transaction.get(recipientRef)
+        ]);
+
+        if (!senderDoc.exists() || !recipientDoc.exists()) throw "사용자 정보를 찾을 수 없습니다.";
+
+        const senderData = senderDoc.data();
+        if ((senderData.classPoints || 0) < sendPointsAmount) {
+          throw "보유한 학급 포인트가 부족합니다.";
+        }
+        
+        transaction.update(senderRef, { classPoints: increment(-sendPointsAmount) });
+        const senderLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
+        transaction.set(senderLogRef, {
+            id: senderLogRef.id,
+            userId: user.uid,
+            type: 'SEND_POINTS',
+            amount: -sendPointsAmount,
+            timestamp: serverTimestamp(),
+            description: `${recipientName}에게 보내기`,
+            relatedUserId: sendPointsRecipient,
+        } as PointLog);
+        
+        transaction.update(recipientRef, { classPoints: increment(sendPointsAmount) });
+        const recipientLogRef = doc(collection(db, 'users', sendPointsRecipient, 'pointLogs'));
+        transaction.set(recipientLogRef, {
+            id: recipientLogRef.id,
+            userId: sendPointsRecipient,
+            type: 'RECEIVE_POINTS',
+            amount: sendPointsAmount,
+            timestamp: serverTimestamp(),
+            description: `${userData.displayName}에게서 받기`,
+            relatedUserId: user.uid,
+        } as PointLog);
+
+      });
+
+      toast({ title: '전송 완료', description: `${recipientName}님에게 ${sendPointsAmount.toLocaleString()} 포인트를 성공적으로 보냈습니다.` });
+      // Optimistic update
+      setUserData(prev => prev ? {...prev, classPoints: (prev.classPoints || 0) - sendPointsAmount} : null);
+      setIsSendPointsDialogOpen(false);
+      setSendPointsAmount(0);
+      setSendPointsRecipient('');
+
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "전송 실패", description: typeof error === 'string' ? error : `포인트 전송 중 오류가 발생했습니다: ${error.message}`});
+    } finally {
+      setIsSendingPoints(false);
+    }
+  };
+
 
   if (isLoading) {
     return (
@@ -886,6 +962,7 @@ export default function MyClassPage() {
   const isTeacher = userData.role === 'teacher';
   const hasClass = (isTeacher && userData.classCode) || (!isTeacher && userData.classId);
   const sellingItems = classStoreItems.filter(item => item.sellerId === user?.uid);
+  const canSendPoints = classMembers.filter(m => m.uid !== user?.uid).length > 0;
 
   const studentPointHistoryChartData = studentPointLogs.reduce((acc, log) => {
     if (!log.timestamp) return acc;
@@ -1949,11 +2026,59 @@ export default function MyClassPage() {
         ) : (
             <div className="text-center py-10 text-muted-foreground">포인트 활동 내역이 없습니다.</div>
         )}
+        <DialogFooter className="pt-4">
+          <Button variant="outline" onClick={() => { setIsPointHistoryOpen(false); setIsSendPointsDialogOpen(true); }} disabled={!canSendPoints}>
+            <Send className="mr-2 h-4 w-4" /> 포인트 보내기
+          </Button>
+        </DialogFooter>
        </DialogContent>
+    </Dialog>
+    {/* Send Points Dialog */}
+    <Dialog open={isSendPointsDialogOpen} onOpenChange={setIsSendPointsDialogOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>학급 포인트 보내기</DialogTitle>
+                <DialogDescription>
+                    학급 친구에게 포인트를 보낼 수 있습니다.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+                 <div className="space-y-2">
+                    <Label>받는 사람</Label>
+                    <Combobox
+                      options={classMembers.filter(m => m.uid !== user?.uid).map(m => ({ value: m.uid, label: m.displayName }))}
+                      value={sendPointsRecipient}
+                      onValueChange={setSendPointsRecipient}
+                      placeholder="학급 친구 선택..."
+                      searchPlaceholder="이름으로 검색..."
+                      notFoundMessage="해당하는 사용자가 없습니다."
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="points-amount">보낼 금액</Label>
+                    <Input 
+                        id="points-amount"
+                        type="number"
+                        min="1"
+                        max={userData.classPoints || 0}
+                        value={sendPointsAmount}
+                        onChange={(e) => setSendPointsAmount(parseInt(e.target.value) || 0)}
+                    />
+                </div>
+            </div>
+            <DialogFooter>
+                <Button variant="secondary" onClick={() => setIsSendPointsDialogOpen(false)}>취소</Button>
+                <Button onClick={handleSendPoints} disabled={isSendingPoints || !sendPointsRecipient || sendPointsAmount <= 0 || sendPointsAmount > (userData.classPoints || 0)}>
+                    {isSendingPoints && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                    보내기
+                </Button>
+            </DialogFooter>
+        </DialogContent>
     </Dialog>
     </>
   );
 }
+
 
 
 

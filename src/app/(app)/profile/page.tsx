@@ -900,10 +900,8 @@ export default function ProfilePage() {
                 variant="link"
                 size="sm"
                 className="h-auto p-0 mt-1"
-                disabled={!canSendPoints}
-                onClick={(e) => { e.stopPropagation(); handleOpenSendPointsDialog(); }}
               >
-                포인트 보내기
+                포인트 보기
               </Button>
             </div>
             <div>
@@ -1283,6 +1281,11 @@ export default function ProfilePage() {
         ) : (
             <div className="text-center py-10 text-muted-foreground">포인트 활동 내역이 없습니다.</div>
         )}
+        <DialogFooter className="pt-4">
+          <Button variant="outline" onClick={() => { setIsPointHistoryOpen(false); handleOpenSendPointsDialog(); }} disabled={!canSendPoints}>
+            <Send className="mr-2 h-4 w-4" /> 포인트 보내기
+          </Button>
+        </DialogFooter>
        </DialogContent>
     </Dialog>
 
