@@ -1640,7 +1640,7 @@ export default function MyClassPage() {
                                             <TableBody>
                                                 {[...studentPointLogs].reverse().map(log => (
                                                     <TableRow key={log.id}>
-                                                        <TableCell className="text-xs">{new Date((log.timestamp as any)?.toDate()).toLocaleString()}</TableCell>
+                                                        <TableCell className="text-xs">{log.timestamp ? new Date((log.timestamp as any)?.toDate()).toLocaleString() : ''}</TableCell>
                                                         <TableCell>{log.description}</TableCell>
                                                         <TableCell className={cn("text-right font-semibold", log.amount > 0 ? "text-green-600" : "text-red-600")}>
                                                             {log.amount > 0 ? '+' : ''}{log.amount.toLocaleString()}
@@ -1866,6 +1866,7 @@ export default function MyClassPage() {
     </>
   );
 }
+
 
 
 

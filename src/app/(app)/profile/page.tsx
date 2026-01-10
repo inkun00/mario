@@ -36,10 +36,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, GameSet, GameSetComment, PlayedGameSet } from '@/lib/types';
+import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, GameSet, GameSetComment, PlayedGameSet, PointLog } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction, addDoc } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
-import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye, MessageSquare } from 'lucide-react';
+import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye, MessageSquare, LineChart } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -57,6 +57,8 @@ import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart, ResponsiveContainer, Cell } from 'recharts';
 
 
 const PixelEditor = dynamic(() => import('@/components/pixel-editor').then(mod => mod.PixelEditor), {
@@ -174,6 +176,11 @@ export default function ProfilePage() {
   const [isPostingComment, setIsPostingComment] = useState(false);
   const [playedGameSetIds, setPlayedGameSetIds] = useState<Set<string>>(new Set());
 
+  const [isPointHistoryOpen, setIsPointHistoryOpen] = useState(false);
+  const [pointLogs, setPointLogs] = useState<PointLog[]>([]);
+  const [isPointHistoryLoading, setIsPointHistoryLoading] = useState(false);
+
+
   const fetchProfileData = useCallback(async () => {
     if (!user) {
       setIsLoading(false);
@@ -196,7 +203,7 @@ export default function ProfilePage() {
         getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
         getDocs(subjectStatsRef),
         getDocs(myGameSetsQuery),
-        getDocs(playedSetsQuery),
+        getDocs(playedSetsSnapshot),
       ]);
 
       if (userSnap.exists()) {
@@ -596,7 +603,7 @@ export default function ProfilePage() {
 
   const handleSendPoints = async () => {
     if (!user || !userData || !sendPointsRecipient || sendPointsAmount <= 0) {
-      toast({ variant: 'destructive', title: '오류', description: '받는 사람과 보낼 금액을 확인해주세요.'});
+      toast({ variant: 'destructive', title: '오류', description: '받는 사람과 보낼 금액을 확인해주세요.' });
       return;
     }
     if (sendPointsAmount > (userData.classPoints || 0)) {
@@ -605,6 +612,7 @@ export default function ProfilePage() {
     }
 
     setIsSendingPoints(true);
+    const recipientName = classmates.find(c => c.value === sendPointsRecipient)?.label || '친구';
     try {
       await runTransaction(db, async (transaction) => {
         const senderRef = doc(db, 'users', user.uid);
@@ -622,14 +630,32 @@ export default function ProfilePage() {
           throw "보유한 학급 포인트가 부족합니다.";
         }
         
-        // Decrement sender's points
         transaction.update(senderRef, { classPoints: increment(-sendPointsAmount) });
+        const senderLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
+        transaction.set(senderLogRef, {
+            id: senderLogRef.id,
+            userId: user.uid,
+            type: 'SEND_POINTS',
+            amount: -sendPointsAmount,
+            timestamp: serverTimestamp(),
+            description: `${recipientName}에게 보내기`,
+            relatedUserId: sendPointsRecipient,
+        } as PointLog);
         
-        // Increment recipient's points
         transaction.update(recipientRef, { classPoints: increment(sendPointsAmount) });
+        const recipientLogRef = doc(collection(db, 'users', sendPointsRecipient, 'pointLogs'));
+        transaction.set(recipientLogRef, {
+            id: recipientLogRef.id,
+            userId: sendPointsRecipient,
+            type: 'RECEIVE_POINTS',
+            amount: sendPointsAmount,
+            timestamp: serverTimestamp(),
+            description: `${userData.displayName}에게서 받기`,
+            relatedUserId: user.uid,
+        } as PointLog);
+
       });
 
-      const recipientName = classmates.find(c => c.value === sendPointsRecipient)?.label || '친구';
       toast({ title: '전송 완료', description: `${recipientName}님에게 ${sendPointsAmount.toLocaleString()} 포인트를 성공적으로 보냈습니다.` });
       // Optimistic update
       setUserData(prev => prev ? {...prev, classPoints: (prev.classPoints || 0) - sendPointsAmount} : null);
@@ -637,8 +663,8 @@ export default function ProfilePage() {
       setSendPointsAmount(0);
       setSendPointsRecipient('');
 
-    } catch (error) {
-      toast({ variant: "destructive", title: "전송 실패", description: typeof error === 'string' ? error : "포인트 전송 중 오류가 발생했습니다."});
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "전송 실패", description: typeof error === 'string' ? error : `포인트 전송 중 오류가 발생했습니다: ${error.message}`});
     } finally {
       setIsSendingPoints(false);
     }
@@ -691,6 +717,44 @@ export default function ProfilePage() {
         console.error("Error deleting document: ", error);
         toast({ variant: "destructive", title: "오류", description: "퀴즈 세트 삭제 중 오류가 발생했습니다." });
     }
+  };
+  
+  const handleOpenPointHistory = async () => {
+    if (!user) return;
+    setIsPointHistoryOpen(true);
+    setIsPointHistoryLoading(true);
+    try {
+      const logsQuery = query(collection(db, 'users', user.uid, 'pointLogs'), orderBy('timestamp', 'asc'));
+      const logSnapshot = await getDocs(logsQuery);
+      const logs = logSnapshot.docs.map(doc => doc.data() as PointLog);
+      setPointLogs(logs);
+    } catch (error) {
+      console.error('Error fetching point logs:', error);
+      toast({ variant: 'destructive', title: '오류', description: '포인트 내역을 불러오는 중 오류가 발생했습니다.'});
+    } finally {
+        setIsPointHistoryLoading(false);
+    }
+  }
+
+  const pointHistoryChartData = pointLogs.reduce((acc, log) => {
+    if (!log.timestamp) return acc;
+    const date = (log.timestamp as any)?.toDate().toISOString().split('T')[0];
+    const lastEntry = acc[acc.length - 1];
+    const newTotal = (lastEntry ? lastEntry.totalPoints : 0) + log.amount;
+
+    if (lastEntry && lastEntry.date === date) {
+      lastEntry.totalPoints = newTotal;
+    } else {
+      acc.push({ date, totalPoints: newTotal });
+    }
+    return acc;
+  }, [] as { date: string; totalPoints: number }[]);
+
+  const pointHistoryChartConfig = {
+    totalPoints: {
+      label: "누적 포인트",
+      color: "hsl(var(--primary))",
+    },
   };
 
 
@@ -813,8 +877,11 @@ export default function ProfilePage() {
               <p className="text-2xl font-bold">{userData.xp.toLocaleString()}</p>
               <p className="text-sm text-muted-foreground">누적 포인트</p>
             </div>
-            <div className="flex flex-col items-center">
-               <div className="hover:opacity-80">
+            <div 
+              className="flex flex-col items-center cursor-pointer group"
+              onClick={handleOpenPointHistory}
+            >
+               <div className="group-hover:opacity-80">
                 <p className="flex items-center justify-center text-2xl font-bold">
                     <Gem className="w-5 h-5 mr-1 text-blue-500"/>
                     {(userData.classPoints || 0).toLocaleString()}
@@ -826,7 +893,7 @@ export default function ProfilePage() {
                 size="sm"
                 className="h-auto p-0 mt-1"
                 disabled={!canSendPoints}
-                onClick={handleOpenSendPointsDialog}
+                onClick={(e) => { e.stopPropagation(); handleOpenSendPointsDialog(); }}
               >
                 포인트 보내기
               </Button>
@@ -1159,6 +1226,58 @@ export default function ProfilePage() {
             </DialogFooter>
         </DialogContent>
     </Dialog>
+
+    {/* Point History Dialog */}
+    <Dialog open={isPointHistoryOpen} onOpenChange={setIsPointHistoryOpen}>
+       <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>포인트 활동 내역</DialogTitle>
+          <DialogDescription>
+            나의 학급 포인트 획득 및 사용 내역입니다.
+          </DialogDescription>
+        </DialogHeader>
+        {isPointHistoryLoading ? (
+            <div className="flex justify-center items-center h-96"><Loader2 className="w-8 h-8 animate-spin"/></div>
+        ) : pointHistoryChartData.length > 0 ? (
+            <>
+              <ChartContainer config={pointHistoryChartConfig} className="h-56 w-full">
+                <AreaChart data={pointHistoryChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid vertical={false} />
+                  <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
+                  <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Area dataKey="totalPoints" type="monotone" fill="var(--color-totalPoints)" fillOpacity={0.4} stroke="var(--color-totalPoints)" />
+                </AreaChart>
+              </ChartContainer>
+              <ScrollArea className="h-56 mt-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>시간</TableHead>
+                      <TableHead>내용</TableHead>
+                      <TableHead className="text-right">포인트</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[...pointLogs].reverse().map(log => (
+                      <TableRow key={log.id}>
+                        <TableCell className="text-xs">{log.timestamp ? new Date((log.timestamp as any)?.toDate()).toLocaleString() : ''}</TableCell>
+                        <TableCell>{log.description}</TableCell>
+                        <TableCell className={cn("text-right font-semibold", log.amount > 0 ? "text-green-600" : "text-red-600")}>
+                          {log.amount > 0 ? '+' : ''}{log.amount.toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </>
+        ) : (
+            <div className="text-center py-10 text-muted-foreground">포인트 활동 내역이 없습니다.</div>
+        )}
+       </DialogContent>
+    </Dialog>
+
 
     {/* Incorrect Answers Dialog */}
     <Dialog open={showIncorrectAnswersDialog} onOpenChange={setShowIncorrectAnswersDialog}>
