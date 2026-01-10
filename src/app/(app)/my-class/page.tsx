@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -24,7 +23,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MotionDiv } from '@/components/ui/motion-div';
+import { MotionDiv } from '@/components/motion-div';
 import { PixelAvatar } from '@/components/pixel-avatar';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
@@ -2295,12 +2294,3 @@ export default function MyClassPage() {
     </>
   );
 }
-
-
-
-
-
-
-
-
-
