@@ -24,7 +24,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useToast } from '@/hooks/use-toast';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { MotionDiv } from '@/components/motion-div';
+import { MotionDiv } from '@/components/ui/motion-div';
 import { PixelAvatar } from '@/components/pixel-avatar';
 import { cn } from '@/lib/utils';
 import { Label } from '@/components/ui/label';
@@ -34,6 +34,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart, ResponsiveContainer, Cell } from 'recharts';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 
 
 const sellItemSchema = z.object({
@@ -162,6 +163,7 @@ export default function MyClassPage() {
   const [pointAnalysisData, setPointAnalysisData] = useState<PointAnalysisData | null>(null);
   const [allClassPointLogs, setAllClassPointLogs] = useState<(PointLog & { studentName: string })[]>([]);
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
+  const [pointHistoryPage, setPointHistoryPage] = useState(1);
 
   const [isPointHistoryOpen, setIsPointHistoryOpen] = useState(false);
   const [pointLogs, setPointLogs] = useState<PointLog[]>([]);
@@ -995,6 +997,18 @@ export default function MyClassPage() {
     }
   };
 
+  const ITEMS_PER_PAGE = 10;
+  const indexOfLastLog = pointHistoryPage * ITEMS_PER_PAGE;
+  const indexOfFirstLog = indexOfLastLog - ITEMS_PER_PAGE;
+  const currentLogs = allClassPointLogs.slice(indexOfFirstLog, indexOfLastLog);
+  const totalLogPages = Math.ceil(allClassPointLogs.length / ITEMS_PER_PAGE);
+
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalLogPages) {
+      setPointHistoryPage(page);
+    }
+  };
+
 
   if (isLoading) {
     return (
@@ -1265,7 +1279,7 @@ export default function MyClassPage() {
                                                         </TableRow>
                                                     </TableHeader>
                                                     <TableBody>
-                                                        {allClassPointLogs.map(log => (
+                                                        {currentLogs.map(log => (
                                                             <TableRow key={log.id}>
                                                                 <TableCell className="font-medium">{log.studentName}</TableCell>
                                                                 <TableCell className="text-xs">{log.timestamp ? new Date((log.timestamp as any)?.toDate()).toLocaleString() : ''}</TableCell>
@@ -1278,6 +1292,29 @@ export default function MyClassPage() {
                                                     </TableBody>
                                                 </Table>
                                             </ScrollArea>
+                                            {totalLogPages > 1 && (
+                                                <Pagination className="mt-4">
+                                                    <PaginationContent>
+                                                        <PaginationItem>
+                                                        <PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); handlePageChange(pointHistoryPage - 1); }} />
+                                                        </PaginationItem>
+                                                        {Array.from({ length: totalLogPages }, (_, i) => (
+                                                        <PaginationItem key={i}>
+                                                            <Button
+                                                            variant={pointHistoryPage === i + 1 ? 'outline' : 'ghost'}
+                                                            size="icon"
+                                                            onClick={(e) => { e.preventDefault(); handlePageChange(i + 1); }}
+                                                            >
+                                                            {i + 1}
+                                                            </Button>
+                                                        </PaginationItem>
+                                                        ))}
+                                                        <PaginationItem>
+                                                        <PaginationNext href="#" onClick={(e) => { e.preventDefault(); handlePageChange(pointHistoryPage + 1); }} />
+                                                        </PaginationItem>
+                                                    </PaginationContent>
+                                                </Pagination>
+                                            )}
                                         </CardContent>
                                     </Card>
                                </div>
@@ -2258,6 +2295,7 @@ export default function MyClassPage() {
     </>
   );
 }
+
 
 
 
