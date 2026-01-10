@@ -33,6 +33,7 @@ import { Combobox } from '@/components/ui/combobox';
 import { v4 as uuidv4 } from 'uuid';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart, ResponsiveContainer, Cell } from 'recharts';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 const sellItemSchema = z.object({
@@ -169,6 +170,13 @@ export default function MyClassPage() {
   const [sendPointsAmount, setSendPointsAmount] = useState(0);
   const [sendPointsRecipient, setSendPointsRecipient] = useState('');
   const [isSendingPoints, setIsSendingPoints] = useState(false);
+
+  const [isBulkSendDialogOpen, setIsBulkSendDialogOpen] = useState(false);
+  const [bulkSendAmount, setBulkSendAmount] = useState(10);
+  const [bulkSendReason, setBulkSendReason] = useState('');
+  const [bulkSendRecipients, setBulkSendRecipients] = useState<string[]>([]);
+  const [isBulkSending, setIsBulkSending] = useState(false);
+
 
   const form = useForm<SellItemFormValues>({
     resolver: zodResolver(sellItemSchema),
@@ -937,6 +945,48 @@ export default function MyClassPage() {
     }
   };
 
+  const handleBulkSendPoints = async () => {
+    if (!user || !isTeacher || bulkSendRecipients.length === 0 || bulkSendAmount <= 0 || !bulkSendReason.trim()) {
+        toast({ variant: 'destructive', title: '오류', description: '받는 사람, 보낼 금액, 지급 사유를 모두 확인해주세요.'});
+        return;
+    }
+
+    setIsBulkSending(true);
+    try {
+        const batch = writeBatch(db);
+        
+        bulkSendRecipients.forEach(recipientId => {
+            const studentRef = doc(db, 'users', recipientId);
+            batch.update(studentRef, { classPoints: increment(bulkSendAmount) });
+
+            const logDocRef = doc(collection(db, 'users', recipientId, 'pointLogs'));
+            batch.set(logDocRef, {
+                id: logDocRef.id,
+                userId: recipientId,
+                type: 'TEACHER_GRANT',
+                amount: bulkSendAmount,
+                timestamp: serverTimestamp(),
+                description: bulkSendReason,
+                relatedUserId: user.uid,
+            } as PointLog);
+        });
+
+        await batch.commit();
+
+        toast({ title: '일괄 지급 완료', description: `${bulkSendRecipients.length}명의 학생에게 ${bulkSendAmount.toLocaleString()} 포인트를 성공적으로 보냈습니다.` });
+        setIsBulkSendDialogOpen(false);
+        setBulkSendAmount(10);
+        setBulkSendReason('');
+        setBulkSendRecipients([]);
+
+    } catch (error) {
+        console.error("Error bulk sending points:", error);
+        toast({ variant: 'destructive', title: '일괄 지급 실패', description: '포인트 일괄 지급 중 오류가 발생했습니다.'});
+    } finally {
+        setIsBulkSending(false);
+    }
+  };
+
 
   if (isLoading) {
     return (
@@ -1160,6 +1210,17 @@ export default function MyClassPage() {
                                            </div>
                                        </CardContent>
                                    </Card>
+                                   <Card>
+                                        <CardHeader>
+                                            <CardTitle>포인트 일괄 보내기</CardTitle>
+                                            <CardDescription>여러 학생에게 한 번에 포인트를 보낼 수 있습니다.</CardDescription>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <Button onClick={() => setIsBulkSendDialogOpen(true)} className="w-full">
+                                                <Send className="mr-2 h-4 w-4"/> 포인트 일괄 보내기
+                                            </Button>
+                                        </CardContent>
+                                    </Card>
                                     <Card>
                                        <CardHeader>
                                            <CardTitle>인기 판매 상품 TOP 10</CardTitle>
@@ -2075,9 +2136,90 @@ export default function MyClassPage() {
             </DialogFooter>
         </DialogContent>
     </Dialog>
+
+    {/* Bulk Send Points Dialog */}
+    <Dialog open={isBulkSendDialogOpen} onOpenChange={setIsBulkSendDialogOpen}>
+        <DialogContent className="max-w-2xl">
+            <DialogHeader>
+                <DialogTitle>포인트 일괄 보내기</DialogTitle>
+                <DialogDescription>
+                    선택한 모든 학생에게 동일한 양의 포인트를 보냅니다.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+                <div className="space-y-2">
+                    <Label htmlFor="bulk-points-amount">보낼 금액 (1인당)</Label>
+                    <Input 
+                        id="bulk-points-amount"
+                        type="number"
+                        min="1"
+                        value={bulkSendAmount}
+                        onChange={(e) => setBulkSendAmount(parseInt(e.target.value) || 0)}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="bulk-points-reason">지급 사유</Label>
+                    <Input 
+                        id="bulk-points-reason"
+                        placeholder="예: 받아쓰기 100점 보상"
+                        value={bulkSendReason}
+                        onChange={(e) => setBulkSendReason(e.target.value)}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label>받는 사람 선택</Label>
+                    <div className="flex items-center space-x-2 pb-2">
+                        <Checkbox
+                            id="select-all"
+                            checked={bulkSendRecipients.length === classMembers.filter(m => !m.role || m.role !== 'teacher').length && classMembers.length > 1}
+                            onCheckedChange={(checked) => {
+                                if (checked) {
+                                    setBulkSendRecipients(classMembers.filter(m => !m.role || m.role !== 'teacher').map(m => m.uid));
+                                } else {
+                                    setBulkSendRecipients([]);
+                                }
+                            }}
+                        />
+                        <Label htmlFor="select-all" className="font-medium">전체 선택</Label>
+                    </div>
+                    <ScrollArea className="h-48 border rounded-md">
+                        <div className="p-4 space-y-2">
+                            {classMembers.filter(m => !m.role || m.role !== 'teacher').map(member => (
+                                <div key={member.uid} className="flex items-center space-x-2">
+                                    <Checkbox
+                                        id={`student-${member.uid}`}
+                                        checked={bulkSendRecipients.includes(member.uid)}
+                                        onCheckedChange={(checked) => {
+                                            if (checked) {
+                                                setBulkSendRecipients(prev => [...prev, member.uid]);
+                                            } else {
+                                                setBulkSendRecipients(prev => prev.filter(id => id !== member.uid));
+                                            }
+                                        }}
+                                    />
+                                    <Label htmlFor={`student-${member.uid}`} className="w-full">{member.displayName} ({member.name})</Label>
+                                </div>
+                            ))}
+                        </div>
+                    </ScrollArea>
+                </div>
+            </div>
+            <DialogFooter>
+                <Button variant="secondary" onClick={() => setIsBulkSendDialogOpen(false)}>취소</Button>
+                <Button 
+                    onClick={handleBulkSendPoints} 
+                    disabled={isBulkSending || bulkSendRecipients.length === 0 || bulkSendAmount <= 0 || !bulkSendReason.trim()}
+                >
+                    {isBulkSending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                    {bulkSendRecipients.length}명에게 보내기
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
     </>
   );
 }
+
 
 
 
