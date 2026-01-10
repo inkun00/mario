@@ -161,6 +161,10 @@ export default function MyClassPage() {
   const [pointAnalysisData, setPointAnalysisData] = useState<PointAnalysisData | null>(null);
   const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
 
+  const [isPointHistoryOpen, setIsPointHistoryOpen] = useState(false);
+  const [pointLogs, setPointLogs] = useState<PointLog[]>([]);
+  const [isPointHistoryLoading, setIsPointHistoryLoading] = useState(false);
+
   const form = useForm<SellItemFormValues>({
     resolver: zodResolver(sellItemSchema),
     defaultValues: {
@@ -839,6 +843,23 @@ export default function MyClassPage() {
         setIsItemActionLoading(false);
       }
     };
+    
+    const handleOpenPointHistory = async () => {
+      if (!user) return;
+      setIsPointHistoryOpen(true);
+      setIsPointHistoryLoading(true);
+      try {
+        const logsQuery = query(collection(db, 'users', user.uid, 'pointLogs'), orderBy('timestamp', 'asc'));
+        const logSnapshot = await getDocs(logsQuery);
+        const logs = logSnapshot.docs.map(doc => doc.data() as PointLog);
+        setPointLogs(logs);
+      } catch (error) {
+        console.error('Error fetching point logs:', error);
+        toast({ variant: 'destructive', title: '오류', description: '포인트 내역을 불러오는 중 오류가 발생했습니다.'});
+      } finally {
+          setIsPointHistoryLoading(false);
+      }
+    }
 
 
   if (isLoading) {
@@ -866,7 +887,21 @@ export default function MyClassPage() {
   const hasClass = (isTeacher && userData.classCode) || (!isTeacher && userData.classId);
   const sellingItems = classStoreItems.filter(item => item.sellerId === user?.uid);
 
-  const chartData = studentPointLogs.reduce((acc, log) => {
+  const studentPointHistoryChartData = studentPointLogs.reduce((acc, log) => {
+    if (!log.timestamp) return acc;
+    const date = (log.timestamp as any)?.toDate().toISOString().split('T')[0];
+    const lastEntry = acc[acc.length - 1];
+    const newTotal = (lastEntry ? lastEntry.totalPoints : 0) + log.amount;
+
+    if (lastEntry && lastEntry.date === date) {
+      lastEntry.totalPoints = newTotal;
+    } else {
+      acc.push({ date, totalPoints: newTotal });
+    }
+    return acc;
+  }, [] as { date: string; totalPoints: number }[]);
+
+  const pointHistoryChartData = pointLogs.reduce((acc, log) => {
     if (!log.timestamp) return acc;
     const date = (log.timestamp as any)?.toDate().toISOString().split('T')[0];
     const lastEntry = acc[acc.length - 1];
@@ -1157,7 +1192,10 @@ export default function MyClassPage() {
                         <TabsList className="grid w-full grid-cols-1">
                             <TabsTrigger value="main">매점 메인</TabsTrigger>
                         </TabsList>
-                        <div className="text-sm font-bold text-blue-500 flex items-center gap-1 shrink-0 ml-4">
+                        <div 
+                           className="text-sm font-bold text-blue-500 flex items-center gap-1 shrink-0 ml-4 cursor-pointer hover:underline"
+                           onClick={handleOpenPointHistory}
+                         >
                             <Gem className="w-4 h-4" />
                             <span>내 포인트: {(userData.classPoints || 0).toLocaleString()}</span>
                         </div>
@@ -1617,10 +1655,10 @@ export default function MyClassPage() {
                         <CardContent>
                              {isStudentDetailsLoading ? (
                                 <div className="flex justify-center items-center h-56"><Loader2 className="w-8 h-8 animate-spin"/></div>
-                            ) : chartData.length > 0 ? (
+                            ) : studentPointHistoryChartData.length > 0 ? (
                                 <>
                                     <ChartContainer config={chartConfig} className="h-56 w-full">
-                                        <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                        <AreaChart data={studentPointHistoryChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                             <CartesianGrid vertical={false} />
                                             <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
                                             <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
@@ -1863,9 +1901,60 @@ export default function MyClassPage() {
           </Tabs>
         </DialogContent>
     </Dialog>
+     {/* Point History Dialog */}
+    <Dialog open={isPointHistoryOpen} onOpenChange={setIsPointHistoryOpen}>
+       <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>포인트 활동 내역</DialogTitle>
+          <DialogDescription>
+            나의 학급 포인트 획득 및 사용 내역입니다.
+          </DialogDescription>
+        </DialogHeader>
+        {isPointHistoryLoading ? (
+            <div className="flex justify-center items-center h-96"><Loader2 className="w-8 h-8 animate-spin"/></div>
+        ) : pointHistoryChartData.length > 0 ? (
+            <>
+              <ChartContainer config={chartConfig} className="h-56 w-full">
+                <AreaChart data={pointHistoryChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid vertical={false} />
+                  <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
+                  <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Area dataKey="totalPoints" type="monotone" fill="var(--color-totalPoints)" fillOpacity={0.4} stroke="var(--color-totalPoints)" />
+                </AreaChart>
+              </ChartContainer>
+              <ScrollArea className="h-56 mt-4">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>시간</TableHead>
+                      <TableHead>내용</TableHead>
+                      <TableHead className="text-right">포인트</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[...pointLogs].reverse().map(log => (
+                      <TableRow key={log.id}>
+                        <TableCell className="text-xs">{log.timestamp ? new Date((log.timestamp as any)?.toDate()).toLocaleString() : ''}</TableCell>
+                        <TableCell>{log.description}</TableCell>
+                        <TableCell className={cn("text-right font-semibold", log.amount > 0 ? "text-green-600" : "text-red-600")}>
+                          {log.amount > 0 ? '+' : ''}{log.amount.toLocaleString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </>
+        ) : (
+            <div className="text-center py-10 text-muted-foreground">포인트 활동 내역이 없습니다.</div>
+        )}
+       </DialogContent>
+    </Dialog>
     </>
   );
 }
+
 
 
 
