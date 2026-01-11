@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle2, Gamepad2, Lightbulb, Trophy } from 'lucide-react';
+import { CheckCircle2, Gamepad2, Lightbulb, Trophy, Gem, Users, Store } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import AppLogo from '@/components/app-logo';
@@ -92,6 +92,39 @@ export default function Home() {
                   icon={<CheckCircle2 className="w-8 h-8 text-primary" />}
                   title="오답 노트"
                   description="틀린 문제는 오답 노트에서 다시 풀어보며 완벽하게 학습할 수 있습니다."
+                />
+              </MotionDiv>
+               <MotionDiv
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.5 }}
+              >
+                <FeatureCard
+                  icon={<Gem className="w-8 h-8 text-primary" />}
+                  title="학습 보상으로 포인트 획득"
+                  description="친구들과 퀴즈를 풀고 학급 포인트를 얻을 수 있습니다."
+                />
+              </MotionDiv>
+              <MotionDiv
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.6 }}
+              >
+                <FeatureCard
+                  icon={<Users className="w-8 h-8 text-primary" />}
+                  title="퀴즈 크리에이터 활동"
+                  description="자신이 만든 퀴즈를 다른 친구들이 이용할수록 포인트 보상을 얻을 수 있습니다."
+                />
+              </MotionDiv>
+              <MotionDiv
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.7 }}
+              >
+                <FeatureCard
+                  icon={<Store className="w-8 h-8 text-primary" />}
+                  title="학급 매점"
+                  description="획득한 포인트를 활용하여 학급 매점에서 판매되고 있는 상품을 구입할 수 있습니다."
                 />
               </MotionDiv>
             </div>
