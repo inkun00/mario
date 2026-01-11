@@ -11,7 +11,9 @@ service cloud.firestore {
     }
     
     function isTeacher(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.role == 'teacher';
+      // 해당 userId를 가진 사용자의 role이 'teacher'인지 확인합니다.
+      // 이 함수는 규칙 평가 중에 문서를 읽으므로, 해당 읽기 작업이 허용되어야 합니다.
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(userId)).data.role == 'teacher';
     }
 
     match /users/{userId} {
@@ -35,7 +37,9 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
        match /pointLogs/{docId} {
-        allow read, write: if isOwner(userId);
+        allow write: if isOwner(userId);
+        // 자기 자신의 로그를 읽거나, 요청자가 교사일 경우 읽기를 허용합니다.
+        allow read: if isOwner(userId) || isTeacher(request.auth.uid);
       }
     }
 
