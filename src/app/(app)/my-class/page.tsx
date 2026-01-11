@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -1468,7 +1469,7 @@ export default function MyClassPage() {
                                                         {item.name}
                                                         </div>
                                                     </TableCell>
-                                                    <TableCell>{item.sellerNickname}</TableCell>
+                                                    <TableCell>{item.sellerName}</TableCell>
                                                     <TableCell className="text-center">{item.quantity}</TableCell>
                                                     <TableCell className="text-right font-bold text-primary">{item.price.toLocaleString()}</TableCell>
                                                     <TableCell className="text-center">
