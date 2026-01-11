@@ -53,6 +53,7 @@ import { PixelAvatar } from '@/components/pixel-avatar';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 
 
 async function getLeaderboardData(): Promise<User[]> {
@@ -138,6 +139,8 @@ const rowVariants = {
   visible: { opacity: 1, x: 0 },
 };
 
+const ITEMS_PER_PAGE = 10;
+
 export default function LeaderboardPage() {
   const [user, loadingUser] = useAuthState(auth);
   const [leaderboardData, setLeaderboardData] = useState<User[]>([]);
@@ -152,6 +155,11 @@ export default function LeaderboardPage() {
   const [isUserSetsLoading, setIsUserSetsLoading] = useState(false);
   const [selectedGameSetForPreview, setSelectedGameSetForPreview] = useState<GameSet | null>(null);
   const [gameCreationCandidate, setGameCreationCandidate] = useState<GameSet | null>(null);
+
+  const [overallCurrentPage, setOverallCurrentPage] = useState(1);
+  const [schoolCurrentPage, setSchoolCurrentPage] = useState(1);
+  const [schoolPersonalCurrentPage, setSchoolPersonalCurrentPage] = useState(1);
+  const [popularSetsCurrentPage, setPopularSetsCurrentPage] = useState(1);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -182,6 +190,10 @@ export default function LeaderboardPage() {
     };
     fetchData();
   }, [currentTab, user, leaderboardData.length, schoolLeaderboard.length, popularGameSets.length, selectedSchool]);
+  
+  useEffect(() => {
+    setSchoolPersonalCurrentPage(1);
+  }, [selectedSchool]);
 
   const schoolPersonalLeaderboard = useMemo(() => {
       if (!selectedSchool) return [];
@@ -257,6 +269,55 @@ export default function LeaderboardPage() {
       </TableRow>
     );
   };
+  
+  const PaginatedContent = ({ data, renderRow, page, setPage, emptyMessage }: { data: any[], renderRow: (item: any, rank: number) => JSX.Element, page: number, setPage: (page: number) => void, emptyMessage: string }) => {
+    const totalPages = Math.ceil(data.length / ITEMS_PER_PAGE);
+    const startIndex = (page - 1) * ITEMS_PER_PAGE;
+    const endIndex = page * ITEMS_PER_PAGE;
+    const currentItems = data.slice(startIndex, endIndex);
+
+    const handlePageChange = (newPage: number) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setPage(newPage);
+        }
+    };
+
+    return (
+        <>
+            {currentItems.length > 0 ? (
+                <>
+                    <TableBody>
+                        {currentItems.map((item, index) => renderRow(item, startIndex + index + 1))}
+                    </TableBody>
+                    {totalPages > 1 && (
+                        <caption className="mt-4">
+                            <Pagination>
+                                <PaginationContent>
+                                    <PaginationItem>
+                                        <PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); handlePageChange(page - 1); }} />
+                                    </PaginationItem>
+                                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                                        <PaginationItem key={p}>
+                                            <PaginationLink href="#" onClick={(e) => { e.preventDefault(); handlePageChange(p); }} isActive={page === p}>
+                                                {p}
+                                            </PaginationLink>
+                                        </PaginationItem>
+                                    ))}
+                                    <PaginationItem>
+                                        <PaginationNext href="#" onClick={(e) => { e.preventDefault(); handlePageChange(page + 1); }} />
+                                    </PaginationItem>
+                                </PaginationContent>
+                            </Pagination>
+                        </caption>
+                    )}
+                </>
+            ) : (
+                <caption className="text-center py-8 text-muted-foreground">{emptyMessage}</caption>
+            )}
+        </>
+    );
+  };
+
 
   return (
     <>
@@ -292,9 +353,13 @@ export default function LeaderboardPage() {
                                     <TableHead className="text-right">경험치 (XP)</TableHead>
                                 </TableRow>
                                 </TableHeader>
-                                <TableBody>
-                                {leaderboardData.map((player, index) => renderPlayerRow(player, index + 1))}
-                                </TableBody>
+                                <PaginatedContent 
+                                    data={leaderboardData}
+                                    renderRow={renderPlayerRow}
+                                    page={overallCurrentPage}
+                                    setPage={setOverallCurrentPage}
+                                    emptyMessage="랭킹 데이터가 없습니다."
+                                />
                             </Table>
                         )}
                     </TabsContent>
@@ -309,28 +374,29 @@ export default function LeaderboardPage() {
                                         <TableHead className="text-right">총 경험치 (XP)</TableHead>
                                     </TableRow>
                                 </TableHeader>
-                                <TableBody>
-                                    {schoolLeaderboard.map((school, index) => {
-                                        const rank = index + 1;
-                                        return (
-                                            <TableRow key={school.name} className={rank <= 3 ? 'bg-secondary' : ''}>
-                                                <TableCell className="font-bold text-center text-lg">
-                                                    {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex items-center gap-3">
-                                                        <Avatar className="flex items-center justify-center bg-muted">
-                                                            <SchoolIcon className="w-5 h-5 text-muted-foreground" />
-                                                        </Avatar>
-                                                        <span className="font-medium">{school.name}</span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-center">{school.memberCount}명</TableCell>
-                                                <TableCell className="text-right font-bold text-primary">{school.totalXp.toLocaleString()}</TableCell>
-                                            </TableRow>
-                                        )
-                                    })}
-                                </TableBody>
+                                <PaginatedContent 
+                                    data={schoolLeaderboard}
+                                    renderRow={(school, rank) => (
+                                        <TableRow key={school.name} className={rank <= 3 ? 'bg-secondary' : ''}>
+                                            <TableCell className="font-bold text-center text-lg">
+                                                {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-3">
+                                                    <Avatar className="flex items-center justify-center bg-muted">
+                                                        <SchoolIcon className="w-5 h-5 text-muted-foreground" />
+                                                    </Avatar>
+                                                    <span className="font-medium">{school.name}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-center">{school.memberCount}명</TableCell>
+                                            <TableCell className="text-right font-bold text-primary">{school.totalXp.toLocaleString()}</TableCell>
+                                        </TableRow>
+                                    )}
+                                    page={schoolCurrentPage}
+                                    setPage={setSchoolCurrentPage}
+                                    emptyMessage="학교 랭킹 데이터가 없습니다."
+                                />
                             </Table>
                         )}
                     </TabsContent>
@@ -345,13 +411,7 @@ export default function LeaderboardPage() {
                                 notFoundMessage="해당 학교를 찾을 수 없습니다."
                             />
                         </div>
-                        {isLoading ? <LeaderboardSkeleton /> : !schoolPersonalLeaderboard.length ? (
-                            <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                                <p className="text-muted-foreground">
-                                    {selectedSchool ? '해당 학교의 랭킹 정보가 없습니다.' : '학교를 선택하여 순위를 확인하세요.'}
-                                </p>
-                            </div>
-                        ) : (
+                        {isLoading ? <LeaderboardSkeleton /> : (
                             <Table>
                               <TableHeader>
                                 <TableRow>
@@ -361,9 +421,13 @@ export default function LeaderboardPage() {
                                     <TableHead className="text-right">경험치 (XP)</TableHead>
                                 </TableRow>
                               </TableHeader>
-                              <TableBody>
-                                {schoolPersonalLeaderboard.map((player, index) => renderPlayerRow(player, index + 1))}
-                              </TableBody>
+                              <PaginatedContent 
+                                    data={schoolPersonalLeaderboard}
+                                    renderRow={renderPlayerRow}
+                                    page={schoolPersonalCurrentPage}
+                                    setPage={setSchoolPersonalCurrentPage}
+                                    emptyMessage={selectedSchool ? '해당 학교의 랭킹 정보가 없습니다.' : '학교를 선택하여 순위를 확인하세요.'}
+                                />
                             </Table>
                         )}
                     </TabsContent>
@@ -380,9 +444,9 @@ export default function LeaderboardPage() {
                                         <TableHead className="text-right w-[120px]">작업</TableHead>
                                     </TableRow>
                                 </TableHeader>
-                                <TableBody>
-                                    {popularGameSets.map((gameSet, index) => {
-                                        const rank = index + 1;
+                                <PaginatedContent 
+                                    data={popularGameSets}
+                                    renderRow={(gameSet, rank) => {
                                         const isClickable = gameSet.creatorId !== user?.uid;
                                         return (
                                             <TableRow key={gameSet.id} className={rank <= 3 ? 'bg-secondary' : ''}>
@@ -412,8 +476,11 @@ export default function LeaderboardPage() {
                                                 </TableCell>
                                             </TableRow>
                                         )
-                                    })}
-                                </TableBody>
+                                    }}
+                                    page={popularSetsCurrentPage}
+                                    setPage={setPopularSetsCurrentPage}
+                                    emptyMessage="인기 퀴즈 데이터가 없습니다."
+                                />
                             </Table>
                         )}
                     </TabsContent>
@@ -625,5 +692,3 @@ function LeaderboardSkeleton() {
         </div>
     )
 }
-
-    
