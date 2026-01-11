@@ -39,7 +39,7 @@ export default function Home() {
               에듀칩(EduChip)
             </h1>
             <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl mt-4">
-              학습을 게임으로, 교실을 모험으로! 나만의 퀴즈를 만들고 친구들과 함께 즐겨보세요.
+              학습으로 자산을 모으고, 교실을 경제활동의 장으로 만들어 보세요.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
               <Button size="lg" asChild className="font-headline">
