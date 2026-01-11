@@ -2,10 +2,47 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default rule: allows read/write access to the entire database for any authenticated user.
-    // This is insecure for production but useful for rapid development.
-    match /{document=**} {
-      allow read, write: if request.auth != null;
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function isTeacher(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role == 'teacher';
+    }
+
+    match /users/{userId} {
+      // allow get, update, delete: if isOwner(userId);
+      // allow create: if request.auth.uid == userId;
+      // allow list: if isSignedIn(); // Broad access for things like my-class page
+      allow read, write: if isSignedIn(); // Temporarily open for debugging
+    }
+
+    match /game-sets/{gameSetId} {
+      allow read: if isSignedIn();
+      allow create: if request.auth.uid == request.resource.data.creatorId;
+      allow update, delete: if request.auth.uid == resource.data.creatorId || isTeacher(request.auth.uid);
+      
+      match /comments/{commentId} {
+        allow read, create: if isSignedIn();
+        allow update, delete: if false;
+      }
+    }
+    
+    match /game-rooms/{roomId} {
+        allow read, create, delete: if isSignedIn();
+        allow update: if request.auth.uid == resource.data.hostId 
+                    || request.auth.uid in resource.data.players;
+    }
+
+    match /class-store-items/{itemId} {
+      allow read: if isSignedIn();
+      allow create: if request.auth.uid == request.resource.data.sellerId;
+      allow update: if request.auth.uid == resource.data.sellerId || isTeacher(request.auth.uid);
+      allow delete: if request.auth.uid == resource.data.sellerId || isTeacher(request.auth.uid);
     }
   }
 }
