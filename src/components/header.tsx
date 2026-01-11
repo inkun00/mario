@@ -10,6 +10,7 @@ import {
   UserCircle,
   LogOut,
   Users,
+  Menu,
 } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { signOut } from 'firebase/auth';
@@ -24,7 +25,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
+import { Avatar, AvatarFallback } from './ui/avatar';
 import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -34,6 +35,12 @@ import type { User } from '@/lib/types';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { getLevelInfo, LevelInfo } from '@/lib/level-system';
 import { PixelAvatar } from './pixel-avatar';
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+  SheetClose,
+} from '@/components/ui/sheet';
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: '참여하기' },
@@ -96,7 +103,39 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center">
-        <AppLogo href={logoHref}/>
+        {user && (
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="md:hidden mr-2">
+                <Menu className="h-6 w-6" />
+                <span className="sr-only">Toggle Menu</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-60 p-4">
+              <AppLogo href={logoHref} className="mb-6"/>
+              <nav className="flex flex-col gap-2">
+                {navItems.map((item) => (
+                  <SheetClose asChild key={item.href}>
+                    <Link
+                      href={item.href}
+                      className={cn(
+                        'flex items-center gap-3 rounded-md px-3 py-2 text-base font-medium transition-colors hover:bg-accent hover:text-accent-foreground',
+                        pathname.startsWith(item.href)
+                          ? 'bg-accent text-accent-foreground'
+                          : 'text-muted-foreground'
+                      )}
+                    >
+                      <item.icon className="h-5 w-5" />
+                      {item.label}
+                    </Link>
+                  </SheetClose>
+                ))}
+              </nav>
+            </SheetContent>
+          </Sheet>
+        )}
+
+        <AppLogo href={logoHref} className={cn(user && 'hidden md:flex')} />
         <nav className="ml-6 hidden md:flex items-center space-x-4 lg:space-x-6">
           {user && navItems.map((item) => (
             <Link
