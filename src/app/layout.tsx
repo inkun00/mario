@@ -18,7 +18,7 @@ const ptSans = PT_Sans({
 
 
 export const metadata: Metadata = {
-  title: '마리오 게임',
+  title: '에듀칩(EduChip)',
   description: '학생과 교사를 위한 재미있고 상호작용적인 학습 게임 플랫폼입니다.',
 };
 

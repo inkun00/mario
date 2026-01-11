@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -106,7 +105,7 @@ export default function SignupPage() {
 
       toast({
         title: "회원가입 성공",
-        description: "마리오 게임에 오신 것을 환영합니다!",
+        description: "에듀칩(EduChip)에 오신 것을 환영합니다!",
       });
       router.push('/dashboard');
     } catch (error: any) {
