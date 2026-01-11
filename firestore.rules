@@ -17,33 +17,52 @@ service cloud.firestore {
     match /users/{userId} {
       allow get, update, delete: if isOwner(userId);
       allow create: if request.auth.uid == userId;
+      
       // 'my-class' 페이지에서 학급 구성원을 불러올 수 있도록 list를 허용합니다.
       allow list: if isSignedIn();
+
+      // 사용자가 자신의 하위 컬렉션 데이터를 읽을 수 있도록 허용합니다.
+      match /incorrect-answers/{docId} {
+        allow read, write, delete: if isOwner(userId);
+      }
+      match /solved-incorrect-answers/{docId} {
+        allow read, write, delete: if isOwner(userId);
+      }
+      match /subjectStats/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /playedGameSets/{docId} {
+        allow read, write: if isOwner(userId);
+      }
+       match /pointLogs/{docId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     match /game-sets/{gameSetId} {
       allow read: if isSignedIn();
+      // 사용자가 자신이 만든 퀴즈 세트 목록을 조회할 수 있도록 허용합니다.
+      allow list: if isSignedIn() && request.query.where[0][0] == 'creatorId' && request.query.where[0][2] == request.auth.uid;
       allow create: if request.auth.uid == request.resource.data.creatorId;
-      // 퀴즈 세트의 생성자이거나, 교사일 경우 수정/삭제를 허용합니다.
       allow update, delete: if request.auth.uid == resource.data.creatorId || isTeacher(request.auth.uid);
       
       match /comments/{commentId} {
         allow read, create: if isSignedIn();
-        allow update, delete: if false; // 댓글 수정/삭제는 구현되지 않았으므로 차단합니다.
+        allow update, delete: if false; 
       }
     }
     
     match /game-rooms/{roomId} {
         allow read, create, delete: if isSignedIn();
-        // 방의 호스트이거나, 플레이어 목록에 포함된 경우에만 수정을 허용합니다.
         allow update: if request.auth.uid == resource.data.hostId 
                     || request.auth.uid in resource.data.players;
+        allow list: if isSignedIn() && request.query.where[0][0] == 'status' && request.query.where[0][2] == 'waiting';
     }
 
     match /class-store-items/{itemId} {
       allow read: if isSignedIn();
+      allow list: if isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.classId == request.query.where[0][2];
       allow create: if request.auth.uid == request.resource.data.sellerId;
-      // 아이템 판매자이거나, 교사일 경우 수정/삭제를 허용합니다.
       allow update, delete: if request.auth.uid == resource.data.sellerId || isTeacher(request.auth.uid);
     }
   }
