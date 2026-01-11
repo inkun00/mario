@@ -154,6 +154,7 @@ export default function MyClassPage() {
   const [editItemDescription, setEditItemDescription] = useState('');
   const [editItemQuantity, setEditItemQuantity] = useState(0);
   const [editItemPrice, setEditItemPrice] = useState(0);
+  const [editItemEmoji, setEditItemEmoji] = useState('');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBuying, setIsBuying] = useState<string | null>(null);
@@ -675,6 +676,7 @@ export default function MyClassPage() {
                 description: editItemDescription,
                 quantity: editItemQuantity,
                 price: editItemPrice,
+                emoji: editItemEmoji,
             });
 
             toast({ title: '성공', description: '상품 정보가 업데이트되었습니다.'});
@@ -1660,6 +1662,7 @@ export default function MyClassPage() {
                                             setEditItemDescription(item.description);
                                             setEditItemQuantity(item.quantity);
                                             setEditItemPrice(item.price);
+                                            setEditItemEmoji(item.emoji || '');
                                             }}>
                                             <Settings className="mr-2 h-4 w-4" />
                                             관리
@@ -2049,6 +2052,10 @@ export default function MyClassPage() {
             </TabsList>
             <TabsContent value="manage" className="pt-4">
               <div className="space-y-4">
+                <div className="space-y-2">
+                    <Label>아이콘</Label>
+                    <EmojiSelector value={editItemEmoji} onChange={setEditItemEmoji} />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="item-desc">설명</Label>
                   <Textarea 
