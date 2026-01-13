@@ -768,23 +768,41 @@ export default function MyClassPage() {
       if (!selectedItem || !itemAction || !user) return;
       
       setIsItemActionLoading(true);
-      const userRef = doc(db, 'users', user.uid);
 
       try {
         await runTransaction(db, async (transaction) => {
-          const userDoc = await transaction.get(userRef);
-          if (!userDoc.exists()) throw "내 정보를 찾을 수 없습니다.";
-          const currentUserData = userDoc.data() as User;
-          const inventory = { ...currentUserData.inventory };
-          const item = inventory[selectedItem.name];
+            const userRef = doc(db, 'users', user.uid);
+            
+            // READ operations first
+            const userDoc = await transaction.get(userRef);
+            if (!userDoc.exists()) throw "내 정보를 찾을 수 없습니다.";
+            
+            const item = userDoc.data()?.inventory?.[selectedItem.name];
+            if (!item || item.quantity < actionQuantity) throw "상품 수량이 부족합니다.";
+            
+            let sellerRef, sellerDoc, recipientRef, recipientDoc, storeItemRef, storeItemDoc;
+            if (itemAction === 'refund') {
+                if (!item.sellerId) throw "환불 정보를 찾을 수 없습니다.";
+                sellerRef = doc(db, 'users', item.sellerId);
+                sellerDoc = await transaction.get(sellerRef);
+                storeItemRef = doc(db, 'class-store-items', item.itemId);
+                storeItemDoc = await transaction.get(storeItemRef);
+            }
+            if (itemAction === 'send') {
+                 if (!sendRecipient) throw "받는 사람을 선택해주세요.";
+                 recipientRef = doc(db, 'users', sendRecipient);
+                 recipientDoc = await transaction.get(recipientRef);
+                 if (!recipientDoc.exists()) throw "받는 사람의 정보를 찾을 수 없습니다.";
+            }
 
-          if (!item || item.quantity < actionQuantity) throw "상품 수량이 부족합니다.";
-          
+            // WRITE operations after all reads
+            const currentUserData = userDoc.data() as User;
+            const inventory = { ...currentUserData.inventory };
 
-          switch (itemAction) {
+            switch (itemAction) {
               case 'use':
                   if (item.quantity > actionQuantity) {
-                      item.quantity -= actionQuantity;
+                      inventory[selectedItem.name].quantity -= actionQuantity;
                   } else {
                       delete inventory[selectedItem.name];
                   }
@@ -792,14 +810,11 @@ export default function MyClassPage() {
                   break;
               
               case 'send':
-                  if (!sendRecipient) throw "받는 사람을 선택해주세요.";
-                  const recipientRef = doc(db, 'users', sendRecipient);
-                  const recipientDoc = await transaction.get(recipientRef);
-                  if (!recipientDoc.exists()) throw "받는 사람의 정보를 찾을 수 없습니다.";
-
-                  // Remove from sender's inventory
+                  if (!recipientRef) throw "Recipient ref not defined."; // Should not happen
+                  
+                  // Update sender's inventory
                   if (item.quantity > actionQuantity) {
-                      item.quantity -= actionQuantity;
+                      inventory[selectedItem.name].quantity -= actionQuantity;
                   } else {
                       delete inventory[selectedItem.name];
                   }
@@ -808,8 +823,8 @@ export default function MyClassPage() {
                   const senderLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
                   transaction.set(senderLogRef, { id: senderLogRef.id, userId: user.uid, type: 'SEND_POINTS', amount: 0, timestamp: serverTimestamp(), description: `'${selectedItem.name}' ${actionQuantity}개 보내기`, relatedUserId: sendRecipient, relatedItemId: item.itemId } as PointLog);
 
-                  // Add to recipient's inventory
-                  const recipientData = recipientDoc.data() as User;
+                  // Update recipient's inventory
+                  const recipientData = recipientDoc?.data() as User;
                   const recipientInventory = { ...recipientData.inventory };
                   const recipientItem = recipientInventory[selectedItem.name];
                   const newQuantity = (recipientItem?.quantity || 0) + actionQuantity;
@@ -824,12 +839,12 @@ export default function MyClassPage() {
                   break;
 
               case 'refund':
-                   if (!item.price || !item.sellerId) throw "환불 정보를 찾을 수 없습니다.";
+                   if (!item.price || !item.sellerId || !sellerRef || !storeItemRef) throw "환불 정보를 찾을 수 없습니다.";
                    const refundAmount = item.price * actionQuantity;
                    
-                   // Remove item from user and give points back
+                   // Update user's inventory and points
                    if (item.quantity > actionQuantity) {
-                        item.quantity -= actionQuantity;
+                        inventory[selectedItem.name].quantity -= actionQuantity;
                    } else {
                        delete inventory[selectedItem.name];
                    }
@@ -841,16 +856,13 @@ export default function MyClassPage() {
                    transaction.set(buyerRefundLogRef, { id: buyerRefundLogRef.id, userId: user.uid, type: 'ITEM_REFUND_BUYER', amount: refundAmount, timestamp: serverTimestamp(), description: `'${selectedItem.name}' ${actionQuantity}개 환불`, relatedUserId: item.sellerId, relatedItemId: item.itemId } as PointLog);
 
 
-                   // Take points from seller
-                   const sellerRef = doc(db, 'users', item.sellerId);
+                   // Update seller's points
                    transaction.update(sellerRef, { classPoints: increment(-refundAmount) });
                    const sellerRefundLogRef = doc(collection(db, 'users', item.sellerId, 'pointLogs'));
                    transaction.set(sellerRefundLogRef, { id: sellerRefundLogRef.id, userId: item.sellerId, type: 'ITEM_REFUND_SELLER', amount: -refundAmount, timestamp: serverTimestamp(), description: `'${selectedItem.name}' ${actionQuantity}개 환불 처리`, relatedUserId: user.uid, relatedItemId: item.itemId } as PointLog);
 
-                   // Add item back to store
-                   const storeItemRef = doc(db, 'class-store-items', item.itemId);
-                   const storeItemDoc = await transaction.get(storeItemRef);
-                   if (storeItemDoc.exists()) {
+                   // Update store item quantity
+                   if (storeItemDoc?.exists()) {
                      transaction.update(storeItemRef, { quantity: increment(actionQuantity) });
                    } else {
                      // If item was deleted, re-create it
@@ -861,7 +873,7 @@ export default function MyClassPage() {
                      });
                    }
                   break;
-          }
+            }
         });
 
         toast({ title: '성공', description: `'${selectedItem.name}' ${actionQuantity}개를 처리했습니다.` });
@@ -2308,5 +2320,6 @@ export default function MyClassPage() {
     </>
   );
 }
+
 
 
