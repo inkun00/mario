@@ -651,7 +651,7 @@ export default function CreateGameSetPage() {
                                   </FormControl>
                                   {field.value && (
                                     <div className="mt-2 relative aspect-video w-full max-w-sm">
-                                      <Image src={encodeURI(field.value)} alt="이미지 미리보기" fill className="rounded-md object-contain" />
+                                      <Image src={field.value} alt="이미지 미리보기" fill className="rounded-md object-contain" />
                                     </div>
                                   )}
                                   <FormMessage />

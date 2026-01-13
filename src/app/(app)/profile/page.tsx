@@ -1082,7 +1082,7 @@ export default function ProfilePage() {
                                     
                                     {question.imageUrl && (
                                         <div className="mt-2 relative aspect-video">
-                                            <Image src={encodeURI(question.imageUrl)} alt={`질문 ${index + 1} 이미지`} fill className="rounded-md object-contain" />
+                                            <Image src={question.imageUrl} alt={`질문 ${index + 1} 이미지`} fill className="rounded-md object-contain" />
                                         </div>
                                     )}
 
@@ -1307,7 +1307,7 @@ export default function ProfilePage() {
                   <div key={item.id} className="p-4 rounded-md border bg-muted/50 space-y-2">
                     {item.question.imageUrl && (
                         <div className="relative aspect-video">
-                            <Image src={encodeURI(item.question.imageUrl)} alt="질문 이미지" fill className="rounded-md object-contain" />
+                            <Image src={item.question.imageUrl} alt="질문 이미지" fill className="rounded-md object-contain" />
                         </div>
                     )}
                     <p className="font-semibold whitespace-pre-wrap">{item.question.question}</p>

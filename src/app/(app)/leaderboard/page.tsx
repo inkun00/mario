@@ -627,7 +627,7 @@ export default function LeaderboardPage() {
                             
                             {q.imageUrl && (
                                 <div className="mt-2 relative aspect-video">
-                                    <Image src={encodeURI(q.imageUrl)} alt={`질문 ${index + 1} 이미지`} fill className="rounded-md object-contain" />
+                                    <Image src={q.imageUrl} alt={`질문 ${index + 1} 이미지`} fill className="rounded-md object-contain" />
                                 </div>
                             )}
 
