@@ -45,7 +45,13 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow list: if isSignedIn() && request.query.where[0][0] == 'creatorId' && request.query.where[0][2] == request.auth.uid;
       allow create: if request.auth.uid == request.resource.data.creatorId;
-      allow update, delete: if request.auth.uid == resource.data.creatorId || isTeacher(request.auth.uid);
+      allow update: if 
+        // 퀴즈 제작자 또는 선생님은 수정/삭제 가능
+        (request.auth.uid == resource.data.creatorId || isTeacher(request.auth.uid)) ||
+        // 또는, 로그인한 사용자는 playCount 필드만 수정 가능
+        (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playCount']));
+
+      allow delete: if request.auth.uid == resource.data.creatorId || isTeacher(request.auth.uid);
       
       match /comments/{commentId} {
         allow read, create: if isSignedIn();
