@@ -1261,7 +1261,7 @@ export default function GamePage() {
                     <div className="py-4 space-y-6">
                         {currentQuestionInfo?.question?.imageUrl && (
                             <div className="relative aspect-video w-full">
-                                <Image src={encodeURI(currentQuestionInfo.question.imageUrl)} alt="질문 이미지" fill className="rounded-md object-contain" unoptimized={true} />
+                                <Image src={encodeURI(currentQuestionInfo.question.imageUrl)} alt="질문 이미지" fill className="rounded-md object-contain" />
                             </div>
                         )}
                         <p className="text-lg font-medium whitespace-pre-wrap">{currentQuestionInfo?.question?.question}</p>
