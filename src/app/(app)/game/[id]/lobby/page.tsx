@@ -425,7 +425,6 @@ export default function LobbyPage() {
             }
             const roomData = roomDoc.data() as GameRoom;
 
-            // Check if player is already in
             if (roomData.players && roomData.players[userToJoin.uid]) {
                 return;
             }
@@ -471,66 +470,95 @@ export default function LobbyPage() {
   }, [user, router, toast]);
 
   useEffect(() => {
-    if (!gameRoomId || typeof gameRoomId !== 'string' || loadingUser || !firestoreUser) return;
-    
-    if (!user) {
-        router.push(`/login?redirect=/game/${gameRoomId}/lobby`);
-        return;
+    if (!gameRoomId || typeof gameRoomId !== 'string' || loadingUser || !user) {
+      return;
     }
-
+  
     const roomRef = doc(db, 'game-rooms', gameRoomId);
-
-    const unsubscribe = onSnapshot(roomRef, async (docSnap) => {
-      if (docSnap.exists()) {
-        const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
-        
-        if (roomData.joinType === 'remote' && roomData.status === 'waiting' && roomData.hostId && (!roomData.players || !Object.keys(roomData.players).length)) {
+  
+    const initializeLobby = async () => {
+      try {
+        const initialRoomSnap = await getDoc(roomRef);
+        if (!initialRoomSnap.exists()) {
+          toast({ variant: 'destructive', title: '오류', description: '게임방을 찾을 수 없습니다.' });
+          router.push('/dashboard');
+          return;
+        }
+  
+        const roomData = initialRoomSnap.data() as GameRoom;
+        if (roomData.joinType === 'remote') {
+          const isPlayerInRoom = !!roomData.players[user.uid];
+          if (!isPlayerInRoom) {
+            const userSnap = await getDoc(doc(db, 'users', user.uid));
+            if (userSnap.exists()) {
+              await joinRoom(userSnap.data() as FsUser, roomRef);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error initializing lobby:", error);
+        toast({ variant: 'destructive', title: '오류', description: '로비에 참여하는 중 오류가 발생했습니다.' });
+        router.push('/dashboard');
+        return;
+      }
+  
+      // After initial join attempt, set up the real-time listener
+      const unsubscribe = onSnapshot(roomRef, async (docSnap) => {
+        if (docSnap.exists()) {
+          const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
+  
+          if (roomData.joinType === 'remote' && roomData.status === 'waiting' && roomData.hostId && (!roomData.players || !Object.keys(roomData.players).length)) {
             toast({ variant: 'destructive', title: '오류', description: '호스트가 방을 나갔습니다. 다른 방에 참여해주세요.' });
             router.push('/dashboard');
             return;
-        }
-
-        if (gameRoom && gameRoom.players[user.uid] && !roomData.players[user.uid]) {
-            toast({ variant: "destructive", title: "방에서 내보내졌습니다.", description: "호스트에 의해 게임방에서 내보내졌습니다."});
+          }
+  
+          if (gameRoom && gameRoom.players[user.uid] && !roomData.players[user.uid]) {
+            toast({ variant: "destructive", title: "방에서 내보내졌습니다.", description: "호스트에 의해 게임방에서 내보내졌습니다." });
             router.push('/dashboard');
             return;
-        }
-        
-        const isPlayerInRoom = !!roomData.players[user.uid];
-
-        if (roomData.joinType === 'remote' && !isPlayerInRoom) {
-            joinRoom(firestoreUser, roomRef);
-        }
-
-        setGameRoom(roomData);
-
-        if (roomData.status === 'playing' || roomData.status === 'setting-mystery') {
+          }
+  
+          setGameRoom(roomData);
+  
+          if (roomData.status === 'playing' || roomData.status === 'setting-mystery') {
             router.push(`/game/${gameRoomId}`);
-            return; 
-        }
-
-        if (!gameSet && roomData.gameSetId) {
+            return;
+          }
+  
+          if (!gameSet && roomData.gameSetId) {
             const setRef = doc(db, 'game-sets', roomData.gameSetId);
             const setSnap = await getDoc(setRef);
-            if(setSnap.exists()) {
-                setGameSet({ id: setSnap.id, ...setSnap.data()} as GameSet);
+            if (setSnap.exists()) {
+              setGameSet({ id: setSnap.id, ...setSnap.data() } as GameSet);
             }
+          }
+        } else {
+          toast({ variant: 'destructive', title: '오류', description: '게임방을 찾을 수 없습니다.' });
+          router.push('/dashboard');
         }
-
-      } else {
-        toast({ variant: 'destructive', title: '오류', description: '게임방을 찾을 수 없습니다.' });
-        router.push('/dashboard');
-      }
-      setIsLoading(false);
-    }, (error) => {
+        setIsLoading(false);
+      }, (error) => {
         console.error("Error fetching game room: ", error);
         toast({ variant: 'destructive', title: '오류', description: '게임방 정보를 불러오는 중 오류가 발생했습니다.' });
         setIsLoading(false);
         router.push('/dashboard');
+      });
+  
+      return unsubscribe;
+    };
+  
+    let unsubscribe: (() => void) | undefined;
+    initializeLobby().then(unsub => {
+      if (unsub) unsubscribe = unsub;
     });
-
-    return () => unsubscribe();
-  }, [gameRoomId, router, toast, user, loadingUser, gameSet, joinRoom, firestoreUser, gameRoom]);
+  
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [gameRoomId, user, loadingUser, router, toast, joinRoom, gameSet]);
   
   if (isLoading || loadingUser || !gameRoom) {
     return (
