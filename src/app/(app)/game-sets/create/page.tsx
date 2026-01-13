@@ -56,6 +56,7 @@ import { useRouter } from 'next/navigation';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { evaluateQuizSet } from '@/ai/flows/validate-quiz-set-flow';
 import { generateQuestionsFromPdf } from '@/ai/flows/generate-questions-from-pdf-flow';
+import Image from 'next/image';
 
 const questionSchema = z.object({
   question: z.string().min(1, '질문을 입력해주세요.'),
@@ -648,6 +649,11 @@ export default function CreateGameSetPage() {
                                       </div>
                                     </div>
                                   </FormControl>
+                                  {field.value && (
+                                    <div className="mt-2 relative aspect-video w-full max-w-sm">
+                                      <Image src={encodeURI(field.value)} alt="이미지 미리보기" fill className="rounded-md object-contain" unoptimized={true} />
+                                    </div>
+                                  )}
                                   <FormMessage />
                                 </FormItem>
                               )}
