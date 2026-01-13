@@ -463,25 +463,28 @@ export default function MyClassPage() {
             }
 
             // 1. Update buyer's points and inventory
-            const newInventory = { ...(buyerData.inventory || {}) };
-            if (newInventory[item.name]) {
-                newInventory[item.name].quantity += 1;
-            } else {
-                newInventory[item.name] = {
-                    itemId: item.id,
-                    quantity: 1,
-                    description: itemData.description,
-                    sellerId: item.sellerId,
-                    sellerNickname: item.sellerNickname,
-                    price: item.price,
-                    emoji: item.emoji,
-                };
-            }
+            const inventoryPath = `inventory.${item.name}`;
+            const existingItem = buyerData.inventory?.[item.name];
 
-            transaction.update(buyerRef, {
-                classPoints: increment(-itemData.price),
-                inventory: newInventory
-            });
+            if (existingItem) {
+                transaction.update(buyerRef, {
+                    classPoints: increment(-itemData.price),
+                    [`${inventoryPath}.quantity`]: increment(1),
+                });
+            } else {
+                transaction.update(buyerRef, {
+                    classPoints: increment(-itemData.price),
+                    [inventoryPath]: {
+                        itemId: item.id,
+                        quantity: 1,
+                        description: itemData.description,
+                        sellerId: item.sellerId,
+                        sellerNickname: item.sellerNickname,
+                        price: item.price,
+                        emoji: item.emoji,
+                    }
+                });
+            }
 
             // 2. Log buyer's purchase
             const buyerLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
@@ -2305,4 +2308,5 @@ export default function MyClassPage() {
     </>
   );
 }
+
 
