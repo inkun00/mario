@@ -2,45 +2,47 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // [공통 함수]
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-    
     function isTeacher(userId) {
       // This function reads a document during rule evaluation, so the read must be allowed.
       return isSignedIn() && get(/databases/$(database)/documents/users/$(userId)).data.role == 'teacher';
     }
 
+    // [사용자 컬렉션]
     match /users/{userId} {
-      // Allow any signed-in user full access for diagnostic purposes.
-      // This will ensure that no permission issues block the transaction.
+      // 주의: 현재 모든 로그인 유저가 모든 유저의 정보를 수정할 수 있게 되어 있습니다.
+      // 운영 단계에서는 isOwner(userId)를 권장합니다.
       allow read, write, delete: if isSignedIn();
 
-      // Sub-collection rules also need to be permissive.
-      match /incorrect-answers/{docId} {
-        allow read, write, delete: if isSignedIn();
-      }
-      match /solved-incorrect-answers/{docId} {
-        allow read, write, delete: if isSignedIn();
-      }
-      match /subjectStats/{docId} {
-        allow read, write, delete: if isSignedIn();
-      }
-      match /playedGameSets/{docId} {
-        allow read, write, delete: if isSignedIn();
-      }
-       match /pointLogs/{docId} {
+      match /{allSubcollections=**} {
         allow read, write, delete: if isSignedIn();
       }
     }
 
+    // [상점 아이템 컬렉션]
+    match /class-store-items/{itemId} {
+      allow read, list: if isSignedIn();
+      allow create: if request.auth.uid == request.resource.data.sellerId;
+      
+      allow update: if isSignedIn() && (
+        // 1. 판매자 본인이나 선생님은 모든 수정 가능
+        request.auth.uid == resource.data.sellerId || 
+        isTeacher(request.auth.uid) ||
+        // 2. 구매자는 'quantity' 필드만 수정 가능 (수량 감소 로직 허용)
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity'])
+      );
+      
+      allow delete: if request.auth.uid == resource.data.sellerId || isTeacher(request.auth.uid);
+    }
+
+    // [게임 세트 및 기타]
     match /game-sets/{gameSetId} {
       allow read: if isSignedIn();
-      // Allow user to list their own created quiz sets.
       allow list: if isSignedIn() && request.query.where[0][0] == 'creatorId' && request.query.where[0][2] == request.auth.uid;
       allow create: if request.auth.uid == request.resource.data.creatorId;
       allow update, delete: if request.auth.uid == resource.data.creatorId || isTeacher(request.auth.uid);
@@ -53,16 +55,8 @@ service cloud.firestore {
     
     match /game-rooms/{roomId} {
         allow read, create, delete: if isSignedIn();
-        allow update: if request.auth.uid == resource.data.hostId 
-                    || request.auth.uid in resource.data.players;
-        // Allow listing of waiting rooms for the dashboard.
+        allow update: if request.auth.uid == resource.data.hostId || request.auth.uid in resource.data.players;
         allow list: if isSignedIn() && request.query.where[0][0] == 'status' && request.query.where[0][2] == 'waiting';
-    }
-
-    match /class-store-items/{itemId} {
-      allow read, list: if isSignedIn();
-      allow create: if request.auth.uid == request.resource.data.sellerId;
-      allow update, delete: if request.auth.uid == resource.data.sellerId || isTeacher(request.auth.uid);
     }
   }
 }
