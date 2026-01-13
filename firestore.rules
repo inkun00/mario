@@ -41,7 +41,7 @@ service cloud.firestore {
        match /pointLogs/{docId} {
         // Allow user to read their own logs, or a teacher to read them.
         allow read: if isOwner(userId) || isTeacher(request.auth.uid);
-        allow write: if isOwner(userId);
+        allow write: if isSignedIn();
       }
     }
 
