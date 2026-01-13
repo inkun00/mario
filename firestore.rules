@@ -17,7 +17,9 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get, update, delete: if isOwner(userId);
+      // 상품 구매 트랜잭션에서 판매자의 포인트를 업데이트할 수 있도록 허용합니다.
+      allow get, update: if isSignedIn();
+      allow delete: if isOwner(userId);
       allow create: if request.auth.uid == userId;
       
       // 'my-class' 페이지에서 학급 구성원을 불러올 수 있도록 list를 허용합니다.
