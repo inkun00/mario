@@ -16,8 +16,9 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // Allow update for transaction of purchasing items.
-      allow get, update: if isSignedIn();
+      allow get: if isSignedIn();
+      // Allow user to update their own document, and allow anyone signed-in to update classPoints for transactions.
+      allow update: if isOwner(userId) || (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['classPoints']));
       allow delete: if isOwner(userId);
       allow create: if request.auth.uid == userId;
       
