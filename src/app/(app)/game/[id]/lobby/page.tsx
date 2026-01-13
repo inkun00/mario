@@ -436,26 +436,20 @@ export default function LobbyPage() {
                 router.push('/dashboard');
                 return;
             }
+            
+            const newPlayer: Player = {
+                uid: userToJoin.uid,
+                nickname: userToJoin?.displayName || `플레이어${Object.keys(roomData.players).length + 1}`,
+                score: 0,
+                pixelAvatar: userToJoin?.pixelAvatar,
+                isHost: false,
+            };
 
-            const userDocRef = doc(db, 'users', userToJoin.uid);
-            const userDocSnap = await getDoc(userDocRef);
-
-            if (userDocSnap.exists()) {
-                const userData = userDocSnap.data() as FsUser | undefined;
-                const newPlayer: Player = {
-                    uid: userToJoin.uid,
-                    nickname: userData?.displayName || `플레이어${Object.keys(roomData.players).length + 1}`,
-                    score: 0,
-                    pixelAvatar: userData?.pixelAvatar,
-                    isHost: false,
-                };
-
-                transaction.update(roomRef, {
-                    [`players.${userToJoin.uid}`]: newPlayer,
-                    playerUIDs: arrayUnion(userToJoin.uid)
-                });
-                setHasJoined(true);
-            }
+            transaction.update(roomRef, {
+                [`players.${userToJoin.uid}`]: newPlayer,
+                playerUIDs: arrayUnion(userToJoin.uid)
+            });
+            setHasJoined(true);
         });
     } catch (error) {
         console.error('Failed to join room:', error);
@@ -493,7 +487,16 @@ export default function LobbyPage() {
         const isPlayerInRoom = !!roomData.players[user.uid];
 
         if (roomData.joinType === 'remote' && !isPlayerInRoom && !hasJoined) {
-           joinRoom(user, roomRef);
+           const userDocRef = doc(db, 'users', user.uid);
+           const userDocSnap = await getDoc(userDocRef);
+           if (userDocSnap.exists()) {
+             const firestoreUser = userDocSnap.data() as FsUser;
+             joinRoom(firestoreUser, roomRef);
+           } else {
+             // This case should ideally not happen if user is logged in
+             toast({ variant: 'destructive', title: '오류', description: '사용자 정보를 찾을 수 없습니다.' });
+             router.push('/dashboard');
+           }
         } else {
             setHasJoined(true);
         }
@@ -550,3 +553,5 @@ export default function LobbyPage() {
     </div>
   )
 }
+
+    
