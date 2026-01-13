@@ -463,21 +463,25 @@ export default function MyClassPage() {
         }
 
         // 1. Update buyer's points and inventory
-        const newInventory = { ...buyerData.inventory };
-        const currentQuantity = newInventory[itemData.name]?.quantity || 0;
-        newInventory[itemData.name] = { 
+        const buyerUpdateData: { [key: string]: any } = {
+          classPoints: increment(-itemData.price),
+        };
+        const newInventoryItemPath = `inventory.${item.name}`;
+        
+        if (buyerData.inventory && buyerData.inventory[item.name]) {
+          buyerUpdateData[`${newInventoryItemPath}.quantity`] = increment(1);
+        } else {
+           buyerUpdateData[newInventoryItemPath] = {
             itemId: item.id,
-            quantity: currentQuantity + 1,
+            quantity: 1,
             description: itemData.description,
             sellerId: item.sellerId,
             sellerNickname: item.sellerNickname,
             price: item.price,
             emoji: item.emoji,
-        };
-        transaction.update(buyerRef, { 
-            classPoints: increment(-itemData.price),
-            inventory: newInventory 
-        });
+           };
+        }
+        transaction.update(buyerRef, buyerUpdateData);
 
         // 2. Log buyer's purchase
         const buyerLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
