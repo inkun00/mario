@@ -106,6 +106,7 @@ function NewGameRoomPageContents() {
         players: {
             [user.uid]: hostPlayer
         },
+        playerUIDs: [user.uid],
         gameState: {},
         mysteryBoxEnabled: true,
         isMysterySettingDone: false,

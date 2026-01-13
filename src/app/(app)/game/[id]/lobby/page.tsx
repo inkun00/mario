@@ -1,9 +1,9 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, getDocs, limit, arrayUnion, serverTimestamp, deleteField, deleteDoc, setDoc, arrayRemove } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, getDoc, collection, query, where, getDocs, limit, arrayUnion, serverTimestamp, deleteField, deleteDoc, setDoc, arrayRemove, runTransaction } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, PlayedGameSet, User as FsUser } from '@/lib/types';
@@ -39,63 +39,6 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
     const isHost = user?.uid === gameRoom?.hostId;
     
     const [kickCandidate, setKickCandidate] = useState<Player | null>(null);
-
-    // Host logic to process join requests
-    useEffect(() => {
-        if (!isHost || !gameRoom.id || !gameRoom.joinRequests || gameRoom.joinRequests.length === 0) {
-            return;
-        }
-
-        const processJoinRequests = async () => {
-            const roomRef = doc(db, 'game-rooms', gameRoom.id as string);
-            const requestsToProcess = [...gameRoom.joinRequests!];
-
-            for (const userId of requestsToProcess) {
-                if (Object.keys(gameRoom.players).length >= 6) {
-                    console.log("Room is full, skipping join request for", userId);
-                    continue; // Skip if room is full
-                }
-
-                if (gameRoom.players[userId]) {
-                    // Already in room, just remove from requests
-                     await updateDoc(roomRef, {
-                        joinRequests: arrayRemove(userId)
-                    });
-                    continue;
-                }
-                
-                try {
-                    const userDocRef = doc(db, 'users', userId);
-                    const userDocSnap = await getDoc(userDocRef);
-
-                    if (userDocSnap.exists()) {
-                        const userData = userDocSnap.data() as FsUser | undefined;
-                        const newPlayer: Player = {
-                            uid: userId,
-                            nickname: userData?.displayName || `플레이어${Object.keys(gameRoom.players).length + 1}`,
-                            score: 0,
-                            pixelAvatar: userData?.pixelAvatar,
-                            isHost: false,
-                        };
-
-                        await updateDoc(roomRef, {
-                            [`players.${userId}`]: newPlayer,
-                            joinRequests: arrayRemove(userId)
-                        });
-                    }
-                } catch (error) {
-                    console.error(`Failed to process join request for ${userId}:`, error);
-                    // Optionally remove the failed request
-                    await updateDoc(roomRef, {
-                        joinRequests: arrayRemove(userId)
-                    });
-                }
-            }
-        };
-
-        processJoinRequests();
-    }, [isHost, gameRoom.id, gameRoom.joinRequests, gameRoom.players]);
-
 
     const copyToClipboard = () => {
         navigator.clipboard.writeText(gameRoom.id as string).then(() => {
@@ -141,7 +84,8 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
             const roomRef = doc(db, 'game-rooms', gameRoom.id as string);
             try {
                 await updateDoc(roomRef, {
-                    [`players.${user.uid}`]: deleteField()
+                    [`players.${user.uid}`]: deleteField(),
+                    playerUIDs: arrayRemove(user.uid),
                 });
                 toast({ title: '방을 나갔습니다.' });
                 router.push('/dashboard');
@@ -158,7 +102,8 @@ function RemoteLobby({ gameRoom, gameSet }: { gameRoom: GameRoom, gameSet: GameS
         const roomRef = doc(db, 'game-rooms', gameRoom.id as string);
         try {
             await updateDoc(roomRef, {
-                [`players.${kickCandidate.uid}`]: deleteField()
+                [`players.${kickCandidate.uid}`]: deleteField(),
+                playerUIDs: arrayRemove(kickCandidate.uid),
             });
             toast({ title: '성공', description: `${kickCandidate.nickname} 님을 내보냈습니다.` });
             setKickCandidate(null);
@@ -468,6 +413,56 @@ export default function LobbyPage() {
   const [gameRoom, setGameRoom] = useState<GameRoom | null>(null);
   const [gameSet, setGameSet] = useState<GameSet | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasJoined, setHasJoined] = useState(false);
+
+  const joinRoom = useCallback(async (userToJoin: FsUser, roomRef: any) => {
+    if (!gameRoomId || typeof gameRoomId !== 'string') return;
+    try {
+        await runTransaction(db, async (transaction) => {
+            const roomDoc = await transaction.get(roomRef);
+            if (!roomDoc.exists()) {
+                throw new Error("Game room not found");
+            }
+            const roomData = roomDoc.data() as GameRoom;
+
+            // Check if player is already in
+            if (roomData.players && roomData.players[userToJoin.uid]) {
+                setHasJoined(true);
+                return;
+            }
+
+            if (Object.keys(roomData.players).length >= 6) {
+                toast({ variant: 'destructive', title: '방이 꽉 찼습니다.', description: '최대 6명까지 참여 가능합니다.'});
+                router.push('/dashboard');
+                return;
+            }
+
+            const userDocRef = doc(db, 'users', userToJoin.uid);
+            const userDocSnap = await getDoc(userDocRef);
+
+            if (userDocSnap.exists()) {
+                const userData = userDocSnap.data() as FsUser | undefined;
+                const newPlayer: Player = {
+                    uid: userToJoin.uid,
+                    nickname: userData?.displayName || `플레이어${Object.keys(roomData.players).length + 1}`,
+                    score: 0,
+                    pixelAvatar: userData?.pixelAvatar,
+                    isHost: false,
+                };
+
+                transaction.update(roomRef, {
+                    [`players.${userToJoin.uid}`]: newPlayer,
+                    playerUIDs: arrayUnion(userToJoin.uid)
+                });
+                setHasJoined(true);
+            }
+        });
+    } catch (error) {
+        console.error('Failed to join room:', error);
+        toast({ variant: 'destructive', title: '참여 실패', description: '게임방에 참여하는 중 오류가 발생했습니다.'});
+        router.push('/dashboard');
+    }
+  }, [gameRoomId, router, toast]);
 
   useEffect(() => {
     if (!gameRoomId || typeof gameRoomId !== 'string' || loadingUser) return;
@@ -478,11 +473,12 @@ export default function LobbyPage() {
     }
 
     const roomRef = doc(db, 'game-rooms', gameRoomId);
+
     const unsubscribe = onSnapshot(roomRef, async (docSnap) => {
       if (docSnap.exists()) {
         const roomData = { id: docSnap.id, ...docSnap.data() } as GameRoom;
         
-        if (roomData.joinType === 'remote' && roomData.status === 'waiting' && roomData.hostId && (!roomData.players || !roomData.players[roomData.hostId])) {
+        if (roomData.joinType === 'remote' && roomData.status === 'waiting' && roomData.hostId && (!roomData.players || !Object.keys(roomData.players).length)) {
             toast({ variant: 'destructive', title: '오류', description: '호스트가 방을 나갔습니다. 다른 방에 참여해주세요.' });
             router.push('/dashboard');
             return;
@@ -495,15 +491,11 @@ export default function LobbyPage() {
         }
         
         const isPlayerInRoom = !!roomData.players[user.uid];
-        const isRequestingJoin = roomData.joinRequests?.includes(user.uid);
-        
-        if (roomData.joinType === 'remote' && !isPlayerInRoom && !isRequestingJoin && Object.keys(roomData.players).length < 6 && roomData.status === 'waiting') {
-           // If user is not in the room and not already requesting, send a join request.
-           await updateDoc(roomRef, {
-             joinRequests: arrayUnion(user.uid)
-           });
-           // After updating, we let the snapshot listener update the state, so we return here.
-           return; 
+
+        if (roomData.joinType === 'remote' && !isPlayerInRoom && !hasJoined) {
+           joinRoom(user, roomRef);
+        } else {
+            setHasJoined(true);
         }
 
         setGameRoom(roomData);
@@ -534,13 +526,13 @@ export default function LobbyPage() {
     });
 
     return () => unsubscribe();
-  }, [gameRoomId, router, toast, user, loadingUser, gameSet]);
+  }, [gameRoomId, router, toast, user, loadingUser, gameSet, joinRoom, hasJoined, gameRoom]);
   
-  if (isLoading || loadingUser) {
+  if (isLoading || loadingUser || !hasJoined) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">게임 로비 정보를 불러오는 중...</p>
+        <p className="mt-4 text-muted-foreground">게임 로비에 참여하는 중...</p>
       </div>
     );
   }
