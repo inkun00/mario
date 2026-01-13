@@ -220,6 +220,7 @@ export default function CreateGameSetPage() {
         question: q.question,
         answer: q.answer,
         correctAnswer: q.correctAnswer,
+        imageUrl: q.imageUrl,
       }));
 
       const evaluationResult = await evaluateQuizSet({
@@ -480,7 +481,7 @@ export default function CreateGameSetPage() {
                             </FormControl>
                             <SelectContent>
                               {Array.from({ length: 6 }, (_, i) => i + 1).map(grade => (
-                                <SelectItem key={grade} value={`${grade}학년`}>{grade}학년</SelectItem>
+                                <SelectItem key={grade} value={`\${grade}학년`}>{grade}학년</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -620,7 +621,7 @@ export default function CreateGameSetPage() {
                         
                             <FormField
                             control={form.control}
-                            name={`questions.${index}.question`}
+                            name={`questions.\${index}.question`}
                             render={({ field }) => (
                                 <FormItem>
                                 <FormLabel>문제</FormLabel>
@@ -634,7 +635,7 @@ export default function CreateGameSetPage() {
 
                             <FormField
                               control={form.control}
-                              name={`questions.${index}.imageUrl`}
+                              name={`questions.\${index}.imageUrl`}
                               render={({ field }) => (
                                 <FormItem>
                                   <FormLabel>이미지 URL (선택 사항)</FormLabel>
@@ -670,7 +671,7 @@ export default function CreateGameSetPage() {
 
                             <FormField
                             control={form.control}
-                            name={`questions.${index}.hint`}
+                            name={`questions.\${index}.hint`}
                             render={({ field }) => (
                                 <FormItem>
                                 <FormLabel>힌트 (선택 사항)</FormLabel>
@@ -684,7 +685,7 @@ export default function CreateGameSetPage() {
 
                             <FormField
                             control={form.control}
-                            name={`questions.${index}.type`}
+                            name={`questions.\${index}.type`}
                             render={({ field }) => (
                                 <FormItem className="mt-4">
                                 <FormLabel>유형</FormLabel>
@@ -720,13 +721,13 @@ export default function CreateGameSetPage() {
 
                             <Controller
                             control={form.control}
-                            name={`questions.${index}.type`}
+                            name={`questions.\${index}.type`}
                             render={({ field: { value: typeValue } }) => (
                                 <>
                                 {typeValue === 'subjective' && (
                                     <FormField
                                     control={form.control}
-                                    name={`questions.${index}.answer`}
+                                    name={`questions.\${index}.answer`}
                                     render={({ field }) => (
                                         <FormItem className="mt-4">
                                         <FormLabel>정답</FormLabel>
@@ -743,7 +744,7 @@ export default function CreateGameSetPage() {
                                   <div className="mt-4 space-y-4">
                                     <FormField
                                         control={form.control}
-                                        name={`questions.${index}.mcqOptionCount`}
+                                        name={`questions.\${index}.mcqOptionCount`}
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel>선택지 개수</FormLabel>
@@ -773,11 +774,11 @@ export default function CreateGameSetPage() {
                                     
                                     <Controller
                                         control={form.control}
-                                        name={`questions.${index}.mcqOptionCount`}
+                                        name={`questions.\${index}.mcqOptionCount`}
                                         render={({ field: { value: optionCount } }) => (
                                             <FormField
                                                 control={form.control}
-                                                name={`questions.${index}.correctAnswer`}
+                                                name={`questions.\${index}.correctAnswer`}
                                                 render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>보기 및 정답</FormLabel>
@@ -789,15 +790,15 @@ export default function CreateGameSetPage() {
                                                     >
                                                         {Array.from({ length: optionCount || 4 }).map((_, optIndex) => (
                                                         <FormField
-                                                            key={`${field.name}-option-${optIndex}`}
+                                                            key={`\${field.name}-option-\${optIndex}`}
                                                             control={form.control}
-                                                            name={`questions.${index}.options.${optIndex}`}
+                                                            name={`questions.\${index}.options.\${optIndex}`}
                                                             render={({ field: optionField }) => (
                                                             <FormItem className="flex items-center gap-2">
                                                                 <FormControl>
                                                                 <RadioGroupItem value={optionField.value} />
                                                                 </FormControl>
-                                                                <Input placeholder={`보기 ${optIndex + 1}`} {...optionField} />
+                                                                <Input placeholder={`보기 \${optIndex + 1}`} {...optionField} />
                                                             </FormItem>
                                                             )}
                                                         />
@@ -815,7 +816,7 @@ export default function CreateGameSetPage() {
                                     {typeValue === 'ox' && (
                                     <FormField
                                         control={form.control}
-                                        name={`questions.${index}.correctAnswer`}
+                                        name={`questions.\${index}.correctAnswer`}
                                         render={({ field }) => (
                                         <FormItem className="mt-4">
                                             <FormLabel>정답</FormLabel>
@@ -851,13 +852,13 @@ export default function CreateGameSetPage() {
                             <div className="grid grid-cols-1 gap-4 pt-2">
                                 <FormField
                                     control={form.control}
-                                    name={`questions.${index}.points`}
+                                    name={`questions.\${index}.points`}
                                     render={({ field }) => (
                                     <FormItem>
                                         <div className="flex justify-between">
                                         <FormLabel>획득 점수</FormLabel>
                                         <span className="text-sm font-medium text-primary">
-                                            {field.value === -1 ? '랜덤 (10-50점)' : `${field.value}점`}
+                                            {field.value === -1 ? '랜덤 (10-50점)' : `\${field.value}점`}
                                         </span>
                                         </div>
                                         <FormControl>

@@ -14,6 +14,7 @@ const QuestionSchema = z.object({
   question: z.string(),
   answer: z.string().optional(),
   correctAnswer: z.string().optional(),
+  imageUrl: z.string().optional(),
 });
 
 const QuizSetEvaluationInputSchema = z.object({
@@ -51,12 +52,12 @@ const evaluateQuizSetPrompt = ai.definePrompt({
 Your task is to evaluate the provided quiz set based on the following criteria and provide a single score from 0 to 100.
 
 Evaluation Criteria:
-1.  **Appropriateness of Answer (20 points):** Is the provided answer correct and appropriate for the question?
+1.  **Appropriateness of Answer (20 points):** Is the provided answer correct and appropriate for the question? If an image is provided, is the answer consistent with the image content?
 2.  **Level Appropriateness (20 points):** Is the question's difficulty level appropriate for the specified grade level ({{grade}})?
-3.  **Educational Significance (20 points):** Is the question's content educationally meaningful and valuable?
-4.  **Content Relevance (15 points):** Is the question's content relevant to the specified subject ({{subject}}) and unit ({{unit}})?
+3.  **Educational Significance (20 points):** Is the question's content, including any images, educationally meaningful and valuable?
+4.  **Content Relevance (15 points):** Is the question's content and image relevant to the specified subject ({{subject}}) and unit ({{unit}})?
 5.  **Uniqueness and Intent (15 points):** Does the quiz set contain repetitive or similar questions? Is there any sign that the quiz was made solely for earning points rather than for educational purposes (e.g., extremely easy, nonsensical questions)?
-6.  **Completeness and Sincerity (10 points):** Are the questions and answers well-written, without typos, and written with sincerity?
+6.  **Completeness and Sincerity (10 points):** Are the questions, answers, and images well-prepared, without typos, and written with sincerity?
 
 Analyze the entire quiz set below and provide a final score from 0 to 100. Do not provide a breakdown of the score, only the final integer score.
 
@@ -70,6 +71,7 @@ Analyze the entire quiz set below and provide a final score from 0 to 100. Do no
 {{#each questions}}
     - **Question:** {{this.question}}
     - **Answer:** {{this.answer}}{{this.correctAnswer}}
+    {{#if this.imageUrl}}- **Image:** {{media url=this.imageUrl}}{{/if}}
 {{/each}}
 `,
 });
