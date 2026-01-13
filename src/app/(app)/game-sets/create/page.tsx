@@ -40,13 +40,14 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { PlusCircle, Trash2, Loader2, Save, Sparkles, Upload } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Save, Sparkles, Upload, ClipboardPaste } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useState, useCallback, useEffect } from 'react';
 import { auth, db } from '@/lib/firebase';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { addDoc, collection, serverTimestamp, doc, getDoc } from 'firebase/firestore';
 import type { User } from '@/lib/types';
@@ -142,6 +143,7 @@ export default function CreateGameSetPage() {
   const router = useRouter();
   const [isPdfDialogOpen, setIsPdfDialogOpen] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [uploadingImageFor, setUploadingImageFor] = useState<number | null>(null);
 
   const fetchUserData = useCallback(async () => {
     if (!user) return;
@@ -320,6 +322,40 @@ export default function CreateGameSetPage() {
       toast({ variant: 'destructive', title: '파일 처리 오류', description: error.message });
       setIsLoading(false);
       setLoadingMessage('');
+    }
+  };
+
+  const handleImagePaste = async (e: React.ClipboardEvent<HTMLInputElement>, index: number) => {
+    if (!user) return;
+    const items = e.clipboardData.items;
+    let imageFile: File | null = null;
+    
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+            imageFile = items[i].getAsFile();
+            break;
+        }
+    }
+
+    if (imageFile) {
+        e.preventDefault();
+        setUploadingImageFor(index);
+        
+        try {
+            const storage = getStorage();
+            const imageRef = ref(storage, `quiz-images/${user.uid}/${Date.now()}-${imageFile.name}`);
+            
+            const snapshot = await uploadBytes(imageRef, imageFile);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            
+            form.setValue(`questions.${index}.imageUrl`, downloadURL);
+            toast({ title: '성공', description: '이미지가 성공적으로 업로드되었습니다.' });
+        } catch (error) {
+            console.error("Error uploading image:", error);
+            toast({ variant: 'destructive', title: '오류', description: '이미지 업로드 중 오류가 발생했습니다.' });
+        } finally {
+            setUploadingImageFor(null);
+        }
     }
   };
   
@@ -588,18 +624,35 @@ export default function CreateGameSetPage() {
                             />
 
                             <FormField
-                            control={form.control}
-                            name={`questions.${index}.imageUrl`}
-                            render={({ field }) => (
+                              control={form.control}
+                              name={`questions.${index}.imageUrl`}
+                              render={({ field }) => (
                                 <FormItem>
-                                <FormLabel>이미지 URL (선택 사항)</FormLabel>
-                                <FormControl>
-                                    <Input type="url" placeholder="https://example.com/image.png" {...field} />
-                                </FormControl>
-                                <FormMessage />
+                                  <FormLabel>이미지 URL (선택 사항)</FormLabel>
+                                  <FormControl>
+                                    <div className="relative">
+                                      <Input 
+                                        type="url" 
+                                        placeholder="URL을 입력하거나 이미지를 붙여넣기 (Ctrl+V)"
+                                        {...field}
+                                        onPaste={(e) => handleImagePaste(e, index)} 
+                                        disabled={uploadingImageFor === index}
+                                      />
+                                      {uploadingImageFor === index && (
+                                        <div className="absolute inset-0 flex items-center justify-center bg-background/80">
+                                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                                        </div>
+                                      )}
+                                      <div className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground p-1 rounded-sm bg-background">
+                                          <ClipboardPaste className="w-4 h-4"/>
+                                      </div>
+                                    </div>
+                                  </FormControl>
+                                  <FormMessage />
                                 </FormItem>
-                            )}
+                              )}
                             />
+
 
                             <FormField
                             control={form.control}

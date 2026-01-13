@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { PlusCircle, Trash2, Loader2, Save, Sparkles } from 'lucide-react';
+import { PlusCircle, Trash2, Loader2, Save, Sparkles, ClipboardPaste } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Slider } from '@/components/ui/slider';
 import { Label } from '@/components/ui/label';
@@ -38,6 +38,7 @@ import {
 } from '@/components/ui/select';
 import { useEffect, useState } from 'react';
 import { auth, db } from '@/lib/firebase';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter, useParams } from 'next/navigation';
@@ -109,6 +110,7 @@ export default function EditGameSetPage() {
   const params = useParams();
   const gameSetId = params.id as string;
   const [user, loadingUser] = useAuthState(auth);
+  const [uploadingImageFor, setUploadingImageFor] = useState<number | null>(null);
 
   const form = useForm<GameSetFormValues>({
     resolver: zodResolver(gameSetSchema),
@@ -239,6 +241,40 @@ export default function EditGameSetPage() {
         setLoadingMessage('');
     }
   }
+
+  const handleImagePaste = async (e: React.ClipboardEvent<HTMLInputElement>, index: number) => {
+    if (!user) return;
+    const items = e.clipboardData.items;
+    let imageFile: File | null = null;
+    
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+            imageFile = items[i].getAsFile();
+            break;
+        }
+    }
+
+    if (imageFile) {
+        e.preventDefault();
+        setUploadingImageFor(index);
+        
+        try {
+            const storage = getStorage();
+            const imageRef = ref(storage, `quiz-images/${user.uid}/${Date.now()}-${imageFile.name}`);
+            
+            const snapshot = await uploadBytes(imageRef, imageFile);
+            const downloadURL = await getDownloadURL(snapshot.ref);
+            
+            form.setValue(`questions.${index}.imageUrl`, downloadURL);
+            toast({ title: '성공', description: '이미지가 성공적으로 업로드되었습니다.' });
+        } catch (error) {
+            console.error("Error uploading image:", error);
+            toast({ variant: 'destructive', title: '오류', description: '이미지 업로드 중 오류가 발생했습니다.' });
+        } finally {
+            setUploadingImageFor(null);
+        }
+    }
+  };
 
   if (isFetching || loadingUser) {
     return <div className="container mx-auto py-8">퀴즈 세트 정보를 불러오는 중...</div>;
@@ -460,17 +496,33 @@ export default function EditGameSetPage() {
                             />
                             
                             <FormField
-                            control={form.control}
-                            name={`questions.${index}.imageUrl`}
-                            render={({ field }) => (
+                              control={form.control}
+                              name={`questions.${index}.imageUrl`}
+                              render={({ field }) => (
                                 <FormItem>
-                                <FormLabel>이미지 URL (선택 사항)</FormLabel>
-                                <FormControl>
-                                    <Input type="url" placeholder="https://example.com/image.png" {...field} />
-                                </FormControl>
-                                <FormMessage />
+                                  <FormLabel>이미지 URL (선택 사항)</FormLabel>
+                                  <FormControl>
+                                    <div className="relative">
+                                      <Input 
+                                        type="url" 
+                                        placeholder="URL을 입력하거나 이미지를 붙여넣기 (Ctrl+V)"
+                                        {...field}
+                                        onPaste={(e) => handleImagePaste(e, index)} 
+                                        disabled={uploadingImageFor === index}
+                                      />
+                                      {uploadingImageFor === index && (
+                                        <div className="absolute inset-0 flex items-center justify-center bg-background/80">
+                                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                                        </div>
+                                      )}
+                                      <div className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground p-1 rounded-sm bg-background">
+                                          <ClipboardPaste className="w-4 h-4"/>
+                                      </div>
+                                    </div>
+                                  </FormControl>
+                                  <FormMessage />
                                 </FormItem>
-                            )}
+                              )}
                             />
 
                             <FormField
