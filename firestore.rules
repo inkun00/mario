@@ -11,21 +11,20 @@ service cloud.firestore {
     }
     
     function isTeacher(userId) {
-      // 해당 userId를 가진 사용자의 role이 'teacher'인지 확인합니다.
-      // 이 함수는 규칙 평가 중에 문서를 읽으므로, 해당 읽기 작업이 허용되어야 합니다.
+      // This function reads a document during rule evaluation, so the read must be allowed.
       return isSignedIn() && get(/databases/$(database)/documents/users/$(userId)).data.role == 'teacher';
     }
 
     match /users/{userId} {
-      // 상품 구매 트랜잭션에서 판매자의 포인트를 업데이트할 수 있도록 허용합니다.
+      // Allow update for transaction of purchasing items.
       allow get, update: if isSignedIn();
       allow delete: if isOwner(userId);
       allow create: if request.auth.uid == userId;
       
-      // 'my-class' 페이지에서 학급 구성원을 불러올 수 있도록 list를 허용합니다.
+      // Allow list for fetching class members on 'my-class' page.
       allow list: if isSignedIn();
 
-      // 사용자가 자신의 하위 컬렉션 데이터를 읽을 수 있도록 허용합니다.
+      // Allow user to read their own sub-collection data.
       match /incorrect-answers/{docId} {
         allow read, write, delete: if isOwner(userId);
       }
@@ -39,15 +38,15 @@ service cloud.firestore {
         allow read, write: if isOwner(userId);
       }
        match /pointLogs/{docId} {
-        allow write: if isOwner(userId);
-        // 자기 자신의 로그를 읽거나, 요청자가 교사일 경우 읽기를 허용합니다.
+        // Allow user to read their own logs, or a teacher to read them.
         allow read: if isOwner(userId) || isTeacher(request.auth.uid);
+        allow write: if isOwner(userId);
       }
     }
 
     match /game-sets/{gameSetId} {
       allow read: if isSignedIn();
-      // 사용자가 자신이 만든 퀴즈 세트 목록을 조회할 수 있도록 허용합니다.
+      // Allow user to list their own created quiz sets.
       allow list: if isSignedIn() && request.query.where[0][0] == 'creatorId' && request.query.where[0][2] == request.auth.uid;
       allow create: if request.auth.uid == request.resource.data.creatorId;
       allow update, delete: if request.auth.uid == resource.data.creatorId || isTeacher(request.auth.uid);
@@ -62,6 +61,7 @@ service cloud.firestore {
         allow read, create, delete: if isSignedIn();
         allow update: if request.auth.uid == resource.data.hostId 
                     || request.auth.uid in resource.data.players;
+        // Allow listing of waiting rooms for the dashboard.
         allow list: if isSignedIn() && request.query.where[0][0] == 'status' && request.query.where[0][2] == 'waiting';
     }
 
