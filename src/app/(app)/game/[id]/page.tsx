@@ -1279,7 +1279,7 @@ export default function GamePage() {
                                 <RadioGroup 
                                   value={userAnswer} 
                                   onValueChange={setUserAnswer} 
-                                  className="space-y-2" 
+                                  className="grid grid-cols-1 sm:grid-cols-2 gap-2" 
                                   disabled={isSubmitting || (currentQuestionInfo && answeredQuestions[currentQuestionInfo.blockId])}
                                 >
                                     {currentQuestionInfo.question.options.map((option, index) => (

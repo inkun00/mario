@@ -52,6 +52,7 @@ const questionSchema = z.object({
   question: z.string().min(1, '질문을 입력해주세요.'),
   points: z.coerce.number(),
   type: z.enum(['subjective', 'multipleChoice', 'ox']),
+  mcqOptionCount: z.coerce.number().optional().default(4),
   imageUrl: z.string().url().optional().or(z.literal('')),
   hint: z.string().optional(),
   answer: z.string().optional(),
@@ -64,8 +65,8 @@ const questionSchema = z.object({
 }).refine(data => data.type !== 'subjective' || (data.answer && data.answer.length > 0), {
     message: '주관식 정답을 입력해주세요.',
     path: ['answer'],
-}).refine(data => data.type !== 'multipleChoice' || (data.options && data.options.length === 4 && data.options.every(opt => opt && opt.length > 0)), {
-    message: '객관식 문제는 4개의 보기를 모두 입력해야 합니다.',
+}).refine(data => data.type !== 'multipleChoice' || (data.options && data.options.length >= data.mcqOptionCount! && data.options.slice(0, data.mcqOptionCount).every(opt => opt && opt.length > 0)), {
+    message: '객관식 문제의 보기를 모두 입력해야 합니다.',
     path: ['options'],
 }).refine(data => data.type !== 'multipleChoice' || (data.correctAnswer && data.correctAnswer.length > 0), {
     message: '객관식 문제의 정답을 선택해주세요.',
@@ -92,10 +93,11 @@ const defaultQuestion: Omit<z.infer<typeof questionSchema>, 'subject' | 'unit' |
   question: '',
   points: 10,
   type: 'subjective',
+  mcqOptionCount: 4,
   imageUrl: '',
   hint: '',
   answer: '',
-  options: ['', '', '', ''],
+  options: ['', '', '', '', ''],
   correctAnswer: '',
 };
 
@@ -153,10 +155,11 @@ export default function EditGameSetPage() {
             isPublic: gameSetData.isPublic === undefined ? true : gameSetData.isPublic,
             questions: gameSetData.questions.map(q => ({
                 ...q,
+                mcqOptionCount: q.options?.length === 5 ? 5 : 4,
                 imageUrl: q.imageUrl || '',
                 hint: q.hint || '',
                 answer: q.answer || '',
-                options: q.options || ['', '', '', ''],
+                options: [...(q.options || []), '', '', '', '', ''].slice(0, 5),
                 correctAnswer: q.correctAnswer || '',
             }))
         };
@@ -212,6 +215,7 @@ export default function EditGameSetPage() {
         ...data,
         questions: data.questions.map(q => ({
           ...q,
+          options: q.type === 'multipleChoice' ? q.options?.slice(0, q.mcqOptionCount) : q.options,
           subject: data.subject,
           unit: data.unit,
           grade: data.grade,
@@ -556,7 +560,7 @@ export default function EditGameSetPage() {
                                     onValueChange={(value) => {
                                         field.onChange(value);
                                         if (value === 'subjective') {
-                                            form.setValue(`questions.${index}.options`, ['', '', '', '']);
+                                            form.setValue(`questions.${index}.options`, ['', '', '', '', '']);
                                             form.setValue(`questions.${index}.correctAnswer`, '');
                                         } else if (value === 'multipleChoice') {
                                             form.setValue(`questions.${index}.answer`, '');
@@ -614,40 +618,76 @@ export default function EditGameSetPage() {
                                 )}
 
                                 {typeValue === 'multipleChoice' && (
-                                    <div className="mt-4 space-y-4">
-                                    <FormLabel>보기 및 정답</FormLabel>
-                                    <FormField
-                                        control={form.control}
-                                        name={`questions.${index}.correctAnswer`}
-                                        render={({ field }) => (
-                                        <FormItem>
-                                            <FormControl>
-                                            <RadioGroup
-                                                onValueChange={field.onChange}
-                                                value={field.value}
-                                                className="space-y-2"
-                                            >
-                                                {Array.from({ length: 4 }).map((_, optIndex) => (
+                                     <div className="mt-4 space-y-4">
+                                        <FormField
+                                            control={form.control}
+                                            name={`questions.${index}.mcqOptionCount`}
+                                            render={({ field }) => (
+                                                <FormItem>
+                                                    <FormLabel>선택지 개수</FormLabel>
+                                                    <FormControl>
+                                                        <RadioGroup
+                                                        onValueChange={(val) => field.onChange(parseInt(val))}
+                                                        value={String(field.value)}
+                                                        className="flex items-center gap-4"
+                                                        >
+                                                        <FormItem className="flex items-center space-x-2">
+                                                            <FormControl>
+                                                            <RadioGroupItem value="4" />
+                                                            </FormControl>
+                                                            <FormLabel className="font-normal">4지선다</FormLabel>
+                                                        </FormItem>
+                                                        <FormItem className="flex items-center space-x-2">
+                                                            <FormControl>
+                                                            <RadioGroupItem value="5" />
+                                                            </FormControl>
+                                                            <FormLabel className="font-normal">5지선다</FormLabel>
+                                                        </FormItem>
+                                                        </RadioGroup>
+                                                    </FormControl>
+                                                </FormItem>
+                                            )}
+                                        />
+                                        
+                                        <Controller
+                                            control={form.control}
+                                            name={`questions.${index}.mcqOptionCount`}
+                                            render={({ field: { value: optionCount } }) => (
                                                 <FormField
-                                                    key={`${field.name}-option-${optIndex}`}
                                                     control={form.control}
-                                                    name={`questions.${index}.options.${optIndex}`}
-                                                    render={({ field: optionField }) => (
-                                                    <FormItem className="flex items-center gap-2">
+                                                    name={`questions.${index}.correctAnswer`}
+                                                    render={({ field }) => (
+                                                    <FormItem>
+                                                        <FormLabel>보기 및 정답</FormLabel>
                                                         <FormControl>
-                                                        <RadioGroupItem value={optionField.value} onClick={() => field.onChange(optionField.value)} />
+                                                        <RadioGroup
+                                                            onValueChange={field.onChange}
+                                                            value={field.value}
+                                                            className="space-y-2"
+                                                        >
+                                                            {Array.from({ length: optionCount || 4 }).map((_, optIndex) => (
+                                                            <FormField
+                                                                key={`${field.name}-option-${optIndex}`}
+                                                                control={form.control}
+                                                                name={`questions.${index}.options.${optIndex}`}
+                                                                render={({ field: optionField }) => (
+                                                                <FormItem className="flex items-center gap-2">
+                                                                    <FormControl>
+                                                                    <RadioGroupItem value={optionField.value} onClick={() => field.onChange(optionField.value)} />
+                                                                    </FormControl>
+                                                                    <Input placeholder={`보기 ${optIndex + 1}`} {...optionField} />
+                                                                </FormItem>
+                                                                )}
+                                                            />
+                                                            ))}
+                                                        </RadioGroup>
                                                         </FormControl>
-                                                        <Input placeholder={`보기 ${optIndex + 1}`} {...optionField} />
+                                                        <FormMessage />
                                                     </FormItem>
                                                     )}
                                                 />
-                                                ))}
-                                            </RadioGroup>
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                        )}
-                                    />
+                                            )}
+                                        />
                                     </div>
                                 )}
 

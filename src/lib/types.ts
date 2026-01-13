@@ -66,6 +66,7 @@ export interface Question {
   question: string;
   points: number;
   type: 'subjective' | 'multipleChoice' | 'ox';
+  mcqOptionCount?: 4 | 5;
   imageUrl?: string;
   hint?: string;
   // for subjective
