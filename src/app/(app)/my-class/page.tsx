@@ -448,7 +448,6 @@ export default function MyClassPage() {
         if (!itemDoc.exists()) throw "상품 정보를 찾을 수 없거나 이미 판매되었습니다.";
 
         const buyerData = buyerDoc.data() as User;
-        const sellerData = sellerDoc.data() as User;
         const itemData = itemDoc.data() as ClassStoreItem;
         
         if ((buyerData.classPoints || 0) < itemData.price) {
@@ -463,8 +462,24 @@ export default function MyClassPage() {
             throw "신고된 상품으로 구매할 수 없습니다.";
         }
 
-        // 1. Decrement buyer's points and log it
-        transaction.update(buyerRef, { classPoints: increment(-itemData.price) });
+        // 1. Update buyer's points and inventory
+        const newInventory = { ...buyerData.inventory };
+        const currentQuantity = newInventory[itemData.name]?.quantity || 0;
+        newInventory[itemData.name] = { 
+            itemId: item.id,
+            quantity: currentQuantity + 1,
+            description: itemData.description,
+            sellerId: item.sellerId,
+            sellerNickname: item.sellerNickname,
+            price: item.price,
+            emoji: item.emoji,
+        };
+        transaction.update(buyerRef, { 
+            classPoints: increment(-itemData.price),
+            inventory: newInventory 
+        });
+
+        // 2. Log buyer's purchase
         const buyerLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
         transaction.set(buyerLogRef, {
             id: buyerLogRef.id,
@@ -477,22 +492,10 @@ export default function MyClassPage() {
             relatedItemId: item.id
         } as PointLog);
 
-        // 2. Add item to buyer's inventory
-        const newInventory = { ...buyerData.inventory };
-        const currentQuantity = newInventory[itemData.name]?.quantity || 0;
-        newInventory[itemData.name] = { 
-            itemId: item.id,
-            quantity: currentQuantity + 1,
-            description: itemData.description,
-            sellerId: item.sellerId,
-            sellerNickname: item.sellerNickname,
-            price: item.price,
-            emoji: item.emoji,
-        };
-        transaction.update(buyerRef, { inventory: newInventory });
-
-        // 3. Increment seller's points and log it
+        // 3. Update seller's points
         transaction.update(sellerRef, { classPoints: increment(itemData.price) });
+
+        // 4. Log seller's sale
         const sellerLogRef = doc(collection(db, 'users', item.sellerId, 'pointLogs'));
         transaction.set(sellerLogRef, {
             id: sellerLogRef.id,
@@ -505,12 +508,8 @@ export default function MyClassPage() {
             relatedItemId: item.id
         } as PointLog);
 
-        // 4. Decrement item quantity or delete
-        if (itemData.quantity > 1) {
-          transaction.update(itemRef, { quantity: itemData.quantity - 1 });
-        } else {
-          transaction.delete(itemRef);
-        }
+        // 5. Update item quantity
+        transaction.update(itemRef, { quantity: increment(-1) });
       });
       
       toast({ title: '구매 완료!', description: `'${item.name}' 상품을 구매했습니다.` });
