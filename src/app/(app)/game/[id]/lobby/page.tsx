@@ -413,7 +413,7 @@ export default function LobbyPage() {
   const [gameRoom, setGameRoom] = useState<GameRoom | null>(null);
   const [gameSet, setGameSet] = useState<GameSet | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [hasJoined, setHasJoined] = useState(false);
+  const [firestoreUser, setFirestoreUser] = useState<FsUser | null>(null);
 
   const joinRoom = useCallback(async (userToJoin: FsUser, roomRef: any) => {
     if (!gameRoomId || typeof gameRoomId !== 'string') return;
@@ -427,7 +427,6 @@ export default function LobbyPage() {
 
             // Check if player is already in
             if (roomData.players && roomData.players[userToJoin.uid]) {
-                setHasJoined(true);
                 return;
             }
 
@@ -449,7 +448,6 @@ export default function LobbyPage() {
                 [`players.${userToJoin.uid}`]: newPlayer,
                 playerUIDs: arrayUnion(userToJoin.uid)
             });
-            setHasJoined(true);
         });
     } catch (error) {
         console.error('Failed to join room:', error);
@@ -459,7 +457,21 @@ export default function LobbyPage() {
   }, [gameRoomId, router, toast]);
 
   useEffect(() => {
-    if (!gameRoomId || typeof gameRoomId !== 'string' || loadingUser) return;
+    if (!user) return;
+    const userDocRef = doc(db, 'users', user.uid);
+    const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setFirestoreUser(docSnap.data() as FsUser);
+      } else {
+        toast({ variant: 'destructive', title: '오류', description: '사용자 정보를 찾을 수 없습니다.' });
+        router.push('/dashboard');
+      }
+    });
+    return () => unsubscribe();
+  }, [user, router, toast]);
+
+  useEffect(() => {
+    if (!gameRoomId || typeof gameRoomId !== 'string' || loadingUser || !firestoreUser) return;
     
     if (!user) {
         router.push(`/login?redirect=/game/${gameRoomId}/lobby`);
@@ -486,19 +498,8 @@ export default function LobbyPage() {
         
         const isPlayerInRoom = !!roomData.players[user.uid];
 
-        if (roomData.joinType === 'remote' && !isPlayerInRoom && !hasJoined) {
-           const userDocRef = doc(db, 'users', user.uid);
-           const userDocSnap = await getDoc(userDocRef);
-           if (userDocSnap.exists()) {
-             const firestoreUser = userDocSnap.data() as FsUser;
-             joinRoom(firestoreUser, roomRef);
-           } else {
-             // This case should ideally not happen if user is logged in
-             toast({ variant: 'destructive', title: '오류', description: '사용자 정보를 찾을 수 없습니다.' });
-             router.push('/dashboard');
-           }
-        } else {
-            setHasJoined(true);
+        if (roomData.joinType === 'remote' && !isPlayerInRoom) {
+            joinRoom(firestoreUser, roomRef);
         }
 
         setGameRoom(roomData);
@@ -529,19 +530,15 @@ export default function LobbyPage() {
     });
 
     return () => unsubscribe();
-  }, [gameRoomId, router, toast, user, loadingUser, gameSet, joinRoom, hasJoined, gameRoom]);
+  }, [gameRoomId, router, toast, user, loadingUser, gameSet, joinRoom, firestoreUser, gameRoom]);
   
-  if (isLoading || loadingUser || !hasJoined) {
+  if (isLoading || loadingUser || !gameRoom) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)]">
         <Loader2 className="w-12 h-12 animate-spin text-primary" />
         <p className="mt-4 text-muted-foreground">게임 로비에 참여하는 중...</p>
       </div>
     );
-  }
-
-  if (!gameRoom) {
-      return null;
   }
 
   return (
@@ -553,5 +550,3 @@ export default function LobbyPage() {
     </div>
   )
 }
-
-    
