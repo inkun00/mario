@@ -432,99 +432,99 @@ export default function MyClassPage() {
     setIsBuying(item.id);
 
     try {
-      await runTransaction(db, async (transaction) => {
-        const buyerRef = doc(db, 'users', user.uid);
-        const sellerRef = doc(db, 'users', item.sellerId);
-        const itemRef = doc(db, 'class-store-items', item.id);
+        await runTransaction(db, async (transaction) => {
+            const buyerRef = doc(db, 'users', user.uid);
+            const sellerRef = doc(db, 'users', item.sellerId);
+            const itemRef = doc(db, 'class-store-items', item.id);
 
-        const [buyerDoc, sellerDoc, itemDoc] = await Promise.all([
-            transaction.get(buyerRef),
-            transaction.get(sellerRef),
-            transaction.get(itemRef)
-        ]);
+            const [buyerDoc, sellerDoc, itemDoc] = await Promise.all([
+                transaction.get(buyerRef),
+                transaction.get(sellerRef),
+                transaction.get(itemRef)
+            ]);
 
-        if (!buyerDoc.exists()) throw "사용자 정보를 찾을 수 없습니다.";
-        if (!sellerDoc.exists()) throw "판매자 정보를 찾을 수 없습니다.";
-        if (!itemDoc.exists()) throw "상품 정보를 찾을 수 없거나 이미 판매되었습니다.";
+            if (!buyerDoc.exists()) throw "사용자 정보를 찾을 수 없습니다.";
+            if (!sellerDoc.exists()) throw "판매자 정보를 찾을 수 없습니다.";
+            if (!itemDoc.exists()) throw "상품 정보를 찾을 수 없거나 이미 판매되었습니다.";
 
-        const buyerData = buyerDoc.data() as User;
-        const itemData = itemDoc.data() as ClassStoreItem;
-        
-        if ((buyerData.classPoints || 0) < itemData.price) {
-          throw "학급 포인트가 부족합니다.";
-        }
-        
-        if (itemData.quantity <= 0) {
-            throw "상품의 재고가 없습니다.";
-        }
-        
-        if (itemData.report) {
-            throw "신고된 상품으로 구매할 수 없습니다.";
-        }
+            const buyerData = buyerDoc.data() as User;
+            const itemData = itemDoc.data() as ClassStoreItem;
+            
+            if ((buyerData.classPoints || 0) < itemData.price) {
+                throw "학급 포인트가 부족합니다.";
+            }
+            
+            if (itemData.quantity <= 0) {
+                throw "상품의 재고가 없습니다.";
+            }
+            
+            if (itemData.report) {
+                throw "신고된 상품으로 구매할 수 없습니다.";
+            }
 
-        // 1. Update buyer's points and inventory
-        const buyerUpdateData: { [key: string]: any } = {
-          classPoints: increment(-itemData.price),
-        };
-        const newInventoryItemPath = `inventory.${item.name}`;
-        
-        if (buyerData.inventory && buyerData.inventory[item.name]) {
-          buyerUpdateData[`${newInventoryItemPath}.quantity`] = increment(1);
-        } else {
-           buyerUpdateData[newInventoryItemPath] = {
-            itemId: item.id,
-            quantity: 1,
-            description: itemData.description,
-            sellerId: item.sellerId,
-            sellerNickname: item.sellerNickname,
-            price: item.price,
-            emoji: item.emoji,
-           };
-        }
-        transaction.update(buyerRef, buyerUpdateData);
+            // 1. Update buyer's points and inventory
+            const newInventory = { ...(buyerData.inventory || {}) };
+            if (newInventory[item.name]) {
+                newInventory[item.name].quantity += 1;
+            } else {
+                newInventory[item.name] = {
+                    itemId: item.id,
+                    quantity: 1,
+                    description: itemData.description,
+                    sellerId: item.sellerId,
+                    sellerNickname: item.sellerNickname,
+                    price: item.price,
+                    emoji: item.emoji,
+                };
+            }
 
-        // 2. Log buyer's purchase
-        const buyerLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
-        transaction.set(buyerLogRef, {
-            id: buyerLogRef.id,
-            userId: user.uid,
-            type: 'ITEM_PURCHASE',
-            amount: -itemData.price,
-            timestamp: serverTimestamp(),
-            description: `'${item.name}' 구매`,
-            relatedUserId: item.sellerId,
-            relatedItemId: item.id
-        } as PointLog);
+            transaction.update(buyerRef, {
+                classPoints: increment(-itemData.price),
+                inventory: newInventory
+            });
 
-        // 3. Update seller's points
-        transaction.update(sellerRef, { classPoints: increment(itemData.price) });
+            // 2. Log buyer's purchase
+            const buyerLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
+            transaction.set(buyerLogRef, {
+                id: buyerLogRef.id,
+                userId: user.uid,
+                type: 'ITEM_PURCHASE',
+                amount: -itemData.price,
+                timestamp: serverTimestamp(),
+                description: `'${item.name}' 구매`,
+                relatedUserId: item.sellerId,
+                relatedItemId: item.id
+            } as PointLog);
 
-        // 4. Log seller's sale
-        const sellerLogRef = doc(collection(db, 'users', item.sellerId, 'pointLogs'));
-        transaction.set(sellerLogRef, {
-            id: sellerLogRef.id,
-            userId: item.sellerId,
-            type: 'ITEM_SALE',
-            amount: itemData.price,
-            timestamp: serverTimestamp(),
-            description: `'${item.name}' 판매`,
-            relatedUserId: user.uid,
-            relatedItemId: item.id
-        } as PointLog);
+            // 3. Update seller's points
+            transaction.update(sellerRef, { classPoints: increment(itemData.price) });
 
-        // 5. Update item quantity
-        transaction.update(itemRef, { quantity: increment(-1) });
-      });
+            // 4. Log seller's sale
+            const sellerLogRef = doc(collection(db, 'users', item.sellerId, 'pointLogs'));
+            transaction.set(sellerLogRef, {
+                id: sellerLogRef.id,
+                userId: item.sellerId,
+                type: 'ITEM_SALE',
+                amount: itemData.price,
+                timestamp: serverTimestamp(),
+                description: `'${item.name}' 판매`,
+                relatedUserId: user.uid,
+                relatedItemId: item.id
+            } as PointLog);
+
+            // 5. Update item quantity
+            transaction.update(itemRef, { quantity: increment(-1) });
+        });
       
-      toast({ title: '구매 완료!', description: `'${item.name}' 상품을 구매했습니다.` });
+        toast({ title: '구매 완료!', description: `'${item.name}' 상품을 구매했습니다.` });
 
     } catch (error: any) {
-      console.error("Purchase failed: ", error);
-      toast({ variant: "destructive", title: "구매 실패", description: typeof error === 'string' ? error : "구매 중 오류가 발생했습니다."});
+        console.error("Purchase failed: ", error);
+        toast({ variant: "destructive", title: "구매 실패", description: typeof error === 'string' ? error : "구매 중 오류가 발생했습니다."});
     } finally {
-      setIsBuying(null);
+        setIsBuying(null);
     }
-  };
+};
   
   const handleEvictStudent = async () => {
     if (!evictCandidate || !isTeacher) return;
@@ -2305,3 +2305,4 @@ export default function MyClassPage() {
     </>
   );
 }
+
