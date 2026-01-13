@@ -61,7 +61,11 @@ service cloud.firestore {
     
     match /game-rooms/{roomId} {
         allow read, create, delete: if isSignedIn();
-        allow update: if request.auth.uid == resource.data.hostId || request.auth.uid in resource.data.players;
+        // Allow any signed-in user to join a waiting room,
+        // or allow an existing player/host to update the room state.
+        allow update: if (isSignedIn() && resource.data.status == 'waiting') ||
+                       (request.auth.uid == resource.data.hostId) ||
+                       (request.auth.uid in resource.data.playerUIDs);
         allow list: if isSignedIn() && request.query.where[0][0] == 'status' && request.query.where[0][2] == 'waiting';
     }
   }
