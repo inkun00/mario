@@ -47,7 +47,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, GameSet, GameSetComment, PlayedGameSet, PointLog } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction, addDoc } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
-import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye, MessageSquare, LineChart } from 'lucide-react';
+import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye, MessageSquare, LineChart, PieChart } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -66,7 +66,7 @@ import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart, ResponsiveContainer, Cell } from 'recharts';
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart, ResponsiveContainer, Cell, Pie, Legend } from 'recharts';
 
 
 const PixelEditor = dynamic(() => import('@/components/pixel-editor').then(mod => mod.PixelEditor), {
@@ -744,7 +744,7 @@ export default function ProfilePage() {
     }
   }
 
-  const pointHistoryChartData = pointLogs.reduce((acc, log) => {
+  const pointHistoryChartData = useMemo(() => pointLogs.reduce((acc, log) => {
     if (!log.timestamp) return acc;
     const date = (log.timestamp as any)?.toDate().toISOString().split('T')[0];
     const lastEntry = acc[acc.length - 1];
@@ -756,13 +756,43 @@ export default function ProfilePage() {
       acc.push({ date, totalPoints: newTotal });
     }
     return acc;
-  }, [] as { date: string; totalPoints: number }[]);
+  }, [] as { date: string; totalPoints: number }[]), [pointLogs]);
+
+  const pointAnalysisData = useMemo(() => {
+    const totalIncome = pointLogs.filter(log => log.amount > 0).reduce((sum, log) => sum + log.amount, 0);
+    const totalExpense = pointLogs.filter(log => log.amount < 0).reduce((sum, log) => sum + log.amount, 0);
+
+    const expenseByCategory = pointLogs.filter(log => log.amount < 0).reduce((acc, log) => {
+      let category = "기타";
+      if (log.type === 'ITEM_PURCHASE') category = "아이템 구매";
+      else if (log.type === 'SEND_POINTS') category = "포인트 보내기";
+      else if (log.type === 'TEACHER_DEDUCT') category = "선생님 회수";
+      else if (log.type === 'ITEM_REFUND_SELLER') category = "환불 처리";
+      
+      acc[category] = (acc[category] || 0) + Math.abs(log.amount);
+      return acc;
+    }, {} as Record<string, number>);
+
+    const expenseChartData = Object.entries(expenseByCategory).map(([name, value]) => ({ name, value }));
+
+    return { totalIncome, totalExpense, expenseChartData };
+  }, [pointLogs]);
+
 
   const pointHistoryChartConfig = {
     totalPoints: {
       label: "누적 포인트",
       color: "hsl(var(--primary))",
     },
+  };
+  
+  const expenseChartConfig = {
+    value: { label: "포인트" },
+    "아이템 구매": { label: "아이템 구매", color: "hsl(var(--chart-1))" },
+    "포인트 보내기": { label: "포인트 보내기", color: "hsl(var(--chart-2))" },
+    "선생님 회수": { label: "선생님 회수", color: "hsl(var(--chart-3))" },
+    "환불 처리": { label: "환불 처리", color: "hsl(var(--chart-4))" },
+    "기타": { label: "기타", color: "hsl(var(--chart-5))" },
   };
 
 
@@ -1146,7 +1176,7 @@ export default function ProfilePage() {
             <CardDescription>지금까지 획득한 엠블럼들을 확인해보세요!</CardDescription>
         </CardHeader>
         <CardContent>
-            <TooltipProvider delayDuration={0}>
+            <TooltipProvider>
                 <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-4">
                     {levelSystem.filter(level => userData.xp >= level.xpThreshold).map((level) => (
                         <Tooltip key={level.level}>
@@ -1235,7 +1265,7 @@ export default function ProfilePage() {
 
     {/* Point History Dialog */}
     <Dialog open={isPointHistoryOpen} onOpenChange={setIsPointHistoryOpen}>
-       <DialogContent className="max-w-2xl">
+       <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>포인트 활동 내역</DialogTitle>
           <DialogDescription>
@@ -1244,40 +1274,101 @@ export default function ProfilePage() {
         </DialogHeader>
         {isPointHistoryLoading ? (
             <div className="flex justify-center items-center h-96"><Loader2 className="w-8 h-8 animate-spin"/></div>
-        ) : pointHistoryChartData.length > 0 ? (
-            <>
-              <ChartContainer config={pointHistoryChartConfig} className="h-56 w-full">
-                <AreaChart data={pointHistoryChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid vertical={false} />
-                  <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
-                  <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Area dataKey="totalPoints" type="monotone" fill="var(--color-totalPoints)" fillOpacity={0.4} stroke="var(--color-totalPoints)" />
-                </AreaChart>
-              </ChartContainer>
-              <ScrollArea className="h-56 mt-4">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>시간</TableHead>
-                      <TableHead>내용</TableHead>
-                      <TableHead className="text-right">포인트</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {[...pointLogs].reverse().map(log => (
-                      <TableRow key={log.id}>
-                        <TableCell className="text-xs">{log.timestamp ? new Date((log.timestamp as any)?.toDate()).toLocaleString() : ''}</TableCell>
-                        <TableCell>{log.description}</TableCell>
-                        <TableCell className={cn("text-right font-semibold", log.amount > 0 ? "text-green-600" : "text-red-600")}>
-                          {log.amount > 0 ? '+' : ''}{log.amount.toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
-            </>
+        ) : pointLogs.length > 0 ? (
+            <Tabs defaultValue="overview">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="overview">누적 추이</TabsTrigger>
+                <TabsTrigger value="analysis">수입/지출 분석</TabsTrigger>
+                <TabsTrigger value="history">상세 내역</TabsTrigger>
+              </TabsList>
+              <TabsContent value="overview" className="mt-4">
+                <ChartContainer config={pointHistoryChartConfig} className="h-64 w-full">
+                  <AreaChart data={pointHistoryChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
+                    <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Area dataKey="totalPoints" type="monotone" fill="var(--color-totalPoints)" fillOpacity={0.4} stroke="var(--color-totalPoints)" />
+                  </AreaChart>
+                </ChartContainer>
+              </TabsContent>
+              <TabsContent value="analysis" className="mt-4">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-lg">수입/지출 요약</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex justify-between items-center p-3 bg-secondary rounded-lg">
+                                <span className="font-medium">총 수입</span>
+                                <span className="font-bold text-green-600">+{pointAnalysisData.totalIncome.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between items-center p-3 bg-secondary rounded-lg">
+                                <span className="font-medium">총 지출</span>
+                                <span className="font-bold text-red-600">{pointAnalysisData.totalExpense.toLocaleString()}</span>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-lg">지출 항목 비율</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {pointAnalysisData.expenseChartData.length > 0 ? (
+                                <ChartContainer config={expenseChartConfig} className="h-48 w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <ChartTooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
+                                            <Pie data={pointAnalysisData.expenseChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} strokeWidth={2}>
+                                                {pointAnalysisData.expenseChartData.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={`var(--color-${entry.name.replace(/ /g, "")})`} />
+                                                ))}
+                                            </Pie>
+                                            <Legend content={({ payload }) => (
+                                                <div className="text-xs space-y-1 mt-2">
+                                                    {payload?.map((entry, index) => (
+                                                        <div key={`item-${index}`} className="flex items-center">
+                                                            <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: entry.color }} />
+                                                            <span>{entry.value}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </ChartContainer>
+                            ) : (
+                                <div className="text-center text-muted-foreground py-16">지출 내역이 없습니다.</div>
+                            )}
+                        </CardContent>
+                    </Card>
+                 </div>
+              </TabsContent>
+              <TabsContent value="history" className="mt-4">
+                 <ScrollArea className="h-72">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                            <TableHead>시간</TableHead>
+                            <TableHead>내용</TableHead>
+                            <TableHead className="text-right">포인트</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {[...pointLogs].reverse().map(log => (
+                            <TableRow key={log.id}>
+                                <TableCell className="text-xs">{log.timestamp ? new Date((log.timestamp as any)?.toDate()).toLocaleString() : ''}</TableCell>
+                                <TableCell>{log.description}</TableCell>
+                                <TableCell className={cn("text-right font-semibold", log.amount > 0 ? "text-green-600" : "text-red-600")}>
+                                {log.amount > 0 ? '+' : ''}{log.amount.toLocaleString()}
+                                </TableCell>
+                            </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                 </ScrollArea>
+              </TabsContent>
+            </Tabs>
         ) : (
             <div className="text-center py-10 text-muted-foreground">포인트 활동 내역이 없습니다.</div>
         )}
@@ -1569,3 +1660,4 @@ export default function ProfilePage() {
     </>
   );
 }
+
