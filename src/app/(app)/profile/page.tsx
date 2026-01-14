@@ -211,7 +211,7 @@ export default function ProfilePage() {
         getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
         getDocs(subjectStatsRef),
         getDocs(myGameSetsQuery),
-        getDocs(playedSetsSnapshot),
+        getDocs(playedSetsQuery),
       ]);
 
       if (userSnap.exists()) {
@@ -1321,7 +1321,7 @@ export default function ProfilePage() {
                                             <ChartTooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
                                             <Pie data={pointAnalysisData.expenseChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} strokeWidth={2}>
                                                 {pointAnalysisData.expenseChartData.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={`var(--color-${entry.name.replace(/ /g, "")})`} />
+                                                    <Cell key={`cell-${index}`} fill={cn(`var(--color-${entry.name.replace(/ /g, "")})`)} />
                                                 ))}
                                             </Pie>
                                             <Legend content={({ payload }) => (
