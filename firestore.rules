@@ -39,6 +39,16 @@ service cloud.firestore {
       
       allow delete: if request.auth.uid == resource.data.sellerId || isTeacher(request.auth.uid);
     }
+    
+    // [pointLogs 컬렉션 그룹 룰 추가]
+    match /{path=**}/pointLogs/{logId} {
+      // 판매자가 자신이 판매한 상품의 구매 기록을 조회하는 것을 허용합니다.
+      allow list: if isSignedIn() && 
+                    // 쿼리 대상 상품 정보를 가져옵니다.
+                    let item = get(/databases/$(database)/documents/class-store-items/$(request.query.where[0][2]));
+                    // 쿼리하는 사람이 해당 상품의 판매자인지 확인합니다.
+                    item.data.sellerId == request.auth.uid;
+    }
 
     // [게임 세트 및 기타]
     match /game-sets/{gameSetId} {
