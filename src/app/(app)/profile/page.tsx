@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -250,11 +249,11 @@ export default function ProfilePage() {
       setSubjectStats(transformStats(subjectStatsSnapshot.docs.map((doc: QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() } as SubjectStat))));
       
       const gameSets = myGameSetsSnapshot.docs.map((doc: QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() } as GameSet));
-      gameSets.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+      gameSets.sort((a: GameSet, b: GameSet) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
       setMyGameSets(gameSets);
 
       const ids = new Set<string>();
-      playedSetsSnapshot.forEach((doc: QueryDocumentSnapshot) => {
+      playedSetsSnapshot.docs.forEach((doc: QueryDocumentSnapshot) => {
         const data = doc.data() as PlayedGameSet;
         if (data.gameSetId) {
           ids.add(data.gameSetId);
