@@ -12,6 +12,16 @@ service cloud.firestore {
       // This function reads a document during rule evaluation, so the read must be allowed.
       return isSignedIn() && get(/databases/$(database)/documents/users/$(userId)).data.role == 'teacher';
     }
+    
+    // collectionGroup 쿼리에서 'relatedItemId' 필드의 값을 찾는 함수
+    function getQueriedItemId() {
+      // request.query.where는 where절 필터들의 리스트입니다.
+      // 이 리스트에서 'relatedItemId'를 필드 경로로 사용하는 필터를 찾습니다.
+      let itemFilters = request.query.where.filter(w => w[0] == 'relatedItemId');
+      // 만약 'relatedItemId' 필터가 존재하고, 그 개수가 1개라면 해당 ID를 반환합니다.
+      return itemFilters.size() == 1 ? itemFilters[0][2] : null;
+    }
+
 
     // [사용자 컬렉션]
     match /users/{userId} {
@@ -43,11 +53,13 @@ service cloud.firestore {
     // [pointLogs 컬렉션 그룹 룰 추가]
     match /{path=**}/pointLogs/{logId} {
       // 판매자가 자신이 판매한 상품의 구매 기록을 조회하는 것을 허용합니다.
-      allow list: if isSignedIn() && 
-                    // 쿼리 대상 상품 정보를 가져옵니다.
-                    let item = get(/databases/$(database)/documents/class-store-items/$(request.query.where[0][2]));
-                    // 쿼리하는 사람이 해당 상품의 판매자인지 확인합니다.
-                    item.data.sellerId == request.auth.uid;
+      allow list: if isSignedIn() &&
+                    // 쿼리에서 조회하려는 상품의 ID를 가져옵니다.
+                    let itemId = getQueriedItemId();
+                    // 상품 ID가 존재하고, 해당 상품 정보에 접근하여
+                    itemId != null &&
+                    // 쿼리를 요청한 사용자가 그 상품의 판매자인지 확인합니다.
+                    get(/databases/$(database)/documents/class-store-items/$(itemId)).data.sellerId == request.auth.uid;
     }
 
     // [게임 세트 및 기타]
