@@ -1017,6 +1017,55 @@ export default function MyClassPage() {
     }
   };
 
+  const handleManageSellingItem = useCallback(async (item: ClassStoreItem) => {
+    setSelectedSellingItem(item);
+    setEditItemDescription(item.description);
+    setEditItemQuantity(item.quantity);
+    setEditItemPrice(item.price);
+    setEditItemEmoji(item.emoji || '');
+    setItemBuyers([]);
+    setIsBuyersLoading(true);
+
+    try {
+        const pointLogsQuery = query(collectionGroup(db, 'pointLogs'), where('relatedItemId', '==', item.id), where('type', '==', 'ITEM_PURCHASE'));
+        const snapshot = await getDocs(pointLogsQuery);
+
+        const buyers: Record<string, ItemBuyer> = {};
+
+        snapshot.forEach(doc => {
+            const log = doc.data() as PointLog;
+            if (!buyers[log.userId]) {
+                 buyers[log.userId] = {
+                    uid: log.userId,
+                    name: '정보 없음', 
+                    nickname: '정보 없음',
+                    quantity: 0
+                };
+            }
+            buyers[log.userId].quantity += 1;
+        });
+
+        const buyerDetailsPromises = Object.keys(buyers).map(uid => getDoc(doc(db, 'users', uid)));
+        const buyerSnapshots = await Promise.all(buyerDetailsPromises);
+        
+        buyerSnapshots.forEach(buyerSnap => {
+            if (buyerSnap.exists()) {
+                const buyerData = buyerSnap.data() as User;
+                buyers[buyerData.uid].name = buyerData.name || '이름 없음';
+                buyers[buyerData.uid].nickname = buyerData.displayName || '닉네임 없음';
+            }
+        });
+        
+        setItemBuyers(Object.values(buyers));
+
+    } catch (error) {
+        console.error("Error fetching item buyers:", error);
+        toast({ variant: 'destructive', title: '오류', description: '구매자 목록을 불러오는 중 오류가 발생했습니다.'});
+    } finally {
+        setIsBuyersLoading(false);
+    }
+}, [toast]);
+
   const ITEMS_PER_PAGE = 10;
   const indexOfLastLog = pointHistoryPage * ITEMS_PER_PAGE;
   const indexOfFirstLog = indexOfLastLog - ITEMS_PER_PAGE;
@@ -1675,15 +1724,9 @@ export default function MyClassPage() {
                                             </p>
                                         </CardContent>
                                         <CardFooter>
-                                            <Button variant="outline" className="w-full" onClick={() => {
-                                            setSelectedSellingItem(item);
-                                            setEditItemDescription(item.description);
-                                            setEditItemQuantity(item.quantity);
-                                            setEditItemPrice(item.price);
-                                            setEditItemEmoji(item.emoji || '');
-                                            }}>
-                                            <Settings className="mr-2 h-4 w-4" />
-                                            관리
+                                            <Button variant="outline" className="w-full" onClick={() => handleManageSellingItem(item)}>
+                                                <Settings className="mr-2 h-4 w-4" />
+                                                관리
                                             </Button>
                                         </CardFooter>
                                         </Card>
@@ -2120,20 +2163,24 @@ export default function MyClassPage() {
                 </div>
               ) : (
                 <ScrollArea className="h-64">
-                    {itemBuyers.map(buyer => (
-                        <div key={buyer.uid} className="flex items-center justify-between p-2 rounded-md hover:bg-secondary">
-                             <div className="flex items-center gap-2">
-                                <Avatar className="h-8 w-8">
-                                    <AvatarFallback>{buyer.nickname.substring(0,1)}</AvatarFallback>
-                                </Avatar>
-                                <div>
-                                    <p className="font-semibold">{buyer.nickname}</p>
-                                    <p className="text-xs text-muted-foreground">{buyer.name}</p>
-                                </div>
-                            </div>
-                            <p className="text-sm font-medium">보유 수량: {buyer.quantity}</p>
-                        </div>
-                    ))}
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>이름</TableHead>
+                                <TableHead>닉네임</TableHead>
+                                <TableHead className="text-right">구매 수량</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {itemBuyers.map(buyer => (
+                                <TableRow key={buyer.uid}>
+                                    <TableCell className="font-medium">{buyer.name}</TableCell>
+                                    <TableCell>{buyer.nickname}</TableCell>
+                                    <TableCell className="text-right">{buyer.quantity}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
                 </ScrollArea>
               )}
             </TabsContent>
@@ -2320,6 +2367,7 @@ export default function MyClassPage() {
     </>
   );
 }
+
 
 
 
