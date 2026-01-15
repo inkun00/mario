@@ -1,4 +1,5 @@
 
+      
 
 'use client';
 
@@ -45,7 +46,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, GameSet, GameSetComment, PlayedGameSet, PointLog } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction, addDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction, addDoc, QueryDocumentSnapshot } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
 import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye, MessageSquare, LineChart, PieChart as PieChartIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -65,7 +66,7 @@ import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart, ResponsiveContainer, Cell, Pie, PieChart, Legend } from 'recharts';
 
 
@@ -202,7 +203,6 @@ export default function ProfilePage() {
     const solvedIncorrectAnswersRef = collection(db, 'users', user.uid, 'solved-incorrect-answers');
     const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
     const myGameSetsQuery = query(collection(db, 'game-sets'), where('creatorId', '==', user.uid));
-    const playedSetsQuery = query(collection(db, 'users', user.uid, 'playedGameSets'));
 
     try {
       const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot, myGameSetsSnapshot, playedSetsSnapshot] = await Promise.all([
@@ -211,8 +211,8 @@ export default function ProfilePage() {
         getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
         getDocs(subjectStatsRef),
         getDocs(myGameSetsQuery),
-        getDocs(playedSetsSnapshot),
-      ]);
+        getDocs(query(collection(db, 'users', user.uid, 'playedGameSets'))),
+      ]) as [any, any, any, any, any, any];
 
       if (userSnap.exists()) {
         const fetchedUserData = userSnap.data() as User;
@@ -239,16 +239,16 @@ export default function ProfilePage() {
         setNextLevelInfo(getNextLevelInfo(currentLevel.level));
       }
 
-      setReviewQuestions(incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer)));
-      setSolvedReviewQuestions(solvedIncorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer)));
-      setSubjectStats(transformStats(subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat))));
+      setReviewQuestions(incorrectSnapshot.docs.map((doc: QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() } as IncorrectAnswer)));
+      setSolvedReviewQuestions(solvedIncorrectSnapshot.docs.map((doc: QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer)));
+      setSubjectStats(transformStats(subjectStatsSnapshot.docs.map((doc: QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() } as SubjectStat))));
       
-      const gameSets = myGameSetsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSet));
+      const gameSets = myGameSetsSnapshot.docs.map((doc: QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() } as GameSet));
       gameSets.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
       setMyGameSets(gameSets);
 
       const ids = new Set<string>();
-      playedSetsSnapshot.forEach((doc) => {
+      playedSetsSnapshot.forEach((doc: QueryDocumentSnapshot) => {
         const data = doc.data() as PlayedGameSet;
         if (data.gameSetId) {
           ids.add(data.gameSetId);
@@ -398,7 +398,7 @@ export default function ProfilePage() {
       setIsEditing(false);
       toast({ title: '성공', description: '프로필이 성공적으로 업데이트되었습니다.' });
     } catch (error: any) {
-      toast({ variant: 'destructive', title: '오류', description: `프로필 업데이트 중 오류가 발생했습니다: ${'\'\'\''}${error.message}`});
+      toast({ variant: 'destructive', title: '오류', description: `프로필 업데이트 중 오류가 발생했습니다: ${error.message}`});
     }
   };
 
@@ -453,7 +453,7 @@ export default function ProfilePage() {
         await updateDoc(userRef, { classId: teacherId }); 
         
         setUserData(prev => prev ? {...prev, classId: teacherId} : null);
-        toast({ title: '성공', description: `'${'\'\'\''}${teacherDoc.data().name || teacherDoc.data().displayName} 선생님'의 학급에 참여했습니다.` });
+        toast({ title: '성공', description: `'${teacherDoc.data().name || teacherDoc.data().displayName} 선생님'의 학급에 참여했습니다.` });
         setIsJoinClassDialog(false);
         setJoinClassCode('');
     }
@@ -575,14 +575,14 @@ export default function ProfilePage() {
             setUserData(prev => prev ? {...prev, xp: prev.xp + 10, classPoints: (prev.classPoints || 0) + 10} : null);
             toast({ title: '정답입니다!', description: '복습을 완료했습니다. 10 XP와 10 학급 포인트를 획득했습니다!' });
         } else {
-             toast({ variant: 'destructive', title: '아쉽지만 오답입니다.', description: `정답은 "${'\'\'\''}${reviewItem.question.answer || reviewItem.question.correctAnswer}" 입니다.` });
+             toast({ variant: 'destructive', title: '아쉽지만 오답입니다.', description: `정답은 "${reviewItem.question.answer || reviewItem.question.correctAnswer}" 입니다.` });
         }
         
         setReviewQuestions(prev => prev.filter((_, i) => i !== index));
         setSolvedReviewQuestions(prev => [solvedData, ...prev]);
 
     } catch (error: any) {
-        toast({ variant: 'destructive', title: '오류', description: `답변 제출 중 오류가 발생했습니다: ${'\'\'\''}${error.message}`});
+        toast({ variant: 'destructive', title: '오류', description: `답변 제출 중 오류가 발생했습니다: ${error.message}` });
         const revertedQuestions = [...reviewQuestions];
         if (revertedQuestions[index]) {
             revertedQuestions[index].isSubmitting = false;
@@ -646,7 +646,7 @@ export default function ProfilePage() {
             type: 'SEND_POINTS',
             amount: -sendPointsAmount,
             timestamp: serverTimestamp(),
-            description: `${'\'\'\''}${recipientName}에게 보내기`,
+            description: `${recipientName}에게 보내기`,
             relatedUserId: sendPointsRecipient,
         } as PointLog);
         
@@ -658,13 +658,13 @@ export default function ProfilePage() {
             type: 'RECEIVE_POINTS',
             amount: sendPointsAmount,
             timestamp: serverTimestamp(),
-            description: `${'\'\'\''}${userData.displayName}에게서 받기`,
+            description: `${userData.displayName}에게서 받기`,
             relatedUserId: user.uid,
         } as PointLog);
 
       });
 
-      toast({ title: '전송 완료', description: `${'\'\'\''}${recipientName}님에게 ${'\'\'\''}${sendPointsAmount.toLocaleString()} 포인트를 성공적으로 보냈습니다.` });
+      toast({ title: '전송 완료', description: `${recipientName}님에게 ${sendPointsAmount.toLocaleString()} 포인트를 성공적으로 보냈습니다.` });
       // Optimistic update
       setUserData(prev => prev ? {...prev, classPoints: (prev.classPoints || 0) - sendPointsAmount} : null);
       setIsSendPointsDialogOpen(false);
@@ -672,7 +672,7 @@ export default function ProfilePage() {
       setSendPointsRecipient('');
 
     } catch (error: any) {
-      toast({ variant: "destructive", title: "전송 실패", description: typeof error === 'string' ? error : `포인트 전송 중 오류가 발생했습니다: ${'\'\'\''}${error.message}`});
+      toast({ variant: "destructive", title: "전송 실패", description: typeof error === 'string' ? error : `포인트 전송 중 오류가 발생했습니다: ${error.message}`});
     } finally {
       setIsSendingPoints(false);
     }
@@ -694,7 +694,7 @@ export default function ProfilePage() {
         toast({ title: '성공', description: '프로필 이미지가 저장되었습니다.' });
         setIsAvatarEditorOpen(false);
     } catch (error: any) {
-        toast({ variant: 'destructive', title: '오류', description: `프로필 이미지 저장 중 오류가 발생했습니다: ${'\'\'\''}${error.message}` });
+        toast({ variant: 'destructive', title: '오류', description: `프로필 이미지 저장 중 오류가 발생했습니다: ${error.message}` });
         console.error("Avatar save error:", error);
     }
   };
@@ -759,23 +759,35 @@ export default function ProfilePage() {
   }, [] as { date: string; totalPoints: number }[]), [pointLogs]);
 
   const pointAnalysisData = useMemo(() => {
-    const totalIncome = pointLogs.filter(log => log.amount > 0).reduce((sum, log) => sum + log.amount, 0);
-    const totalExpense = pointLogs.filter(log => log.amount < 0).reduce((sum, log) => sum + log.amount, 0);
+    const incomeByCategory: Record<string, number> = {};
+    const expenseByCategory: Record<string, number> = {};
 
-    const expenseByCategory = pointLogs.filter(log => log.amount < 0).reduce((acc, log) => {
-      let category = "기타";
-      if (log.type === 'ITEM_PURCHASE') category = "아이템 구매";
-      else if (log.type === 'SEND_POINTS') category = "포인트 보내기";
-      else if (log.type === 'TEACHER_DEDUCT') category = "선생님 회수";
-      else if (log.type === 'ITEM_REFUND_SELLER') category = "환불 처리";
-      
-      acc[category] = (acc[category] || 0) + Math.abs(log.amount);
-      return acc;
-    }, {} as Record<string, number>);
+    pointLogs.forEach(log => {
+      if (log.amount > 0) {
+        let category = "기타 수입";
+        if (log.type === 'QUIZ_REWARD' || log.type === 'REVIEW_REWARD') category = "퀴즈/복습 보상";
+        else if (log.type === 'ITEM_SALE') category = "아이템 판매";
+        else if (log.type === 'RECEIVE_POINTS') category = "포인트 받기";
+        else if (log.type === 'TEACHER_GRANT') category = "선생님 지급";
+        else if (log.type === 'ITEM_REFUND_BUYER') category = "환불 받음";
+        incomeByCategory[category] = (incomeByCategory[category] || 0) + log.amount;
+      } else {
+        let category = "기타 지출";
+        if (log.type === 'ITEM_PURCHASE') category = "아이템 구매";
+        else if (log.type === 'SEND_POINTS') category = "포인트 보내기";
+        else if (log.type === 'TEACHER_DEDUCT') category = "선생님 회수";
+        else if (log.type === 'ITEM_REFUND_SELLER') category = "환불 처리";
+        expenseByCategory[category] = (expenseByCategory[category] || 0) + Math.abs(log.amount);
+      }
+    });
 
+    const totalIncome = Object.values(incomeByCategory).reduce((sum, value) => sum + value, 0);
+    const totalExpense = Object.values(expenseByCategory).reduce((sum, value) => sum + value, 0);
+
+    const incomeChartData = Object.entries(incomeByCategory).map(([name, value]) => ({ name, value }));
     const expenseChartData = Object.entries(expenseByCategory).map(([name, value]) => ({ name, value }));
 
-    return { totalIncome, totalExpense, expenseChartData };
+    return { totalIncome, totalExpense, incomeChartData, expenseChartData };
   }, [pointLogs]);
 
 
@@ -786,21 +798,25 @@ export default function ProfilePage() {
     },
   };
   
-  const expenseChartConfig = {
-    value: { label: "포인트" },
-    "아이템 구매": { label: "아이템 구매", color: "hsl(var(--chart-1))" },
-    "포인트 보내기": { label: "포인트 보내기", color: "hsl(var(--chart-2))" },
-    "선생님 회수": { label: "선생님 회수", color: "hsl(var(--chart-3))" },
-    "환불 처리": { label: "환불 처리", color: "hsl(var(--chart-4))" },
-    "기타": { label: "기타", color: "hsl(var(--chart-5))" },
-  };
+  const COLORS = [
+    "hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))",
+    "hsl(var(--chart-4))", "hsl(var(--chart-5))"
+  ];
+  
+  const chartConfig: Record<string, { label: string; color?: string }> = { value: { label: "포인트" } };
+  pointAnalysisData.incomeChartData.forEach((item, index) => {
+    chartConfig[item.name as keyof typeof chartConfig] = { label: item.name, color: COLORS[index % COLORS.length] };
+  });
+  pointAnalysisData.expenseChartData.forEach((item, index) => {
+    chartConfig[item.name as keyof typeof chartConfig] = { label: item.name, color: COLORS[index % COLORS.length] };
+  });
 
 
   const xpForNextLevel = nextLevelInfo ? nextLevelInfo.xpThreshold - (levelInfo?.xpThreshold || 0) : 0;
   const currentXpProgress = userData ? userData.xp - (levelInfo?.xpThreshold || 0) : 0;
   const progressPercentage = xpForNextLevel > 0 ? (currentXpProgress / xpForNextLevel) * 100 : 100;
 
-  const schoolInfo = [userData?.schoolName, userData?.grade && `${'\'\'\''}${userData.grade}학년`, userData?.class && `${'\'\'\''}${userData.class}반`].filter(Boolean).join(' ');
+  const schoolInfo = [userData?.schoolName, userData?.grade && `${userData.grade}학년`, userData?.class && `${userData.class}반`].filter(Boolean).join(' ');
 
   if (isLoading) {
     return (
@@ -900,7 +916,7 @@ export default function ProfilePage() {
             <div className="flex justify-between items-end mb-1">
               <span className="text-sm font-medium">Lv. {levelInfo.level}</span>
               <span className="text-sm text-muted-foreground">
-                {nextLevelInfo ? `${'\'\'\''}${userData.xp.toLocaleString()} / ${'\'\'\''}${nextLevelInfo.xpThreshold.toLocaleString()} XP` : '최고 레벨'}
+                {nextLevelInfo ? `${userData.xp.toLocaleString()} / ${nextLevelInfo.xpThreshold.toLocaleString()} XP` : '최고 레벨'}
               </span>
             </div>
             <Progress value={Math.max(0, progressPercentage)} className="h-3" />
@@ -1012,7 +1028,7 @@ export default function ProfilePage() {
                                                     <Eye className="mr-2 h-4 w-4"/> 미리보기
                                                 </Button>
                                                 <Button variant="secondary" size="sm" asChild>
-                                                    <Link href={`/game-sets/edit/${'\'\'\''}${set.id}`}>
+                                                    <Link href={`/game-sets/edit/${set.id}`}>
                                                         <Pencil className="mr-2 h-4 w-4"/> 수정
                                                     </Link>
                                                 </Button>
@@ -1112,7 +1128,7 @@ export default function ProfilePage() {
                                     
                                     {question.imageUrl && (
                                         <div className="mt-2 relative aspect-video">
-                                            <Image src={question.imageUrl} alt={`질문 ${'\'\'\''}${index + 1} 이미지`} fill className="rounded-md object-contain" />
+                                            <Image src={question.imageUrl} alt={`질문 ${index + 1} 이미지`} fill className="rounded-md object-contain" />
                                         </div>
                                     )}
 
@@ -1133,8 +1149,8 @@ export default function ProfilePage() {
                                         >
                                             {question.options.map((option, idx) => (
                                                 <div key={idx} className="flex items-center space-x-2">
-                                                    <RadioGroupItem value={option} id={`review-${'\'\'\''}${item.id}-option-${'\'\'\''}${idx}`} />
-                                                    <Label htmlFor={`review-${'\'\'\''}${item.id}-option-${'\'\'\''}${idx}`} className="flex-1 p-3 rounded-md border hover:border-primary cursor-pointer">{option}</Label>
+                                                    <RadioGroupItem value={option} id={`review-${item.id}-option-${idx}`} />
+                                                    <Label htmlFor={`review-${item.id}-option-${idx}`} className="flex-1 p-3 rounded-md border hover:border-primary cursor-pointer">{option}</Label>
                                                 </div>
                                             ))}
                                         </RadioGroup>
@@ -1146,11 +1162,11 @@ export default function ProfilePage() {
                                             className="grid grid-cols-2 gap-4" 
                                             disabled={item.isSubmitting}
                                         >
-                                            <Label htmlFor={`review-${'\'\'\''}${item.id}-o`} className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", item.userReviewAnswer === 'O' && 'border-primary bg-primary/10')}>
-                                                <RadioGroupItem value="O" id={`review-${'\'\'\''}${item.id}-o`} className="sr-only"/>O
+                                            <Label htmlFor={`review-${item.id}-o`} className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", item.userReviewAnswer === 'O' && 'border-primary bg-primary/10')}>
+                                                <RadioGroupItem value="O" id={`review-${item.id}-o`} className="sr-only"/>O
                                             </Label>
-                                            <Label htmlFor={`review-${'\'\'\''}${item.id}-x`} className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", item.userReviewAnswer === 'X' && 'border-primary bg-primary/10')}>
-                                                <RadioGroupItem value="X" id={`review-${'\'\'\''}${item.id}-x`} className="sr-only"/>X
+                                            <Label htmlFor={`review-${item.id}-x`} className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", item.userReviewAnswer === 'X' && 'border-primary bg-primary/10')}>
+                                                <RadioGroupItem value="X" id={`review-${item.id}-x`} className="sr-only"/>X
                                             </Label>
                                         </RadioGroup>
                                     )}
@@ -1305,7 +1321,7 @@ export default function ProfilePage() {
                             </div>
                             <div className="flex justify-between items-center p-3 bg-secondary rounded-lg">
                                 <span className="font-medium">총 지출</span>
-                                <span className="font-bold text-red-600">{pointAnalysisData.totalExpense.toLocaleString()}</span>
+                                <span className="font-bold text-red-600">-{pointAnalysisData.totalExpense.toLocaleString()}</span>
                             </div>
                         </CardContent>
                     </Card>
@@ -1315,13 +1331,13 @@ export default function ProfilePage() {
                         </CardHeader>
                         <CardContent>
                             {pointAnalysisData.expenseChartData.length > 0 ? (
-                                <ChartContainer config={expenseChartConfig} className="h-48 w-full">
+                                <ChartContainer config={chartConfig} className="h-48 w-full">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <PieChart>
                                             <ChartTooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
                                             <Pie data={pointAnalysisData.expenseChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} strokeWidth={2}>
                                                 {pointAnalysisData.expenseChartData.map((entry, index) => (
-                                                    <Cell key={`cell-${index}`} fill={cn(`var(--color-${entry.name.replace(/ /g, "")})`)} />
+                                                    <Cell key={`cell-${index}`} fill={cn(COLORS[index % COLORS.length])} />
                                                 ))}
                                             </Pie>
                                             <Legend content={({ payload }) => (
@@ -1329,7 +1345,7 @@ export default function ProfilePage() {
                                                     {payload?.map((entry, index) => (
                                                         <div key={`item-${index}`} className="flex items-center">
                                                             <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: entry.color }} />
-                                                            <span>{entry.value}</span>
+                                                            <span>{entry.value} ({(entry.payload.percent * 100).toFixed(0)}%)</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -1387,7 +1403,7 @@ export default function ProfilePage() {
           <DialogHeader>
             <DialogTitle>오답 기록 확인하기</DialogTitle>
             <DialogDescription>
-              {selectedUnit !== 'all' ? `"${'\'\'\''}${selectedUnit}" 단원에서 ` : selectedSubject !== 'all' ? `"${'\'\'\''}${selectedSubject}" 과목에서 ` : '전체 과목에서 '}
+              {selectedUnit !== 'all' ? `"${selectedUnit}" 단원에서 ` : selectedSubject !== 'all' ? `"${selectedSubject}" 과목에서 ` : '전체 과목에서 '}
               틀린 문제 목록입니다.
             </DialogDescription>
           </DialogHeader>
@@ -1661,5 +1677,4 @@ export default function ProfilePage() {
   );
 }
 
-
-
+    
