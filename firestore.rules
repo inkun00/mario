@@ -20,13 +20,9 @@ service cloud.firestore {
       // Firestore 규칙에는 for 루프가 없으므로, 잠재적인 필터 위치를 수동으로 확인해야 합니다.
       // 여기서는 쿼리가 일관된 순서를 가질 것으로 예상하고 첫 번째와 두 번째 필터만 확인합니다.
       let queryFilters = request.query.where;
-      if (queryFilters.size() > 0 && queryFilters[0][0] == fieldName) {
-        return queryFilters[0][2];
-      }
-      if (queryFilters.size() > 1 && queryFilters[1][0] == fieldName) {
-        return queryFilters[1][2];
-      }
-      return null;
+      return (queryFilters.size() > 0 && queryFilters[0][0] == fieldName) ? queryFilters[0][2]
+           : (queryFilters.size() > 1 && queryFilters[1][0] == fieldName) ? queryFilters[1][2]
+           : null;
     }
 
 
