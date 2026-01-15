@@ -45,7 +45,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, GameSet, GameSetComment, PlayedGameSet, PointLog } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction, addDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction, addDoc, QueryDocumentSnapshot } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
 import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye, MessageSquare, LineChart, PieChart as PieChartIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -65,7 +65,7 @@ import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart, ResponsiveContainer, Cell, Pie, PieChart, Legend } from 'recharts';
 
 
@@ -203,8 +203,7 @@ export default function ProfilePage() {
     const solvedIncorrectAnswersRef = collection(db, 'users', user.uid, 'solved-incorrect-answers');
     const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
     const myGameSetsQuery = query(collection(db, 'game-sets'), where('creatorId', '==', user.uid));
-    const playedSetsQuery = query(collection(db, 'users', user.uid, 'playedGameSets'));
-
+    
     try {
       const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot, myGameSetsSnapshot, playedSetsSnapshot] = await Promise.all([
         getDoc(userRef),
@@ -212,8 +211,8 @@ export default function ProfilePage() {
         getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
         getDocs(subjectStatsRef),
         getDocs(myGameSetsQuery),
-        getDocs(playedSetsQuery),
-      ]);
+        getDocs(query(collection(db, 'users', user.uid, 'playedGameSets'))),
+      ]) as [any, any, any, any, any, any];
 
       if (userSnap.exists()) {
         const fetchedUserData = userSnap.data() as User;
@@ -240,16 +239,16 @@ export default function ProfilePage() {
         setNextLevelInfo(getNextLevelInfo(currentLevel.level));
       }
 
-      setReviewQuestions(incorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as IncorrectAnswer)));
-      setSolvedReviewQuestions(solvedIncorrectSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer)));
-      setSubjectStats(transformStats(subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat))));
+      setReviewQuestions(incorrectSnapshot.docs.map((doc: QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() } as IncorrectAnswer)));
+      setSolvedReviewQuestions(solvedIncorrectSnapshot.docs.map((doc: QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer)));
+      setSubjectStats(transformStats(subjectStatsSnapshot.docs.map((doc: QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() } as SubjectStat))));
       
-      const gameSets = myGameSetsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSet));
+      const gameSets = myGameSetsSnapshot.docs.map((doc: QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() } as GameSet));
       gameSets.sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
       setMyGameSets(gameSets);
 
       const ids = new Set<string>();
-      playedSetsSnapshot.forEach((doc) => {
+      playedSetsSnapshot.docs.forEach((doc: QueryDocumentSnapshot) => {
         const data = doc.data() as PlayedGameSet;
         if (data.gameSetId) {
           ids.add(data.gameSetId);
@@ -804,12 +803,12 @@ export default function ProfilePage() {
     "hsl(var(--chart-4))", "hsl(var(--chart-5))"
   ];
   
-  const chartConfig = { value: { label: "포인트" } };
+  const chartConfig: Record<string, { label: string; color?: string }> = { value: { label: "포인트" } };
   pointAnalysisData.incomeChartData.forEach((item, index) => {
-    chartConfig[item.name as keyof typeof chartConfig] = { label: item.name, color: COLORS[index % COLORS.length] };
+    chartConfig[item.name] = { label: item.name, color: COLORS[index % COLORS.length] };
   });
   pointAnalysisData.expenseChartData.forEach((item, index) => {
-    chartConfig[item.name as keyof typeof chartConfig] = { label: item.name, color: COLORS[index % COLORS.length] };
+    chartConfig[item.name] = { label: item.name, color: COLORS[index % COLORS.length] };
   });
 
 
@@ -1345,7 +1344,7 @@ export default function ProfilePage() {
                                                 {payload?.map((entry, index) => (
                                                     <div key={`item-${index}`} className="flex items-center">
                                                         <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: entry.color }} />
-                                                        <span>{entry.value} ({(entry.payload.percent * 100).toFixed(1)}%)</span>
+                                                        <span>{entry.value} ({(entry.payload.percent * 100).toFixed(0)}%)</span>
                                                     </div>
                                                 ))}
                                             </div>
