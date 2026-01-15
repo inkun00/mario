@@ -206,8 +206,7 @@ export default function MyClassPage() {
     const fetchClassData = async () => {
       setIsLoading(true);
 
-      const userRef = doc(db, 'users', user.uid);
-      unsubscribeUser = onSnapshot(userRef, (userSnap) => {
+      unsubscribeUser = onSnapshot(doc(db, 'users', user.uid), (userSnap) => {
         if (userSnap.exists()) {
             const currentUserData = { uid: userSnap.id, ...userSnap.data() } as User;
             setUserData(currentUserData);
@@ -222,8 +221,10 @@ export default function MyClassPage() {
                     if (unsubscribeMembers) unsubscribeMembers();
                     unsubscribeMembers = onSnapshot(membersQuery, (snapshot) => {
                         const members = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
-                        // Also include the teacher in the list
-                        setClassMembers([currentUserData, ...members].sort((a, b) => (b.xp || 0) - (a.xp || 0)));
+                        // Also include the teacher in the list if they are managing their class
+                        const allMembers = [currentUserData, ...members.filter(m => m.uid !== currentUserData.uid)];
+                        const uniqueMembers = Array.from(new Map(allMembers.map(item => [item.uid, item])).values());
+                        setClassMembers(uniqueMembers.sort((a, b) => (b.xp || 0) - (a.xp || 0)));
                     });
                 } else {
                     const teacherRef = doc(db, 'users', targetClassId);
@@ -234,7 +235,9 @@ export default function MyClassPage() {
                             if (unsubscribeMembers) unsubscribeMembers();
                             unsubscribeMembers = onSnapshot(membersQuery, (snapshot) => {
                                 const members = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
-                                setClassMembers([teacherData, ...members].sort((a, b) => (b.xp || 0) - (a.xp || 0)));
+                                const allMembers = [teacherData, ...members];
+                                const uniqueMembers = Array.from(new Map(allMembers.map(item => [item.uid, item])).values());
+                                setClassMembers(uniqueMembers.sort((a, b) => (b.xp || 0) - (a.xp || 0)));
                             });
                         }
                     });
@@ -1027,45 +1030,44 @@ export default function MyClassPage() {
     setIsBuyersLoading(true);
 
     try {
-        const pointLogsSellerQuery = query(
-            collection(db, 'users', item.sellerId, 'pointLogs'), 
-            where('relatedItemId', '==', item.id), 
-            where('type', '==', 'ITEM_SALE')
+        const q = query(
+          collectionGroup(db, "pointLogs"),
+          where("relatedItemId", "==", item.id),
+          where("type", "==", "ITEM_PURCHASE")
         );
 
-        const snapshot = await getDocs(pointLogsSellerQuery);
-
-        const buyers: Record<string, ItemBuyer> = {};
+        const snapshot = await getDocs(q);
+        
+        const buyersData: Record<string, ItemBuyer> = {};
 
         snapshot.forEach(doc => {
             const log = doc.data() as PointLog;
-            if (log.relatedUserId) {
-                if (!buyers[log.relatedUserId]) {
-                    buyers[log.relatedUserId] = {
-                        uid: log.relatedUserId,
-                        name: '정보 없음', 
-                        nickname: '정보 없음',
-                        quantity: 0
-                    };
-                }
-                buyers[log.relatedUserId].quantity += 1;
+            const buyerId = log.userId;
+            if (!buyersData[buyerId]) {
+                buyersData[buyerId] = {
+                    uid: buyerId,
+                    name: '정보 없음', 
+                    nickname: '정보 없음',
+                    quantity: 0
+                };
             }
+            buyersData[buyerId].quantity += 1;
         });
 
-        const buyerDetailsPromises = Object.keys(buyers).map(uid => getDoc(doc(db, 'users', uid)));
+        const buyerDetailsPromises = Object.keys(buyersData).map(uid => getDoc(doc(db, 'users', uid)));
         const buyerSnapshots = await Promise.all(buyerDetailsPromises);
         
         buyerSnapshots.forEach(buyerSnap => {
             if (buyerSnap.exists()) {
                 const buyerData = buyerSnap.data() as User;
-                if (buyers[buyerData.uid]) {
-                    buyers[buyerData.uid].name = buyerData.name || '이름 없음';
-                    buyers[buyerData.uid].nickname = buyerData.displayName || '닉네임 없음';
+                if (buyersData[buyerData.uid]) {
+                    buyersData[buyerData.uid].name = buyerData.name || '이름 없음';
+                    buyersData[buyerData.uid].nickname = buyerData.displayName || '닉네임 없음';
                 }
             }
         });
         
-        setItemBuyers(Object.values(buyers));
+        setItemBuyers(Object.values(buyersData));
 
     } catch (error) {
         console.error("Error fetching item buyers:", error);
@@ -2208,39 +2210,114 @@ export default function MyClassPage() {
         {isPointHistoryLoading ? (
             <div className="flex justify-center items-center h-96"><Loader2 className="w-8 h-8 animate-spin"/></div>
         ) : pointHistoryChartData.length > 0 ? (
-            <>
-              <ChartContainer config={chartConfig} className="h-56 w-full">
-                <AreaChart data={pointHistoryChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid vertical={false} />
-                  <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
-                  <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
-                  <ChartTooltip content={<ChartTooltipContent />} />
-                  <Area dataKey="totalPoints" type="monotone" fill="var(--color-totalPoints)" fillOpacity={0.4} stroke="var(--color-totalPoints)" />
-                </AreaChart>
-              </ChartContainer>
-              <ScrollArea className="h-56 mt-4">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>시간</TableHead>
-                      <TableHead>내용</TableHead>
-                      <TableHead className="text-right">포인트</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {[...pointLogs].reverse().map(log => (
-                      <TableRow key={log.id}>
-                        <TableCell className="text-xs">{log.timestamp ? new Date((log.timestamp as any)?.toDate()).toLocaleString() : ''}</TableCell>
-                        <TableCell>{log.description}</TableCell>
-                        <TableCell className={cn("text-right font-semibold", log.amount > 0 ? "text-green-600" : "text-red-600")}>
-                          {log.amount > 0 ? '+' : ''}{log.amount.toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
-            </>
+            <Tabs defaultValue="overview">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="overview">누적 추이</TabsTrigger>
+                <TabsTrigger value="analysis">수입/지출 분석</TabsTrigger>
+                <TabsTrigger value="history">상세 내역</TabsTrigger>
+              </TabsList>
+              <TabsContent value="overview" className="mt-4">
+                <ChartContainer config={chartConfig} className="h-64 w-full">
+                  <AreaChart data={pointHistoryChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
+                    <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Area dataKey="totalPoints" type="monotone" fill="var(--color-totalPoints)" fillOpacity={0.4} stroke="var(--color-totalPoints)" />
+                  </AreaChart>
+                </ChartContainer>
+              </TabsContent>
+              <TabsContent value="analysis" className="mt-4">
+                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <Card className="md:col-span-2">
+                        <CardHeader>
+                            <CardTitle className="text-lg">수입/지출 요약</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className={cn("flex justify-between items-center p-3 rounded-lg cursor-pointer", chartView === 'income' ? 'bg-primary/10 border-primary border-2' : 'bg-secondary')} onClick={() => setChartView('income')}>
+                                <span className="font-medium">총 수입</span>
+                                <span className="font-bold text-green-600">+{pointAnalysisData.totalIncome.toLocaleString()}</span>
+                            </div>
+                            <div className={cn("flex justify-between items-center p-3 rounded-lg cursor-pointer", chartView === 'expense' ? 'bg-destructive/10 border-destructive border-2' : 'bg-secondary')} onClick={() => setChartView('expense')}>
+                                <span className="font-medium">총 지출</span>
+                                <span className="font-bold text-red-600">-{pointAnalysisData.totalExpense.toLocaleString()}</span>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <Card className="md:col-span-3">
+                        <CardHeader>
+                            <CardTitle className="text-lg">{chartView === 'income' ? '수입' : '지출'} 항목 비율</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {(chartView === 'income' ? pointAnalysisData.incomeChartData.length > 0 : pointAnalysisData.expenseChartData.length > 0) ? (
+                                <ChartContainer config={chartConfig} className="h-48 w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <ChartTooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
+                                            <Pie 
+                                                data={chartView === 'income' ? pointAnalysisData.incomeChartData : pointAnalysisData.expenseChartData} 
+                                                dataKey="value" 
+                                                nameKey="name" 
+                                                cx="50%" 
+                                                cy="50%" 
+                                                outerRadius={60} 
+                                                strokeWidth={2}
+                                            >
+                                                {(chartView === 'income' ? pointAnalysisData.incomeChartData : pointAnalysisData.expenseChartData).map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                ))}
+                                            </Pie>
+                                            <Legend
+                                                layout="vertical"
+                                                verticalAlign="middle"
+                                                align="right"
+                                                iconType="circle"
+                                                content={({ payload }) => (
+                                                    <div className="text-xs space-y-1">
+                                                        {payload?.map((entry, index) => (
+                                                            <div key={`item-${index}`} className="flex items-center">
+                                                                <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: entry.color }} />
+                                                                <span>{entry.value} ({(((entry.payload as any)?.percent ?? 0) * 100).toFixed(0)}%)</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </ChartContainer>
+                            ) : (
+                                <div className="text-center text-muted-foreground py-16">{chartView === 'income' ? '수입' : '지출'} 내역이 없습니다.</div>
+                            )}
+                        </CardContent>
+                    </Card>
+                 </div>
+              </TabsContent>
+              <TabsContent value="history" className="mt-4">
+                 <ScrollArea className="h-72">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                            <TableHead>시간</TableHead>
+                            <TableHead>내용</TableHead>
+                            <TableHead className="text-right">포인트</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {[...pointLogs].reverse().map(log => (
+                            <TableRow key={log.id}>
+                                <TableCell className="text-xs">{log.timestamp ? new Date((log.timestamp as any)?.toDate()).toLocaleString() : ''}</TableCell>
+                                <TableCell>{log.description}</TableCell>
+                                <TableCell className={cn("text-right font-semibold", log.amount > 0 ? "text-green-600" : "text-red-600")}>
+                                {log.amount > 0 ? '+' : ''}{log.amount.toLocaleString()}
+                                </TableCell>
+                            </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                 </ScrollArea>
+              </TabsContent>
+            </Tabs>
         ) : (
             <div className="text-center py-10 text-muted-foreground">포인트 활동 내역이 없습니다.</div>
         )}
@@ -2251,49 +2328,6 @@ export default function MyClassPage() {
         </DialogFooter>
        </DialogContent>
     </Dialog>
-    {/* Send Points Dialog */}
-    <Dialog open={isSendPointsDialogOpen} onOpenChange={setIsSendPointsDialogOpen}>
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>학급 포인트 보내기</DialogTitle>
-                <DialogDescription>
-                    학급 친구에게 포인트를 보낼 수 있습니다.
-                </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-                 <div className="space-y-2">
-                    <Label>받는 사람</Label>
-                    <Combobox
-                      options={classMembers.filter(m => m.uid !== user?.uid).map(m => ({ value: m.uid, label: m.displayName }))}
-                      value={sendPointsRecipient}
-                      onValueChange={setSendPointsRecipient}
-                      placeholder="학급 친구 선택..."
-                      searchPlaceholder="이름으로 검색..."
-                      notFoundMessage="해당하는 사용자가 없습니다."
-                    />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="points-amount">보낼 금액</Label>
-                    <Input 
-                        id="points-amount"
-                        type="number"
-                        min="1"
-                        max={userData.classPoints || 0}
-                        value={sendPointsAmount}
-                        onChange={(e) => setSendPointsAmount(parseInt(e.target.value) || 0)}
-                    />
-                </div>
-            </div>
-            <DialogFooter>
-                <Button variant="secondary" onClick={() => setIsSendPointsDialogOpen(false)}>취소</Button>
-                <Button onClick={handleSendPoints} disabled={isSendingPoints || !sendPointsRecipient || sendPointsAmount <= 0 || sendPointsAmount > (userData.classPoints || 0)}>
-                    {isSendingPoints && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                    보내기
-                </Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
-
     {/* Bulk Send Points Dialog */}
     <Dialog open={isBulkSendDialogOpen} onOpenChange={setIsBulkSendDialogOpen}>
         <DialogContent className="max-w-2xl">
@@ -2382,3 +2416,6 @@ export default function MyClassPage() {
 
 
 
+
+
+    

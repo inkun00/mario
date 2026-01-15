@@ -20,10 +20,6 @@ service cloud.firestore {
 
       // 로그인한 모든 사용자가 사용자 목록을 조회할 수 있도록 규칙 완화
       allow list: if isSignedIn();
-
-      match /{allSubcollections=**} {
-        allow read, write: if isSignedIn() && (request.auth.uid == userId || isTeacher(request.auth.uid));
-      }
     }
 
     // [상점 아이템 컬렉션]
@@ -80,3 +76,5 @@ service cloud.firestore {
     }
   }
 }
+
+    
