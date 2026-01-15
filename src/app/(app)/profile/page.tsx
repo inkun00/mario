@@ -45,7 +45,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, GameSet, GameSetComment, PlayedGameSet, PointLog } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction, addDoc, QueryDocumentSnapshot } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction, addDoc, QueryDocumentSnapshot, DocumentSnapshot, QuerySnapshot } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
 import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye, MessageSquare, LineChart, PieChart as PieChartIcon } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -187,7 +187,6 @@ export default function ProfilePage() {
   const [isPointHistoryOpen, setIsPointHistoryOpen] = useState(false);
   const [pointLogs, setPointLogs] = useState<PointLog[]>([]);
   const [isPointHistoryLoading, setIsPointHistoryLoading] = useState(false);
-  const [chartView, setChartView] = useState<'income' | 'expense'>('expense');
 
 
   const fetchProfileData = useCallback(async () => {
@@ -205,14 +204,21 @@ export default function ProfilePage() {
     const myGameSetsQuery = query(collection(db, 'game-sets'), where('creatorId', '==', user.uid));
     
     try {
-      const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot, myGameSetsSnapshot, playedSetsSnapshot] = await Promise.all([
+      const [
+        userSnap, 
+        incorrectSnapshot, 
+        solvedIncorrectSnapshot, 
+        subjectStatsSnapshot, 
+        myGameSetsSnapshot, 
+        playedSetsSnapshot
+      ] = await Promise.all([
         getDoc(userRef),
         getDocs(query(incorrectAnswersRef, where('timestamp', '<=', new Date(Date.now() - 24 * 60 * 60 * 1000)), orderBy('timestamp', 'asc'))),
         getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
         getDocs(subjectStatsRef),
         getDocs(myGameSetsQuery),
         getDocs(query(collection(db, 'users', user.uid, 'playedGameSets'))),
-      ]) as [any, any, any, any, any, any];
+      ]) as [DocumentSnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot];
 
       if (userSnap.exists()) {
         const fetchedUserData = userSnap.data() as User;
@@ -248,7 +254,7 @@ export default function ProfilePage() {
       setMyGameSets(gameSets);
 
       const ids = new Set<string>();
-      playedSetsSnapshot.docs.forEach((doc: QueryDocumentSnapshot) => {
+      playedSetsSnapshot.forEach((doc: QueryDocumentSnapshot) => {
         const data = doc.data() as PlayedGameSet;
         if (data.gameSetId) {
           ids.add(data.gameSetId);
@@ -805,10 +811,10 @@ export default function ProfilePage() {
   
   const chartConfig: Record<string, { label: string; color?: string }> = { value: { label: "포인트" } };
   pointAnalysisData.incomeChartData.forEach((item, index) => {
-    chartConfig[item.name] = { label: item.name, color: COLORS[index % COLORS.length] };
+    chartConfig[item.name as keyof typeof chartConfig] = { label: item.name, color: COLORS[index % COLORS.length] };
   });
   pointAnalysisData.expenseChartData.forEach((item, index) => {
-    chartConfig[item.name] = { label: item.name, color: COLORS[index % COLORS.length] };
+    chartConfig[item.name as keyof typeof chartConfig] = { label: item.name, color: COLORS[index % COLORS.length] };
   });
 
 
@@ -1315,11 +1321,11 @@ export default function ProfilePage() {
                             <CardTitle className="text-lg">수입/지출 요약</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <div className={cn("flex justify-between items-center p-3 rounded-lg cursor-pointer", chartView === 'income' ? 'bg-primary/10 border-primary border-2' : 'bg-secondary')} onClick={() => setChartView('income')}>
+                            <div className="flex justify-between items-center p-3 bg-secondary rounded-lg">
                                 <span className="font-medium">총 수입</span>
                                 <span className="font-bold text-green-600">+{pointAnalysisData.totalIncome.toLocaleString()}</span>
                             </div>
-                            <div className={cn("flex justify-between items-center p-3 rounded-lg cursor-pointer", chartView === 'expense' ? 'bg-destructive/10 border-destructive border-2' : 'bg-secondary')} onClick={() => setChartView('expense')}>
+                            <div className="flex justify-between items-center p-3 bg-secondary rounded-lg">
                                 <span className="font-medium">총 지출</span>
                                 <span className="font-bold text-red-600">-{pointAnalysisData.totalExpense.toLocaleString()}</span>
                             </div>
@@ -1327,31 +1333,35 @@ export default function ProfilePage() {
                     </Card>
                     <Card>
                         <CardHeader>
-                            <CardTitle className="text-lg">{chartView === 'income' ? '수입' : '지출'} 항목 비율</CardTitle>
+                            <CardTitle className="text-lg">지출 항목 비율</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <ChartContainer config={chartConfig} className="h-48 w-full">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <ChartTooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
-                                        <Pie data={chartView === 'income' ? pointAnalysisData.incomeChartData : pointAnalysisData.expenseChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} strokeWidth={2}>
-                                            {(chartView === 'income' ? pointAnalysisData.incomeChartData : pointAnalysisData.expenseChartData).map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={cn(COLORS[index % COLORS.length])} />
-                                            ))}
-                                        </Pie>
-                                        <Legend content={({ payload }) => (
-                                            <div className="text-xs space-y-1 mt-2">
-                                                {payload?.map((entry, index) => (
-                                                    <div key={`item-${index}`} className="flex items-center">
-                                                        <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: entry.color }} />
-                                                        <span>{entry.value} ({(entry.payload.percent * 100).toFixed(0)}%)</span>
-                                                    </div>
+                            {pointAnalysisData.expenseChartData.length > 0 ? (
+                                <ChartContainer config={chartConfig} className="h-48 w-full">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <ChartTooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
+                                            <Pie data={pointAnalysisData.expenseChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} strokeWidth={2}>
+                                                {pointAnalysisData.expenseChartData.map((entry, index) => (
+                                                    <Cell key={`cell-${index}`} fill={cn(COLORS[index % COLORS.length])} />
                                                 ))}
-                                            </div>
-                                        )} />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </ChartContainer>
+                                            </Pie>
+                                            <Legend content={({ payload }) => (
+                                                <div className="text-xs space-y-1 mt-2">
+                                                    {payload?.map((entry, index) => (
+                                                        <div key={`item-${index}`} className="flex items-center">
+                                                            <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: entry.color }} />
+                                                            <span>{entry.value} ({(((entry.payload as any)?.percent ?? 0) * 100).toFixed(0)}%)</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </ChartContainer>
+                            ) : (
+                                <div className="text-center text-muted-foreground py-16">지출 내역이 없습니다.</div>
+                            )}
                         </CardContent>
                     </Card>
                  </div>
