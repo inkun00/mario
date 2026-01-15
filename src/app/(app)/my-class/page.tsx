@@ -930,7 +930,7 @@ export default function MyClassPage() {
 
         if (!senderDoc.exists() || !recipientDoc.exists()) throw "사용자 정보를 찾을 수 없습니다.";
 
-        const senderData = senderDoc.data();
+        const senderData = senderDoc.data() as User;
         if ((senderData.classPoints || 0) < sendPointsAmount) {
           throw "보유한 학급 포인트가 부족합니다.";
         }
@@ -1027,22 +1027,29 @@ export default function MyClassPage() {
     setIsBuyersLoading(true);
 
     try {
-        const pointLogsQuery = query(collectionGroup(db, 'pointLogs'), where('relatedItemId', '==', item.id), where('type', '==', 'ITEM_PURCHASE'));
-        const snapshot = await getDocs(pointLogsQuery);
+        const pointLogsSellerQuery = query(
+            collection(db, 'users', item.sellerId, 'pointLogs'), 
+            where('relatedItemId', '==', item.id), 
+            where('type', '==', 'ITEM_SALE')
+        );
+
+        const snapshot = await getDocs(pointLogsSellerQuery);
 
         const buyers: Record<string, ItemBuyer> = {};
 
         snapshot.forEach(doc => {
             const log = doc.data() as PointLog;
-            if (!buyers[log.userId]) {
-                 buyers[log.userId] = {
-                    uid: log.userId,
-                    name: '정보 없음', 
-                    nickname: '정보 없음',
-                    quantity: 0
-                };
+            if (log.relatedUserId) {
+                if (!buyers[log.relatedUserId]) {
+                    buyers[log.relatedUserId] = {
+                        uid: log.relatedUserId,
+                        name: '정보 없음', 
+                        nickname: '정보 없음',
+                        quantity: 0
+                    };
+                }
+                buyers[log.relatedUserId].quantity += 1;
             }
-            buyers[log.userId].quantity += 1;
         });
 
         const buyerDetailsPromises = Object.keys(buyers).map(uid => getDoc(doc(db, 'users', uid)));
@@ -1051,8 +1058,10 @@ export default function MyClassPage() {
         buyerSnapshots.forEach(buyerSnap => {
             if (buyerSnap.exists()) {
                 const buyerData = buyerSnap.data() as User;
-                buyers[buyerData.uid].name = buyerData.name || '이름 없음';
-                buyers[buyerData.uid].nickname = buyerData.displayName || '닉네임 없음';
+                if (buyers[buyerData.uid]) {
+                    buyers[buyerData.uid].name = buyerData.name || '이름 없음';
+                    buyers[buyerData.uid].nickname = buyerData.displayName || '닉네임 없음';
+                }
             }
         });
         
@@ -2367,6 +2376,7 @@ export default function MyClassPage() {
     </>
   );
 }
+
 
 
 

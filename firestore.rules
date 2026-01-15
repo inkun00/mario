@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -16,6 +17,14 @@ service cloud.firestore {
     // [사용자 컬렉션]
     match /users/{userId} {
       allow read, write: if isSignedIn() && (request.auth.uid == userId || isTeacher(request.auth.uid));
+
+      // 학급 구성원 목록 조회를 위한 list 규칙 추가
+      allow list: if isSignedIn() && 
+                    // 요청자가 속한 학급 ID와 쿼리의 학급 ID가 동일한지 확인
+                    (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.classId == request.query.where.classId ||
+                    // 또는 요청자가 선생님이고, 쿼리의 학급 ID가 선생님의 UID와 동일한지 확인
+                     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.uid == request.query.where.classId);
+
 
       match /{allSubcollections=**} {
         allow read, write: if isSignedIn() && (request.auth.uid == userId || isTeacher(request.auth.uid));
