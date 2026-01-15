@@ -1,3 +1,4 @@
+
 rules_version = '2';
 
 service cloud.firestore {
@@ -45,12 +46,8 @@ service cloud.firestore {
       // 클라이언트에서 'relatedItemId'와 'type'으로 필터링하므로 기능은 정상 동작
       allow list: if isSignedIn();
 
-      // 개별 로그 읽기 권한은 기존 규칙 유지 (자신, 선생님, 판매자만)
-      allow read: if isSignedIn() && (
-        resource.data.userId == request.auth.uid || 
-        isTeacher(request.auth.uid) ||
-        (resource.data.relatedItemId != null && get(/databases/$(database)/documents/class-store-items/$(resource.data.relatedItemId)).data.sellerId == request.auth.uid)
-      );
+      // 개별 로그 읽기 권한도 list와 동일하게 완화하여 권한 문제 해결
+      allow read: if isSignedIn();
     }
 
     // [게임 세트]
