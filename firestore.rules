@@ -26,7 +26,7 @@ service cloud.firestore {
                         // Case 1: Owner or a teacher can update the document.
                         request.auth.uid == userId || isTeacher(request.auth.uid) ||
                         // Case 2: Other users can update only classPoints or inventory for store functionality.
-                        request.resource.data.diff(resource.data).affectedKeys().subsetOf(['classPoints', 'inventory'])
+                        request.writeFields.subsetOf(['classPoints', 'inventory'])
                       );
                       
       // Only teachers can delete users.
@@ -42,7 +42,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
         request.auth.uid == resource.data.sellerId || 
         isTeacher(request.auth.uid) ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quantity'])
+        request.writeFields.hasOnly(['quantity'])
       );
       
       allow delete: if isSignedIn() && (request.auth.uid == resource.data.sellerId || isTeacher(request.auth.uid));
@@ -62,7 +62,7 @@ service cloud.firestore {
       allow update: if isSignedIn() && (
         request.auth.uid == resource.data.creatorId || 
         isTeacher(request.auth.uid) ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playCount'])
+        request.writeFields.hasOnly(['playCount'])
       );
       
       allow delete: if isSignedIn() && (request.auth.uid == resource.data.creatorId || isTeacher(request.auth.uid));
