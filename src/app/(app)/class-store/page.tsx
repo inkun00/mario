@@ -211,6 +211,7 @@ export default function ClassStorePage() {
 
         if (!buyerDoc.exists() || !itemDoc.exists()) throw new Error('사용자 또는 아이템 정보를 찾을 수 없습니다.');
 
+        const buyerData = buyerDoc.data() as User;
         const currentItemData = itemDoc.data() as ClassStoreItem;
         if (currentItemData.quantity < 1) throw new Error('아이템 재고가 부족합니다.');
         
@@ -223,23 +224,26 @@ export default function ClassStorePage() {
 
         // 3. Update buyer's inventory
         const cleanItemName = buyCandidate.name.replace(/[.$#[\]/]/g, '_');
-        const inventoryPath = `inventory.${cleanItemName}`;
-        const currentInventory = (buyerDoc.data() as User).inventory || {};
-        const currentQuantity = currentInventory[cleanItemName]?.quantity || 0;
-
-        transaction.set(buyerRef, {
-            inventory: {
-                [cleanItemName]: {
+        const itemInInventory = buyerData.inventory?.[cleanItemName];
+        
+        if (itemInInventory) {
+            const inventoryPath = `inventory.${cleanItemName}.quantity`;
+            transaction.update(buyerRef, { [inventoryPath]: increment(1) });
+        } else {
+            const inventoryPath = `inventory.${cleanItemName}`;
+            transaction.update(buyerRef, {
+                [inventoryPath]: {
+                    name: buyCandidate.name,
                     itemId: buyCandidate.id,
-                    quantity: currentQuantity + 1,
+                    quantity: 1,
                     description: buyCandidate.description,
                     sellerId: buyCandidate.sellerId,
                     sellerNickname: buyCandidate.sellerNickname,
                     price: buyCandidate.price,
                     emoji: buyCandidate.emoji || '🎁',
                 }
-            }
-        }, { merge: true });
+            });
+        }
 
         // 4. Add point logs for both buyer and seller
         const buyerLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
@@ -452,11 +456,11 @@ export default function ClassStorePage() {
               <TabsContent value="inventory" className="mt-4">
                  {myInventory && Object.keys(myInventory).length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {Object.entries(myInventory).map(([name, item]) => (
+                        {Object.entries(myInventory).map(([key, item]) => (
                             <Card key={item.itemId} className="flex flex-col">
                                 <CardHeader className="text-center">
                                     <span className="text-5xl mx-auto">{item.emoji || '🎁'}</span>
-                                    <CardTitle className="text-lg font-semibold">{name.replace(/_/g, '.')}</CardTitle>
+                                    <CardTitle className="text-lg font-semibold">{item.name || key.replace(/_/g, '.')}</CardTitle>
                                 </CardHeader>
                                 <CardContent className="flex-grow">
                                     <p className="text-sm text-muted-foreground">{item.description}</p>
@@ -616,4 +620,3 @@ export default function ClassStorePage() {
     </>
   );
 }
-

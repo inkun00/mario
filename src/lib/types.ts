@@ -48,6 +48,7 @@ export interface User {
   classCode?: string; // 교사가 생성한 학급 코드
   inventory?: {
     [itemName: string]: {
+      name: string;
       itemId: string; // The original document ID from class-store-items
       quantity: number;
       description?: string;
