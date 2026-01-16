@@ -1617,16 +1617,20 @@ export default function ProfilePage() {
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>{previewGameSet.title}</DialogTitle>
-                    <DialogDescription>{[previewGameSet.grade, previewGameSet.semester, previewGameSet.subject, previewGameSet.unit].filter(Boolean).join(' / ')}</DialogDescription>
+                    <DialogDescription>
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
+                        <span>{[previewGameSet.grade, previewGameSet.semester, previewGameSet.subject, previewGameSet.unit].filter(Boolean).join(' / ')}</span>
+                        <span className="flex items-center gap-1"><BookOpen className="w-4 h-4" />{previewGameSet.questions.length} 문제</span>
+                        <span className="flex items-center gap-1"><ThumbsUp className="w-4 h-4" />{previewGameSet.likeCount || 0}</span>
+                        <span className="flex items-center gap-1"><MessageSquare className="w-4 h-4" />{previewGameSet.commentCount || 0}</span>
+                      </div>
+                    </DialogDescription>
                 </DialogHeader>
                 <Tabs defaultValue="questions" className="w-full">
                   <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="questions"><BookOpen className="mr-2 h-4 w-4"/>문제 목록</TabsTrigger>
                     <TabsTrigger value="comments" className="relative">
-                      <MessageSquare className="mr-2 h-4 w-4"/>댓글
-                      {previewGameSet.commentCount && previewGameSet.commentCount > 0 && (
-                        <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">{previewGameSet.commentCount}</span>
-                      )}
+                      <MessageSquare className="mr-2 h-4 w-4"/>댓글 ({previewGameSet.commentCount || 0})
                     </TabsTrigger>
                   </TabsList>
                   <TabsContent value="questions">

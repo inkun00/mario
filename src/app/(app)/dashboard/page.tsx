@@ -992,7 +992,12 @@ export default function DashboardPage() {
                   <div>
                       <DialogTitle className="font-headline text-2xl">{selectedGameSet.title}</DialogTitle>
                       <DialogDescription>
-                         {[selectedGameSet.grade, selectedGameSet.semester, selectedGameSet.subject, selectedGameSet.unit].filter(Boolean).join(' / ')}
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
+                           <span>{[selectedGameSet.grade, selectedGameSet.semester, selectedGameSet.subject, selectedGameSet.unit].filter(Boolean).join(' / ')}</span>
+                           <span className="flex items-center gap-1"><Book className="w-4 h-4" />{selectedGameSet.questions.length} 문제</span>
+                           <span className="flex items-center gap-1"><ThumbsUp className="w-4 h-4" />{selectedGameSet.likeCount || 0}</span>
+                           <span className="flex items-center gap-1"><MessageSquare className="w-4 h-4" />{selectedGameSet.commentCount || 0}</span>
+                        </div>
                       </DialogDescription>
                   </div>
                   {(selectedGameSet.evaluationScore !== undefined && selectedGameSet.evaluationScore !== null) && (() => {
@@ -1024,10 +1029,7 @@ export default function DashboardPage() {
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="questions"><Book className="w-4 h-4 mr-2" />문제 목록</TabsTrigger>
                 <TabsTrigger value="comments" className="relative">
-                  <MessageSquare className="w-4 h-4 mr-2" />댓글 
-                  {selectedGameSet.commentCount && selectedGameSet.commentCount > 0 ? (
-                    <span className="ml-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">{selectedGameSet.commentCount}</span>
-                  ) : `(${comments.length})`}
+                  <MessageSquare className="w-4 h-4 mr-2" />댓글 ({selectedGameSet.commentCount || 0})
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="questions">
