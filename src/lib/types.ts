@@ -268,4 +268,5 @@ export interface ClassStoreItem {
 
 export interface ItemBuyer {
     uid: string;
-    name
+    name: string;
+}
