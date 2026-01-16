@@ -407,9 +407,10 @@ export default function ClassStorePage() {
         const userRef = doc(db, 'users', user.uid);
         const userDoc = await transaction.get(userRef);
         if (!userDoc.exists()) throw "사용자 정보를 찾을 수 없습니다.";
+        
         const userData = userDoc.data() as User;
-
         const itemInInventory = userData.inventory?.[useCandidate.itemId];
+
         if (!itemInInventory || itemInInventory.quantity < 1) {
             throw "사용할 아이템이 보관함에 없습니다.";
         }
@@ -426,14 +427,12 @@ export default function ClassStorePage() {
             type: 'ITEM_USE',
             amount: 0,
             timestamp: serverTimestamp(),
-            description: `'${itemInInventory.name}' 사용`,
+            description: `'${itemInInventory.name || useCandidate.name}' 사용`,
             relatedItemId: useCandidate.itemId,
         });
-
-        return itemInInventory.name;
     })
-    .then((itemName) => {
-        toast({ title: "사용 완료", description: `'${itemName}' 아이템을 사용했습니다.`});
+    .then(() => {
+        toast({ title: "사용 완료", description: `'${useCandidate.name}' 아이템을 사용했습니다.`});
     })
     .catch((error: any) => {
         if (typeof error === 'string') {
@@ -472,6 +471,7 @@ export default function ClassStorePage() {
         
         const senderData = senderDoc.data() as User;
         const itemInInventory = senderData.inventory?.[giftCandidate.itemId];
+
         if (!itemInInventory || itemInInventory.quantity < giftQuantity) {
             throw "선물할 아이템의 수량이 부족합니다.";
         }
@@ -485,7 +485,9 @@ export default function ClassStorePage() {
         
         const recipientData = recipientDoc.data() as User;
         const itemInRecipientInventory = recipientData.inventory?.[giftCandidate.itemId];
-        const newRecipientItem = { ...itemInInventory, quantity: giftQuantity };
+        
+        const itemNameToUse = itemInInventory.name || giftCandidate.name;
+        const newRecipientItem = { ...itemInInventory, name: itemNameToUse, quantity: giftQuantity };
 
         if (itemInRecipientInventory) {
             transaction.update(recipientRef, { [`inventory.${giftCandidate.itemId}.quantity`]: increment(giftQuantity) });
@@ -496,14 +498,14 @@ export default function ClassStorePage() {
         const senderLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
         transaction.set(senderLogRef, {
             type: 'ITEM_GIFT_SEND', amount: 0, timestamp: serverTimestamp(),
-            description: `'${itemInInventory.name}' ${giftQuantity}개 선물 (${recipientData.displayName}에게)`,
+            description: `'${itemNameToUse}' ${giftQuantity}개 선물 (${recipientData.displayName}에게)`,
             relatedItemId: giftCandidate.itemId, relatedUserId: giftRecipient
         });
         
         const recipientLogRef = doc(collection(db, 'users', giftRecipient, 'pointLogs'));
         transaction.set(recipientLogRef, {
             type: 'ITEM_GIFT_RECEIVE', amount: 0, timestamp: serverTimestamp(),
-            description: `'${itemInInventory.name}' ${giftQuantity}개 선물 받음 (${senderData.displayName}로부터)`,
+            description: `'${itemNameToUse}' ${giftQuantity}개 선물 받음 (${senderData.displayName}로부터)`,
             relatedItemId: giftCandidate.itemId, relatedUserId: user.uid
         });
     })
@@ -559,12 +561,14 @@ export default function ClassStorePage() {
         const itemInInventory = buyerData.inventory?.[refundCandidate.itemId];
         if (!itemInInventory || itemInInventory.quantity < 1) throw "환불할 아이템이 없습니다.";
 
-        const refundPrice = itemInInventory.price || 0;
+        const refundPrice = itemInInventory.price ?? refundCandidate.price ?? 0;
         if(refundPrice === 0) throw "환불할 수 없는 아이템입니다 (가격 정보 없음).";
 
         if((sellerData.classPoints || 0) < refundPrice) {
             throw '판매자의 포인트가 부족하여 환불할 수 없습니다.';
         }
+        
+        const itemNameToUse = itemInInventory.name || refundCandidate.name;
 
         const newQuantity = itemInInventory.quantity - 1;
         if (newQuantity > 0) {
@@ -580,15 +584,15 @@ export default function ClassStorePage() {
         const buyerLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
         transaction.set(buyerLogRef, {
             type: 'ITEM_REFUND_BUYER', amount: refundPrice, timestamp: serverTimestamp(),
-            description: `'${itemInInventory.name}' 환불`, relatedItemId: refundCandidate.itemId,
+            description: `'${itemNameToUse}' 환불`, relatedItemId: refundCandidate.itemId,
         });
 
         const sellerLogRef = doc(collection(db, 'users', refundCandidate.sellerId!, 'pointLogs'));
         transaction.set(sellerLogRef, {
             type: 'ITEM_SALE_REFUND', amount: -refundPrice, timestamp: serverTimestamp(),
-            description: `판매된 '${itemInInventory.name}' 환불 처리`, relatedItemId: refundCandidate.itemId,
+            description: `판매된 '${itemNameToUse}' 환불 처리`, relatedItemId: refundCandidate.itemId,
         });
-        return { name: itemInInventory.name, price: refundPrice };
+        return { name: itemNameToUse, price: refundPrice };
     })
     .then(({ name, price }) => {
         toast({ title: '환불 완료', description: `'${name}' 아이템이 환불 처리되어 ${price}P를 돌려받았습니다.` });
