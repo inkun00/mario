@@ -16,12 +16,9 @@ service cloud.firestore {
       allow read, write: if isSignedIn() && (request.auth.uid == userId || isTeacher(request.auth.uid));
       
       // Allow specific cross-user updates for store functionality
-      allow update: if isSignedIn() && (
-        // Allow changing points for purchases/refunds
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['classPoints']) ||
-        // Allow changing inventory for gifting
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['inventory'])
-      );
+      allow update: if isSignedIn() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasAny(['classPoints', 'inventory']) &&
+        request.resource.data.diff(resource.data).affectedKeys().subsetOf(['classPoints', 'inventory']);
 
       allow list: if isSignedIn() && 
                     (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.classId == request.query.where[2] ||
