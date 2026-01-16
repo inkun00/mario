@@ -17,6 +17,11 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if isSignedIn() && (request.auth.uid == userId || isTeacher(request.auth.uid));
       
+      // Allow point transactions between users
+      allow update: if isSignedIn() && (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['classPoints'])
+      );
+      
       // 학급 구성원 목록 조회를 위한 list 규칙
       allow list: if isSignedIn() && 
                     (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.classId == request.query.where[2] ||
@@ -51,6 +56,9 @@ service cloud.firestore {
 
       // 개별 로그 읽기 권한도 list와 동일하게 완화하여 권한 문제 해결
       allow read: if isSignedIn();
+      
+      // Added create rule to allow logging for other users
+      allow create: if isSignedIn();
     }
 
     // [게임 세트]
