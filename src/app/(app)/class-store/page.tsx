@@ -102,7 +102,7 @@ export default function ClassStorePage() {
   const [activeTab, setActiveTab] = useState('store');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAddItemDialog, setShowAddItemDialog] = useState(false);
-  const [buyCandidate, setBuyCandidate = useState<ClassStoreItem | null>(null);
+  const [buyCandidate, setBuyCandidate] = useState<ClassStoreItem | null>(null);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [manageSellingItem, setManageSellingItem] = useState<ClassStoreItem | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<ClassStoreItem | null>(null);
@@ -620,5 +620,3 @@ export default function ClassStorePage() {
     </>
   );
 }
-
-    
