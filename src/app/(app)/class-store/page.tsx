@@ -254,11 +254,23 @@ export default function ClassStorePage() {
         const sellerRef = doc(db, 'users', buyCandidate.sellerId);
         const itemRef = doc(db, 'class-store-items', buyCandidate.id);
 
-        const itemDoc = await transaction.get(itemRef);
+        // --- 모든 읽기 작업을 먼저 수행 ---
+        const [itemDoc, buyerDoc] = await Promise.all([
+          transaction.get(itemRef),
+          transaction.get(buyerRef),
+        ]);
+
         if (!itemDoc.exists() || itemDoc.data().quantity < 1) {
           throw '이 아이템은 품절되었거나 더 이상 사용할 수 없습니다.';
         }
 
+        if (!buyerDoc.exists()) {
+            throw "구매자 정보를 찾을 수 없습니다.";
+        }
+        
+        const buyerData = buyerDoc.data() as User;
+
+        // --- 모든 쓰기 작업을 이후에 수행 ---
         // 1. 구매자 포인트 차감
         transaction.update(buyerRef, { classPoints: increment(-buyCandidate.price) });
         // 2. 판매자 포인트 증가
@@ -278,7 +290,6 @@ export default function ClassStorePage() {
           emoji: buyCandidate.emoji,
         };
         const inventoryPath = `inventory.${buyCandidate.id}`;
-        const buyerData = (await transaction.get(buyerRef)).data() as User;
         const existingItem = buyerData.inventory?.[buyCandidate.id];
 
         if (existingItem) {
@@ -365,7 +376,9 @@ export default function ClassStorePage() {
     try {
         await runTransaction(db, async (transaction) => {
             const userRef = doc(db, 'users', user.uid);
-            const userData = (await transaction.get(userRef)).data() as User;
+            const userDoc = await transaction.get(userRef);
+            if (!userDoc.exists()) throw "사용자 정보를 찾을 수 없습니다.";
+            const userData = userDoc.data() as User;
 
             const itemInInventory = userData.inventory?.[useCandidate.itemId];
             if (!itemInInventory || itemInInventory.quantity < 1) {
@@ -468,19 +481,32 @@ export default function ClassStorePage() {
   };
   
   const handleRefundItem = async () => {
-    if (!user || !refundCandidate || !refundCandidate.sellerId || !refundCandidate.price) return;
+    if (!user || !refundCandidate || !refundCandidate.sellerId || refundCandidate.price === undefined) return;
     
     setIsProcessing(true);
     try {
         await runTransaction(db, async (transaction) => {
             const buyerRef = doc(db, 'users', user.uid);
-            const sellerRef = doc(db, 'users', refundCandidate.sellerId);
+            const sellerRef = doc(db, 'users', refundCandidate.sellerId!);
             const itemRef = doc(db, 'class-store-items', refundCandidate.itemId);
 
-            // 1. Remove item from buyer's inventory
-            const buyerData = (await transaction.get(buyerRef)).data() as User;
+            const [buyerDoc, sellerDoc] = await Promise.all([
+                transaction.get(buyerRef),
+                transaction.get(sellerRef)
+            ]);
+
+            if (!buyerDoc.exists()) throw "구매자 정보를 찾을 수 없습니다.";
+            if (!sellerDoc.exists()) throw "판매자 정보를 찾을 수 없습니다.";
+
+            const buyerData = buyerDoc.data() as User;
+            const sellerData = sellerDoc.data() as User;
+
             const itemInInventory = buyerData.inventory?.[refundCandidate.itemId];
             if (!itemInInventory || itemInInventory.quantity < 1) throw "환불할 아이템이 없습니다.";
+
+            if((sellerData.classPoints || 0) < refundCandidate.price!) {
+                throw '판매자의 포인트가 부족하여 환불할 수 없습니다.';
+            }
 
             const newQuantity = itemInInventory.quantity - 1;
             if (newQuantity > 0) {
@@ -489,27 +515,17 @@ export default function ClassStorePage() {
                 transaction.update(buyerRef, { [`inventory.${refundCandidate.itemId}`]: deleteField() });
             }
 
-            // 2. Refund points to buyer
             transaction.update(buyerRef, { classPoints: increment(refundCandidate.price!) });
-
-            // 3. Deduct points from seller
-            const sellerData = (await transaction.get(sellerRef)).data() as User;
-            if((sellerData.classPoints || 0) < refundCandidate.price!) {
-                throw '판매자의 포인트가 부족하여 환불할 수 없습니다.';
-            }
             transaction.update(sellerRef, { classPoints: increment(-refundCandidate.price!) });
-            
-            // 4. Restore item quantity
             transaction.update(itemRef, { quantity: increment(1) });
 
-            // 5. Log transactions
             const buyerLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
             transaction.set(buyerLogRef, {
                 type: 'ITEM_REFUND_BUYER', amount: refundCandidate.price, timestamp: serverTimestamp(),
                 description: `'${refundCandidate.name}' 환불`, relatedItemId: refundCandidate.itemId,
             });
 
-            const sellerLogRef = doc(collection(db, 'users', refundCandidate.sellerId, 'pointLogs'));
+            const sellerLogRef = doc(collection(db, 'users', refundCandidate.sellerId!, 'pointLogs'));
             transaction.set(sellerLogRef, {
                 type: 'ITEM_SALE_REFUND', amount: -refundCandidate.price, timestamp: serverTimestamp(),
                 description: `판매된 '${refundCandidate.name}' 환불 처리`, relatedItemId: refundCandidate.itemId,
