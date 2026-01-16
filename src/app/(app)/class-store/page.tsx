@@ -236,7 +236,6 @@ export default function ClassStorePage() {
             operation: 'create',
             requestResourceData: newItemData,
         }));
-        toast({ variant: 'destructive', title: '오류', description: '아이템 추가 중 오류가 발생했습니다.' });
     })
     .finally(() => {
       setIsSubmitting(false);
@@ -338,7 +337,6 @@ export default function ClassStorePage() {
               price: buyCandidate.price
             },
         }));
-        toast({ variant: 'destructive', title: '구매 실패', description: '권한 오류 또는 서버 문제로 구매에 실패했습니다.' });
     })
     .finally(() => {
         setIsPurchasing(false);
@@ -357,7 +355,6 @@ export default function ClassStorePage() {
                 path: `class-store-items/${deleteCandidate.id}`,
                 operation: 'delete',
             }));
-            toast({ variant: "destructive", title: "오류", description: "아이템 삭제 중 오류가 발생했습니다."});
         })
         .finally(() => {
             setDeleteCandidate(null);
@@ -388,7 +385,6 @@ export default function ClassStorePage() {
       }
     } catch (error) {
         console.error("Error fetching buyers: ", error);
-        toast({variant: "destructive", title: "오류", description: "구매자 목록을 불러오는 중 오류가 발생했습니다."});
     } finally {
         setIsLoadingBuyers(false);
     }
@@ -434,7 +430,6 @@ export default function ClassStorePage() {
             operation: 'update',
             requestResourceData: { inventoryUpdate: { [useCandidate.itemId]: 'DECREMENT or DELETE' } }
         }));
-        toast({ variant: "destructive", title: "오류", description: `아이템 사용 중 오류가 발생했습니다: ${error.toString()}` });
     })
     .finally(() => {
         setIsProcessing(false);
@@ -466,7 +461,6 @@ export default function ClassStorePage() {
             throw "선물할 아이템의 수량이 부족합니다.";
         }
 
-        // 1. Sender's inventory update
         const newSenderQuantity = itemInInventory.quantity - giftQuantity;
         if (newSenderQuantity > 0) {
             transaction.update(senderRef, { [`inventory.${giftCandidate.itemId}.quantity`]: newSenderQuantity });
@@ -474,7 +468,6 @@ export default function ClassStorePage() {
             transaction.update(senderRef, { [`inventory.${giftCandidate.itemId}`]: deleteField() });
         }
         
-        // 2. Recipient's inventory update
         const recipientData = recipientDoc.data() as User;
         const itemInRecipientInventory = recipientData.inventory?.[giftCandidate.itemId];
         if (itemInRecipientInventory) {
@@ -483,7 +476,6 @@ export default function ClassStorePage() {
               transaction.set(recipientRef, { inventory: { [giftCandidate.itemId]: {...giftCandidate, quantity: giftQuantity } } }, { merge: true });
         }
         
-        // 3. Log for sender
         const senderLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
         transaction.set(senderLogRef, {
             type: 'ITEM_GIFT_SEND', amount: 0, timestamp: serverTimestamp(),
@@ -491,7 +483,6 @@ export default function ClassStorePage() {
             relatedItemId: giftCandidate.itemId, relatedUserId: giftRecipient
         });
         
-        // 4. Log for recipient
         const recipientLogRef = doc(collection(db, 'users', giftRecipient, 'pointLogs'));
         transaction.set(recipientLogRef, {
             type: 'ITEM_GIFT_RECEIVE', amount: 0, timestamp: serverTimestamp(),
@@ -513,7 +504,6 @@ export default function ClassStorePage() {
               quantity: giftQuantity,
             }
         }));
-        toast({ variant: 'destructive', title: '선물 실패', description: `선물 전송 중 오류가 발생했습니다: ${error.toString()}` });
     })
     .finally(() => {
         setIsProcessing(false);
@@ -589,7 +579,6 @@ export default function ClassStorePage() {
               price: refundCandidate.price
             }
         }));
-        toast({ variant: 'destructive', title: '환불 실패', description: `환불 처리 중 오류가 발생했습니다: ${error.toString()}`});
     })
     .finally(() => {
         setIsProcessing(false);
