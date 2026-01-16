@@ -19,6 +19,7 @@ import {
   getDocs,
   deleteDoc,
   updateDoc,
+  deleteField,
 } from 'firebase/firestore';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -375,9 +376,7 @@ export default function ClassStorePage() {
             if (newQuantity > 0) {
                 transaction.update(userRef, { [`inventory.${useCandidate.itemId}.quantity`]: newQuantity });
             } else {
-                const newInventory = { ...userData.inventory };
-                delete newInventory[useCandidate.itemId];
-                transaction.update(userRef, { inventory: newInventory });
+                transaction.update(userRef, { [`inventory.${useCandidate.itemId}`]: deleteField() });
             }
             
             const logRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
@@ -428,9 +427,7 @@ export default function ClassStorePage() {
             if (newSenderQuantity > 0) {
                 transaction.update(senderRef, { [`inventory.${giftCandidate.itemId}.quantity`]: newSenderQuantity });
             } else {
-                const newInventory = { ...senderData.inventory };
-                delete newInventory[giftCandidate.itemId];
-                transaction.update(senderRef, { inventory: newInventory });
+                transaction.update(senderRef, { [`inventory.${giftCandidate.itemId}`]: deleteField() });
             }
             
             // 2. Recipient's inventory update
@@ -489,9 +486,7 @@ export default function ClassStorePage() {
             if (newQuantity > 0) {
                 transaction.update(buyerRef, { [`inventory.${refundCandidate.itemId}.quantity`]: newQuantity });
             } else {
-                const newInventory = { ...buyerData.inventory };
-                delete newInventory[refundCandidate.itemId];
-                transaction.update(buyerRef, { inventory: newInventory });
+                transaction.update(buyerRef, { [`inventory.${refundCandidate.itemId}`]: deleteField() });
             }
 
             // 2. Refund points to buyer
