@@ -10,11 +10,16 @@ export type PointLogType =
   | 'ITEM_PURCHASE'    // 아이템 구매 (포인트 차감)
   | 'ITEM_SALE'        // 아이템 판매 (포인트 획득)
   | 'ITEM_REFUND_BUYER'// 아이템 환불 (구매자 포인트 환급)
-  | 'ITEM_REFUND_SELLER'// 아이템 환불 (판매자 포인트 차감)
+  | 'ITEM_REFUND_SELLER'// 아이템 판매 취소에 따른 환불 (판매자 포인트 차감)
+  | 'ITEM_SALE_REFUND' // 판매된 아이템이 환불됨 (판매자 포인트 차감)
   | 'SEND_POINTS'      // 포인트 보내기 (차감)
   | 'RECEIVE_POINTS'   // 포인트 받기 (획득)
   | 'TEACHER_GRANT'    // 교사 지급
-  | 'TEACHER_DEDUCT';  // 교사 회수
+  | 'TEACHER_DEDUCT'  // 교사 회수
+  | 'ITEM_USE'         // 아이템 사용
+  | 'ITEM_GIFT_SEND'   // 아이템 선물
+  | 'ITEM_GIFT_RECEIVE'; // 아이템 받음
+
 
 export interface PointLog {
   id: string;
@@ -27,7 +32,6 @@ export interface PointLog {
   relatedItemId?: string; // 예: 구매/판매한 아이템 ID
   relatedQuestion?: Question; // 퀴즈 보상과 관련된 질문 정보
 }
-
 
 export interface User {
   uid: string;
@@ -47,7 +51,7 @@ export interface User {
   classId?: string; // 학생이 속한 학급 코드
   classCode?: string; // 교사가 생성한 학급 코드
   inventory?: {
-    [itemName: string]: {
+    [itemId: string]: {
       name: string;
       itemId: string; // The original document ID from class-store-items
       quantity: number;
@@ -264,7 +268,4 @@ export interface ClassStoreItem {
 
 export interface ItemBuyer {
     uid: string;
-    name: string;
-    nickname: string;
-    quantity: number;
-}
+    name
