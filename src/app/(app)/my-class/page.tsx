@@ -2,966 +2,619 @@
 
 'use client';
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { useAuthState } from 'react-firebase-hooks/auth';
-import { collection, query, where, getDocs, doc, getDoc, addDoc, serverTimestamp, onSnapshot, Unsubscribe, runTransaction, updateDoc, deleteDoc, increment, orderBy, writeBatch, collectionGroup } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
-import type { User, ClassStoreItem, ItemBuyer, ItemReport, PointLog, PointAcquisitionRule, Question } from '@/lib/types';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  CardFooter,
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, Users, Crown, Store, ShoppingCart, Repeat, Save, MinusCircle, Trash2, Gem, Package, Send, ArrowRightLeft, ArrowLeft, ArrowRight, Gift, Settings, AlertTriangle, ShieldCheck, Undo2, LineChart, Library, BarChartHorizontal, History } from 'lucide-react';
-import { getLevelInfo, getNextLevelInfo, type LevelInfo } from '@/lib/level-system';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { useToast } from '@/hooks/use-toast';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { auth, db } from '@/lib/firebase';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, GameSet, GameSetComment, PlayedGameSet, PointLog } from '@/lib/types';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction, addDoc, QueryDocumentSnapshot, DocumentSnapshot, QuerySnapshot } from 'firebase/firestore';
+import { updateProfile } from 'firebase/auth';
+import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye, MessageSquare, LineChart, PieChart as PieChartIcon } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
-import { MotionDiv } from '@/components/motion-div';
-import { PixelAvatar } from '@/components/pixel-avatar';
+import { getLevelInfo, getNextLevelInfo, LevelInfo, levelSystem } from '@/lib/level-system';
+import { Progress } from '@/components/ui/progress';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import Image from 'next/image';
 import { Combobox } from '@/components/ui/combobox';
-import { v4 as uuidv4 } from 'uuid';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import dynamic from 'next/dynamic';
+import { PixelAvatar } from '@/components/pixel-avatar';
+import { Textarea } from '@/components/ui/textarea';
+import Link from 'next/link';
+import { formatDistanceToNow } from 'date-fns';
+import { ko } from 'date-fns/locale';
+import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart, ResponsiveContainer, Cell, Pie, PieChart, Legend } from 'recharts';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 
 
-const sellItemSchema = z.object({
-  name: z.string().min(1, '상품명을 입력해주세요.').max(30, '상품명은 30자 이내로 입력해주세요.'),
-  price: z.coerce.number().min(1, '가격은 1 이상이어야 합니다.'),
-  description: z.string().min(1, '제품 설명을 입력해주세요.').max(200, '설명은 200자 이내로 입력해주세요.'),
-  quantity: z.coerce.number().min(1, '수량은 1 이상이어야 합니다.'),
-  emoji: z.string().optional(),
+const PixelEditor = dynamic(() => import('@/components/pixel-editor').then(mod => mod.PixelEditor), {
+  ssr: false,
+  loading: () => <Skeleton className="h-64 w-full" />,
 });
 
-type SellItemFormValues = z.infer<typeof sellItemSchema>;
 
-const emojiCategories = {
-  '간식': ['🍕', '🍔', '🍟', '🌭', '🍿', '🥨', '🍪', '🍩', '🍦', '🍰', '🍫', '🍬', '🍭', '🍮', '🍯', '🍎', '🍇', '🍉', '🍓', '🍑', '🥝', '🥤', '🧃', '🥛', '☕'],
-  '학교 및 학습': ['📚', '📖', '📝', '✏️', '🖍️', '🖌️', '✂️', '📏', '📐', '📌', '📎', '📓', '📒', '💼', '🎒', '🏫', '🔔', '⏰', '🗓️', '📋', '💯', '🏅', '🏆', '🥇', '🥈', '🥉', '🎓', '👨‍🏫', '👩‍🏫', '✨', '💡', '🔑'],
-  '상업 및 서비스': ['💰', '🪙', '💵', '💳', '🧾', '🏷️', '📦', '🎁', '🎉', '💌', '💎', '👑', '🌟', '🚀', '🤝', '💪', '🙏', '😇', '😈', '🛡️', '⚔️'],
-  '동물': ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦'],
-  '사물': ['📱', '💻', '🖥️', '📷', '📹', '📺', '🎸', '🎹', '🚗', '🚲', '✈️', '🎈'],
-  '기타': ['❓', '❗️', '👻', '💀', '👽', '🤖', '👾', '🤡', '🤠', '🦄', '➡️', '↪️', '🔄', '🆓', '➕', '➖', '➗', '✖️'],
+interface ReviewQuestion extends IncorrectAnswer {
+    userReviewAnswer?: string;
+    isSubmitting?: boolean;
+}
+
+const transformStats = (flatStats: SubjectStat[]): SubjectStat[] => {
+  return flatStats.map(stat => {
+    if (stat.units && typeof stat.units === 'object' && !Array.isArray(stat.units)) {
+      const sanitizedStat = {
+        ...stat,
+        totalCorrect: stat.totalCorrect || 0,
+        totalIncorrect: stat.totalIncorrect || 0,
+        units: { ...stat.units },
+      };
+      for (const unit in sanitizedStat.units) {
+        sanitizedStat.units[unit] = {
+          totalCorrect: sanitizedStat.units[unit].totalCorrect || 0,
+          totalIncorrect: sanitizedStat.units[unit].totalIncorrect || 0,
+        };
+      }
+      return sanitizedStat;
+    }
+
+    const newStat: SubjectStat = {
+      id: stat.id,
+      totalCorrect: stat.totalCorrect || 0,
+      totalIncorrect: stat.totalIncorrect || 0,
+      units: {},
+    };
+
+    for (const key in stat) {
+      if (key.startsWith('units.')) {
+        const parts = key.split('.');
+        const unitName = parts.slice(1, -1).join('.');
+        const metric = parts[parts.length - 1];
+
+        if (unitName && (metric === 'totalCorrect' || metric === 'totalIncorrect')) {
+          if (!newStat.units![unitName]) {
+            newStat.units![unitName] = { totalCorrect: 0, totalIncorrect: 0 };
+          }
+          newStat.units![unitName][metric as 'totalCorrect' | 'totalIncorrect'] = (stat[key as keyof SubjectStat] as number) || 0;
+        }
+      }
+    }
+    return newStat;
+  });
 };
 
-interface EmojiSelectorProps {
-  value: string | undefined;
-  onChange: (value: string) => void;
-}
 
-const EmojiSelector = React.memo(function EmojiSelector({ value, onChange }: EmojiSelectorProps) {
-    return (
-        <ScrollArea className="h-48">
-             <div className="grid grid-cols-8 gap-1">
-                {Object.entries(emojiCategories).map(([category, emojis]) => (
-                    <React.Fragment key={category}>
-                        <div className="col-span-8 text-sm font-medium text-muted-foreground pt-2">{category}</div>
-                        {emojis.map((emoji) => (
-                           <div
-                              key={emoji}
-                              onClick={() => onChange(emoji)}
-                              className={cn(
-                                "text-2xl p-2 rounded-md cursor-pointer transition-all flex items-center justify-center aspect-square",
-                                value === emoji ? "bg-primary/20 ring-2 ring-primary" : "hover:bg-accent"
-                              )}
-                            >
-                              {emoji}
-                            </div>
-                        ))}
-                    </React.Fragment>
-                ))}
-            </div>
-        </ScrollArea>
-    );
-});
-EmojiSelector.displayName = 'EmojiSelector';
-
-interface AggregatedStat {
-    total: number;
-    correct: number;
-    accuracy: number;
-}
-
-interface LearningAnalysisData {
-    subjectStats: Record<string, AggregatedStat>;
-    unitStats: Record<string, AggregatedStat>;
-    lowAccuracyQuestions: (Question & { accuracy: number })[];
-}
-
-interface PointAnalysisData {
-  totalHeldPoints: number;
-  totalSpentPoints: number;
-  topSoldItems: { name: string; count: number }[];
-}
-
-
-export default function MyClassPage() {
+export default function ProfilePage() {
   const [user] = useAuthState(auth);
   const [userData, setUserData] = useState<User | null>(null);
-  const [classMembers, setClassMembers] = useState<User[]>([]);
-  const [teacher, setTeacher] = useState<User | null>(null);
+  const [reviewQuestions, setReviewQuestions] = useState<ReviewQuestion[]>([]);
+  const [solvedReviewQuestions, setSolvedReviewQuestions] = useState<SolvedIncorrectAnswer[]>([]);
+  const [subjectStats, setSubjectStats] = useState<SubjectStat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [classmates, setClassmates] = useState<{value: string; label: string}[]>([]);
-
-  const [classStoreItems, setClassStoreItems] = useState<ClassStoreItem[]>([]);
-  const [isStoreLoading, setIsStoreLoading] = useState(true);
-
-  const [isSellItemDialogOpen, setIsSellItemDialogOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<{name: string, details: {itemId: string, quantity: number, description?: string, sellerId?: string, sellerNickname?: string, price?: number, emoji?: string}} | null>(null);
-  const [isBuyItemDialogOpen, setIsBuyItemDialogOpen] = useState(false);
-  const [selectedItemForDescription, setSelectedItemForDescription] = useState<ClassStoreItem | null>(null);
-  
-  const [evictCandidate, setEvictCandidate] = useState<User | null>(null);
-  
-  const [reportCandidate, setReportCandidate] = useState<ClassStoreItem | null>(null);
-  const [reportReason, setReportReason] = useState('');
-  const [isReporting, setIsReporting] = useState(false);
-
-  const [reportedItemDetails, setReportedItemDetails] = useState<ClassStoreItem | null>(null);
-
-  const [selectedStudent, setSelectedStudent] = useState<User | null>(null);
-  const [studentPointLogs, setStudentPointLogs] = useState<PointLog[]>([]);
-  const [studentSellingItems, setStudentSellingItems] = useState<ClassStoreItem[]>([]);
-  const [isStudentDetailsLoading, setIsStudentDetailsLoading] = useState(false);
-
-  const [managementAction, setManagementAction] = useState<'sendPoints' | 'takePoints' | 'sendItem' | 'takeItem' | null>(null);
-  const [managementAmount, setManagementAmount] = useState(1);
-  const [managementItem, setManagementItem] = useState('');
-  const [isManagementLoading, setIsManagementLoading] = useState(false);
-  
-  const [itemAction, setItemAction] = useState<'use' | 'send' | 'refund' | null>(null);
-  const [actionQuantity, setActionQuantity] = useState(1);
-  const [sendRecipient, setSendRecipient] = useState('');
-  const [isItemActionLoading, setIsItemActionLoading] = useState(false);
-
-  const [isRefundConfirmationOpen, setIsRefundConfirmationOpen] = useState(false);
-  const [refundCandidate, setRefundCandidate] = useState<{name: string, details: {itemId: string, quantity: number, description?: string, sellerId?: string, sellerNickname?: string, price?: number}} | null>(null);
-  
-  const [selectedSellingItem, setSelectedSellingItem] = useState<ClassStoreItem | null>(null);
-  const [itemBuyers, setItemBuyers] = useState<ItemBuyer[]>([]);
-  const [isBuyersLoading, setIsBuyersLoading] = useState(false);
-  const [editItemDescription, setEditItemDescription] = useState('');
-  const [editItemQuantity, setEditItemQuantity] = useState(0);
-  const [editItemPrice, setEditItemPrice] = useState(0);
-  const [editItemEmoji, setEditItemEmoji] = useState('');
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isBuying, setIsBuying] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const [learningAnalysisData, setLearningAnalysisData] = useState<LearningAnalysisData | null>(null);
-  const [pointAnalysisData, setPointAnalysisData] = useState<PointAnalysisData | null>(null);
-  const [allClassPointLogs, setAllClassPointLogs] = useState<(PointLog & { studentName: string })[]>([]);
-  const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
-  const [pointHistoryPage, setPointHistoryPage] = useState(1);
+  const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
+  const [nextLevelInfo, setNextLevelInfo] = useState<LevelInfo | null>(null);
 
-  const [isPointHistoryOpen, setIsPointHistoryOpen] = useState(false);
-  const [pointLogs, setPointLogs] = useState<PointLog[]>([]);
-  const [isPointHistoryLoading, setIsPointHistoryLoading] = useState(false);
+  const [selectedSubject, setSelectedSubject] = useState<string>('all');
+  const [selectedUnit, setSelectedUnit] = useState<string>('all');
+
+  const [showIncorrectAnswersDialog, setShowIncorrectAnswersDialog] = useState(false);
+  const [incorrectAnswersToShow, setIncorrectAnswersToShow] = useState<SolvedIncorrectAnswer[]>([]);
+
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editNickname, setEditNickname] = useState('');
+  const [editSchoolName, setEditSchoolName] = useState('');
+
+  const [isTeacherDialog, setIsTeacherDialog] = useState(false);
+  const [teacherCode, setTeacherCode] = useState('');
+
+  const [isClassCodeDialog, setIsClassCodeDialog] = useState(false);
+  const [classCode, setClassCode] = useState('');
+  
+  const [isJoinClassDialog, setIsJoinClassDialog] = useState(false);
+  const [joinClassCode, setJoinClassCode] = useState('');
+  const [isLeaveClassDialogOpen, setIsLeaveClassDialogOpen] = useState(false);
 
   const [isSendPointsDialogOpen, setIsSendPointsDialogOpen] = useState(false);
   const [sendPointsAmount, setSendPointsAmount] = useState(0);
   const [sendPointsRecipient, setSendPointsRecipient] = useState('');
   const [isSendingPoints, setIsSendingPoints] = useState(false);
 
-  const [isBulkSendDialogOpen, setIsBulkSendDialogOpen] = useState(false);
-  const [bulkSendAmount, setBulkSendAmount] = useState(10);
-  const [bulkSendReason, setBulkSendReason] = useState('');
-  const [bulkSendRecipients, setBulkSendRecipients] = useState<string[]>([]);
-  const [isBulkSending, setIsBulkSending] = useState(false);
+  const [isAvatarEditorOpen, setIsAvatarEditorOpen] = useState(false);
+  const [currentPixelAvatar, setCurrentPixelAvatar] = useState<string[][] | null>(null);
+  
+  const [classmates, setClassmates] = useState<{value: string, label: string}[]>([]);
+
+  const [isPointManagementDialogOpen, setIsPointManagementDialogOpen] = useState(false);
+  const [pointRule, setPointRule] = useState<'teacher_only' | 'class_only' | 'all'>('all');
+
+  const [myGameSets, setMyGameSets] = useState<GameSet[]>([]);
+  const [isLoadingMyGameSets, setIsLoadingMyGameSets] = useState(true);
+  const [previewGameSet, setPreviewGameSet] = useState<GameSet | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<GameSet | null>(null);
+  
+  const [comments, setComments] = useState<GameSetComment[]>([]);
+  const [newComment, setNewComment] = useState("");
+  const [isPostingComment, setIsPostingComment] = useState(false);
+  const [playedGameSetIds, setPlayedGameSetIds] = useState<Set<string>>(new Set());
+
+  const [isPointHistoryOpen, setIsPointHistoryOpen] = useState(false);
+  const [pointLogs, setPointLogs] = useState<PointLog[]>([]);
+  const [isPointHistoryLoading, setIsPointHistoryLoading] = useState(false);
   const [chartView, setChartView] = useState<'income' | 'expense'>('income');
 
-  const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
-  const [nextLevelInfo, setNextLevelInfo] = useState<LevelInfo | null>(null);
 
-
-  const form = useForm<SellItemFormValues>({
-    resolver: zodResolver(sellItemSchema),
-    defaultValues: {
-      name: '',
-      price: 1,
-      description: '',
-      quantity: 1,
-      emoji: '📝',
-    }
-  });
-
-  const pointAnalysisDataForDialog = useMemo(() => {
-    const incomeByCategory: Record<string, number> = {};
-    const expenseByCategory: Record<string, number> = {};
-
-    pointLogs.forEach(log => {
-      if (log.amount > 0) {
-        let category = "기타 수입";
-        if (log.type === 'QUIZ_REWARD' || log.type === 'REVIEW_REWARD') category = "퀴즈/복습 보상";
-        else if (log.type === 'ITEM_SALE') category = "아이템 판매";
-        else if (log.type === 'RECEIVE_POINTS') category = "포인트 받기";
-        else if (log.type === 'TEACHER_GRANT') category = "선생님 지급";
-        else if (log.type === 'ITEM_REFUND_BUYER') category = "환불 받음";
-        incomeByCategory[category] = (incomeByCategory[category] || 0) + log.amount;
-      } else {
-        let category = "기타 지출";
-        if (log.type === 'ITEM_PURCHASE') category = "아이템 구매";
-        else if (log.type === 'SEND_POINTS') category = "포인트 보내기";
-        else if (log.type === 'TEACHER_DEDUCT') category = "선생님 회수";
-        else if (log.type === 'ITEM_REFUND_SELLER') category = "환불 처리";
-        expenseByCategory[category] = (expenseByCategory[category] || 0) + Math.abs(log.amount);
-      }
-    });
-
-    const totalIncome = Object.values(incomeByCategory).reduce((sum, value) => sum + value, 0);
-    const totalExpense = Object.values(expenseByCategory).reduce((sum, value) => sum + value, 0);
-
-    const incomeChartData = Object.entries(incomeByCategory).map(([name, value]) => ({ name, value }));
-    const expenseChartData = Object.entries(expenseByCategory).map(([name, value]) => ({ name, value }));
-
-    return { totalIncome, totalExpense, incomeChartData, expenseChartData };
-  }, [pointLogs]);
-
- useEffect(() => {
+  const fetchProfileData = useCallback(async () => {
     if (!user) {
       setIsLoading(false);
       return;
     }
+    
+    setIsLoading(true);
+    setIsLoadingMyGameSets(true);
 
-    let unsubscribeStore: Unsubscribe | undefined;
-    let unsubscribeMembers: Unsubscribe | undefined;
-    let unsubscribeUser: Unsubscribe | undefined;
+    const userRef = doc(db, 'users', user.uid);
+    const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
+    const solvedIncorrectAnswersRef = collection(db, 'users', user.uid, 'solved-incorrect-answers');
+    const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
+    const myGameSetsQuery = query(collection(db, 'game-sets'), where('creatorId', '==', user.uid));
+    const playedSetsQuery = query(collection(db, 'users', user.uid, 'playedGameSets'));
+    
+    try {
+      const [
+        userSnap, 
+        incorrectSnapshot, 
+        solvedIncorrectSnapshot, 
+        subjectStatsSnapshot, 
+        myGameSetsSnapshot, 
+        playedSetsSnapshot
+      ] = await Promise.all([
+        getDoc(userRef),
+        getDocs(query(incorrectAnswersRef, where('timestamp', '<=', new Date(Date.now() - 24 * 60 * 60 * 1000)), orderBy('timestamp', 'asc'))),
+        getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
+        getDocs(subjectStatsRef),
+        getDocs(myGameSetsQuery),
+        getDocs(playedSetsQuery),
+      ]) as [DocumentSnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot];
 
-    const fetchClassData = async () => {
-      setIsLoading(true);
-
-      unsubscribeUser = onSnapshot(doc(db, 'users', user.uid), (userSnap) => {
-        if (userSnap.exists()) {
-            const currentUserData = { uid: userSnap.id, ...userSnap.data() } as User;
-            setUserData(currentUserData);
-            
-            const currentLevel = getLevelInfo(currentUserData.xp);
-            setLevelInfo(currentLevel);
-            setNextLevelInfo(getNextLevelInfo(currentLevel.level));
-
-            const targetClassId = currentUserData.role === 'teacher' ? user.uid : currentUserData.classId;
-
-            if (targetClassId) {
-                const membersQuery = query(collection(db, 'users'), where('classId', '==', targetClassId));
-                
-                if (currentUserData.role === 'teacher') {
-                    setTeacher(currentUserData);
-                    if (unsubscribeMembers) unsubscribeMembers();
-                    unsubscribeMembers = onSnapshot(membersQuery, (snapshot) => {
-                        const members = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
-                        // Also include the teacher in the list if they are managing their class
-                        const allMembers = [currentUserData, ...members.filter(m => m.uid !== currentUserData.uid)];
-                        const uniqueMembers = Array.from(new Map(allMembers.map(item => [item.uid, item])).values());
-                        setClassMembers(uniqueMembers.sort((a, b) => (b.xp || 0) - (a.xp || 0)));
-                    });
-                } else {
-                    const teacherRef = doc(db, 'users', targetClassId);
-                    onSnapshot(teacherRef, (teacherSnapshot) => {
-                        if (teacherSnapshot.exists()) {
-                            const teacherData = { uid: teacherSnapshot.id, ...teacherSnapshot.data() } as User;
-                            setTeacher(teacherData);
-                            if (unsubscribeMembers) unsubscribeMembers();
-                            unsubscribeMembers = onSnapshot(membersQuery, (snapshot) => {
-                                const members = snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() } as User));
-                                const allMembers = [teacherData, ...members];
-                                const uniqueMembers = Array.from(new Map(allMembers.map(item => [item.uid, item])).values());
-                                setClassMembers(uniqueMembers.sort((a, b) => (b.xp || 0) - (a.xp || 0)));
-                            });
-                        }
-                    });
-                }
-                
-                // Fetch class store items
-                setIsStoreLoading(true);
-                const storeQuery = query(collection(db, 'class-store-items'), where('classId', '==', targetClassId));
-                if (unsubscribeStore) unsubscribeStore();
-                unsubscribeStore = onSnapshot(storeQuery, (snapshot) => {
-                    const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClassStoreItem));
-                    setClassStoreItems(items);
-                    setIsStoreLoading(false);
-                }, (error) => {
-                    console.error("Error fetching store items:", error);
-                    toast({ variant: "destructive", title: "오류", description: "학급 매장 상품을 불러오는 중 오류가 발생했습니다."});
-                    setIsStoreLoading(false);
-                });
-            } else {
-                setIsStoreLoading(false);
-                setClassMembers([]);
-                setTeacher(null);
+      if (userSnap.exists()) {
+        const fetchedUserData = userSnap.data() as User;
+        setUserData(fetchedUserData);
+        setPointRule(fetchedUserData.pointAcquisitionRule || 'all');
+        if (fetchedUserData.pixelAvatar) {
+            try {
+                setCurrentPixelAvatar(JSON.parse(fetchedUserData.pixelAvatar));
+            } catch (e) {
+                console.error("Error parsing pixelAvatar:", e);
+                setCurrentPixelAvatar(null);
             }
+        } else {
+            setCurrentPixelAvatar(null);
         }
-        setIsLoading(false);
+        setEditName(fetchedUserData.name || '');
+        setEditNickname(fetchedUserData.displayName);
+        setEditSchoolName(fetchedUserData.schoolName || '');
+        if (fetchedUserData.role === 'teacher') {
+          setClassCode(fetchedUserData.classCode || '');
+        }
+        const currentLevel = getLevelInfo(fetchedUserData.xp);
+        setLevelInfo(currentLevel);
+        setNextLevelInfo(getNextLevelInfo(currentLevel.level));
+      }
+
+      setReviewQuestions(incorrectSnapshot.docs.map((doc: QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() } as IncorrectAnswer)));
+      setSolvedReviewQuestions(solvedIncorrectSnapshot.docs.map((doc: QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer)));
+      setSubjectStats(transformStats(subjectStatsSnapshot.docs.map((doc: QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() } as SubjectStat))));
+      
+      const gameSets = myGameSetsSnapshot.docs.map((doc: QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() } as GameSet));
+      // @ts-ignore: 빌드 에러를 해결하기 위해 다음 라인의 타입 체크를 건너뜁니다.
+      gameSets.sort((a: any, b: any) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+      setMyGameSets(gameSets);
+
+      const ids = new Set<string>();
+      playedSetsSnapshot.docs.forEach((doc: QueryDocumentSnapshot) => {
+        const data = doc.data() as PlayedGameSet;
+        if (data.gameSetId) {
+          ids.add(data.gameSetId);
+        }
       });
-    };
+      setPlayedGameSetIds(ids);
 
-    fetchClassData();
-
-    return () => {
-        if (unsubscribeStore) unsubscribeStore();
-        if (unsubscribeMembers) unsubscribeMembers();
-        if (unsubscribeUser) unsubscribeUser();
-    };
+    } catch (error) {
+        console.error("Error fetching profile data:", error);
+        toast({ variant: 'destructive', title: '오류', description: '프로필 데이터를 불러오는 중 오류가 발생했습니다.' });
+    } finally {
+        setIsLoading(false);
+        setIsLoadingMyGameSets(false);
+    }
   }, [user, toast]);
 
-    useEffect(() => {
-        if (user && classMembers.length > 0) {
-        const filteredClassmates = classMembers
-            .filter(member => member.uid !== user.uid)
-            .map(member => ({
-            value: member.uid,
-            label: `${member.name || member.displayName} ${member.role === 'teacher' ? '(선생님)' : ''}`.trim(),
-            }));
-        setClassmates(filteredClassmates);
-        } else {
-        setClassmates([]);
+  const fetchClassmates = useCallback(async () => {
+    if (!user || !userData) {
+      setClassmates([]);
+      return;
+    }
+  
+    try {
+      const members: User[] = [];
+      const isTeacher = userData.role === 'teacher';
+      const classIdForQuery = isTeacher ? user.uid : userData.classId;
+  
+      if (classIdForQuery) {
+        const classmatesQuery = query(
+          collection(db, 'users'),
+          where('classId', '==', classIdForQuery)
+        );
+        
+        const classmatesSnapshot = await getDocs(classmatesQuery);
+        const studentMembers = classmatesSnapshot.docs
+          .map(doc => doc.data() as User)
+          .filter(member => member.uid !== user.uid); 
+        members.push(...studentMembers);
+  
+        if (!isTeacher && userData.classId) {
+          const teacherRef = doc(db, 'users', userData.classId);
+          const teacherSnap = await getDoc(teacherRef);
+          if (teacherSnap.exists()) {
+            members.push(teacherSnap.data() as User);
+          }
         }
-    }, [classMembers, user]);
+      }
+      
+      setClassmates(members.map(member => ({
+        value: member.uid,
+        label: `${member.name || member.displayName} ${member.role === 'teacher' ? '(선생님)' : ''}`.trim(),
+      })));
+  
+    } catch (error) {
+      console.error("Error fetching classmates:", error);
+      toast({ variant: 'destructive', title: '오류', description: '학급 구성원 목록을 불러오는 데 실패했습니다.' });
+    }
+  }, [user, userData, toast]);
 
-    const handleTabChange = useCallback(async (tab: string) => {
-        if (!classMembers || classMembers.length <= 1) return;
 
-        if (tab === 'analysis' && !learningAnalysisData) {
-            setIsAnalysisLoading(true);
-            try {
-                const studentIds = classMembers.filter(m => m.role !== 'teacher').map(m => m.uid);
-                const allLogs: PointLog[] = [];
-                
-                for (const id of studentIds) {
-                    const logsQuery = query(collection(db, `users/${id}/pointLogs`), where('type', '==', 'QUIZ_REWARD'));
-                    const logSnapshot = await getDocs(logsQuery);
-                    logSnapshot.forEach(doc => {
-                        const logData = doc.data() as PointLog;
-                        if (logData.relatedQuestion) {
-                            allLogs.push(logData);
-                        }
-                    });
-                }
-                
-                const subjectStats: Record<string, { total: number; correct: number }> = {};
-                const unitStats: Record<string, { total: number; correct: number }> = {};
-                const questionStats: Record<string, { total: number; correct: number; question: Question }> = {};
+  useEffect(() => {
+    fetchProfileData();
+  }, [fetchProfileData]);
 
-                allLogs.forEach(log => {
-                    const question = log.relatedQuestion as Question;
-                    if (!question || !question.subject) return;
+  useEffect(() => {
+    if (userData) {
+      fetchClassmates();
+    }
+  }, [userData, fetchClassmates]);
 
-                    const isCorrect = log.amount > 0;
-                    
-                    // Subject stats
-                    if (!subjectStats[question.subject]) subjectStats[question.subject] = { total: 0, correct: 0 };
-                    subjectStats[question.subject].total++;
-                    if (isCorrect) subjectStats[question.subject].correct++;
+  useEffect(() => {
+    if (!previewGameSet) {
+      setComments([]);
+      return;
+    }
 
-                    // Unit stats (simple aggregation for now)
-                    if (question.unit) {
-                        const simpleUnit = question.unit.trim();
-                        if (!unitStats[simpleUnit]) unitStats[simpleUnit] = { total: 0, correct: 0 };
-                        unitStats[simpleUnit].total++;
-                        if (isCorrect) unitStats[simpleUnit].correct++;
-                    }
+    const commentsQuery = query(collection(db, 'game-sets', previewGameSet.id, 'comments'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(commentsQuery, (snapshot) => {
+      const fetchedComments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSetComment));
+      setComments(fetchedComments);
+    });
 
-                    // Question stats
-                    const questionKey = `${question.subject}-${question.unit}-${question.question}`;
-                    if (!questionStats[questionKey]) questionStats[questionKey] = { total: 0, correct: 0, question: question };
-                    questionStats[questionKey].total++;
-                    if (isCorrect) questionStats[questionKey].correct++;
-                });
+    return () => unsubscribe();
+  }, [previewGameSet]);
 
-                const toAggr = (stats: Record<string, { total: number; correct: number }>): Record<string, AggregatedStat> => {
-                    return Object.entries(stats).reduce((acc, [key, val]) => {
-                        acc[key] = { ...val, accuracy: val.total > 0 ? (val.correct / val.total) * 100 : 0 };
-                        return acc;
-                    }, {} as Record<string, AggregatedStat>);
-                }
+  const handlePostComment = async () => {
+    if (!newComment.trim() || !user || !previewGameSet || !userData) return;
 
-                const lowAccuracyQuestions = Object.values(questionStats)
-                    .map(stat => ({ ...stat.question, accuracy: stat.total > 0 ? (stat.correct / stat.total) * 100 : 0 }))
-                    .filter(q => q.accuracy < 100)
-                    .sort((a, b) => a.accuracy - b.accuracy)
-                    .slice(0, 10);
+    setIsPostingComment(true);
+    try {
+      const commentData = {
+        userId: user.uid,
+        userNickname: userData.displayName,
+        userAvatar: userData.pixelAvatar || null,
+        comment: newComment,
+        createdAt: serverTimestamp()
+      };
+      await addDoc(collection(db, 'game-sets', previewGameSet.id, 'comments'), commentData);
+      setNewComment("");
+    } catch (error) {
+      console.error("Error posting comment: ", error);
+      toast({ variant: "destructive", title: "오류", description: "댓글 작성 중 오류가 발생했습니다."});
+    } finally {
+      setIsPostingComment(false);
+    }
+  };
 
-                setLearningAnalysisData({
-                    subjectStats: toAggr(subjectStats),
-                    unitStats: toAggr(unitStats),
-                    lowAccuracyQuestions,
-                });
-            } catch (e) {
-                console.error("Error analyzing learning data:", e);
-                toast({ variant: 'destructive', title: '오류', description: '학습 데이터 분석 중 오류가 발생했습니다.'});
-            } finally {
-                setIsAnalysisLoading(false);
-            }
-        } else if (tab === 'point-analysis' && !pointAnalysisData) {
-            setIsAnalysisLoading(true);
-            try {
-                const studentIds = classMembers.filter(m => m.role !== 'teacher').map(m => m.uid);
-                const allLogs: (PointLog & { studentName: string })[] = [];
-                
-                for (const id of studentIds) {
-                    const student = classMembers.find(m => m.uid === id);
-                    if (!student) continue;
 
-                    const logsQuery = query(collection(db, `users/${id}/pointLogs`));
-                    const logSnapshot = await getDocs(logsQuery);
-                    logSnapshot.forEach(doc => {
-                        allLogs.push({ ...(doc.data() as PointLog), studentName: student.displayName });
-                    });
-                }
-                
-                setAllClassPointLogs(allLogs.sort((a, b) => (b.timestamp?.toDate()?.getTime() || 0) - (a.timestamp?.toDate()?.getTime() || 0)));
-                
-                const totalHeldPoints = classMembers.reduce((sum, member) => sum + (member.classPoints || 0), 0);
-                const totalSpentPoints = allLogs
-                    .filter(log => log.type === 'ITEM_PURCHASE')
-                    .reduce((sum, log) => sum - log.amount, 0);
+  const handleEdit = () => {
+    if (!userData) return;
+    setEditName(userData.name || '');
+    setEditNickname(userData.displayName);
+    setEditSchoolName(userData.schoolName || '');
+    setIsEditing(true);
+  };
 
-                const itemPurchaseCounts: Record<string, number> = {};
-                allLogs.filter(log => log.type === 'ITEM_PURCHASE').forEach(log => {
-                    const itemName = log.description.replace('\' 구매', '').replace('\'', '');
-                    itemPurchaseCounts[itemName] = (itemPurchaseCounts[itemName] || 0) + 1;
-                });
+  const handleCancel = () => {
+    setIsEditing(false);
+  };
 
-                const topSoldItems = Object.entries(itemPurchaseCounts)
-                    .map(([name, count]) => ({ name, count }))
-                    .sort((a, b) => b.count - a.count)
-                    .slice(0, 10);
-
-                setPointAnalysisData({
-                    totalHeldPoints,
-                    totalSpentPoints,
-                    topSoldItems,
-                });
-
-            } catch (e) {
-                console.error("Error analyzing point data:", e);
-                toast({ variant: 'destructive', title: '오류', description: '포인트 데이터 분석 중 오류가 발생했습니다.'});
-            } finally {
-                setIsAnalysisLoading(false);
-            }
-        }
-    }, [learningAnalysisData, pointAnalysisData, classMembers, toast]);
-
-  async function handleSellItem(data: SellItemFormValues) {
+  const handleSave = async () => {
     if (!user || !userData) return;
-    
-    const classId = userData.role === 'teacher' ? user.uid : userData.classId;
-    if (!classId) {
-        toast({ variant: 'destructive', title: '오류', description: '소속된 학급이 없어 상품을 등록할 수 없습니다.' });
+
+    if (!editName.trim()) {
+        toast({ variant: 'destructive', title: '오류', description: '이름(실명)을 입력해주세요.' });
         return;
     }
-
-    setIsSubmitting(true);
-    try {
-        await addDoc(collection(db, 'class-store-items'), {
-            ...data,
-            sellerId: user.uid,
-            sellerName: userData.name || userData.displayName,
-            sellerNickname: userData.displayName,
-            classId: classId,
-            createdAt: serverTimestamp(),
-        });
-
-        toast({ title: '성공', description: '상품을 성공적으로 등록했습니다.' });
-        setIsSellItemDialogOpen(false);
-        form.reset();
-    } catch (error) {
-        console.error("Error adding item to store: ", error);
-        toast({ variant: 'destructive', title: '오류', description: '상품 등록 중 오류가 발생했습니다.' });
-    } finally {
-        setIsSubmitting(false);
+    if (!editNickname || editNickname.length < 2 || editNickname.length > 5) {
+      toast({ variant: 'destructive', title: '오류', description: '닉네임은 2자 이상 5자 이하로 입력해주세요.'});
+      return;
     }
+    if (!editSchoolName) {
+      toast({ variant: 'destructive', title: '오류', description: '학교 이름을 입력해주세요.'});
+      return;
+    }
+
+    try {
+      await updateProfile(user, { displayName: editNickname });
+
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        name: editName,
+        displayName: editNickname,
+        schoolName: editSchoolName,
+      });
+      
+      setUserData(prev => prev ? {...prev, name: editName, displayName: editNickname, schoolName: editSchoolName} : null);
+      setIsEditing(false);
+      toast({ title: '성공', description: '프로필이 성공적으로 업데이트되었습니다.' });
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: '오류', description: `프로필 업데이트 중 오류가 발생했습니다: ${error.message}`});
+    }
+  };
+
+  const handleSwitchToTeacher = async () => {
+      if (teacherCode !== 'indischool') {
+          toast({ variant: 'destructive', title: '코드 오류', description: '코드가 올바르지 않습니다.'});
+          return;
+      }
+      if (user) {
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, { role: 'teacher' });
+        setUserData(prev => prev ? {...prev, role: 'teacher'} : null);
+        toast({ title: '성공', description: '교사 계정으로 전환되었습니다.'});
+        setIsTeacherDialog(false);
+        setTeacherCode('');
+      }
   }
 
-  const handleBuyItem = async (item: ClassStoreItem) => {
-    if (!user) return;
-    setIsBuying(item.id);
-
-    try {
-        await runTransaction(db, async (transaction) => {
-            const buyerRef = doc(db, 'users', user.uid);
-            const sellerRef = doc(db, 'users', item.sellerId);
-            const itemRef = doc(db, 'class-store-items', item.id);
-
-            const [buyerDoc, sellerDoc, itemDoc] = await Promise.all([
-                transaction.get(buyerRef),
-                transaction.get(sellerRef),
-                transaction.get(itemRef)
-            ]);
-
-            if (!buyerDoc.exists()) throw "사용자 정보를 찾을 수 없습니다.";
-            if (!sellerDoc.exists()) throw "판매자 정보를 찾을 수 없습니다.";
-            if (!itemDoc.exists()) throw "상품 정보를 찾을 수 없거나 이미 판매되었습니다.";
-
-            const buyerData = buyerDoc.data() as User;
-            const itemData = itemDoc.data() as ClassStoreItem;
-            
-            if ((buyerData.classPoints || 0) < itemData.price) {
-                throw "학급 포인트가 부족합니다.";
-            }
-            
-            if (itemData.quantity <= 0) {
-                throw "상품의 재고가 없습니다.";
-            }
-            
-            if (itemData.report) {
-                throw "신고된 상품으로 구매할 수 없습니다.";
-            }
-
-            // 1. Update buyer's points and inventory
-            const inventoryPath = `inventory.${item.name}`;
-            const existingItem = buyerData.inventory?.[item.name];
-
-            if (existingItem) {
-                transaction.update(buyerRef, {
-                    classPoints: increment(-itemData.price),
-                    [`${inventoryPath}.quantity`]: increment(1),
-                });
-            } else {
-                transaction.update(buyerRef, {
-                    classPoints: increment(-itemData.price),
-                    [inventoryPath]: {
-                        itemId: item.id,
-                        quantity: 1,
-                        description: itemData.description,
-                        sellerId: item.sellerId,
-                        sellerNickname: item.sellerNickname,
-                        price: item.price,
-                        emoji: item.emoji,
-                    }
-                });
-            }
-
-            // 2. Log buyer's purchase
-            const buyerLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
-            transaction.set(buyerLogRef, {
-                id: buyerLogRef.id,
-                userId: user.uid,
-                type: 'ITEM_PURCHASE',
-                amount: -itemData.price,
-                timestamp: serverTimestamp(),
-                description: `'${item.name}' 구매`,
-                relatedUserId: item.sellerId,
-                relatedItemId: item.id
-            } as PointLog);
-
-            // 3. Update seller's points
-            transaction.update(sellerRef, { classPoints: increment(itemData.price) });
-
-            // 4. Log seller's sale
-            const sellerLogRef = doc(collection(db, 'users', item.sellerId, 'pointLogs'));
-            transaction.set(sellerLogRef, {
-                id: sellerLogRef.id,
-                userId: item.sellerId,
-                type: 'ITEM_SALE',
-                amount: itemData.price,
-                timestamp: serverTimestamp(),
-                description: `'${item.name}' 판매`,
-                relatedUserId: user.uid,
-                relatedItemId: item.id
-            } as PointLog);
-
-            // 5. Update item quantity
-            transaction.update(itemRef, { quantity: increment(-1) });
-        });
-      
-        toast({ title: '구매 완료!', description: `'${item.name}' 상품을 구매했습니다.` });
-
-    } catch (error: any) {
-        console.error("Purchase failed: ", error);
-        toast({ variant: "destructive", title: "구매 실패", description: typeof error === 'string' ? error : "구매 중 오류가 발생했습니다."});
-    } finally {
-        setIsBuying(null);
+  const handleSetClassCode = async () => {
+    if (!classCode || classCode.length < 4) {
+      toast({ variant: 'destructive', title: '오류', description: '학급 코드는 4자 이상이어야 합니다.' });
+      return;
     }
-};
+    if (user) {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, { classCode: classCode });
+      setUserData(prev => prev ? {...prev, classCode: classCode} : null);
+      toast({ title: '성공', description: '학급 코드가 설정되었습니다.' });
+      setIsClassCodeDialog(false);
+    }
+  }
   
-  const handleEvictStudent = async () => {
-    if (!evictCandidate || !isTeacher) return;
+  const handleJoinClass = async () => {
+    if (!joinClassCode) {
+      toast({ variant: 'destructive', title: '오류', description: '학급 코드를 입력해주세요.' });
+      return;
+    }
+
+    if (user) {
+        const q = query(collection(db, 'users'), where('classCode', '==', joinClassCode), where('role', '==', 'teacher'), limit(1));
+        const teacherSnapshot = await getDocs(q);
+
+        if (teacherSnapshot.empty) {
+            toast({ variant: 'destructive', title: '오류', description: '존재하지 않는 학급 코드입니다.' });
+            return;
+        }
+
+        const teacherDoc = teacherSnapshot.docs[0];
+        const teacherId = teacherDoc.id;
+
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, { classId: teacherId }); 
+        
+        setUserData(prev => prev ? {...prev, classId: teacherId} : null);
+        toast({ title: '성공', description: `'${teacherDoc.data().name || teacherDoc.data().displayName} 선생님'의 학급에 참여했습니다.` });
+        setIsJoinClassDialog(false);
+        setJoinClassCode('');
+    }
+  };
+  
+  const handleLeaveClass = async () => {
+    if (!user || userData?.role === 'teacher') return;
     
     try {
-      const studentRef = doc(db, 'users', evictCandidate.uid);
-      await updateDoc(studentRef, { classId: null });
-      toast({ title: '성공', description: `${evictCandidate.name || evictCandidate.displayName} 학생을 학급에서 내보냈습니다.` });
-      setEvictCandidate(null);
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, { classId: null });
+      setUserData(prev => prev ? {...prev, classId: undefined } : null);
+      toast({ title: '학급 탈퇴', description: '학급에서 성공적으로 탈퇴했습니다.' });
+      setIsLeaveClassDialogOpen(false);
     } catch(error) {
-      toast({ variant: 'destructive', title: '오류', description: '학생을 내보내는 중 오류가 발생했습니다.' });
-      console.error('Error evicting student:', error);
+      toast({ variant: 'destructive', title: '오류', description: '학급 탈퇴 중 오류가 발생했습니다.' });
+      console.error('Error leaving class:', error);
     }
   };
 
-  const handleStudentClick = async (student: User) => {
-    if (!isTeacher) return;
 
-    setSelectedStudent(student);
-    setIsStudentDetailsLoading(true);
-
-    try {
-        const sellingItemsQuery = query(collection(db, 'class-store-items'), where('sellerId', '==', student.uid));
-        const pointLogsQuery = query(collection(db, 'users', student.uid, 'pointLogs'), orderBy('timestamp', 'asc'));
-
-        const [sellingItemsSnapshot, pointLogsSnapshot] = await Promise.all([
-            getDocs(sellingItemsQuery),
-            getDocs(pointLogsQuery)
-        ]);
-
-        const sellingItems = sellingItemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ClassStoreItem));
-        const pointLogs = pointLogsSnapshot.docs.map(doc => doc.data() as PointLog);
-        
-        setStudentSellingItems(sellingItems);
-        setStudentPointLogs(pointLogs);
-
-    } catch (error) {
-        console.error("Error fetching student details:", error);
-        toast({ variant: 'destructive', title: '오류', description: '학생의 상세 정보를 불러오는 데 실패했습니다.' });
-    } finally {
-        setIsStudentDetailsLoading(false);
+  const availableUnits = useMemo(() => {
+    if (selectedSubject === 'all') {
+      return [];
     }
-  };
+    const subject = subjectStats.find(s => s.id === selectedSubject);
+    const units = subject?.units ? Object.keys(subject.units) : [];
+    return units;
+  }, [selectedSubject, subjectStats]);
 
-  const handleManagementAction = async () => {
-    if (!selectedStudent || !managementAction || !isTeacher || !user) return;
+  useEffect(() => {
+    setSelectedUnit('all');
+  }, [selectedSubject]);
+  
+  const overallAccuracy = useMemo(() => {
+    let totalCorrect = 0;
+    let totalIncorrect = 0;
+    subjectStats.forEach(stat => {
+      totalCorrect += stat.totalCorrect || 0;
+      totalIncorrect += stat.totalIncorrect || 0;
+    });
+    const total = totalCorrect + totalIncorrect;
+    return total > 0 ? ((totalCorrect / total) * 100).toFixed(1) : '0.0';
+  }, [subjectStats]);
 
-    setIsManagementLoading(true);
-    const studentRef = doc(db, 'users', selectedStudent.uid);
-
-    try {
-        if (managementAction === 'sendPoints' || managementAction === 'takePoints') {
-            if (managementAmount <= 0) throw "포인트는 0보다 커야 합니다.";
-            const amount = managementAction === 'sendPoints' ? managementAmount : -managementAmount;
-            
-            const batch = writeBatch(db);
-            
-            batch.update(studentRef, { classPoints: increment(amount) });
-            
-            const logDocRef = doc(collection(db, 'users', selectedStudent.uid, 'pointLogs'));
-            batch.set(logDocRef, {
-                id: logDocRef.id,
-                userId: selectedStudent.uid,
-                type: amount > 0 ? 'TEACHER_GRANT' : 'TEACHER_DEDUCT',
-                amount: amount,
-                timestamp: serverTimestamp(),
-                description: `선생님 ${amount > 0 ? '지급' : '회수'}`
-            } as PointLog);
-
-            await batch.commit();
-
-            toast({ title: '성공', description: `${selectedStudent.displayName} 학생의 포인트를 ${Math.abs(amount)} 만큼 ${amount > 0 ? '보냈습니다' : '가져왔습니다'}.`});
-        
-        } else if (managementAction === 'sendItem' || managementAction === 'takeItem') {
-            if (!managementItem) throw "상품을 선택해주세요.";
-            const amount = managementAction === 'sendItem' ? managementAmount : -managementAmount;
-
-            await runTransaction(db, async (transaction) => {
-                const studentDoc = await transaction.get(studentRef);
-                if (!studentDoc.exists()) throw "학생 정보를 찾을 수 없습니다.";
-                
-                const studentData = studentDoc.data() as User;
-                const inventory = { ...(studentData.inventory || {}) };
-                const studentItemQuantity = inventory[managementItem]?.quantity || 0;
-                
-                const storeItem = classStoreItems.find(item => item.name === managementItem && item.sellerId === user.uid);
-                
-                if (managementAction === 'sendItem') {
-                    if (!storeItem || storeItem.quantity < amount) {
-                        throw "보낼 상품의 재고가 부족합니다.";
-                    }
-                    // Decrease store quantity
-                    const storeItemRef = doc(db, 'class-store-items', storeItem.id);
-                    transaction.update(storeItemRef, { quantity: increment(-amount) });
-                }
-                
-                if (managementAction === 'takeItem') {
-                    if (studentItemQuantity < Math.abs(amount)) {
-                        throw "가져올 상품의 수량이 부족합니다.";
-                    }
-                    if (storeItem) {
-                        // Increase store quantity
-                        const storeItemRef = doc(db, 'class-store-items', storeItem.id);
-                        transaction.update(storeItemRef, { quantity: increment(Math.abs(amount)) });
-                    }
-                }
-                
-                const newQuantity = studentItemQuantity + amount;
-                if (newQuantity > 0) {
-                    inventory[managementItem] = {
-                        ...(inventory[managementItem] || storeItem),
-                        itemId: inventory[managementItem]?.itemId || storeItem?.id || 'teacher_sent',
-                        quantity: newQuantity,
-                        description: inventory[managementItem]?.description || storeItem?.description || '선생님이 보낸 상품'
-                    };
-                } else {
-                    delete inventory[managementItem];
-                }
-                transaction.update(studentRef, { inventory: inventory });
-            });
-
-            toast({ title: '성공', description: `${selectedStudent.displayName} 학생에게 '${managementItem}' 상품을 ${Math.abs(amount)}개 ${amount > 0 ? '보냈습니다' : '가져왔습니다'}.`});
-        }
-        
-        // Optimistic update of student data in the dialog
-        const updatedStudent = { ...selectedStudent };
-        if (managementAction === 'sendPoints' || managementAction === 'takePoints') {
-            const amount = managementAction === 'sendPoints' ? managementAmount : -managementAmount;
-            updatedStudent.classPoints = (updatedStudent.classPoints || 0) + amount;
+  const { filteredCorrect, filteredIncorrect, filteredAccuracy } = useMemo(() => {
+    let correct = 0;
+    let incorrect = 0;
+    
+    if (selectedSubject === 'all') {
+      subjectStats.forEach(stat => {
+        correct += stat.totalCorrect || 0;
+        incorrect += stat.totalIncorrect || 0;
+      });
+    } else {
+      const subject = subjectStats.find(s => s.id === selectedSubject);
+      if (subject) {
+        if (selectedUnit === 'all') {
+          correct = subject.totalCorrect || 0;
+          incorrect = subject.totalIncorrect || 0;
         } else {
-            // This part is complex to update optimistically without re-fetching, so we'll rely on the snapshot listener
+          if (subject.units && subject.units[selectedUnit]) {
+            correct = subject.units[selectedUnit].totalCorrect || 0;
+            incorrect = subject.units[selectedUnit].totalIncorrect || 0;
+          }
         }
-        setSelectedStudent(updatedStudent);
+      }
+    }
+
+    const total = correct + incorrect;
+    const acc = total > 0 ? ((correct / total) * 100).toFixed(1) : '0.0';
+    
+    return { filteredCorrect: correct, filteredIncorrect: incorrect, filteredAccuracy: acc };
+  }, [subjectStats, selectedSubject, selectedUnit]);
+
+
+  const handleReviewAnswerChange = (index: number, value: string) => {
+    const updatedQuestions = [...reviewQuestions];
+    updatedQuestions[index].userReviewAnswer = value;
+    setReviewQuestions(updatedQuestions);
+  };
+
+  const checkAnswer = (question: Question, userAnswer: string) => {
+    if (question.type === 'subjective') {
+      return userAnswer.trim().toLowerCase() === question.answer?.trim().toLowerCase();
+    }
+    return userAnswer === question.correctAnswer;
+  };
+
+  const handleSubmitReview = async (index: number) => {
+    const updatedQuestions = [...reviewQuestions];
+    const reviewItem = updatedQuestions[index];
+
+    if (!user || !reviewItem.userReviewAnswer) {
+      toast({ variant: 'destructive', title: '오류', description: '답변을 입력하거나 선택해주세요.' });
+      return;
+    }
+
+    updatedQuestions[index].isSubmitting = true;
+    setReviewQuestions(updatedQuestions);
+
+    const isCorrect = checkAnswer(reviewItem.question, reviewItem.userReviewAnswer);
+    
+    try {
+        const solvedDocRef = doc(db, 'users', user.uid, 'solved-incorrect-answers', reviewItem.id);
+        const solvedData: SolvedIncorrectAnswer = {
+            ...reviewItem,
+            reviewAnswer: reviewItem.userReviewAnswer,
+            wasReviewCorrect: isCorrect,
+            reviewedAt: serverTimestamp(),
+        };
+        await setDoc(solvedDocRef, solvedData);
+
+        await deleteDoc(doc(db, 'users', user.uid, 'incorrect-answers', reviewItem.id));
+
+        if (isCorrect) {
+            const userRef = doc(db, 'users', user.uid);
+            await updateDoc(userRef, { xp: increment(10), classPoints: increment(10) });
+            setUserData(prev => prev ? {...prev, xp: prev.xp + 10, classPoints: (prev.classPoints || 0) + 10} : null);
+            toast({ title: '정답입니다!', description: '복습을 완료했습니다. 10 XP와 10 학급 포인트를 획득했습니다!' });
+        } else {
+             toast({ variant: 'destructive', title: '아쉽지만 오답입니다.', description: `정답은 "${reviewItem.question.answer || reviewItem.question.correctAnswer}" 입니다.` });
+        }
         
-        setManagementAction(null);
-        setManagementAmount(1);
-        setManagementItem('');
+        setReviewQuestions(prev => prev.filter((_, i) => i !== index));
+        setSolvedReviewQuestions(prev => [solvedData, ...prev]);
 
     } catch (error: any) {
-        toast({ variant: 'destructive', title: '오류', description: typeof error === 'string' ? error : error.message || "작업 처리 중 오류가 발생했습니다."});
-    } finally {
-        setIsManagementLoading(false);
+        toast({ variant: 'destructive', title: '오류', description: `답변 제출 중 오류가 발생했습니다: ${error.message}` });
+        const revertedQuestions = [...reviewQuestions];
+        if (revertedQuestions[index]) {
+            revertedQuestions[index].isSubmitting = false;
+        }
+        setReviewQuestions(revertedQuestions);
     }
   };
 
-    const handleUpdateSellingItem = async () => {
-        if (!selectedSellingItem) return;
+  const handleShowIncorrectAnswers = () => {
+    let filtered = solvedReviewQuestions;
 
-        try {
-            const itemRef = doc(db, 'class-store-items', selectedSellingItem.id);
-            await updateDoc(itemRef, {
-                description: editItemDescription,
-                quantity: editItemQuantity,
-                price: editItemPrice,
-                emoji: editItemEmoji,
-            });
-
-            toast({ title: '성공', description: '상품 정보가 업데이트되었습니다.'});
-            setSelectedSellingItem(null);
-        } catch (e) {
-            console.error("Error updating selling item:", e);
-            toast({variant: 'destructive', title: '오류', description: '상품 정보 업데이트 중 오류가 발생'});
-        }
-    };
-
-    const handleDeleteSellingItem = async () => {
-        if (!selectedSellingItem) return;
-        try {
-            await deleteDoc(doc(db, 'class-store-items', selectedSellingItem.id));
-            toast({ title: '삭제 완료', description: `'${selectedSellingItem.name}' 상품을 매장에서 삭제했습니다.` });
-            setSelectedSellingItem(null);
-        } catch (e) {
-            console.error("Error deleting selling item:", e);
-            toast({variant: 'destructive', title: '오류', description: '상품 삭제 중 오류 발생'});
-        }
-    };
-    
-    const handleDeleteItem = async (item: ClassStoreItem) => {
-        try {
-            await deleteDoc(doc(db, 'class-store-items', item.id));
-            toast({ title: '상품 삭제', description: `'${item.name}' 상품이 매점에서 삭제되었습니다.` });
-        } catch (error) {
-            console.error("Error deleting item:", error);
-            toast({ variant: "destructive", title: "오류", description: "상품 삭제 중 오류가 발생했습니다." });
-        }
-    };
-
-
-    const handleReportItem = async () => {
-        if (!reportCandidate || !reportReason.trim() || !user || !userData) return;
-        setIsReporting(true);
-        
-        try {
-            const reportData: ItemReport = {
-                reporterId: user.uid,
-                reporterName: userData.displayName,
-                reason: reportReason,
-                reportedAt: serverTimestamp(),
-            };
-
-            const itemRef = doc(db, 'class-store-items', reportCandidate.id);
-            await updateDoc(itemRef, { report: reportData });
-            
-            toast({ title: '신고 완료', description: '상품이 신고되었습니다. 선생님이 검토할 예정입니다.' });
-            setReportCandidate(null);
-            setReportReason('');
-
-        } catch (error) {
-            console.error("Error reporting item:", error);
-            toast({ variant: "destructive", title: "신고 실패", description: "상품 신고 중 오류가 발생했습니다."});
-        } finally {
-            setIsReporting(false);
-        }
-    };
-    
-    const handleClearReport = async () => {
-        if (!reportedItemDetails || !isTeacher) return;
-        try {
-            const itemRef = doc(db, 'class-store-items', reportedItemDetails.id);
-            await updateDoc(itemRef, { report: null });
-            toast({ title: '신고 해제 완료', description: `'${reportedItemDetails.name}' 상품의 신고가 해제되었습니다.` });
-            setReportedItemDetails(null);
-        } catch (error) {
-            console.error("Error clearing report:", error);
-            toast({ variant: 'destructive', title: '오류', description: '신고 해제 중 오류가 발생했습니다.'});
-        }
+    if (selectedSubject !== 'all') {
+      filtered = filtered.filter(q => q.question.subject === selectedSubject);
+    }
+    if (selectedUnit !== 'all') {
+      filtered = filtered.filter(q => q.question.unit === selectedUnit);
     }
     
-    const handleItemClick = (item: ClassStoreItem) => {
-        if (isTeacher && item.report) {
-            setReportedItemDetails(item);
-        } else {
-            setSelectedItemForDescription(item);
-        }
-    }
-    
-    const handleItemAction = async () => {
-      if (!selectedItem || !itemAction || !user) return;
-      
-      setIsItemActionLoading(true);
-
-      try {
-        await runTransaction(db, async (transaction) => {
-            const userRef = doc(db, 'users', user.uid);
-            
-            // READ operations first
-            const userDoc = await transaction.get(userRef);
-            if (!userDoc.exists()) throw "내 정보를 찾을 수 없습니다.";
-            
-            const item = userDoc.data()?.inventory?.[selectedItem.name];
-            if (!item || item.quantity < actionQuantity) throw "상품 수량이 부족합니다.";
-            
-            let sellerRef, sellerDoc, recipientRef, recipientDoc, storeItemRef, storeItemDoc;
-            if (itemAction === 'refund') {
-                if (!item.sellerId) throw "환불 정보를 찾을 수 없습니다.";
-                sellerRef = doc(db, 'users', item.sellerId);
-                sellerDoc = await transaction.get(sellerRef);
-                storeItemRef = doc(db, 'class-store-items', item.itemId);
-                storeItemDoc = await transaction.get(storeItemRef);
-            }
-            if (itemAction === 'send') {
-                 if (!sendRecipient) throw "받는 사람을 선택해주세요.";
-                 recipientRef = doc(db, 'users', sendRecipient);
-                 recipientDoc = await transaction.get(recipientRef);
-                 if (!recipientDoc.exists()) throw "받는 사람의 정보를 찾을 수 없습니다.";
-            }
-
-            // WRITE operations after all reads
-            const currentUserData = userDoc.data() as User;
-            const inventory = { ...currentUserData.inventory };
-
-            switch (itemAction) {
-              case 'use':
-                  if (item.quantity > actionQuantity) {
-                      inventory[selectedItem.name].quantity -= actionQuantity;
-                  } else {
-                      delete inventory[selectedItem.name];
-                  }
-                  transaction.update(userRef, { inventory: inventory });
-                  break;
-              
-              case 'send':
-                  if (!recipientRef) throw "Recipient ref not defined."; // Should not happen
-                  
-                  // Update sender's inventory
-                  if (item.quantity > actionQuantity) {
-                      inventory[selectedItem.name].quantity -= actionQuantity;
-                  } else {
-                      delete inventory[selectedItem.name];
-                  }
-                  transaction.update(userRef, { inventory: inventory });
-                  
-                  const senderLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
-                  transaction.set(senderLogRef, { id: senderLogRef.id, userId: user.uid, type: 'SEND_POINTS', amount: 0, timestamp: serverTimestamp(), description: `'${selectedItem.name}' ${actionQuantity}개 보내기`, relatedUserId: sendRecipient, relatedItemId: item.itemId } as PointLog);
-
-                  // Update recipient's inventory
-                  const recipientData = recipientDoc?.data() as User;
-                  const recipientInventory = { ...recipientData.inventory };
-                  const recipientItem = recipientInventory[selectedItem.name];
-                  const newQuantity = (recipientItem?.quantity || 0) + actionQuantity;
-                  recipientInventory[selectedItem.name] = {
-                      ...item,
-                      quantity: newQuantity,
-                  };
-                  transaction.update(recipientRef, { inventory: recipientInventory });
-
-                  const recipientLogRef = doc(collection(db, 'users', sendRecipient, 'pointLogs'));
-                  transaction.set(recipientLogRef, { id: recipientLogRef.id, userId: sendRecipient, type: 'RECEIVE_POINTS', amount: 0, timestamp: serverTimestamp(), description: `'${selectedItem.name}' ${actionQuantity}개 받기`, relatedUserId: user.uid, relatedItemId: item.itemId } as PointLog);
-                  break;
-
-              case 'refund':
-                   if (!item.price || !item.sellerId || !sellerRef || !storeItemRef) throw "환불 정보를 찾을 수 없습니다.";
-                   const refundAmount = item.price * actionQuantity;
-                   
-                   // Update user's inventory and points
-                   if (item.quantity > actionQuantity) {
-                        inventory[selectedItem.name].quantity -= actionQuantity;
-                   } else {
-                       delete inventory[selectedItem.name];
-                   }
-                   transaction.update(userRef, { 
-                     inventory: inventory,
-                     classPoints: increment(refundAmount),
-                   });
-                   const buyerRefundLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
-                   transaction.set(buyerRefundLogRef, { id: buyerRefundLogRef.id, userId: user.uid, type: 'ITEM_REFUND_BUYER', amount: refundAmount, timestamp: serverTimestamp(), description: `'${selectedItem.name}' ${actionQuantity}개 환불`, relatedUserId: item.sellerId, relatedItemId: item.itemId } as PointLog);
-
-
-                   // Update seller's points
-                   transaction.update(sellerRef, { classPoints: increment(-refundAmount) });
-                   const sellerRefundLogRef = doc(collection(db, 'users', item.sellerId, 'pointLogs'));
-                   transaction.set(sellerRefundLogRef, { id: sellerRefundLogRef.id, userId: item.sellerId, type: 'ITEM_REFUND_SELLER', amount: -refundAmount, timestamp: serverTimestamp(), description: `'${selectedItem.name}' ${actionQuantity}개 환불 처리`, relatedUserId: user.uid, relatedItemId: item.itemId } as PointLog);
-
-                   // Update store item quantity
-                   if (storeItemDoc?.exists()) {
-                     transaction.update(storeItemRef, { quantity: increment(actionQuantity) });
-                   } else {
-                     // If item was deleted, re-create it
-                     transaction.set(storeItemRef, {
-                        ...item,
-                        quantity: actionQuantity,
-                        sellerNickname: item.sellerNickname, 
-                     });
-                   }
-                  break;
-            }
-        });
-
-        toast({ title: '성공', description: `'${selectedItem.name}' ${actionQuantity}개를 처리했습니다.` });
-        setSelectedItem(null);
-        setItemAction(null);
-
-      } catch (error: any) {
-        toast({ variant: 'destructive', title: '오류', description: typeof error === 'string' ? error : error.message });
-      } finally {
-        setIsItemActionLoading(false);
-      }
-    };
-    
-    const handleOpenPointHistory = async () => {
-      if (!user) return;
-      setIsPointHistoryOpen(true);
-      setIsPointHistoryLoading(true);
-      try {
-        const logsQuery = query(collection(db, 'users', user.uid, 'pointLogs'), orderBy('timestamp', 'asc'));
-        const logSnapshot = await getDocs(logsQuery);
-        const logs = logSnapshot.docs.map(doc => doc.data() as PointLog);
-        setPointLogs(logs);
-      } catch (error) {
-        console.error('Error fetching point logs:', error);
-        toast({ variant: 'destructive', title: '오류', description: '포인트 내역을 불러오는 중 오류가 발생했습니다.'});
-      } finally {
-          setIsPointHistoryLoading(false);
-      }
-    }
+    setIncorrectAnswersToShow(filtered);
+    setShowIncorrectAnswersDialog(true);
+  };
+  
+  const handleOpenSendPointsDialog = useCallback(() => {
+    setIsSendPointsDialogOpen(true);
+  }, []);
 
   const handleSendPoints = async () => {
     if (!user || !userData || !sendPointsRecipient || sendPointsAmount <= 0) {
@@ -974,8 +627,7 @@ export default function MyClassPage() {
     }
 
     setIsSendingPoints(true);
-    const recipientName = classMembers.find(m => m.uid === sendPointsRecipient)?.displayName || '친구';
-    
+    const recipientName = classmates.find(c => c.value === sendPointsRecipient)?.label || '친구';
     try {
       await runTransaction(db, async (transaction) => {
         const senderRef = doc(db, 'users', user.uid);
@@ -988,7 +640,7 @@ export default function MyClassPage() {
 
         if (!senderDoc.exists() || !recipientDoc.exists()) throw "사용자 정보를 찾을 수 없습니다.";
 
-        const senderData = senderDoc.data() as User;
+        const senderData = senderDoc.data();
         if ((senderData.classPoints || 0) < sendPointsAmount) {
           throw "보유한 학급 포인트가 부족합니다.";
         }
@@ -1033,166 +685,73 @@ export default function MyClassPage() {
     }
   };
 
-  const handleBulkSendPoints = async () => {
-    if (!user || !isTeacher || bulkSendRecipients.length === 0 || bulkSendAmount <= 0 || !bulkSendReason.trim()) {
-        toast({ variant: 'destructive', title: '오류', description: '받는 사람, 보낼 금액, 지급 사유를 모두 확인해주세요.'});
-        return;
-    }
-
-    setIsBulkSending(true);
+  const handleSaveAvatar = async (pixels: string[][]) => {
+    if (!user) return;
     try {
-        const batch = writeBatch(db);
+        const userRef = doc(db, 'users', user.uid);
+        const avatarString = JSON.stringify(pixels);
+        await setDoc(userRef, { pixelAvatar: avatarString }, { merge: true });
         
-        bulkSendRecipients.forEach(recipientId => {
-            const studentRef = doc(db, 'users', recipientId);
-            batch.update(studentRef, { classPoints: increment(bulkSendAmount) });
-
-            const logDocRef = doc(collection(db, 'users', recipientId, 'pointLogs'));
-            batch.set(logDocRef, {
-                id: logDocRef.id,
-                userId: recipientId,
-                type: 'TEACHER_GRANT',
-                amount: bulkSendAmount,
-                timestamp: serverTimestamp(),
-                description: bulkSendReason,
-                relatedUserId: user.uid,
-            } as PointLog);
+        setCurrentPixelAvatar(pixels);
+        setUserData(prev => {
+            if (!prev) return null;
+            return { ...prev, pixelAvatar: avatarString };
         });
 
-        await batch.commit();
-
-        toast({ title: '일괄 지급 완료', description: `${bulkSendRecipients.length}명의 학생에게 ${bulkSendAmount.toLocaleString()} 포인트를 성공적으로 보냈습니다.` });
-        setIsBulkSendDialogOpen(false);
-        setBulkSendAmount(10);
-        setBulkSendReason('');
-        setBulkSendRecipients([]);
-
-    } catch (error) {
-        console.error("Error bulk sending points:", error);
-        toast({ variant: 'destructive', title: '일괄 지급 실패', description: '포인트 일괄 지급 중 오류가 발생했습니다.'});
-    } finally {
-        setIsBulkSending(false);
+        toast({ title: '성공', description: '프로필 이미지가 저장되었습니다.' });
+        setIsAvatarEditorOpen(false);
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: '오류', description: `프로필 이미지 저장 중 오류가 발생했습니다: ${error.message}` });
+        console.error("Avatar save error:", error);
     }
   };
 
-  const handleManageSellingItem = useCallback(async (item: ClassStoreItem) => {
-    setSelectedSellingItem(item);
-    setEditItemDescription(item.description);
-    setEditItemQuantity(item.quantity);
-    setEditItemPrice(item.price);
-    setEditItemEmoji(item.emoji || '');
-    setItemBuyers([]);
-    setIsBuyersLoading(true);
-
+  const handleSavePointRule = async () => {
+    if (!user) return;
     try {
-        const q = query(
-          collectionGroup(db, "pointLogs"),
-          where("relatedItemId", "==", item.id),
-          where("type", "==", "ITEM_PURCHASE")
-        );
-
-        const snapshot = await getDocs(q);
-        
-        const buyersData: Record<string, ItemBuyer> = {};
-
-        snapshot.forEach(doc => {
-            const log = doc.data() as PointLog;
-            const buyerId = log.userId;
-            if (!buyersData[buyerId]) {
-                buyersData[buyerId] = {
-                    uid: buyerId,
-                    name: '정보 없음', 
-                    nickname: '정보 없음',
-                    quantity: 0
-                };
-            }
-            buyersData[buyerId].quantity += 1;
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, {
+            pointAcquisitionRule: pointRule,
         });
-
-        const buyerDetailsPromises = Object.keys(buyersData).map(uid => getDoc(doc(db, 'users', uid)));
-        const buyerSnapshots = await Promise.all(buyerDetailsPromises);
-        
-        buyerSnapshots.forEach(buyerSnap => {
-            if (buyerSnap.exists()) {
-                const buyerData = buyerSnap.data() as User;
-                if (buyersData[buyerData.uid]) {
-                    buyersData[buyerData.uid].name = buyerData.name || '이름 없음';
-                    buyersData[buyerData.uid].nickname = buyerData.displayName || '닉네임 없음';
-                }
-            }
-        });
-        
-        setItemBuyers(Object.values(buyersData));
-
+        toast({ title: '저장 완료', description: '포인트 획득 규칙이 저장되었습니다.' });
+        setIsPointManagementDialogOpen(false);
     } catch (error) {
-        console.error("Error fetching item buyers:", error);
-        toast({ variant: 'destructive', title: '오류', description: '구매자 목록을 불러오는 중 오류가 발생했습니다.'});
-    } finally {
-        setIsBuyersLoading(false);
+        console.error('Error saving point rule:', error);
+        toast({ variant: 'destructive', title: '오류', description: '규칙 저장 중 오류가 발생했습니다.'});
     }
-}, [toast]);
+  }
 
-  const ITEMS_PER_PAGE = 10;
-  const indexOfLastLog = pointHistoryPage * ITEMS_PER_PAGE;
-  const indexOfFirstLog = indexOfLastLog - ITEMS_PER_PAGE;
-  const currentLogs = allClassPointLogs.slice(indexOfFirstLog, indexOfLastLog);
-  const totalLogPages = Math.ceil(allClassPointLogs.length / ITEMS_PER_PAGE);
-
-  const handlePageChange = (page: number) => {
-    if (page >= 1 && page <= totalLogPages) {
-      setPointHistoryPage(page);
+  const handleDeleteGameSet = async () => {
+    if (!deleteCandidate) return;
+    try {
+        await deleteDoc(doc(db, "game-sets", deleteCandidate.id));
+        setMyGameSets(prev => prev.filter(set => set.id !== deleteCandidate.id));
+        toast({ title: "성공", description: "퀴즈 세트를 삭제했습니다." });
+        setDeleteCandidate(null);
+    } catch (error) {
+        console.error("Error deleting document: ", error);
+        toast({ variant: "destructive", title: "오류", description: "퀴즈 세트 삭제 중 오류가 발생했습니다." });
     }
   };
-
-
-  if (isLoading) {
-    return (
-      <div className="container mx-auto flex flex-col gap-8">
-            <Card>
-                <CardHeader>
-                    <div className="flex items-center gap-4">
-                        <Skeleton className="h-20 w-20 rounded-lg" />
-                        <div>
-                           <Skeleton className="h-8 w-40 mb-2" />
-                           <Skeleton className="h-5 w-32" />
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <div className="grid grid-cols-3 gap-4 text-center">
-                        <div>
-                            <Skeleton className="h-7 w-24 mx-auto mb-1" />
-                            <Skeleton className="h-5 w-20 mx-auto" />
-                        </div>
-                        <div>
-                            <Skeleton className="h-7 w-24 mx-auto mb-1" />
-                            <Skeleton className="h-5 w-20 mx-auto" />
-                        </div>
-                        <div>
-                            <Skeleton className="h-7 w-24 mx-auto mb-1" />
-                            <Skeleton className="h-5 w-16 mx-auto" />
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader><Skeleton className="h-8 w-32" /></CardHeader>
-                <CardContent><Skeleton className="h-24 w-full" /></CardContent>
-            </Card>
-        </div>
-    )
-  }
   
-  if (!user || !userData || !levelInfo) {
-      return <div>사용자 정보를 불러올 수 없습니다.</div>
+  const handleOpenPointHistory = async () => {
+    if (!user) return;
+    setIsPointHistoryOpen(true);
+    setIsPointHistoryLoading(true);
+    try {
+      const logsQuery = query(collection(db, 'users', user.uid, 'pointLogs'), orderBy('timestamp', 'asc'));
+      const logSnapshot = await getDocs(logsQuery);
+      const logs = logSnapshot.docs.map(doc => doc.data() as PointLog);
+      setPointLogs(logs);
+    } catch (error) {
+      console.error('Error fetching point logs:', error);
+      toast({ variant: 'destructive', title: '오류', description: '포인트 내역을 불러오는 중 오류가 발생했습니다.'});
+    } finally {
+        setIsPointHistoryLoading(false);
+    }
   }
-  
-  const isTeacher = userData.role === 'teacher';
-  const hasClass = (isTeacher && userData.classCode) || (!isTeacher && userData.classId);
-  const sellingItems = classStoreItems.filter(item => item.sellerId === user?.uid);
-  const canSendPoints = classmates.length > 0;
 
-  const studentPointHistoryChartData = studentPointLogs.reduce((acc, log) => {
+  const pointHistoryChartData = useMemo(() => pointLogs.reduce((acc, log) => {
     if (!log.timestamp) return acc;
     const date = (log.timestamp as any)?.toDate().toISOString().split('T')[0];
     const lastEntry = acc[acc.length - 1];
@@ -1204,67 +763,60 @@ export default function MyClassPage() {
       acc.push({ date, totalPoints: newTotal });
     }
     return acc;
-  }, [] as { date: string; totalPoints: number }[]);
+  }, [] as { date: string; totalPoints: number }[]), [pointLogs]);
 
-  const pointHistoryChartData = pointLogs.reduce((acc, log) => {
-    if (!log.timestamp) return acc;
-    const date = (log.timestamp as any)?.toDate().toISOString().split('T')[0];
-    const lastEntry = acc[acc.length - 1];
-    const newTotal = (lastEntry ? lastEntry.totalPoints : 0) + log.amount;
+  const pointAnalysisData = useMemo(() => {
+    const incomeByCategory: Record<string, number> = {};
+    const expenseByCategory: Record<string, number> = {};
 
-    if (lastEntry && lastEntry.date === date) {
-      lastEntry.totalPoints = newTotal;
-    } else {
-      acc.push({ date, totalPoints: newTotal });
-    }
-    return acc;
-  }, [] as { date: string; totalPoints: number }[]);
+    pointLogs.forEach(log => {
+      if (log.amount > 0) {
+        let category = "기타 수입";
+        if (log.type === 'QUIZ_REWARD' || log.type === 'REVIEW_REWARD') category = "퀴즈/복습 보상";
+        else if (log.type === 'ITEM_SALE') category = "아이템 판매";
+        else if (log.type === 'RECEIVE_POINTS') category = "포인트 받기";
+        else if (log.type === 'TEACHER_GRANT') category = "선생님 지급";
+        else if (log.type === 'ITEM_REFUND_BUYER') category = "환불 받음";
+        incomeByCategory[category] = (incomeByCategory[category] || 0) + log.amount;
+      } else {
+        let category = "기타 지출";
+        if (log.type === 'ITEM_PURCHASE') category = "아이템 구매";
+        else if (log.type === 'SEND_POINTS') category = "포인트 보내기";
+        else if (log.type === 'TEACHER_DEDUCT') category = "선생님 회수";
+        else if (log.type === 'ITEM_REFUND_SELLER') category = "환불 처리";
+        expenseByCategory[category] = (expenseByCategory[category] || 0) + Math.abs(log.amount);
+      }
+    });
 
-  const chartConfig = {
+    const totalIncome = Object.values(incomeByCategory).reduce((sum, value) => sum + value, 0);
+    const totalExpense = Object.values(expenseByCategory).reduce((sum, value) => sum + value, 0);
+
+    const incomeChartData = Object.entries(incomeByCategory).map(([name, value]) => ({ name, value }));
+    const expenseChartData = Object.entries(expenseByCategory).map(([name, value]) => ({ name, value }));
+
+    return { totalIncome, totalExpense, incomeChartData, expenseChartData };
+  }, [pointLogs]);
+
+
+  const pointHistoryChartConfig = {
     totalPoints: {
       label: "누적 포인트",
       color: "hsl(var(--primary))",
     },
   };
   
-    const analysisChartData = learningAnalysisData
-        ? Object.entries(learningAnalysisData.subjectStats)
-            .map(([subject, data]) => ({ name: subject, 정답률: data.accuracy }))
-            .sort((a,b) => b.정답률 - a.정답률)
-        : [];
-    const analysisUnitChartData = learningAnalysisData
-        ? Object.entries(learningAnalysisData.unitStats)
-            .map(([unit, data]) => ({ name: unit, 정답률: data.accuracy }))
-            .sort((a,b) => b.정답률 - a.정답률)
-        : [];
-    
-    const analysisChartConfig = {
-        정답률: {
-            label: "정답률 (%)",
-            color: "hsl(var(--primary))",
-        },
-    };
-    
-    const pointAnalysisChartData = pointAnalysisData?.topSoldItems || [];
-    const pointAnalysisChartConfig = {
-        count: {
-            label: "판매 수량",
-            color: "hsl(var(--chart-1))",
-        }
-    };
-
-    const COLORS = [
-        "hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))",
-        "hsl(var(--chart-4))", "hsl(var(--chart-5))"
-    ];
-    
-    const chartConfigForDialog: Record<string, { label: string; color?: string }> = { value: { label: "포인트" } };
-    pointAnalysisDataForDialog.incomeChartData.forEach((item, index) => {
-        chartConfigForDialog[item.name as keyof typeof chartConfigForDialog] = { label: item.name, color: COLORS[index % COLORS.length] };
-    });
-    pointAnalysisDataForDialog.expenseChartData.forEach((item, index) => {
-        chartConfigForDialog[item.name as keyof typeof chartConfigForDialog] = { label: item.name, color: COLORS[index % COLORS.length] };
-    });
+  const COLORS = [
+    "hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))",
+    "hsl(var(--chart-4))", "hsl(var(--chart-5))"
+  ];
+  
+  const chartConfig: Record<string, { label: string; color?: string }> = { value: { label: "포인트" } };
+  pointAnalysisData.incomeChartData.forEach((item, index) => {
+    chartConfig[item.name as keyof typeof chartConfig] = { label: item.name, color: COLORS[index % COLORS.length] };
+  });
+  pointAnalysisData.expenseChartData.forEach((item, index) => {
+    chartConfig[item.name as keyof typeof chartConfig] = { label: item.name, color: COLORS[index % COLORS.length] };
+  });
 
 
   const xpForNextLevel = nextLevelInfo ? nextLevelInfo.xpThreshold - (levelInfo?.xpThreshold || 0) : 0;
@@ -1314,7 +866,8 @@ export default function MyClassPage() {
   if (!user || !userData || !levelInfo) {
       return <div>사용자 정보를 불러올 수 없습니다.</div>
   }
-  
+
+  const canSendPoints = classmates.length > 0;
   const hasUserPlayedSelectedSet = previewGameSet ? playedGameSetIds.has(previewGameSet.id) : false;
 
   return (
