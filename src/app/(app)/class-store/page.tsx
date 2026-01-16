@@ -97,7 +97,7 @@ const storeItemSchema = z.object({
 });
 
 type StoreItemFormValues = z.infer<typeof storeItemSchema>;
-type InventoryItem = NonNullable<User['inventory']>[string];
+type InventoryItem = NonNullable<User['inventory']>[string] & { itemId: string };
 
 export default function ClassStorePage() {
   const [user, loadingUser] = useAuthState(auth);
@@ -328,9 +328,10 @@ export default function ClassStorePage() {
       toast({ title: '구매 완료!', description: `${buyCandidate.name} 아이템을 구매했습니다.` });
     })
     .catch((error: any) => {
-      if (typeof error === 'string') {
-        toast({ variant: 'destructive', title: '구매 실패', description: error });
-      } else {
+        if (typeof error === 'string') {
+          toast({ variant: 'destructive', title: '구매 실패', description: error });
+          return;
+        }
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: `users/${user.uid} and/or users/${buyCandidate.sellerId}`,
             operation: 'write',
@@ -341,7 +342,6 @@ export default function ClassStorePage() {
               price: buyCandidate.price
             },
         }));
-      }
     })
     .finally(() => {
         setIsPurchasing(false);
@@ -430,15 +430,15 @@ export default function ClassStorePage() {
         toast({ title: "사용 완료", description: `'${useCandidate.name}' 아이템을 사용했습니다.`});
     })
     .catch((error: any) => {
-      if (typeof error === 'string') {
-        toast({ variant: 'destructive', title: '사용 실패', description: error });
-      } else {
+        if (typeof error === 'string') {
+          toast({ variant: 'destructive', title: '사용 실패', description: error });
+          return;
+        }
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: `users/${user.uid}`,
             operation: 'update',
             requestResourceData: { inventoryUpdate: { [useCandidate.itemId]: 'DECREMENT or DELETE' } }
         }));
-      }
     })
     .finally(() => {
         setIsProcessing(false);
@@ -503,9 +503,10 @@ export default function ClassStorePage() {
         toast({ title: '선물 완료', description: '친구에게 아이템을 성공적으로 선물했습니다.'});
     })
     .catch((error: any) => {
-      if (typeof error === 'string') {
-        toast({ variant: 'destructive', title: '선물 실패', description: error });
-      } else {
+        if (typeof error === 'string') {
+          toast({ variant: 'destructive', title: '선물 실패', description: error });
+          return;
+        }
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: `users/${user.uid} and users/${giftRecipient}`,
             operation: 'write',
@@ -516,7 +517,6 @@ export default function ClassStorePage() {
               quantity: giftQuantity,
             }
         }));
-      }
     })
     .finally(() => {
         setIsProcessing(false);
@@ -582,9 +582,10 @@ export default function ClassStorePage() {
         toast({ title: '환불 완료', description: '아이템이 환불 처리되었습니다.' });
     })
     .catch((error: any) => {
-      if (typeof error === 'string') {
-        toast({ variant: 'destructive', title: '환불 실패', description: error });
-      } else {
+        if (typeof error === 'string') {
+          toast({ variant: 'destructive', title: '환불 실패', description: error });
+          return;
+        }
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: `users/${user.uid} and users/${refundCandidate.sellerId}`,
             operation: 'write',
@@ -595,7 +596,6 @@ export default function ClassStorePage() {
               price: refundCandidate.price
             }
         }));
-      }
     })
     .finally(() => {
         setIsProcessing(false);
@@ -604,7 +604,9 @@ export default function ClassStorePage() {
   };
 
 
-  const inventoryItems = Object.values(myInventory || {}).sort((a,b) => (a.name || "").localeCompare(b.name || ""));
+  const inventoryItems = Object.entries(myInventory || {})
+    .map(([id, data]) => ({ ...data, itemId: id }))
+    .sort((a,b) => (a.name || "").localeCompare(b.name || ""));
 
   return (
     <>
@@ -626,7 +628,7 @@ export default function ClassStorePage() {
                   아이템 구매
                 </TabsTrigger>
                 <TabsTrigger value="inventory">
-                  <Package className="w-4 h-4 mr-2" />내 보관함 ({inventoryItems.reduce((sum, item) => sum + item.quantity, 0)})
+                  <Package className="w-4 h-4 mr-2" />내 보관함 ({inventoryItems.reduce((sum, item) => sum + (item.quantity || 0), 0)})
                 </TabsTrigger>
                 <TabsTrigger value="history">
                   <History className="w-4 h-4 mr-2" />
