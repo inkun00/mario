@@ -3,38 +3,31 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // [공통 함수]
     function isSignedIn() {
       return request.auth != null;
     }
 
     function isTeacher(uid) {
-      // 선생님 여부 확인
       return isSignedIn() && get(/databases/$(database)/documents/users/$(uid)).data.role == 'teacher';
     }
 
-    // [사용자 컬렉션]
     match /users/{userId} {
+      // A user can read/write their own document, or a teacher can.
       allow read, write: if isSignedIn() && (request.auth.uid == userId || isTeacher(request.auth.uid));
       
-      // Allow point transactions between users
+      // Allow specific cross-user updates for store functionality
       allow update: if isSignedIn() && (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['classPoints'])
+        // Allow changing points for purchases/refunds
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['classPoints']) ||
+        // Allow changing inventory for gifting
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['inventory'])
       );
-      
-      // 학급 구성원 목록 조회를 위한 list 규칙
+
       allow list: if isSignedIn() && 
                     (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.classId == request.query.where[2] ||
                      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.uid == request.query.where[2]);
-
-      // 다른 사용자의 하위 컬렉션 조회를 허용하도록 수정
-      match /{allSubcollections=**} {
-        allow read: if isSignedIn();
-        allow write: if isSignedIn() && (request.auth.uid == userId || isTeacher(request.auth.uid));
-      }
     }
 
-    // [상점 아이템 컬렉션]
     match /class-store-items/{itemId} {
       allow read, list: if isSignedIn();
       allow create: if isSignedIn() && request.auth.uid == request.resource.data.sellerId;
@@ -48,20 +41,13 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (request.auth.uid == resource.data.sellerId || isTeacher(request.auth.uid));
     }
     
-    // [pointLogs 컬렉션 그룹 중요 수정]
+    // Allow any signed-in user to create and read point logs for anyone.
+    // This is necessary for sales history, gifts, and other cross-user logging.
     match /{path=**}/pointLogs/{logId} {
-      // 로그인한 모든 사용자가 pointLogs 그룹을 조회할 수 있도록 규칙 완화
-      // 클라이언트에서 'relatedItemId'와 'type'으로 필터링하므로 기능은 정상 동작
-      allow list: if isSignedIn();
-
-      // 개별 로그 읽기 권한도 list와 동일하게 완화하여 권한 문제 해결
-      allow read: if isSignedIn();
-      
-      // Added create rule to allow logging for other users
       allow create: if isSignedIn();
+      allow read, list: if isSignedIn();
     }
 
-    // [게임 세트]
     match /game-sets/{gameSetId} {
       allow read: if isSignedIn();
       allow list: if isSignedIn();
@@ -79,7 +65,6 @@ service cloud.firestore {
       }
     }
     
-    // [게임방]
     match /game-rooms/{roomId} {
         allow read, create, delete: if isSignedIn();
         allow update: if isSignedIn() && (
