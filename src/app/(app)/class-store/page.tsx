@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -327,6 +328,9 @@ export default function ClassStorePage() {
       toast({ title: '구매 완료!', description: `${buyCandidate.name} 아이템을 구매했습니다.` });
     })
     .catch((error: any) => {
+      if (typeof error === 'string') {
+        toast({ variant: 'destructive', title: '구매 실패', description: error });
+      } else {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: `users/${user.uid} and/or users/${buyCandidate.sellerId}`,
             operation: 'write',
@@ -337,6 +341,7 @@ export default function ClassStorePage() {
               price: buyCandidate.price
             },
         }));
+      }
     })
     .finally(() => {
         setIsPurchasing(false);
@@ -425,11 +430,15 @@ export default function ClassStorePage() {
         toast({ title: "사용 완료", description: `'${useCandidate.name}' 아이템을 사용했습니다.`});
     })
     .catch((error: any) => {
+      if (typeof error === 'string') {
+        toast({ variant: 'destructive', title: '사용 실패', description: error });
+      } else {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: `users/${user.uid}`,
             operation: 'update',
             requestResourceData: { inventoryUpdate: { [useCandidate.itemId]: 'DECREMENT or DELETE' } }
         }));
+      }
     })
     .finally(() => {
         setIsProcessing(false);
@@ -494,6 +503,9 @@ export default function ClassStorePage() {
         toast({ title: '선물 완료', description: '친구에게 아이템을 성공적으로 선물했습니다.'});
     })
     .catch((error: any) => {
+      if (typeof error === 'string') {
+        toast({ variant: 'destructive', title: '선물 실패', description: error });
+      } else {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: `users/${user.uid} and users/${giftRecipient}`,
             operation: 'write',
@@ -504,6 +516,7 @@ export default function ClassStorePage() {
               quantity: giftQuantity,
             }
         }));
+      }
     })
     .finally(() => {
         setIsProcessing(false);
@@ -569,6 +582,9 @@ export default function ClassStorePage() {
         toast({ title: '환불 완료', description: '아이템이 환불 처리되었습니다.' });
     })
     .catch((error: any) => {
+      if (typeof error === 'string') {
+        toast({ variant: 'destructive', title: '환불 실패', description: error });
+      } else {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: `users/${user.uid} and users/${refundCandidate.sellerId}`,
             operation: 'write',
@@ -579,6 +595,7 @@ export default function ClassStorePage() {
               price: refundCandidate.price
             }
         }));
+      }
     })
     .finally(() => {
         setIsProcessing(false);
