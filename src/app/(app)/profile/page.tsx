@@ -186,6 +186,11 @@ export default function ProfilePage() {
   const [pointLogs, setPointLogs] = useState<PointLog[]>([]);
   const [isPointHistoryLoading, setIsPointHistoryLoading] = useState(false);
   const [chartView, setChartView] = useState<'income' | 'expense'>('income');
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
 
   const fetchProfileData = useCallback(async () => {
@@ -1542,7 +1547,7 @@ export default function ProfilePage() {
                         <TableBody>
                             {[...pointLogs].reverse().map(log => (
                             <TableRow key={log.id}>
-                                <TableCell className="text-xs">{log.timestamp ? new Date((log.timestamp as any)?.toDate()).toLocaleString() : ''}</TableCell>
+                                <TableCell className="text-xs">{isClient && log.timestamp ? new Date((log.timestamp as any)?.toDate()).toLocaleString() : ''}</TableCell>
                                 <TableCell>{log.description}</TableCell>
                                 <TableCell className={cn("text-right font-semibold", log.amount > 0 ? "text-green-600" : "text-red-600")}>
                                 {log.amount > 0 ? '+' : ''}{log.amount.toLocaleString()}
@@ -1671,7 +1676,7 @@ export default function ProfilePage() {
                                     <div className="flex items-center gap-2">
                                       <span className="font-semibold text-sm">{comment.userNickname}</span>
                                       <span className="text-xs text-muted-foreground">
-                                        {comment.createdAt && formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko })}
+                                        {isClient && comment.createdAt ? formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko }) : null}
                                       </span>
                                     </div>
                                     <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
@@ -1859,3 +1864,4 @@ export default function ProfilePage() {
     </TooltipProvider>
   );
 }
+

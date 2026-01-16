@@ -116,6 +116,7 @@ export default function DashboardPage() {
   const [comments, setComments] = useState<GameSetComment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [isPostingComment, setIsPostingComment] = useState(false);
+  const [isClient, setIsClient] = useState(false);
 
 
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -128,6 +129,10 @@ export default function DashboardPage() {
   const [currentUserData, setCurrentUserData] = useState<FsUser | null>(null);
   const [teacherData, setTeacherData] = useState<FsUser | null>(null);
   const [classmateIds, setClassmateIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   
   useEffect(() => {
     if (!user) return;
@@ -1102,7 +1107,7 @@ export default function DashboardPage() {
                                 <div className="flex items-center gap-2">
                                   <span className="font-semibold text-sm">{comment.userNickname}</span>
                                   <span className="text-xs text-muted-foreground">
-                                    {comment.createdAt && formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko })}
+                                    {isClient && comment.createdAt ? formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko }) : null}
                                   </span>
                                 </div>
                                 <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
@@ -1117,7 +1122,7 @@ export default function DashboardPage() {
                     <div className="mt-4 pt-4 border-t">
                       <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={() => handleLike(selectedGameSet)}>
-                            <ThumbsUp className={cn("mr-2 h-4 w-4", (selectedGameSet.likedBy || []).includes(user.uid) && "fill-primary text-primary-foreground")} />
+                            <ThumbsUp className={cn("mr-2 h-4 w-4", (selectedGameSet.likedBy || []).includes(user!.uid) && "fill-primary text-primary-foreground")} />
                             좋아요 {selectedGameSet.likeCount || 0}
                         </Button>
                         <Input 
@@ -1263,3 +1268,4 @@ export default function DashboardPage() {
     </>
   );
 }
+

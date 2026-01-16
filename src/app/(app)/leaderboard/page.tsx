@@ -172,6 +172,11 @@ export default function LeaderboardPage() {
   const [isPostingComment, setIsPostingComment] = useState(false);
   const [playedGameSetIds, setPlayedGameSetIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -813,7 +818,7 @@ export default function LeaderboardPage() {
                                 <div className="flex items-center gap-2">
                                   <span className="font-semibold text-sm">{comment.userNickname}</span>
                                   <span className="text-xs text-muted-foreground">
-                                    {comment.createdAt && formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko })}
+                                    {isClient && comment.createdAt ? formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko }) : null}
                                   </span>
                                 </div>
                                 <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
