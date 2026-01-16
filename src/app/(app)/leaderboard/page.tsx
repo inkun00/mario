@@ -320,13 +320,13 @@ export default function LeaderboardPage() {
   };
 
   let selectedUserAvatarData = null;
-  if (selectedUser?.pixelAvatar) {
-    try {
-      selectedUserAvatarData = JSON.parse(selectedUser.pixelAvatar);
-    } catch(e) {
-      console.error("Error parsing selected user avatar", e);
+    if (selectedUser?.pixelAvatar) {
+        try {
+            selectedUserAvatarData = JSON.parse(selectedUser.pixelAvatar);
+        } catch (e) {
+            console.error("Error parsing selected user avatar", e);
+        }
     }
-  }
 
 
   return (
@@ -582,10 +582,11 @@ export default function LeaderboardPage() {
                 <div className="flex justify-between items-start">
                     <div>
                         <DialogTitle className="font-headline text-2xl">{selectedGameSetForPreview.title}</DialogTitle>
-                        <DialogDescription>
-                           {[selectedGameSetForPreview.grade, selectedGameSetForPreview.semester, selectedGameSetForPreview.subject, selectedGameSetForPreview.unit].filter(Boolean).join(' / ')}
-                           {' · '}
-                          총 {selectedGameSetForPreview.questions.length}개의 질문이 있습니다.
+                        <DialogDescription className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
+                           <span>{[selectedGameSetForPreview.grade, selectedGameSetForPreview.semester, selectedGameSetForPreview.subject, selectedGameSetForPreview.unit].filter(Boolean).join(' / ')}</span>
+                           <span className="flex items-center gap-1"><BookOpen className="w-4 h-4" />{selectedGameSetForPreview.questions.length} 문제</span>
+                           <span className="flex items-center gap-1"><ThumbsUp className="w-4 h-4" />{selectedGameSetForPreview.likeCount || 0}</span>
+                           <span className="flex items-center gap-1"><MessageSquare className="w-4 h-4" />{selectedGameSetForPreview.commentCount || 0}</span>
                         </DialogDescription>
                     </div>
                     {(selectedGameSetForPreview.evaluationScore !== undefined && selectedGameSetForPreview.evaluationScore !== null) && (() => {
