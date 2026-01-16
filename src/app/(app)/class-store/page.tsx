@@ -102,7 +102,7 @@ export default function ClassStorePage() {
   const [activeTab, setActiveTab] = useState('store');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAddItemDialog, setShowAddItemDialog] = useState(false);
-  const [buyCandidate, setBuyCandidate] = useState<ClassStoreItem | null>(null);
+  const [buyCandidate, setBuyCandidate = useState<ClassStoreItem | null>(null);
   const [isPurchasing, setIsPurchasing] = useState(false);
   const [manageSellingItem, setManageSellingItem] = useState<ClassStoreItem | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<ClassStoreItem | null>(null);
@@ -222,15 +222,15 @@ export default function ClassStorePage() {
         // 2. Update item quantity
         transaction.update(itemRef, { quantity: increment(-1) });
 
-        // 3. Update buyer's inventory
-        const cleanItemName = buyCandidate.name.replace(/[.$#[\]/]/g, '_');
-        const itemInInventory = buyerData.inventory?.[cleanItemName];
+        // 3. Update buyer's inventory using item ID as the key for robustness
+        const itemId = buyCandidate.id;
+        const itemInInventory = buyerData.inventory?.[itemId];
         
         if (itemInInventory) {
-            const inventoryPath = `inventory.${cleanItemName}.quantity`;
+            const inventoryPath = `inventory.${itemId}.quantity`;
             transaction.update(buyerRef, { [inventoryPath]: increment(1) });
         } else {
-            const inventoryPath = `inventory.${cleanItemName}`;
+            const inventoryPath = `inventory.${itemId}`;
             transaction.update(buyerRef, {
                 [inventoryPath]: {
                     name: buyCandidate.name,
@@ -456,11 +456,11 @@ export default function ClassStorePage() {
               <TabsContent value="inventory" className="mt-4">
                  {myInventory && Object.keys(myInventory).length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {Object.entries(myInventory).map(([key, item]) => (
+                        {Object.values(myInventory).map((item) => (
                             <Card key={item.itemId} className="flex flex-col">
                                 <CardHeader className="text-center">
                                     <span className="text-5xl mx-auto">{item.emoji || '🎁'}</span>
-                                    <CardTitle className="text-lg font-semibold">{item.name || key.replace(/_/g, '.')}</CardTitle>
+                                    <CardTitle className="text-lg font-semibold">{item.name}</CardTitle>
                                 </CardHeader>
                                 <CardContent className="flex-grow">
                                     <p className="text-sm text-muted-foreground">{item.description}</p>
@@ -620,3 +620,5 @@ export default function ClassStorePage() {
     </>
   );
 }
+
+    
