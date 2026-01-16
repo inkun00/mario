@@ -334,18 +334,18 @@ export default function ClassStorePage() {
     .catch((error: any) => {
         if (typeof error === 'string') {
           toast({ variant: 'destructive', title: '구매 실패', description: error });
-          return;
+        } else {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+              path: `users/${user.uid} and/or users/${buyCandidate.sellerId}`,
+              operation: 'write',
+              requestResourceData: {
+                buyerId: user.uid,
+                sellerId: buyCandidate.sellerId,
+                itemId: buyCandidate.id,
+                price: buyCandidate.price
+              },
+          }));
         }
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: `users/${user.uid} and/or users/${buyCandidate.sellerId}`,
-            operation: 'write',
-            requestResourceData: {
-              buyerId: user.uid,
-              sellerId: buyCandidate.sellerId,
-              itemId: buyCandidate.id,
-              price: buyCandidate.price
-            },
-        }));
     })
     .finally(() => {
         setIsPurchasing(false);
@@ -415,6 +415,8 @@ export default function ClassStorePage() {
             throw "사용할 아이템이 보관함에 없습니다.";
         }
         
+        const itemNameToUse = itemInInventory.name || '이름 없는 아이템';
+        
         const newQuantity = itemInInventory.quantity - 1;
         if (newQuantity > 0) {
             transaction.update(userRef, { [`inventory.${useCandidate.itemId}.quantity`]: newQuantity });
@@ -427,12 +429,14 @@ export default function ClassStorePage() {
             type: 'ITEM_USE',
             amount: 0,
             timestamp: serverTimestamp(),
-            description: `'${itemInInventory.name || useCandidate.name}' 사용`,
+            description: `'${itemNameToUse}' 사용`,
             relatedItemId: useCandidate.itemId,
         });
+        
+        return { name: itemNameToUse };
     })
-    .then(() => {
-        toast({ title: "사용 완료", description: `'${useCandidate.name}' 아이템을 사용했습니다.`});
+    .then(({ name }) => {
+        toast({ title: "사용 완료", description: `'${name}' 아이템을 사용했습니다.`});
     })
     .catch((error: any) => {
         if (typeof error === 'string') {
@@ -486,7 +490,7 @@ export default function ClassStorePage() {
         const recipientData = recipientDoc.data() as User;
         const itemInRecipientInventory = recipientData.inventory?.[giftCandidate.itemId];
         
-        const itemNameToUse = itemInInventory.name || giftCandidate.name;
+        const itemNameToUse = itemInInventory.name || '이름 없는 아이템';
         const newRecipientItem = { ...itemInInventory, name: itemNameToUse, quantity: giftQuantity };
 
         if (itemInRecipientInventory) {
@@ -508,9 +512,11 @@ export default function ClassStorePage() {
             description: `'${itemNameToUse}' ${giftQuantity}개 선물 받음 (${senderData.displayName}로부터)`,
             relatedItemId: giftCandidate.itemId, relatedUserId: user.uid
         });
+
+        return { name: itemNameToUse, recipientName: recipientData.displayName || '친구' };
     })
-    .then(() => {
-        toast({ title: '선물 완료', description: '친구에게 아이템을 성공적으로 선물했습니다.'});
+    .then(({ name, recipientName }) => {
+        toast({ title: '선물 완료', description: `${recipientName}님에게 '${name}' 아이템을 성공적으로 선물했습니다.`});
     })
     .catch((error: any) => {
         if (typeof error === 'string') {
@@ -537,38 +543,42 @@ export default function ClassStorePage() {
   };
   
   const handleRefundItem = async () => {
-    if (!user || !refundCandidate || !refundCandidate.sellerId) return;
+    if (!user || !refundCandidate) return;
     
     setIsProcessing(true);
     runTransaction(db, async (transaction) => {
         const buyerRef = doc(db, 'users', user.uid);
-        const sellerRef = doc(db, 'users', refundCandidate.sellerId!);
+        const buyerDoc = await transaction.get(buyerRef);
+
+        if (!buyerDoc.exists()) throw "구매자 정보를 찾을 수 없습니다.";
+        
+        const buyerData = buyerDoc.data() as User;
+        const itemInInventory = buyerData.inventory?.[refundCandidate.itemId];
+
+        if (!itemInInventory || itemInInventory.quantity < 1) {
+            throw "환불할 아이템이 보관함에 없습니다.";
+        }
+
+        const sellerId = itemInInventory.sellerId;
+        if (!sellerId) throw "판매자 정보가 없어 환불할 수 없습니다.";
+
+        const sellerRef = doc(db, 'users', sellerId);
         const itemRef = doc(db, 'class-store-items', refundCandidate.itemId);
 
-        const [buyerDoc, sellerDoc, itemDoc] = await Promise.all([
-            transaction.get(buyerRef),
+        const [sellerDoc, itemDoc] = await Promise.all([
             transaction.get(sellerRef),
             transaction.get(itemRef)
         ]);
-
-        if (!buyerDoc.exists()) throw "구매자 정보를 찾을 수 없습니다.";
-        if (!sellerDoc.exists()) throw "판매자 정보를 찾을 수 없습니다.";
-        if (!itemDoc.exists()) throw "환불하려는 아이템을 상점에서 찾을 수 없습니다.";
-
-        const buyerData = buyerDoc.data() as User;
-        const sellerData = sellerDoc.data() as User;
-
-        const itemInInventory = buyerData.inventory?.[refundCandidate.itemId];
-        if (!itemInInventory || itemInInventory.quantity < 1) throw "환불할 아이템이 없습니다.";
-
-        const refundPrice = itemInInventory.price ?? refundCandidate.price ?? 0;
-        if(refundPrice === 0) throw "환불할 수 없는 아이템입니다 (가격 정보 없음).";
-
-        if((sellerData.classPoints || 0) < refundPrice) {
-            throw '판매자의 포인트가 부족하여 환불할 수 없습니다.';
-        }
         
-        const itemNameToUse = itemInInventory.name || refundCandidate.name;
+        if (!sellerDoc.exists()) throw "판매자를 찾을 수 없어 환불할 수 없습니다.";
+        
+        const sellerData = sellerDoc.data() as User;
+        const refundPrice = itemInInventory.price ?? 0;
+        
+        if(refundPrice === 0) throw "환불할 수 없는 아이템입니다 (가격 정보 없음).";
+        if((sellerData.classPoints || 0) < refundPrice) throw '판매자의 포인트가 부족하여 환불할 수 없습니다.';
+        
+        const itemNameToUse = itemInInventory.name || '이름 없는 아이템';
 
         const newQuantity = itemInInventory.quantity - 1;
         if (newQuantity > 0) {
@@ -579,7 +589,9 @@ export default function ClassStorePage() {
 
         transaction.update(buyerRef, { classPoints: increment(refundPrice) });
         transaction.update(sellerRef, { classPoints: increment(-refundPrice) });
-        transaction.update(itemRef, { quantity: increment(1) });
+        if (itemDoc.exists()) {
+            transaction.update(itemRef, { quantity: increment(1) });
+        }
 
         const buyerLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
         transaction.set(buyerLogRef, {
@@ -587,11 +599,12 @@ export default function ClassStorePage() {
             description: `'${itemNameToUse}' 환불`, relatedItemId: refundCandidate.itemId,
         });
 
-        const sellerLogRef = doc(collection(db, 'users', refundCandidate.sellerId!, 'pointLogs'));
+        const sellerLogRef = doc(collection(db, 'users', sellerId, 'pointLogs'));
         transaction.set(sellerLogRef, {
             type: 'ITEM_SALE_REFUND', amount: -refundPrice, timestamp: serverTimestamp(),
             description: `판매된 '${itemNameToUse}' 환불 처리`, relatedItemId: refundCandidate.itemId,
         });
+
         return { name: itemNameToUse, price: refundPrice };
     })
     .then(({ name, price }) => {
@@ -602,14 +615,9 @@ export default function ClassStorePage() {
           toast({ variant: 'destructive', title: '환불 실패', description: error });
         } else {
             errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: `users/${user.uid} and users/${refundCandidate.sellerId}`,
+                path: `users/${user.uid} and related docs`,
                 operation: 'write',
-                requestResourceData: {
-                  buyer: user.uid,
-                  seller: refundCandidate.sellerId,
-                  itemId: refundCandidate.itemId,
-                  price: refundCandidate.price
-                }
+                requestResourceData: { refundAttempt: { itemId: refundCandidate.itemId } }
             }));
         }
     })
@@ -889,3 +897,5 @@ export default function ClassStorePage() {
     </>
   );
 }
+
+    
