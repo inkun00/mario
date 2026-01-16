@@ -84,6 +84,8 @@ import {
 import Link from 'next/link';
 import { Combobox } from '@/components/ui/combobox';
 import { v4 as uuidv4 } from 'uuid';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 const storeItemSchema = z.object({
   name: z.string().min(1, '아이템 이름을 입력해주세요.').max(20, '아이템 이름은 20자 이내여야 합니다.'),
@@ -213,24 +215,32 @@ export default function ClassStorePage() {
     if (!user || !userData?.classId) return;
 
     setIsSubmitting(true);
-    try {
-      await addDoc(collection(db, 'class-store-items'), {
+    const newItemData = {
         ...values,
         sellerId: user.uid,
         sellerName: userData.name,
         sellerNickname: userData.displayName,
         classId: userData.classId,
         createdAt: serverTimestamp(),
-      });
+      };
+
+    addDoc(collection(db, 'class-store-items'), newItemData)
+    .then(() => {
       toast({ title: '성공', description: '새로운 아이템을 판매 목록에 추가했습니다.' });
       setShowAddItemDialog(false);
       form.reset();
-    } catch (error) {
-      console.error('Error adding item:', error);
-      toast({ variant: 'destructive', title: '오류', description: '아이템 추가 중 오류가 발생했습니다.' });
-    } finally {
+    })
+    .catch((serverError) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: 'class-store-items',
+            operation: 'create',
+            requestResourceData: newItemData,
+        }));
+        toast({ variant: 'destructive', title: '오류', description: '아이템 추가 중 오류가 발생했습니다.' });
+    })
+    .finally(() => {
       setIsSubmitting(false);
-    }
+    });
   };
 
   const handleBuyItem = async () => {
@@ -247,67 +257,59 @@ export default function ClassStorePage() {
     }
 
     setIsPurchasing(true);
-    try {
-      await runTransaction(db, async (transaction) => {
+    
+    runTransaction(db, async (transaction) => {
         const buyerRef = doc(db, 'users', user.uid);
         const sellerRef = doc(db, 'users', buyCandidate.sellerId);
         const itemRef = doc(db, 'class-store-items', buyCandidate.id);
 
-        // --- All reads first ---
         const [itemDoc, buyerDoc, sellerDoc] = await Promise.all([
-          transaction.get(itemRef),
-          transaction.get(buyerRef),
-          transaction.get(sellerRef)
+            transaction.get(itemRef),
+            transaction.get(buyerRef),
+            transaction.get(sellerRef)
         ]);
 
         if (!itemDoc.exists() || itemDoc.data().quantity < 1) {
-          throw '이 아이템은 품절되었거나 더 이상 사용할 수 없습니다.';
+            throw '이 아이템은 품절되었거나 더 이상 사용할 수 없습니다.';
         }
-
         if (!buyerDoc.exists()) {
             throw "구매자 정보를 찾을 수 없습니다.";
         }
         if (!sellerDoc.exists()) {
-          throw '판매자 정보를 찾을 수 없습니다.';
+            throw '판매자 정보를 찾을 수 없습니다.';
         }
         
         const buyerData = buyerDoc.data() as User;
+        const price = buyCandidate.price;
 
-        // --- All writes after ---
-        // 1. Buyer points decrease
-        transaction.update(buyerRef, { classPoints: increment(-buyCandidate.price) });
-        
-        // 2. Seller points increase
-        transaction.update(sellerRef, { classPoints: increment(buyCandidate.price) });
-        
-        // 3. Item stock decrease
+        transaction.update(buyerRef, { classPoints: increment(-price) });
+        transaction.update(sellerRef, { classPoints: increment(price) });
         transaction.update(itemRef, { quantity: increment(-1) });
 
-        // 4. Add item to buyer's inventory
+        const inventoryItemId = buyCandidate.id;
         const newInventoryItem = {
-          name: buyCandidate.name,
-          itemId: buyCandidate.id,
-          quantity: 1,
-          description: buyCandidate.description,
-          sellerId: buyCandidate.sellerId,
-          sellerNickname: buyCandidate.sellerNickname,
-          price: buyCandidate.price,
-          emoji: buyCandidate.emoji,
+            name: buyCandidate.name,
+            itemId: buyCandidate.id,
+            quantity: 1,
+            description: buyCandidate.description,
+            sellerId: buyCandidate.sellerId,
+            sellerNickname: buyCandidate.sellerNickname,
+            price: buyCandidate.price,
+            emoji: buyCandidate.emoji,
         };
-        const inventoryPath = `inventory.${buyCandidate.id}`;
-        const existingItem = buyerData.inventory?.[buyCandidate.id];
+        const inventoryPath = `inventory.${inventoryItemId}`;
+        const existingItem = buyerData.inventory?.[inventoryItemId];
 
         if (existingItem) {
-          transaction.update(buyerRef, { [`${inventoryPath}.quantity`]: increment(1) });
+            transaction.update(buyerRef, { [`${inventoryPath}.quantity`]: increment(1) });
         } else {
-          transaction.set(buyerRef, { inventory: { [buyCandidate.id]: newInventoryItem } }, { merge: true });
+            transaction.set(buyerRef, { inventory: { [inventoryItemId]: newInventoryItem } }, { merge: true });
         }
 
-        // 5. Point logs
         const buyerLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
         transaction.set(buyerLogRef, {
             type: 'ITEM_PURCHASE',
-            amount: -buyCandidate.price,
+            amount: -price,
             timestamp: serverTimestamp(),
             description: `'${buyCandidate.name}' 구매`,
             relatedItemId: buyCandidate.id,
@@ -316,32 +318,50 @@ export default function ClassStorePage() {
         const sellerLogRef = doc(collection(db, 'users', buyCandidate.sellerId, 'pointLogs'));
         transaction.set(sellerLogRef, {
             type: 'ITEM_SALE',
-            amount: buyCandidate.price,
+            amount: price,
             timestamp: serverTimestamp(),
             description: `'${buyCandidate.name}' 판매`,
             relatedItemId: buyCandidate.id,
         });
-      });
+    })
+    .then(() => {
       toast({ title: '구매 완료!', description: `${buyCandidate.name} 아이템을 구매했습니다.` });
-    } catch (error: any) {
-      console.error('Error buying item:', error);
-      toast({ variant: 'destructive', title: '구매 실패', description: error.toString() });
-    } finally {
-      setIsPurchasing(false);
-      setBuyCandidate(null);
-    }
+    })
+    .catch((error: any) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `users/${user.uid} and/or users/${buyCandidate.sellerId}`,
+            operation: 'write',
+            requestResourceData: {
+              buyerId: user.uid,
+              sellerId: buyCandidate.sellerId,
+              itemId: buyCandidate.id,
+              price: buyCandidate.price
+            },
+        }));
+        toast({ variant: 'destructive', title: '구매 실패', description: '권한 오류 또는 서버 문제로 구매에 실패했습니다.' });
+    })
+    .finally(() => {
+        setIsPurchasing(false);
+        setBuyCandidate(null);
+    });
   };
 
   const handleDeleteItem = async () => {
     if (!deleteCandidate) return;
-    try {
-        await deleteDoc(doc(db, "class-store-items", deleteCandidate.id));
-        toast({ title: "삭제 완료", description: "판매 목록에서 아이템을 삭제했습니다." });
-    } catch (e) {
-        toast({ variant: "destructive", title: "오류", description: "아이템 삭제 중 오류가 발생했습니다."});
-    } finally {
-        setDeleteCandidate(null);
-    }
+    deleteDoc(doc(db, "class-store-items", deleteCandidate.id))
+        .then(() => {
+            toast({ title: "삭제 완료", description: "판매 목록에서 아이템을 삭제했습니다." });
+        })
+        .catch(() => {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: `class-store-items/${deleteCandidate.id}`,
+                operation: 'delete',
+            }));
+            toast({ variant: "destructive", title: "오류", description: "아이템 삭제 중 오류가 발생했습니다."});
+        })
+        .finally(() => {
+            setDeleteCandidate(null);
+        });
   };
   
   const handleManageSellingItem = async (item: ClassStoreItem) => {
@@ -378,41 +398,48 @@ export default function ClassStorePage() {
     if (!user || !useCandidate) return;
     
     setIsProcessing(true);
-    try {
-        await runTransaction(db, async (transaction) => {
-            const userRef = doc(db, 'users', user.uid);
-            const userDoc = await transaction.get(userRef);
-            if (!userDoc.exists()) throw "사용자 정보를 찾을 수 없습니다.";
-            const userData = userDoc.data() as User;
+    runTransaction(db, async (transaction) => {
+        const userRef = doc(db, 'users', user.uid);
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists()) throw "사용자 정보를 찾을 수 없습니다.";
+        const userData = userDoc.data() as User;
 
-            const itemInInventory = userData.inventory?.[useCandidate.itemId];
-            if (!itemInInventory || itemInInventory.quantity < 1) {
-                throw "사용할 아이템이 보관함에 없습니다.";
-            }
-            
-            const newQuantity = itemInInventory.quantity - 1;
-            if (newQuantity > 0) {
-                transaction.update(userRef, { [`inventory.${useCandidate.itemId}.quantity`]: newQuantity });
-            } else {
-                transaction.update(userRef, { [`inventory.${useCandidate.itemId}`]: deleteField() });
-            }
-            
-            const logRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
-            transaction.set(logRef, {
-                type: 'ITEM_USE',
-                amount: 0,
-                timestamp: serverTimestamp(),
-                description: `'${useCandidate.name}' 사용`,
-                relatedItemId: useCandidate.itemId,
-            });
+        const itemInInventory = userData.inventory?.[useCandidate.itemId];
+        if (!itemInInventory || itemInInventory.quantity < 1) {
+            throw "사용할 아이템이 보관함에 없습니다.";
+        }
+        
+        const newQuantity = itemInInventory.quantity - 1;
+        if (newQuantity > 0) {
+            transaction.update(userRef, { [`inventory.${useCandidate.itemId}.quantity`]: newQuantity });
+        } else {
+            transaction.update(userRef, { [`inventory.${useCandidate.itemId}`]: deleteField() });
+        }
+        
+        const logRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
+        transaction.set(logRef, {
+            type: 'ITEM_USE',
+            amount: 0,
+            timestamp: serverTimestamp(),
+            description: `'${useCandidate.name}' 사용`,
+            relatedItemId: useCandidate.itemId,
         });
+    })
+    .then(() => {
         toast({ title: "사용 완료", description: `'${useCandidate.name}' 아이템을 사용했습니다.`});
-    } catch (error: any) {
+    })
+    .catch((error: any) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `users/${user.uid}`,
+            operation: 'update',
+            requestResourceData: { inventoryUpdate: { [useCandidate.itemId]: 'DECREMENT or DELETE' } }
+        }));
         toast({ variant: "destructive", title: "오류", description: `아이템 사용 중 오류가 발생했습니다: ${error.toString()}` });
-    } finally {
+    })
+    .finally(() => {
         setIsProcessing(false);
         setUseCandidate(null);
-    }
+    });
   };
 
   const handleGiftItem = async () => {
@@ -422,129 +449,152 @@ export default function ClassStorePage() {
     }
     
     setIsProcessing(true);
-    try {
-        await runTransaction(db, async (transaction) => {
-            const senderRef = doc(db, 'users', user.uid);
-            const recipientRef = doc(db, 'users', giftRecipient);
-            
-            const [senderDoc, recipientDoc] = await Promise.all([
-                transaction.get(senderRef),
-                transaction.get(recipientRef),
-            ]);
-            
-            if (!senderDoc.exists() || !recipientDoc.exists()) throw "사용자를 찾을 수 없습니다.";
-            
-            const senderData = senderDoc.data() as User;
-            const itemInInventory = senderData.inventory?.[giftCandidate.itemId];
-            if (!itemInInventory || itemInInventory.quantity < giftQuantity) {
-                throw "선물할 아이템의 수량이 부족합니다.";
-            }
+    runTransaction(db, async (transaction) => {
+        const senderRef = doc(db, 'users', user.uid);
+        const recipientRef = doc(db, 'users', giftRecipient);
+        
+        const [senderDoc, recipientDoc] = await Promise.all([
+            transaction.get(senderRef),
+            transaction.get(recipientRef),
+        ]);
+        
+        if (!senderDoc.exists() || !recipientDoc.exists()) throw "사용자를 찾을 수 없습니다.";
+        
+        const senderData = senderDoc.data() as User;
+        const itemInInventory = senderData.inventory?.[giftCandidate.itemId];
+        if (!itemInInventory || itemInInventory.quantity < giftQuantity) {
+            throw "선물할 아이템의 수량이 부족합니다.";
+        }
 
-            // 1. Sender's inventory update
-            const newSenderQuantity = itemInInventory.quantity - giftQuantity;
-            if (newSenderQuantity > 0) {
-                transaction.update(senderRef, { [`inventory.${giftCandidate.itemId}.quantity`]: newSenderQuantity });
-            } else {
-                transaction.update(senderRef, { [`inventory.${giftCandidate.itemId}`]: deleteField() });
-            }
-            
-            // 2. Recipient's inventory update
-            const recipientData = recipientDoc.data() as User;
-            const itemInRecipientInventory = recipientData.inventory?.[giftCandidate.itemId];
-            if (itemInRecipientInventory) {
-                transaction.update(recipientRef, { [`inventory.${giftCandidate.itemId}.quantity`]: increment(giftQuantity) });
-            } else {
-                 transaction.set(recipientRef, { inventory: { [giftCandidate.itemId]: {...giftCandidate, quantity: giftQuantity } } }, { merge: true });
-            }
-            
-            // 3. Log for sender
-            const senderLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
-            transaction.set(senderLogRef, {
-                type: 'ITEM_GIFT_SEND', amount: 0, timestamp: serverTimestamp(),
-                description: `'${giftCandidate.name}' ${giftQuantity}개 선물 (${recipientData.displayName}에게)`,
-                relatedItemId: giftCandidate.itemId, relatedUserId: giftRecipient
-            });
-            
-            // 4. Log for recipient
-            const recipientLogRef = doc(collection(db, 'users', giftRecipient, 'pointLogs'));
-            transaction.set(recipientLogRef, {
-                type: 'ITEM_GIFT_RECEIVE', amount: 0, timestamp: serverTimestamp(),
-                description: `'${giftCandidate.name}' ${giftQuantity}개 선물 받음 (${senderData.displayName}로부터)`,
-                relatedItemId: giftCandidate.itemId, relatedUserId: user.uid
-            });
+        // 1. Sender's inventory update
+        const newSenderQuantity = itemInInventory.quantity - giftQuantity;
+        if (newSenderQuantity > 0) {
+            transaction.update(senderRef, { [`inventory.${giftCandidate.itemId}.quantity`]: newSenderQuantity });
+        } else {
+            transaction.update(senderRef, { [`inventory.${giftCandidate.itemId}`]: deleteField() });
+        }
+        
+        // 2. Recipient's inventory update
+        const recipientData = recipientDoc.data() as User;
+        const itemInRecipientInventory = recipientData.inventory?.[giftCandidate.itemId];
+        if (itemInRecipientInventory) {
+            transaction.update(recipientRef, { [`inventory.${giftCandidate.itemId}.quantity`]: increment(giftQuantity) });
+        } else {
+              transaction.set(recipientRef, { inventory: { [giftCandidate.itemId]: {...giftCandidate, quantity: giftQuantity } } }, { merge: true });
+        }
+        
+        // 3. Log for sender
+        const senderLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
+        transaction.set(senderLogRef, {
+            type: 'ITEM_GIFT_SEND', amount: 0, timestamp: serverTimestamp(),
+            description: `'${giftCandidate.name}' ${giftQuantity}개 선물 (${recipientData.displayName}에게)`,
+            relatedItemId: giftCandidate.itemId, relatedUserId: giftRecipient
         });
         
+        // 4. Log for recipient
+        const recipientLogRef = doc(collection(db, 'users', giftRecipient, 'pointLogs'));
+        transaction.set(recipientLogRef, {
+            type: 'ITEM_GIFT_RECEIVE', amount: 0, timestamp: serverTimestamp(),
+            description: `'${giftCandidate.name}' ${giftQuantity}개 선물 받음 (${senderData.displayName}로부터)`,
+            relatedItemId: giftCandidate.itemId, relatedUserId: user.uid
+        });
+    })
+    .then(() => {
         toast({ title: '선물 완료', description: '친구에게 아이템을 성공적으로 선물했습니다.'});
-    } catch (error: any) {
+    })
+    .catch((error: any) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `users/${user.uid} and users/${giftRecipient}`,
+            operation: 'write',
+            requestResourceData: {
+              sender: user.uid,
+              recipient: giftRecipient,
+              itemId: giftCandidate.itemId,
+              quantity: giftQuantity,
+            }
+        }));
         toast({ variant: 'destructive', title: '선물 실패', description: `선물 전송 중 오류가 발생했습니다: ${error.toString()}` });
-    } finally {
+    })
+    .finally(() => {
         setIsProcessing(false);
         setGiftCandidate(null);
         setGiftQuantity(1);
         setGiftRecipient('');
-    }
+    });
   };
   
   const handleRefundItem = async () => {
     if (!user || !refundCandidate || !refundCandidate.sellerId || refundCandidate.price === undefined) return;
     
     setIsProcessing(true);
-    try {
-        await runTransaction(db, async (transaction) => {
-            const buyerRef = doc(db, 'users', user.uid);
-            const sellerRef = doc(db, 'users', refundCandidate.sellerId!);
-            const itemRef = doc(db, 'class-store-items', refundCandidate.itemId);
+    runTransaction(db, async (transaction) => {
+        const buyerRef = doc(db, 'users', user.uid);
+        const sellerRef = doc(db, 'users', refundCandidate.sellerId!);
+        const itemRef = doc(db, 'class-store-items', refundCandidate.itemId);
 
-            const [buyerDoc, sellerDoc, itemDoc] = await Promise.all([
-                transaction.get(buyerRef),
-                transaction.get(sellerRef),
-                transaction.get(itemRef)
-            ]);
+        const [buyerDoc, sellerDoc, itemDoc] = await Promise.all([
+            transaction.get(buyerRef),
+            transaction.get(sellerRef),
+            transaction.get(itemRef)
+        ]);
 
-            if (!buyerDoc.exists()) throw "구매자 정보를 찾을 수 없습니다.";
-            if (!sellerDoc.exists()) throw "판매자 정보를 찾을 수 없습니다.";
-            if (!itemDoc.exists()) throw "환불하려는 아이템을 상점에서 찾을 수 없습니다.";
+        if (!buyerDoc.exists()) throw "구매자 정보를 찾을 수 없습니다.";
+        if (!sellerDoc.exists()) throw "판매자 정보를 찾을 수 없습니다.";
+        if (!itemDoc.exists()) throw "환불하려는 아이템을 상점에서 찾을 수 없습니다.";
 
-            const buyerData = buyerDoc.data() as User;
-            const sellerData = sellerDoc.data() as User;
+        const buyerData = buyerDoc.data() as User;
+        const sellerData = sellerDoc.data() as User;
 
-            const itemInInventory = buyerData.inventory?.[refundCandidate.itemId];
-            if (!itemInInventory || itemInInventory.quantity < 1) throw "환불할 아이템이 없습니다.";
+        const itemInInventory = buyerData.inventory?.[refundCandidate.itemId];
+        if (!itemInInventory || itemInInventory.quantity < 1) throw "환불할 아이템이 없습니다.";
 
-            if((sellerData.classPoints || 0) < refundCandidate.price!) {
-                throw '판매자의 포인트가 부족하여 환불할 수 없습니다.';
-            }
+        if((sellerData.classPoints || 0) < refundCandidate.price!) {
+            throw '판매자의 포인트가 부족하여 환불할 수 없습니다.';
+        }
 
-            const newQuantity = itemInInventory.quantity - 1;
-            if (newQuantity > 0) {
-                transaction.update(buyerRef, { [`inventory.${refundCandidate.itemId}.quantity`]: newQuantity });
-            } else {
-                transaction.update(buyerRef, { [`inventory.${refundCandidate.itemId}`]: deleteField() });
-            }
+        const newQuantity = itemInInventory.quantity - 1;
+        if (newQuantity > 0) {
+            transaction.update(buyerRef, { [`inventory.${refundCandidate.itemId}.quantity`]: newQuantity });
+        } else {
+            transaction.update(buyerRef, { [`inventory.${refundCandidate.itemId}`]: deleteField() });
+        }
 
-            transaction.update(buyerRef, { classPoints: increment(refundCandidate.price!) });
-            transaction.update(sellerRef, { classPoints: increment(-refundCandidate.price!) });
-            transaction.update(itemRef, { quantity: increment(1) });
+        transaction.update(buyerRef, { classPoints: increment(refundCandidate.price!) });
+        transaction.update(sellerRef, { classPoints: increment(-refundCandidate.price!) });
+        transaction.update(itemRef, { quantity: increment(1) });
 
-            const buyerLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
-            transaction.set(buyerLogRef, {
-                type: 'ITEM_REFUND_BUYER', amount: refundCandidate.price, timestamp: serverTimestamp(),
-                description: `'${refundCandidate.name}' 환불`, relatedItemId: refundCandidate.itemId,
-            });
-
-            const sellerLogRef = doc(collection(db, 'users', refundCandidate.sellerId!, 'pointLogs'));
-            transaction.set(sellerLogRef, {
-                type: 'ITEM_SALE_REFUND', amount: -refundCandidate.price, timestamp: serverTimestamp(),
-                description: `판매된 '${refundCandidate.name}' 환불 처리`, relatedItemId: refundCandidate.itemId,
-            });
+        const buyerLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
+        transaction.set(buyerLogRef, {
+            type: 'ITEM_REFUND_BUYER', amount: refundCandidate.price, timestamp: serverTimestamp(),
+            description: `'${refundCandidate.name}' 환불`, relatedItemId: refundCandidate.itemId,
         });
+
+        const sellerLogRef = doc(collection(db, 'users', refundCandidate.sellerId!, 'pointLogs'));
+        transaction.set(sellerLogRef, {
+            type: 'ITEM_SALE_REFUND', amount: -refundCandidate.price, timestamp: serverTimestamp(),
+            description: `판매된 '${refundCandidate.name}' 환불 처리`, relatedItemId: refundCandidate.itemId,
+        });
+    })
+    .then(() => {
         toast({ title: '환불 완료', description: '아이템이 환불 처리되었습니다.' });
-    } catch (error: any) {
+    })
+    .catch((error: any) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `users/${user.uid} and users/${refundCandidate.sellerId}`,
+            operation: 'write',
+            requestResourceData: {
+              buyer: user.uid,
+              seller: refundCandidate.sellerId,
+              itemId: refundCandidate.itemId,
+              price: refundCandidate.price
+            }
+        }));
         toast({ variant: 'destructive', title: '환불 실패', description: `환불 처리 중 오류가 발생했습니다: ${error.toString()}`});
-    } finally {
+    })
+    .finally(() => {
         setIsProcessing(false);
         setRefundCandidate(null);
-    }
+    });
   };
 
 

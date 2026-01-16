@@ -2,6 +2,7 @@
 
 import { Header } from '@/components/header';
 import { UserDirectoryProvider } from '@/contexts/UserDirectoryContext';
+import { FirebaseErrorListener } from '@/components/FirebaseErrorListener';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -12,6 +13,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <FirebaseErrorListener />
     </UserDirectoryProvider>
   );
 }
