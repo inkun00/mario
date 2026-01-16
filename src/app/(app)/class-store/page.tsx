@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -254,10 +253,11 @@ export default function ClassStorePage() {
         const sellerRef = doc(db, 'users', buyCandidate.sellerId);
         const itemRef = doc(db, 'class-store-items', buyCandidate.id);
 
-        // --- 모든 읽기 작업을 먼저 수행 ---
-        const [itemDoc, buyerDoc] = await Promise.all([
+        // --- All reads first ---
+        const [itemDoc, buyerDoc, sellerDoc] = await Promise.all([
           transaction.get(itemRef),
           transaction.get(buyerRef),
+          transaction.get(sellerRef)
         ]);
 
         if (!itemDoc.exists() || itemDoc.data().quantity < 1) {
@@ -267,18 +267,23 @@ export default function ClassStorePage() {
         if (!buyerDoc.exists()) {
             throw "구매자 정보를 찾을 수 없습니다.";
         }
+        if (!sellerDoc.exists()) {
+          throw '판매자 정보를 찾을 수 없습니다.';
+        }
         
         const buyerData = buyerDoc.data() as User;
 
-        // --- 모든 쓰기 작업을 이후에 수행 ---
-        // 1. 구매자 포인트 차감
+        // --- All writes after ---
+        // 1. Buyer points decrease
         transaction.update(buyerRef, { classPoints: increment(-buyCandidate.price) });
-        // 2. 판매자 포인트 증가
+        
+        // 2. Seller points increase
         transaction.update(sellerRef, { classPoints: increment(buyCandidate.price) });
-        // 3. 아이템 재고 감소
+        
+        // 3. Item stock decrease
         transaction.update(itemRef, { quantity: increment(-1) });
 
-        // 4. 구매자 인벤토리에 아이템 추가
+        // 4. Add item to buyer's inventory
         const newInventoryItem = {
           name: buyCandidate.name,
           itemId: buyCandidate.id,
@@ -298,7 +303,7 @@ export default function ClassStorePage() {
           transaction.set(buyerRef, { inventory: { [buyCandidate.id]: newInventoryItem } }, { merge: true });
         }
 
-        // 5. 포인트 로그 기록
+        // 5. Point logs
         const buyerLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
         transaction.set(buyerLogRef, {
             type: 'ITEM_PURCHASE',
@@ -490,13 +495,15 @@ export default function ClassStorePage() {
             const sellerRef = doc(db, 'users', refundCandidate.sellerId!);
             const itemRef = doc(db, 'class-store-items', refundCandidate.itemId);
 
-            const [buyerDoc, sellerDoc] = await Promise.all([
+            const [buyerDoc, sellerDoc, itemDoc] = await Promise.all([
                 transaction.get(buyerRef),
-                transaction.get(sellerRef)
+                transaction.get(sellerRef),
+                transaction.get(itemRef)
             ]);
 
             if (!buyerDoc.exists()) throw "구매자 정보를 찾을 수 없습니다.";
             if (!sellerDoc.exists()) throw "판매자 정보를 찾을 수 없습니다.";
+            if (!itemDoc.exists()) throw "환불하려는 아이템을 상점에서 찾을 수 없습니다.";
 
             const buyerData = buyerDoc.data() as User;
             const sellerData = sellerDoc.data() as User;

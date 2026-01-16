@@ -1,5 +1,6 @@
 rules_version = '2';
 
+// Re-applying rules to fix any potential deployment issues.
 service cloud.firestore {
   match /databases/{database}/documents {
     
