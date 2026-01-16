@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -32,7 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Combobox } from '@/components/ui/combobox';
 import { v4 as uuidv4 } from 'uuid';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart, ResponsiveContainer, Cell } from 'recharts';
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart, ResponsiveContainer, Cell, Pie, PieChart, Legend } from 'recharts';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 
@@ -180,6 +179,7 @@ export default function MyClassPage() {
   const [bulkSendReason, setBulkSendReason] = useState('');
   const [bulkSendRecipients, setBulkSendRecipients] = useState<string[]>([]);
   const [isBulkSending, setIsBulkSending] = useState(false);
+  const [chartView, setChartView] = useState<'income' | 'expense'>('income');
 
 
   const form = useForm<SellItemFormValues>({
@@ -192,6 +192,38 @@ export default function MyClassPage() {
       emoji: '📝',
     }
   });
+
+  const pointAnalysisDataForDialog = useMemo(() => {
+    const incomeByCategory: Record<string, number> = {};
+    const expenseByCategory: Record<string, number> = {};
+
+    pointLogs.forEach(log => {
+      if (log.amount > 0) {
+        let category = "기타 수입";
+        if (log.type === 'QUIZ_REWARD' || log.type === 'REVIEW_REWARD') category = "퀴즈/복습 보상";
+        else if (log.type === 'ITEM_SALE') category = "아이템 판매";
+        else if (log.type === 'RECEIVE_POINTS') category = "포인트 받기";
+        else if (log.type === 'TEACHER_GRANT') category = "선생님 지급";
+        else if (log.type === 'ITEM_REFUND_BUYER') category = "환불 받음";
+        incomeByCategory[category] = (incomeByCategory[category] || 0) + log.amount;
+      } else {
+        let category = "기타 지출";
+        if (log.type === 'ITEM_PURCHASE') category = "아이템 구매";
+        else if (log.type === 'SEND_POINTS') category = "포인트 보내기";
+        else if (log.type === 'TEACHER_DEDUCT') category = "선생님 회수";
+        else if (log.type === 'ITEM_REFUND_SELLER') category = "환불 처리";
+        expenseByCategory[category] = (expenseByCategory[category] || 0) + Math.abs(log.amount);
+      }
+    });
+
+    const totalIncome = Object.values(incomeByCategory).reduce((sum, value) => sum + value, 0);
+    const totalExpense = Object.values(expenseByCategory).reduce((sum, value) => sum + value, 0);
+
+    const incomeChartData = Object.entries(incomeByCategory).map(([name, value]) => ({ name, value }));
+    const expenseChartData = Object.entries(expenseByCategory).map(([name, value]) => ({ name, value }));
+
+    return { totalIncome, totalExpense, incomeChartData, expenseChartData };
+  }, [pointLogs]);
 
  useEffect(() => {
     if (!user) {
@@ -692,7 +724,7 @@ export default function MyClassPage() {
             setSelectedSellingItem(null);
         } catch (e) {
             console.error("Error updating selling item:", e);
-            toast({variant: 'destructive', title: '오류', description: '상품 정보 업데이트 중 오류 발생'});
+            toast({variant: 'destructive', title: '오류', description: '상품 정보 업데이트 중 오류가 발생'});
         }
     };
 
@@ -918,8 +950,7 @@ export default function MyClassPage() {
     }
 
     setIsSendingPoints(true);
-    const recipientUser = classMembers.find(m => m.uid === sendPointsRecipient);
-    const recipientName = recipientUser?.displayName || '친구';
+    const recipientName = classMembers.find(m => m.uid === sendPointsRecipient)?.displayName || '친구';
     
     try {
       await runTransaction(db, async (transaction) => {
@@ -1177,1030 +1208,489 @@ export default function MyClassPage() {
         }
     };
 
+    const COLORS = [
+        "hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))",
+        "hsl(var(--chart-4))", "hsl(var(--chart-5))"
+    ];
+    
+    const chartConfigForDialog: Record<string, { label: string; color?: string }> = { value: { label: "포인트" } };
+    pointAnalysisDataForDialog.incomeChartData.forEach((item, index) => {
+        chartConfigForDialog[item.name as keyof typeof chartConfigForDialog] = { label: item.name, color: COLORS[index % COLORS.length] };
+    });
+    pointAnalysisDataForDialog.expenseChartData.forEach((item, index) => {
+        chartConfigForDialog[item.name as keyof typeof chartConfigForDialog] = { label: item.name, color: COLORS[index % COLORS.length] };
+    });
+
+
+  const xpForNextLevel = nextLevelInfo ? nextLevelInfo.xpThreshold - (levelInfo?.xpThreshold || 0) : 0;
+  const currentXpProgress = userData ? userData.xp - (levelInfo?.xpThreshold || 0) : 0;
+  const progressPercentage = xpForNextLevel > 0 ? (currentXpProgress / xpForNextLevel) * 100 : 100;
+
+  const schoolInfo = [userData?.schoolName, userData?.grade && `${userData.grade}학년`, userData?.class && `${userData.class}반`].filter(Boolean).join(' ');
+
+  if (isLoading) {
+    return (
+        <div className="container mx-auto flex flex-col gap-8">
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center gap-4">
+                        <Skeleton className="h-20 w-20 rounded-lg" />
+                        <div>
+                           <Skeleton className="h-8 w-40 mb-2" />
+                           <Skeleton className="h-5 w-32" />
+                        </div>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    <div className="grid grid-cols-3 gap-4 text-center">
+                        <div>
+                            <Skeleton className="h-7 w-24 mx-auto mb-1" />
+                            <Skeleton className="h-5 w-20 mx-auto" />
+                        </div>
+                        <div>
+                            <Skeleton className="h-7 w-24 mx-auto mb-1" />
+                            <Skeleton className="h-5 w-20 mx-auto" />
+                        </div>
+                        <div>
+                            <Skeleton className="h-7 w-24 mx-auto mb-1" />
+                            <Skeleton className="h-5 w-16 mx-auto" />
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader><Skeleton className="h-8 w-32" /></CardHeader>
+                <CardContent><Skeleton className="h-24 w-full" /></CardContent>
+            </Card>
+        </div>
+    )
+  }
+  
+  if (!user || !userData || !levelInfo) {
+      return <div>사용자 정보를 불러올 수 없습니다.</div>
+  }
+
+  const hasUserPlayedSelectedSet = previewGameSet ? playedGameSetIds.has(previewGameSet.id) : false;
 
   return (
-    <>
-    <MotionDiv
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-    >
+    <TooltipProvider>
+    <div className="container mx-auto flex flex-col gap-8">
       <Card>
         <CardHeader>
-          <CardTitle className="font-headline text-3xl flex items-center gap-2">
-              <Users />
-              나의 학급
-          </CardTitle>
-          {teacher && (
-              <CardDescription>
-                  {teacher.name || teacher.displayName} 선생님의 학급
-              </CardDescription>
-          )}
-        </CardHeader>
-        <CardContent>
-          {!hasClass ? (
-            <div className="text-center py-12 border-2 border-dashed rounded-lg">
-              <p className="text-muted-foreground">
-                {isTeacher ? '아직 학급 코드를 설정하지 않았습니다. 마이페이지에서 학급 코드를 설정해주세요.' : '아직 소속된 학급이 없습니다. 마이페이지에서 학급 코드를 입력하여 참여하세요.'}
-              </p>
-            </div>
-          ) : (
-            <Tabs defaultValue="ranking" className="w-full" onValueChange={handleTabChange}>
-              <TabsList className={cn("grid w-full", isTeacher ? "grid-cols-4" : "grid-cols-2")}>
-                {isTeacher && <TabsTrigger value="analysis">학습 분석</TabsTrigger>}
-                {isTeacher && <TabsTrigger value="point-analysis">포인트 유통 현황</TabsTrigger>}
-                <TabsTrigger value="ranking">우리 학급 랭킹</TabsTrigger>
-                <TabsTrigger value="store">학급 매점</TabsTrigger>
-              </TabsList>
-              {isTeacher && (
-                <TabsContent value="analysis" className="mt-4">
-                     {isAnalysisLoading ? (
-                         <div className="flex justify-center items-center h-64">
-                             <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                             <p className="ml-2">학습 데이터를 분석하는 중...</p>
-                         </div>
-                     ) : !learningAnalysisData || Object.keys(learningAnalysisData.subjectStats).length === 0 ? (
-                         <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                             <p className="text-muted-foreground">분석할 학습 데이터가 부족합니다.</p>
-                         </div>
-                     ) : (
-                         <div className="space-y-8">
-                             <Card>
-                                 <CardHeader>
-                                     <CardTitle>과목별 정답률</CardTitle>
-                                 </CardHeader>
-                                 <CardContent>
-                                     <ChartContainer config={analysisChartConfig} className="h-64 w-full">
-                                         <BarChart data={analysisChartData} accessibilityLayer>
-                                             <CartesianGrid vertical={false} />
-                                             <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
-                                             <YAxis domain={[0, 100]} unit="%" />
-                                             <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                                             <Bar dataKey="정답률" fill="var(--color-정답률)" radius={4} />
-                                         </BarChart>
-                                     </ChartContainer>
-                                 </CardContent>
-                             </Card>
-                              <Card>
-                                 <CardHeader>
-                                     <CardTitle>단원별 정답률 (상위 10개)</CardTitle>
-                                 </CardHeader>
-                                 <CardContent>
-                                     <ChartContainer config={analysisChartConfig} className="h-64 w-full">
-                                         <BarChart data={analysisUnitChartData.slice(0,10)} layout="vertical" accessibilityLayer>
-                                             <CartesianGrid horizontal={false} />
-                                             <YAxis dataKey="name" type="category" tickLine={false} axisLine={false} tickMargin={8} width={100} fontSize={12} />
-                                             <XAxis type="number" domain={[0, 100]} unit="%" />
-                                             <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-                                             <Bar dataKey="정답률" fill="var(--color-정답률)" radius={4} />
-                                         </BarChart>
-                                     </ChartContainer>
-                                 </CardContent>
-                             </Card>
-                             <Card>
-                                <CardHeader>
-                                    <CardTitle>정답률이 낮은 문제 TOP 10</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>문제</TableHead>
-                                                <TableHead className="text-right">정답률</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {learningAnalysisData.lowAccuracyQuestions.map((q, i) => (
-                                                <TableRow key={i}>
-                                                    <TableCell className="max-w-sm truncate">{q.question}</TableCell>
-                                                    <TableCell className="text-right font-semibold text-destructive">{q.accuracy.toFixed(1)}%</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </CardContent>
-                             </Card>
-                         </div>
-                     )}
-                </TabsContent>
-              )}
-               {isTeacher && (
-                       <TabsContent value="point-analysis" className="mt-4">
-                           {isAnalysisLoading ? (
-                               <div className="flex justify-center items-center h-64">
-                                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                                   <p className="ml-2">포인트 데이터를 분석하는 중...</p>
-                               </div>
-                           ) : !pointAnalysisData ? (
-                               <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                                   <p className="text-muted-foreground">분석할 포인트 데이터가 부족합니다.</p>
-                               </div>
-                           ) : (
-                               <div className="space-y-8">
-                                   <Card>
-                                       <CardHeader>
-                                           <CardTitle>포인트 유통 현황</CardTitle>
-                                       </CardHeader>
-                                       <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
-                                           <div className="p-4 bg-secondary rounded-lg">
-                                               <p className="text-sm text-muted-foreground">총 보유 포인트</p>
-                                               <p className="text-3xl font-bold text-primary">{pointAnalysisData.totalHeldPoints.toLocaleString()}</p>
-                                           </div>
-                                            <div className="p-4 bg-secondary rounded-lg">
-                                               <p className="text-sm text-muted-foreground">소비 포인트</p>
-                                               <p className="text-3xl font-bold text-destructive">{pointAnalysisData.totalSpentPoints.toLocaleString()}</p>
-                                           </div>
-                                       </CardContent>
-                                   </Card>
-                                    <Card>
-                                        <CardHeader>
-                                            <CardTitle>포인트 일괄 보내기</CardTitle>
-                                            <CardDescription>여러 학생에게 한 번에 포인트를 보낼 수 있습니다.</CardDescription>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <Button onClick={() => setIsBulkSendDialogOpen(true)} className="w-full">
-                                                <Send className="mr-2 h-4 w-4"/> 포인트 일괄 보내기
-                                            </Button>
-                                        </CardContent>
-                                    </Card>
-                                    <Card>
-                                       <CardHeader>
-                                           <CardTitle>인기 판매 상품 TOP 10</CardTitle>
-                                       </CardHeader>
-                                       <CardContent>
-                                            <ChartContainer config={pointAnalysisChartConfig} className="w-full h-[300px]">
-                                                <BarChart accessibilityLayer data={pointAnalysisChartData} layout="vertical">
-                                                    <CartesianGrid strokeDasharray="3 3" />
-                                                    <XAxis type="number" />
-                                                    <YAxis dataKey="name" type="category" width={80} />
-                                                    <ChartTooltip cursor={{ fill: 'hsl(var(--muted))' }} content={<ChartTooltipContent />} />
-                                                    <Bar dataKey="count" name="판매량" radius={4}>
-                                                        {pointAnalysisChartData.map((_, index) => (
-                                                            <Cell key={`cell-${index}`} fill={`hsl(var(--chart-${(index % 5) + 1}))`} />
-                                                        ))}
-                                                    </Bar>
-                                                </BarChart>
-                                            </ChartContainer>
-                                       </CardContent>
-                                   </Card>
-                                   <Card>
-                                        <CardHeader>
-                                            <CardTitle className="flex items-center gap-2"><History />전체 거래 기록</CardTitle>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <ScrollArea className="h-96">
-                                                <Table>
-                                                    <TableHeader>
-                                                        <TableRow>
-                                                            <TableHead>학생</TableHead>
-                                                            <TableHead>시간</TableHead>
-                                                            <TableHead>내용</TableHead>
-                                                            <TableHead className="text-right">포인트</TableHead>
-                                                        </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                        {currentLogs.map(log => (
-                                                            <TableRow key={log.id}>
-                                                                <TableCell className="font-medium">{log.studentName}</TableCell>
-                                                                <TableCell className="text-xs">{log.timestamp ? new Date((log.timestamp as any)?.toDate()).toLocaleString() : ''}</TableCell>
-                                                                <TableCell>{log.description}</TableCell>
-                                                                <TableCell className={cn("text-right font-semibold", log.amount > 0 ? "text-green-600" : "text-red-600")}>
-                                                                {log.amount > 0 ? '+' : ''}{log.amount.toLocaleString()}
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        ))}
-                                                    </TableBody>
-                                                </Table>
-                                            </ScrollArea>
-                                            {totalLogPages > 1 && (
-                                                <Pagination className="mt-4">
-                                                    <PaginationContent>
-                                                        <PaginationItem>
-                                                        <PaginationPrevious href="#" onClick={(e) => { e.preventDefault(); handlePageChange(pointHistoryPage - 1); }} />
-                                                        </PaginationItem>
-                                                        {Array.from({ length: totalLogPages }, (_, i) => (
-                                                        <PaginationItem key={i}>
-                                                            <Button
-                                                            variant={pointHistoryPage === i + 1 ? 'outline' : 'ghost'}
-                                                            size="icon"
-                                                            onClick={(e) => { e.preventDefault(); handlePageChange(i + 1); }}
-                                                            >
-                                                            {i + 1}
-                                                            </Button>
-                                                        </PaginationItem>
-                                                        ))}
-                                                        <PaginationItem>
-                                                        <PaginationNext href="#" onClick={(e) => { e.preventDefault(); handlePageChange(pointHistoryPage + 1); }} />
-                                                        </PaginationItem>
-                                                    </PaginationContent>
-                                                </Pagination>
-                                            )}
-                                        </CardContent>
-                                    </Card>
-                               </div>
-                           )}
-                       </TabsContent>
-                   )}
-              <TabsContent value="ranking" className="mt-4">
-                {classMembers.length === 0 ? (
-                  <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                    <p className="text-muted-foreground">아직 학급에 참여한 학생이 없습니다.</p>
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[80px] text-center">순위</TableHead>
-                        <TableHead>이름</TableHead>
-                        <TableHead>학교</TableHead>
-                        <TableHead className="text-center">레벨</TableHead>
-                        <TableHead className="text-right">학급 포인트</TableHead>
-                         {isTeacher && <TableHead className="text-right w-[100px]">작업</TableHead>}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {classMembers.map((member, index) => {
-                        const rank = index + 1;
-                        const levelInfo = getLevelInfo(member.xp);
-                        let pixelAvatarData = null;
-                        if (member.pixelAvatar) {
-                            try {
-                                pixelAvatarData = JSON.parse(member.pixelAvatar);
-                            } catch(e) { console.error("Error parsing pixel avatar", e); }
-                        }
-                        const displayName = member.name || member.displayName;
-
-                        return (
-                          <TableRow 
-                            key={member.uid} 
-                            className={cn(
-                                member.uid === user?.uid ? 'bg-primary/10' : '',
-                                isTeacher && member.uid !== user?.uid ? 'cursor-pointer hover:bg-muted/50' : ''
-                            )}
-                            onClick={() => isTeacher && member.uid !== user?.uid && handleStudentClick(member)}
-                          >
-                            <TableCell className="font-bold text-center text-lg">
-                              {rank === 1 ? <Crown className="w-6 h-6 mx-auto text-yellow-500 fill-yellow-400" /> : rank}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <Avatar className="flex items-center justify-center bg-muted h-10 w-10">
-                                    {pixelAvatarData ? (
-                                        <PixelAvatar pixels={pixelAvatarData} />
-                                    ) : (
-                                        <AvatarFallback>{displayName.substring(0,2)}</AvatarFallback>
-                                    )}
-                                </Avatar>
-                                <span className="font-medium">{displayName}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>{member.schoolName}</TableCell>
-                            <TableCell className="text-center font-medium">Lv. {levelInfo.level}</TableCell>
-                            <TableCell className="text-right font-bold text-primary flex items-center justify-end gap-1">
-                                <Gem className="w-4 h-4 text-blue-500" />
-                                {(member.classPoints || 0).toLocaleString()}
-                            </TableCell>
-                            {isTeacher && (
-                                <TableCell className="text-right">
-                                    {member.uid !== user?.uid && (
-                                        <Button 
-                                            variant="destructive" 
-                                            size="sm" 
-                                            onClick={(e) => { e.stopPropagation(); setEvictCandidate(member);}}
-                                        >
-                                            <MinusCircle className="mr-2 h-4 w-4"/> 퇴장
-                                        </Button>
-                                    )}
-                                </TableCell>
-                            )}
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                )}
-              </TabsContent>
-              <TabsContent value="store" className="mt-4">
-                  <Tabs defaultValue="main">
-                    <div className="flex justify-between items-center">
-                        <TabsList className="grid w-full grid-cols-1">
-                            <TabsTrigger value="main">매점 메인</TabsTrigger>
-                        </TabsList>
-                        <div 
-                           className="text-sm font-bold text-blue-500 flex items-center gap-1 shrink-0 ml-4 cursor-pointer hover:underline"
-                           onClick={handleOpenPointHistory}
-                         >
-                            <Gem className="w-4 h-4" />
-                            <span>내 포인트: {(userData.classPoints || 0).toLocaleString()}</span>
-                        </div>
-                    </div>
-                    <TabsContent value="main" className="mt-4">
-                        <Card>
-                            <CardHeader>
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <CardTitle className="flex items-center gap-2"><Store className="text-primary"/>학급 매점</CardTitle>
-                                        <CardDescription>학급 포인트를 사용하여 다양한 아이템을 구매하거나 판매할 수 있습니다.</CardDescription>
-                                    </div>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="flex flex-col sm:flex-row gap-4">
-                                <Dialog open={isBuyItemDialogOpen} onOpenChange={setIsBuyItemDialogOpen}>
-                                    <DialogTrigger asChild>
-                                        <Button className="w-full">
-                                            <ShoppingCart className="mr-2 h-4 w-4"/> 물건 사기
-                                        </Button>
-                                    </DialogTrigger>
-                                    <DialogContent className="max-w-4xl">
-                                        <DialogHeader>
-                                            <DialogTitle>학급 매점</DialogTitle>
-                                            <DialogDescription>판매 중인 물품 목록입니다. 상품명을 클릭하여 설명을 볼 수 있습니다.</DialogDescription>
-                                        </DialogHeader>
-                                        <ScrollArea className="h-[34rem]">
-                                            {isStoreLoading ? (
-                                            <div className="flex justify-center items-center h-full">
-                                                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                                            </div>
-                                            ) : classStoreItems.length === 0 ? (
-                                            <div className="text-center py-12">
-                                                <p className="text-muted-foreground">아직 판매 중인 상품이 없습니다.</p>
-                                            </div>
-                                            ) : (
-                                            <Table>
-                                                <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>상품명</TableHead>
-                                                    <TableHead>판매자</TableHead>
-                                                    <TableHead className="text-center">수량</TableHead>
-                                                    <TableHead className="text-right">가격 (포인트)</TableHead>
-                                                    <TableHead className="w-[120px] text-center">동작</TableHead>
-                                                </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                {classStoreItems.map((item) => (
-                                                    <TableRow key={item.id} className={cn(item.report && 'bg-destructive/10')}>
-                                                    <TableCell 
-                                                        className="font-medium cursor-pointer hover:underline"
-                                                        onClick={() => handleItemClick(item)}
-                                                    >
-                                                        <div className="flex items-center gap-2">
-                                                        {item.emoji && <span className="text-lg">{item.emoji}</span>}
-                                                        {item.report && <AlertTriangle className="w-4 h-4 text-destructive" />}
-                                                        {item.name}
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>{item.sellerName}</TableCell>
-                                                    <TableCell className="text-center">{item.quantity}</TableCell>
-                                                    <TableCell className="text-right font-bold text-primary">{item.price.toLocaleString()}</TableCell>
-                                                    <TableCell className="text-center">
-                                                        <div className="flex items-center justify-center gap-2">
-                                                        {isTeacher ? (
-                                                            <Button
-                                                                variant="destructive"
-                                                                size="sm"
-                                                                onClick={() => handleDeleteItem(item)}
-                                                                title="이 상품을 매점에서 삭제합니다."
-                                                            >
-                                                                판매 중지
-                                                            </Button>
-                                                        ) : item.sellerId !== user?.uid && (
-                                                            <>
-                                                                <Button 
-                                                                    size="sm" 
-                                                                    disabled={!!isBuying || !!item.report}
-                                                                    onClick={() => handleBuyItem(item)}
-                                                                    title={item.report ? '신고된 상품은 구매할 수 없습니다.' : ''}
-                                                                >
-                                                                    {isBuying === item.id ? <Loader2 className="w-4 h-4 animate-spin"/> : '구매'}
-                                                                </Button>
-                                                                {!item.report && (
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        className="h-8 w-8 text-destructive hover:text-destructive"
-                                                                        onClick={() => setReportCandidate(item)}
-                                                                    >
-                                                                        <AlertTriangle className="w-4 h-4" />
-                                                                    </Button>
-                                                                )}
-                                                            </>
-                                                        )}
-                                                        </div>
-                                                    </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                                </TableBody>
-                                            </Table>
-                                            )}
-                                        </ScrollArea>
-                                    </DialogContent>
-                                </Dialog>
-                                <Dialog open={isSellItemDialogOpen} onOpenChange={setIsSellItemDialogOpen}>
-                                    <DialogTrigger asChild>
-                                        <Button className="w-full" variant="secondary">
-                                            <Repeat className="mr-2 h-4 w-4"/> 물건 팔기
-                                        </Button>
-                                    </DialogTrigger>
-                                    <DialogContent className="max-w-lg">
-                                        <DialogHeader>
-                                            <DialogTitle>판매할 물건 등록하기</DialogTitle>
-                                            <DialogDescription>판매할 상품의 정보를 입력해주세요.</DialogDescription>
-                                        </DialogHeader>
-                                        <Form {...form}>
-                                            <form onSubmit={form.handleSubmit(handleSellItem)} className="space-y-4">
-                                                <FormField
-                                                    control={form.control}
-                                                    name="name"
-                                                    render={({ field }) => (
-                                                        <FormItem>
-                                                            <FormLabel>상품명</FormLabel>
-                                                            <FormControl><Input {...field} placeholder="예: 숙제 1회 면제권" /></FormControl>
-                                                            <FormMessage />
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                                <FormField
-                                                control={form.control}
-                                                name="emoji"
-                                                render={({ field }) => (
-                                                    <FormItem className="space-y-3">
-                                                    <FormLabel>아이콘</FormLabel>
-                                                    <FormControl>
-                                                        <EmojiSelector value={field.value} onChange={field.onChange} />
-                                                    </FormControl>
-                                                    <FormMessage />
-                                                    </FormItem>
-                                                )}
-                                                />
-                                                <FormField
-                                                    control={form.control}
-                                                    name="price"
-                                                    render={({ field }) => (
-                                                        <FormItem>
-                                                            <FormLabel>가격 (학급 포인트)</FormLabel>
-                                                            <FormControl><Input type="number" {...field} /></FormControl>
-                                                            <FormMessage />
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                                <FormField
-                                                    control={form.control}
-                                                    name="description"
-                                                    render={({ field }) => (
-                                                        <FormItem>
-                                                            <FormLabel>제품 설명</FormLabel>
-                                                            <FormControl><Textarea {...field} placeholder="상품에 대해 자세히 설명해주세요." /></FormControl>
-                                                            <FormMessage />
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                                <FormField
-                                                    control={form.control}
-                                                    name="quantity"
-                                                    render={({ field }) => (
-                                                        <FormItem>
-                                                            <FormLabel>수량</FormLabel>
-                                                            <FormControl><Input type="number" {...field} /></FormControl>
-                                                            <FormMessage />
-                                                        </FormItem>
-                                                    )}
-                                                />
-                                                <DialogFooter>
-                                                    <Button type="submit" disabled={isSubmitting}>
-                                                        {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                                                        저장하기
-                                                    </Button>
-                                                </DialogFooter>
-                                            </form>
-                                        </Form>
-                                    </DialogContent>
-                                </Dialog>
-                            </CardContent>
-                        </Card>
-                        <div className="mt-6 space-y-6">
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="font-headline flex items-center gap-2"><Package className="text-primary"/>보유 상품</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    {userData.inventory && Object.keys(userData.inventory).length > 0 ? (
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                            {Object.entries(userData.inventory).map(([itemName, itemDetails]) => (
-                                                <Card 
-                                                key={itemName} 
-                                                className="p-4 text-center cursor-pointer hover:shadow-md hover:border-primary transition flex flex-col items-center gap-2"
-                                                onClick={() => setSelectedItem({ name: itemName, details: itemDetails })}
-                                                >
-                                                    <div className="text-4xl">{itemDetails.emoji || '📦'}</div>
-                                                    <CardTitle className="text-base">{itemName}</CardTitle>
-                                                    <CardDescription className="mt-1">수량: {itemDetails.quantity}</CardDescription>
-                                                    {itemDetails.sellerNickname && (
-                                                        <CardDescription className="text-xs mt-auto pt-2">판매자: {itemDetails.sellerNickname}</CardDescription>
-                                                    )}
-                                                </Card>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                                            <p className="text-muted-foreground">아직 보유한 상품이 없습니다.</p>
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-
-                            <Card>
-                                <CardHeader>
-                                <CardTitle className="font-headline flex items-center gap-2">
-                                    <Send className="text-primary"/>판매 중인 상품
-                                </CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                {sellingItems.length > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {sellingItems.map((item) => (
-                                        <Card key={item.id} className="flex flex-col">
-                                        <CardHeader className="items-center">
-                                            <div className="text-5xl mb-2">{item.emoji || '📦'}</div>
-                                            <CardTitle className="text-lg text-center">{item.name}</CardTitle>
-                                            <CardDescription className="text-sm text-primary font-bold">
-                                                {item.price.toLocaleString()} 포인트
-                                            </CardDescription>
-                                        </CardHeader>
-                                        <CardContent className="flex-grow">
-                                            <p className="text-sm text-muted-foreground line-clamp-2">
-                                            {item.description}
-                                            </p>
-                                            <p className="text-sm mt-2">
-                                            남은 수량: <span className="font-bold">{item.quantity}</span>
-                                            </p>
-                                        </CardContent>
-                                        <CardFooter>
-                                            <Button variant="outline" className="w-full" onClick={() => handleManageSellingItem(item)}>
-                                                <Settings className="mr-2 h-4 w-4" />
-                                                관리
-                                            </Button>
-                                        </CardFooter>
-                                        </Card>
-                                    ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                                    <p className="text-muted-foreground">현재 판매 중인 상품이 없습니다.</p>
-                                    </div>
-                                )}
-                                </CardContent>
-                            </Card>
-                        </div>
-                    </TabsContent>
-                   
-                  </Tabs>
-              </TabsContent>
-            </Tabs>
-          )}
-        </CardContent>
-      </Card>
-    </MotionDiv>
-    
-    {/* Item Action Dialog */}
-    <Dialog open={!!selectedItem} onOpenChange={(isOpen) => !isOpen && setSelectedItem(null)}>
-        <DialogContent>
-            <DialogHeader className="items-center text-center">
-                <div className="text-6xl mb-2">{selectedItem?.details.emoji || '📦'}</div>
-                <DialogTitle className="text-2xl">{selectedItem?.name}</DialogTitle>
-                <DialogDescription>{selectedItem?.details.description}</DialogDescription>
-            </DialogHeader>
-            <div className="py-4 space-y-4">
-                <div className="flex justify-center gap-2">
-                    <Button variant={itemAction === 'use' ? 'default' : 'outline'} onClick={() => setItemAction('use')}>사용</Button>
-                    <Button variant={itemAction === 'send' ? 'default' : 'outline'} onClick={() => setItemAction('send')}>보내기</Button>
-                    {selectedItem?.details.price && <Button variant={itemAction === 'refund' ? 'default' : 'outline'} onClick={() => setItemAction('refund')}>환불</Button>}
+          <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+            <div className="relative h-24 w-24 flex items-center justify-center rounded-lg bg-secondary flex-shrink-0 cursor-pointer group" onClick={() => setIsAvatarEditorOpen(true)}>
+                <PixelAvatar pixels={currentPixelAvatar} className="w-full h-full" />
+                <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
+                    <Pencil className="w-8 h-8 text-white" />
                 </div>
-                
-                {itemAction && (
-                    <div className="p-4 border rounded-md space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="quantity">수량</Label>
-                            <Input 
-                                id="quantity"
-                                type="number" 
-                                min="1" 
-                                max={selectedItem?.details.quantity} 
-                                value={actionQuantity} 
-                                onChange={(e) => setActionQuantity(Number(e.target.value))}
-                            />
-                        </div>
-                        {itemAction === 'send' && (
-                            <div className="space-y-2">
-                                <Label>받는 사람</Label>
-                                <Combobox
-                                    options={classMembers.filter(m => m.uid !== user?.uid).map(m => ({ value: m.uid, label: m.displayName }))}
-                                    value={sendRecipient}
-                                    onValueChange={setSendRecipient}
-                                    placeholder="보낼 친구 선택..."
-                                />
-                            </div>
-                        )}
-                        {itemAction === 'refund' && (
-                           <p className="text-sm text-center text-primary">
-                                환불 시 {((selectedItem?.details.price || 0) * actionQuantity).toLocaleString()} 학급 포인트가 반환됩니다.
-                            </p>
-                        )}
-                    </div>
-                )}
             </div>
-            <DialogFooter>
-                <Button variant="ghost" onClick={() => setSelectedItem(null)}>취소</Button>
-                <Button onClick={handleItemAction} disabled={!itemAction || isItemActionLoading}>
-                    {isItemActionLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : '확인'}
-                </Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
-
-
-    {/* Item Description Dialog */}
-    <Dialog open={!!selectedItemForDescription} onOpenChange={(isOpen) => !isOpen && setSelectedItemForDescription(null)}>
-        <DialogContent className="text-center">
-            <DialogHeader className="items-center">
-                <div className="text-6xl mb-2">{selectedItemForDescription?.emoji || '📦'}</div>
-                <DialogTitle className="text-2xl">{selectedItemForDescription?.name}</DialogTitle>
-                <DialogDescription>
-                    {selectedItemForDescription?.description || "설명이 없는 상품입니다."}
-                </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-                <Button onClick={() => setSelectedItemForDescription(null)} className="w-full">닫기</Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
-    
-    {/* Evict Student Confirmation Dialog */}
-    <AlertDialog open={!!evictCandidate} onOpenChange={(isOpen) => !isOpen && setEvictCandidate(null)}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>정말 학생을 내보내시겠습니까?</AlertDialogTitle>
-                <AlertDialogDescription>
-                    {evictCandidate?.name || evictCandidate?.displayName} 학생을 학급에서 내보냅니다. 이 학생은 더 이상 학급 랭킹과 매장에 접근할 수 없게 됩니다. 이 작업은 되돌릴 수 없습니다.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel>취소</AlertDialogCancel>
-                <AlertDialogAction onClick={handleEvictStudent} className="bg-destructive hover:bg-destructive/90">내보내기</AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
-
-    {/* Report Item Dialog */}
-    <Dialog open={!!reportCandidate} onOpenChange={(isOpen) => {if(!isOpen) { setReportCandidate(null); setReportReason('')}}}>
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>상품 신고하기: {reportCandidate?.name}</DialogTitle>
-                <DialogDescription>
-                    부적절하거나 규칙에 어긋나는 상품이라고 생각되면 신고해주세요. 신고 내용은 선생님만 확인할 수 있습니다.
-                </DialogDescription>
-            </DialogHeader>
-            <div className="py-4">
-                <Textarea 
-                    placeholder="신고 사유를 구체적으로 입력해주세요."
-                    value={reportReason}
-                    onChange={(e) => setReportReason(e.target.value)}
-                />
-            </div>
-            <DialogFooter>
-                 <Button variant="ghost" onClick={() => {setReportCandidate(null); setReportReason('')}}>취소</Button>
-                <Button onClick={handleReportItem} disabled={isReporting || !reportReason.trim()}>
-                    {isReporting ? <Loader2 className="w-4 h-4 animate-spin"/> : '제출하기'}
-                </Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
-    
-    {/* Reported Item Details Dialog (for teacher) */}
-    <Dialog open={!!reportedItemDetails} onOpenChange={(isOpen) => !isOpen && setReportedItemDetails(null)}>
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle className="flex items-center gap-2"><AlertTriangle className="text-destructive"/>신고된 상품 정보</DialogTitle>
-                <DialogDescription>
-                    '{reportedItemDetails?.name}' 상품에 대한 신고 내역입니다.
-                </DialogDescription>
-            </DialogHeader>
-            {reportedItemDetails?.report && (
-                 <div className="py-4 space-y-4">
-                    <div className="space-y-1">
-                        <h4 className="font-semibold">신고자</h4>
-                        <p className="text-sm text-muted-foreground">{reportedItemDetails.report.reporterName}</p>
-                    </div>
-                     <div className="space-y-1">
-                        <h4 className="font-semibold">신고 사유</h4>
-                        <p className="text-sm p-3 bg-muted rounded-md whitespace-pre-wrap">{reportedItemDetails.report.reason}</p>
-                    </div>
-                     <div className="space-y-1">
-                        <h4 className="font-semibold">신고 시간</h4>
-                        <p className="text-sm text-muted-foreground">
-                            {new Date((reportedItemDetails.report.reportedAt as any).toDate()).toLocaleString()}
-                        </p>
-                    </div>
-                 </div>
-            )}
-            <DialogFooter>
-                <Button variant="ghost" onClick={() => setReportedItemDetails(null)}>닫기</Button>
-                <Button onClick={handleClearReport}>
-                    <ShieldCheck className="mr-2 h-4 w-4"/> 신고 해제하기
-                </Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
-
-
-    {/* Student Details Dialog */}
-    <Dialog open={!!selectedStudent} onOpenChange={(isOpen) => !isOpen && setSelectedStudent(null)}>
-      <DialogContent className="max-w-4xl min-h-[80vh]">
-        {selectedStudent && (
-          <>
-            <DialogHeader>
-              <div className="flex items-center gap-4">
-                <Avatar className="h-14 w-14">
-                  <PixelAvatar pixels={selectedStudent.pixelAvatar ? JSON.parse(selectedStudent.pixelAvatar) : null} />
-                </Avatar>
-                <div>
-                  <DialogTitle className="font-headline text-2xl">{selectedStudent.name || selectedStudent.displayName}</DialogTitle>
-                  <DialogDescription>학생의 상세 정보 및 포인트 활동 내역입니다.</DialogDescription>
-                </div>
-              </div>
-            </DialogHeader>
-
-            <Tabs defaultValue="overview" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="overview">개요</TabsTrigger>
-                <TabsTrigger value="inventory">보유 상품</TabsTrigger>
-                <TabsTrigger value="selling">판매 중인 상품</TabsTrigger>
-              </TabsList>
-              <TabsContent value="overview" className="mt-4">
-                <div className="space-y-4">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle className="text-lg flex items-center gap-2"><LineChart className="w-5 h-5 text-primary"/>포인트 활동</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                             {isStudentDetailsLoading ? (
-                                <div className="flex justify-center items-center h-56"><Loader2 className="w-8 h-8 animate-spin"/></div>
-                            ) : studentPointHistoryChartData.length > 0 ? (
-                                <>
-                                    <ChartContainer config={chartConfig} className="h-56 w-full">
-                                        <AreaChart data={studentPointHistoryChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                            <CartesianGrid vertical={false} />
-                                            <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
-                                            <YAxis tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
-                                            <ChartTooltip content={<ChartTooltipContent />} />
-                                            <Area dataKey="totalPoints" type="monotone" fill="var(--color-totalPoints)" fillOpacity={0.4} stroke="var(--color-totalPoints)" />
-                                        </AreaChart>
-                                    </ChartContainer>
-                                    <ScrollArea className="h-56 mt-4">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>시간</TableHead>
-                                                    <TableHead>내용</TableHead>
-                                                    <TableHead className="text-right">포인트</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {[...studentPointLogs].reverse().map(log => (
-                                                    <TableRow key={log.id}>
-                                                        <TableCell className="text-xs">{log.timestamp ? new Date((log.timestamp as any)?.toDate()).toLocaleString() : ''}</TableCell>
-                                                        <TableCell>{log.description}</TableCell>
-                                                        <TableCell className={cn("text-right font-semibold", log.amount > 0 ? "text-green-600" : "text-red-600")}>
-                                                            {log.amount > 0 ? '+' : ''}{log.amount.toLocaleString()}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    </ScrollArea>
-                                </>
-                            ) : (
-                                <div className="text-center py-10 text-muted-foreground">포인트 활동 내역이 없습니다.</div>
-                            )}
-                        </CardContent>
-                    </Card>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setManagementAction('sendPoints')}><ArrowRight className="w-4 h-4 mr-1"/>포인트 보내기</Button>
-                        <Button variant="outline" size="sm" onClick={() => setManagementAction('takePoints')}><ArrowLeft className="w-4 h-4 mr-1"/>포인트 가져오기</Button>
-                        <Button variant="outline" size="sm" onClick={() => setManagementAction('sendItem')}><Gift className="w-4 h-4 mr-1"/>상품 보내기</Button>
-                        <Button variant="outline" size="sm" onClick={() => setManagementAction('takeItem')}><Package className="w-4 h-4 mr-1"/>상품 가져오기</Button>
-                    </div>
-                </div>
-              </TabsContent>
-              <TabsContent value="inventory" className="mt-4">
-                <ScrollArea className="h-[60vh]">
-                    {selectedStudent.inventory && Object.keys(selectedStudent.inventory).length > 0 ? (
-                        <div className="space-y-2 pr-4">
-                            {Object.entries(selectedStudent.inventory).map(([itemName, itemDetails]) => (
-                                <Card key={itemName} className="p-3 flex items-center gap-4">
-                                    <div className="text-3xl">{itemDetails.emoji || '📦'}</div>
-                                    <div>
-                                        <h4 className="font-semibold">{itemName}</h4>
-                                        <p className="text-sm text-muted-foreground">보유 수량: {itemDetails.quantity}</p>
-                                    </div>
-                                </Card>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-10 text-muted-foreground">
-                            보유 중인 상품이 없습니다.
-                        </div>
-                    )}
-                </ScrollArea>
-              </TabsContent>
-              <TabsContent value="selling" className="mt-4">
-                <ScrollArea className="h-[60vh]">
-                    {isStudentDetailsLoading ? (
-                        <div className="flex justify-center items-center h-full">
-                            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                        </div>
-                    ) : studentSellingItems.length > 0 ? (
-                        <div className="space-y-2 pr-4">
-                             {studentSellingItems.map((item) => (
-                                <Card key={item.id} className="p-3 flex items-center gap-4">
-                                  <div className="text-3xl">{item.emoji || '📦'}</div>
-                                    <div>
-                                        <h4 className="font-semibold">{item.name}</h4>
-                                        <p className="text-sm text-muted-foreground">가격: {item.price} / 남은 수량: {item.quantity}</p>
-                                    </div>
-                                </Card>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-10 text-muted-foreground">
-                            판매 중인 상품이 없습니다.
-                        </div>
-                    )}
-                </ScrollArea>
-              </TabsContent>
-            </Tabs>
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
-
-    {/* Student Management Dialog */}
-    <Dialog open={!!managementAction} onOpenChange={(isOpen) => !isOpen && setManagementAction(null)}>
-        <DialogContent>
-            <DialogHeader>
-                <DialogTitle>
-                    {managementAction === 'sendPoints' && '포인트 보내기'}
-                    {managementAction === 'takePoints' && '포인트 가져오기'}
-                    {managementAction === 'sendItem' && '상품 보내기'}
-                    {managementAction === 'takeItem' && '상품 가져오기'}
-                </DialogTitle>
-                <DialogDescription>
-                    {selectedStudent?.displayName} 학생에게 작업을 수행합니다.
-                </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-                {(managementAction === 'sendPoints' || managementAction === 'takePoints') && (
-                    <div className="space-y-2">
-                        <Label htmlFor="manage-points">포인트</Label>
-                        <Input 
-                            id="manage-points"
-                            type="number"
-                            value={managementAmount}
-                            onChange={(e) => setManagementAmount(parseInt(e.target.value) || 0)}
-                        />
-                    </div>
-                )}
-                 {(managementAction === 'sendItem' || managementAction === 'takeItem') && (
-                    <>
-                        <div className="space-y-2">
-                            <Label>상품</Label>
-                            <Select 
-                                onValueChange={setManagementItem}
-                                disabled={managementAction === 'takeItem' && (!selectedStudent?.inventory || Object.keys(selectedStudent.inventory).length === 0)}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="상품 선택..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {managementAction === 'sendItem' && sellingItems.map(item => (
-                                        <SelectItem key={item.id} value={item.name}>{item.name} (재고: {item.quantity})</SelectItem>
-                                    ))}
-                                    {managementAction === 'takeItem' && selectedStudent?.inventory && Object.keys(selectedStudent.inventory).map(itemName => (
-                                        <SelectItem key={itemName} value={itemName}>{itemName} (보유: {selectedStudent.inventory?.[itemName].quantity})</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="manage-quantity">수량</Label>
-                            <Input 
-                                id="manage-quantity"
-                                type="number"
-                                min="1"
-                                value={managementAmount}
-                                onChange={(e) => setManagementAmount(parseInt(e.target.value) || 1)}
-                            />
-                        </div>
-                    </>
-                )}
-            </div>
-            <DialogFooter>
-                <Button variant="ghost" onClick={() => setManagementAction(null)}>취소</Button>
-                <Button onClick={handleManagementAction} disabled={isManagementLoading}>
-                    {isManagementLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : '확인'}
-                </Button>
-            </DialogFooter>
-        </DialogContent>
-    </Dialog>
-     {/* Selling Item Management Dialog */}
-    <Dialog open={!!selectedSellingItem} onOpenChange={(isOpen) => !isOpen && setSelectedSellingItem(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>판매 상품 관리: {selectedSellingItem?.name}</DialogTitle>
-          </DialogHeader>
-          <Tabs defaultValue="manage">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="manage">정보 수정</TabsTrigger>
-              <TabsTrigger value="buyers">구매자 목록</TabsTrigger>
-            </TabsList>
-            <TabsContent value="manage" className="pt-4">
-              <div className="space-y-4">
+            <div className="flex-grow">
+              {isEditing ? (
                 <div className="space-y-2">
-                    <Label>아이콘</Label>
-                    <EmojiSelector value={editItemEmoji} onChange={setEditItemEmoji} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="item-desc">설명</Label>
-                  <Textarea 
-                    id="item-desc"
-                    value={editItemDescription}
-                    onChange={(e) => setEditItemDescription(e.target.value)}
-                    placeholder="상품 설명을 입력하세요."
-                  />
-                </div>
-                 <div className="space-y-2">
-                  <Label htmlFor="item-price">가격</Label>
-                  <Input 
-                    id="item-price"
-                    type="number"
-                    min="0"
-                    value={editItemPrice}
-                    onChange={(e) => setEditItemPrice(parseInt(e.target.value) || 0)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="item-quantity">수량</Label>
-                  <Input 
-                    id="item-quantity"
-                    type="number"
-                    min="0"
-                    value={editItemQuantity}
-                    onChange={(e) => setEditItemQuantity(parseInt(e.target.value) || 0)}
-                  />
-                </div>
-              </div>
-              <DialogFooter className="mt-6 gap-2">
-                <Button variant="destructive" onClick={handleDeleteSellingItem}><Trash2 className="mr-2 h-4 w-4" /> 판매 중지</Button>
-                <Button onClick={handleUpdateSellingItem}><Save className="mr-2 h-4 w-4" /> 정보 저장</Button>
-              </DialogFooter>
-            </TabsContent>
-            <TabsContent value="buyers" className="pt-4">
-              {isBuyersLoading ? (
-                <div className="flex justify-center items-center h-48">
-                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                </div>
-              ) : itemBuyers.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground">
-                  아직 이 상품을 구매한 학생이 없습니다.
+                  <Input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="이름 (실명)" />
+                  <Input value={editNickname} onChange={(e) => setEditNickname(e.target.value)} placeholder="닉네임 (2-5자)" />
+                  <Input value={editSchoolName} onChange={(e) => setEditSchoolName(e.target.value)} placeholder="학교 이름" />
                 </div>
               ) : (
-                <ScrollArea className="h-64">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>이름</TableHead>
-                                <TableHead>닉네임</TableHead>
-                                <TableHead className="text-right">구매 수량</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {itemBuyers.map(buyer => (
-                                <TableRow key={buyer.uid}>
-                                    <TableCell className="font-medium">{buyer.name}</TableCell>
-                                    <TableCell>{buyer.nickname}</TableCell>
-                                    <TableCell className="text-right">{buyer.quantity}</TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </ScrollArea>
+                <div>
+                  <CardTitle className="font-headline text-3xl flex items-center gap-2">
+                    {userData.displayName}
+                    <span className="text-lg text-muted-foreground font-normal">({userData.name})</span>
+                    {userData.role === 'teacher' && <span className="text-xs font-medium bg-primary text-primary-foreground px-2 py-1 rounded-full">교사</span>}
+                  </CardTitle>
+                  <CardDescription>{levelInfo.title}</CardDescription>
+                  {schoolInfo && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                        <School className="w-4 h-4"/>
+                        <span>{schoolInfo}</span>
+                    </div>
+                  )}
+                </div>
               )}
-            </TabsContent>
-          </Tabs>
+            </div>
+            {isEditing ? (
+                <div className="flex gap-2">
+                    <Button size="icon" onClick={handleSave}><Save className="w-4 h-4"/></Button>
+                    <Button size="icon" variant="ghost" onClick={handleCancel}><X className="w-4 h-4"/></Button>
+                </div>
+            ) : (
+                <Button variant="ghost" size="icon" onClick={handleEdit}>
+                    <Pencil className="w-4 h-4" />
+                </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div>
+            <div className="flex justify-between items-end mb-1">
+              <span className="text-sm font-medium">Lv. {levelInfo.level}</span>
+              <span className="text-sm text-muted-foreground">
+                {nextLevelInfo ? `${userData.xp.toLocaleString()} / ${nextLevelInfo.xpThreshold.toLocaleString()} XP` : '최고 레벨'}
+              </span>
+            </div>
+            <Progress value={Math.max(0, progressPercentage)} className="h-3" />
+             {nextLevelInfo && (
+                <p className="text-xs text-right text-muted-foreground mt-1">
+                    다음 레벨까지 {Math.max(0, nextLevelInfo.xpThreshold - userData.xp)} XP 남음
+                </p>
+            )}
+          </div>
+          <div className="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <p className="text-2xl font-bold">{userData.xp.toLocaleString()}</p>
+              <p className="text-sm text-muted-foreground">누적 포인트</p>
+            </div>
+            <div 
+              className="flex flex-col items-center cursor-pointer group"
+              onClick={handleOpenPointHistory}
+            >
+               <div className="group-hover:opacity-80">
+                <p className="flex items-center justify-center text-2xl font-bold">
+                    <Gem className="w-5 h-5 mr-1 text-blue-500"/>
+                    {(userData.classPoints || 0).toLocaleString()}
+                </p>
+                <p className="text-sm text-muted-foreground">학급 포인트</p>
+              </div>
+              <Button
+                variant="link"
+                size="sm"
+                className="h-auto p-0 mt-1"
+              >
+                포인트 보기
+              </Button>
+            </div>
+            <div>
+              <p className="text-2xl font-bold">{overallAccuracy}%</p>
+              <p className="text-sm text-muted-foreground">전체 정답률</p>
+            </div>
+          </div>
+        </CardContent>
+        <CardFooter className="flex-wrap gap-2">
+             {userData.role === 'teacher' ? (
+              <>
+                <Button variant="outline" onClick={() => setIsClassCodeDialog(true)}>
+                   <Edit className="mr-2 h-4 w-4"/> 학급 코드 관리
+                </Button>
+                 <Button variant="outline" onClick={() => setIsPointManagementDialogOpen(true)}>
+                    <Settings className="mr-2 h-4 w-4"/> 학급 포인트 관리
+                </Button>
+              </>
+            ) : (
+              <>
+                {userData.classId ? (
+                   <Button variant="destructive" onClick={() => setIsLeaveClassDialogOpen(true)}>
+                        <LogOut className="mr-2 h-4 w-4"/> 학급 탈퇴하기
+                    </Button>
+                ) : (
+                    <Button variant="outline" onClick={() => setIsJoinClassDialog(true)}>
+                        <Users className="mr-2 h-4 w-4"/> 학급 참여하기
+                    </Button>
+                )}
+                <Button variant="outline" onClick={() => setIsTeacherDialog(true)}>
+                    <KeyRound className="mr-2 h-4 w-4"/> 교사 계정으로 전환
+                </Button>
+              </>
+            )}
+        </CardFooter>
+      </Card>
+      
+      <Tabs defaultValue="my-quizzes" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="my-quizzes">내가 만든 퀴즈</TabsTrigger>
+          <TabsTrigger value="achievement">과목별 성취도</TabsTrigger>
+          <TabsTrigger value="review-notes">오답노트</TabsTrigger>
+        </TabsList>
+        <TabsContent value="my-quizzes">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline flex items-center gap-2">
+                        <BookOpen className="text-primary"/> 내가 만든 퀴즈
+                    </CardTitle>
+                    <CardDescription>
+                        내가 직접 만든 퀴즈 목록입니다. 퀴즈를 수정하거나 삭제할 수 있습니다.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoadingMyGameSets ? (
+                        <div className="text-center py-8"><Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" /></div>
+                    ) : myGameSets.length === 0 ? (
+                        <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                            <p className="text-muted-foreground">아직 만든 퀴즈가 없습니다.</p>
+                             <Button asChild className="mt-4">
+                                <Link href="/game-sets/create">첫 번째 퀴즈 만들러 가기</Link>
+                            </Button>
+                        </div>
+                    ) : (
+                        <ScrollArea className="h-96 pr-4">
+                            <div className="space-y-2">
+                                {myGameSets.map(set => (
+                                    <Card key={set.id}>
+                                        <CardContent className="p-4 flex items-center justify-between gap-2">
+                                            <div className="flex-grow overflow-hidden">
+                                                <p className="font-semibold truncate">{set.title}</p>
+                                                <p className="text-sm text-muted-foreground">
+                                                    {set.questions.length} 문제 · {set.isPublic ? '공개' : '비공개'}
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2 flex-shrink-0">
+                                                <Button variant="outline" size="sm" onClick={() => setPreviewGameSet(set)}>
+                                                    <Eye className="mr-2 h-4 w-4"/> 미리보기
+                                                </Button>
+                                                <Button variant="secondary" size="sm" asChild>
+                                                    <Link href={`/game-sets/edit/${set.id}`}>
+                                                        <Pencil className="mr-2 h-4 w-4"/> 수정
+                                                    </Link>
+                                                </Button>
+                                                <Button variant="destructive" size="sm" onClick={() => setDeleteCandidate(set)}>
+                                                    <Trash2 className="mr-2 h-4 w-4"/> 삭제
+                                                </Button>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        </ScrollArea>
+                    )}
+                </CardContent>
+            </Card>
+        </TabsContent>
+        <TabsContent value="achievement">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline flex items-center gap-2">
+                        <BarChart2 className="text-primary"/> 과목별 성취도
+                    </CardTitle>
+                    <CardDescription>과목 및 단원별 정답률을 확인하고 약점을 보완해보세요.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                {subjectStats.length === 0 ? (
+                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                        <p className="text-muted-foreground">아직 학습 기록이 없습니다. 퀴즈를 풀고 다시 확인해주세요!</p>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="과목 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">전체 과목</SelectItem>
+                                {subjectStats.map(stat => (
+                                    <SelectItem key={stat.id} value={stat.id}>{stat.id}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Select value={selectedUnit} onValueChange={setSelectedUnit} disabled={selectedSubject === 'all' || availableUnits.length === 0}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="단원 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">전체 단원</SelectItem>
+                                {availableUnits.map(unit => (
+                                    <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4 text-center p-4 bg-secondary rounded-lg">
+                        <div>
+                            <p className="text-2xl font-bold text-blue-600">{filteredCorrect}</p>
+                            <p className="text-sm text-muted-foreground">정답</p>
+                        </div>
+                        <div className="cursor-pointer" onClick={handleShowIncorrectAnswers}>
+                            <p className="text-2xl font-bold text-red-600">{filteredIncorrect}</p>
+                            <p className="text-sm text-muted-foreground">오답</p>
+                        </div>
+                        <div>
+                            <p className="text-2xl font-bold text-primary">{filteredAccuracy}%</p>
+                            <p className="text-sm text-muted-foreground">정답률</p>
+                        </div>
+                    </div>
+                    </div>
+                )}
+                </CardContent>
+            </Card>
+        </TabsContent>
+        <TabsContent value="review-notes">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline flex items-center gap-2">
+                        <FileWarning className="text-primary"/> 오답노트
+                    </CardTitle>
+                    <CardDescription>
+                        틀렸던 문제들을 다시 풀어보고 점수를 만회하세요! 복습 효과를 높이기 위해 틀린 문제는 24시간 후에 공개됩니다.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {reviewQuestions.length === 0 ? (
+                        <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                            <p className="text-muted-foreground">복습할 문제가 없습니다. 완벽해요!</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            {reviewQuestions.map((item, index) => {
+                                const question = item.question;
+                                return (
+                                <div key={item.id} className="p-4 border rounded-lg bg-background shadow-sm space-y-3">
+                                    <p className="font-semibold text-base whitespace-pre-wrap">{question.question}</p>
+                                    
+                                    {question.imageUrl && (
+                                        <div className="mt-2 relative aspect-video">
+                                            <Image src={question.imageUrl} alt={`질문 ${index + 1} 이미지`} fill className="rounded-md object-contain" />
+                                        </div>
+                                    )}
+
+                                    {question.type === 'subjective' && (
+                                        <Input 
+                                            placeholder="정답을 입력하세요"
+                                            value={item.userReviewAnswer || ''}
+                                            onChange={(e) => handleReviewAnswerChange(index, e.target.value)}
+                                            disabled={item.isSubmitting}
+                                        />
+                                    )}
+                                    {question.type === 'multipleChoice' && question.options && (
+                                        <RadioGroup 
+                                            value={item.userReviewAnswer} 
+                                            onValueChange={(value) => handleReviewAnswerChange(index, value)} 
+                                            className="space-y-2" 
+                                            disabled={item.isSubmitting}
+                                        >
+                                            {question.options.map((option, idx) => (
+                                                <div key={idx} className="flex items-center space-x-2">
+                                                    <RadioGroupItem value={option} id={`review-${item.id}-option-${idx}`} />
+                                                    <Label htmlFor={`review-${item.id}-option-${idx}`} className="flex-1 p-3 rounded-md border hover:border-primary cursor-pointer">{option}</Label>
+                                                </div>
+                                            ))}
+                                        </RadioGroup>
+                                    )}
+                                    {question.type === 'ox' && (
+                                        <RadioGroup 
+                                            value={item.userReviewAnswer} 
+                                            onValueChange={(value) => handleReviewAnswerChange(index, value)} 
+                                            className="grid grid-cols-2 gap-4" 
+                                            disabled={item.isSubmitting}
+                                        >
+                                            <Label htmlFor={`review-${item.id}-o`} className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", item.userReviewAnswer === 'O' && 'border-primary bg-primary/10')}>
+                                                <RadioGroupItem value="O" id={`review-${item.id}-o`} className="sr-only"/>O
+                                            </Label>
+                                            <Label htmlFor={`review-${item.id}-x`} className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", item.userReviewAnswer === 'X' && 'border-primary bg-primary/10')}>
+                                                <RadioGroupItem value="X" id={`review-${item.id}-x`} className="sr-only"/>X
+                                            </Label>
+                                        </RadioGroup>
+                                    )}
+                                    
+                                    <Button onClick={() => handleSubmitReview(index)} disabled={item.isSubmitting || !item.userReviewAnswer} className="w-full">
+                                        {item.isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "제출"}
+                                    </Button>
+                                </div>
+                                )
+                            })}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+        </TabsContent>
+      </Tabs>
+
+      <Card>
+        <CardHeader>
+            <CardTitle className="font-headline flex items-center gap-2">
+                <Trophy className="text-primary" /> 레벨 엠블럼 컬렉션
+            </CardTitle>
+            <CardDescription>지금까지 획득한 엠블럼들을 확인해보세요!</CardDescription>
+        </CardHeader>
+        <CardContent>
+            <TooltipProvider>
+                <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-4">
+                    {levelSystem.filter(level => userData.xp >= level.xpThreshold).map((level) => (
+                        <Tooltip key={level.level}>
+                            <TooltipTrigger asChild>
+                                <div className={cn(
+                                    "group relative aspect-square flex items-center justify-center p-1 rounded-full transition-all duration-300",
+                                    'bg-secondary'
+                                )}>
+                                    <span className={cn(
+                                        "text-4xl transition-all duration-300 group-hover:scale-110"
+                                    )}>
+                                        {level.icon}
+                                    </span>
+                                </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p className="font-semibold">Lv. {level.level}: {level.title}</p>
+                                <p className="text-sm text-muted-foreground">필요 XP: {level.xpThreshold.toLocaleString()}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    ))}
+                </div>
+            </TooltipProvider>
+        </CardContent>
+      </Card>
+    </div>
+
+    {/* Avatar Editor Dialog */}
+    <Dialog open={isAvatarEditorOpen} onOpenChange={setIsAvatarEditorOpen}>
+        <DialogContent className="max-w-4xl">
+            <DialogHeader>
+                <DialogTitle>프로필 이미지 편집</DialogTitle>
+                <DialogDescription>
+                    나만의 픽셀 아바타를 만들어보세요.
+                </DialogDescription>
+            </DialogHeader>
+            <PixelEditor
+                initialPixels={currentPixelAvatar}
+                onSave={handleSaveAvatar}
+            />
         </DialogContent>
     </Dialog>
-     {/* Point History Dialog */}
+
+    {/* Send Points Dialog */}
+    <Dialog open={isSendPointsDialogOpen} onOpenChange={setIsSendPointsDialogOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>학급 포인트 보내기</DialogTitle>
+                <DialogDescription>
+                    학급 친구에게 포인트를 보낼 수 있습니다.
+                </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+                 <div className="space-y-2">
+                    <Label>받는 사람</Label>
+                    <Combobox
+                      options={classmates}
+                      value={sendPointsRecipient}
+                      onValueChange={setSendPointsRecipient}
+                      placeholder="학급 친구 또는 선생님 선택..."
+                      searchPlaceholder="이름으로 검색..."
+                      notFoundMessage="해당하는 사용자가 없습니다."
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="points-amount">보낼 금액</Label>
+                    <Input 
+                        id="points-amount"
+                        type="number"
+                        min="1"
+                        max={userData.classPoints || 0}
+                        value={sendPointsAmount}
+                        onChange={(e) => setSendPointsAmount(parseInt(e.target.value) || 0)}
+                    />
+                </div>
+            </div>
+            <DialogFooter>
+                <Button variant="secondary" onClick={() => setIsSendPointsDialogOpen(false)}>취소</Button>
+                <Button onClick={handleSendPoints} disabled={isSendingPoints || !sendPointsRecipient || sendPointsAmount <= 0 || sendPointsAmount > (userData.classPoints || 0)}>
+                    {isSendingPoints && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                    보내기
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
+
+    {/* Point History Dialog */}
     <Dialog open={isPointHistoryOpen} onOpenChange={setIsPointHistoryOpen}>
-       <DialogContent className="max-w-2xl">
+       <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>포인트 활동 내역</DialogTitle>
           <DialogDescription>
@@ -2209,7 +1699,7 @@ export default function MyClassPage() {
         </DialogHeader>
         {isPointHistoryLoading ? (
             <div className="flex justify-center items-center h-96"><Loader2 className="w-8 h-8 animate-spin"/></div>
-        ) : pointHistoryChartData.length > 0 ? (
+        ) : pointLogs.length > 0 ? (
             <Tabs defaultValue="overview">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="overview">누적 추이</TabsTrigger>
@@ -2217,7 +1707,7 @@ export default function MyClassPage() {
                 <TabsTrigger value="history">상세 내역</TabsTrigger>
               </TabsList>
               <TabsContent value="overview" className="mt-4">
-                <ChartContainer config={chartConfig} className="h-64 w-full">
+                <ChartContainer config={pointHistoryChartConfig} className="h-64 w-full">
                   <AreaChart data={pointHistoryChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid vertical={false} />
                     <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} fontSize={12} />
@@ -2236,11 +1726,11 @@ export default function MyClassPage() {
                         <CardContent className="space-y-4">
                             <div className={cn("flex justify-between items-center p-3 rounded-lg cursor-pointer", chartView === 'income' ? 'bg-primary/10 border-primary border-2' : 'bg-secondary')} onClick={() => setChartView('income')}>
                                 <span className="font-medium">총 수입</span>
-                                <span className="font-bold text-green-600">+{pointAnalysisData.totalIncome.toLocaleString()}</span>
+                                <span className="font-bold text-green-600">+{pointAnalysisDataForDialog.totalIncome.toLocaleString()}</span>
                             </div>
                             <div className={cn("flex justify-between items-center p-3 rounded-lg cursor-pointer", chartView === 'expense' ? 'bg-destructive/10 border-destructive border-2' : 'bg-secondary')} onClick={() => setChartView('expense')}>
                                 <span className="font-medium">총 지출</span>
-                                <span className="font-bold text-red-600">-{pointAnalysisData.totalExpense.toLocaleString()}</span>
+                                <span className="font-bold text-red-600">-{pointAnalysisDataForDialog.totalExpense.toLocaleString()}</span>
                             </div>
                         </CardContent>
                     </Card>
@@ -2249,13 +1739,13 @@ export default function MyClassPage() {
                             <CardTitle className="text-lg">{chartView === 'income' ? '수입' : '지출'} 항목 비율</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            {(chartView === 'income' ? pointAnalysisData.incomeChartData.length > 0 : pointAnalysisData.expenseChartData.length > 0) ? (
-                                <ChartContainer config={chartConfig} className="h-48 w-full">
+                            {(chartView === 'income' ? pointAnalysisDataForDialog.incomeChartData.length > 0 : pointAnalysisDataForDialog.expenseChartData.length > 0) ? (
+                                <ChartContainer config={chartConfigForDialog} className="h-48 w-full">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <PieChart>
                                             <ChartTooltip content={<ChartTooltipContent nameKey="name" hideLabel />} />
                                             <Pie 
-                                                data={chartView === 'income' ? pointAnalysisData.incomeChartData : pointAnalysisData.expenseChartData} 
+                                                data={chartView === 'income' ? pointAnalysisDataForDialog.incomeChartData : pointAnalysisDataForDialog.expenseChartData} 
                                                 dataKey="value" 
                                                 nameKey="name" 
                                                 cx="50%" 
@@ -2263,7 +1753,7 @@ export default function MyClassPage() {
                                                 outerRadius={60} 
                                                 strokeWidth={2}
                                             >
-                                                {(chartView === 'income' ? pointAnalysisData.incomeChartData : pointAnalysisData.expenseChartData).map((entry, index) => (
+                                                {(chartView === 'income' ? pointAnalysisDataForDialog.incomeChartData : pointAnalysisDataForDialog.expenseChartData).map((entry, index) => (
                                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                                 ))}
                                             </Pie>
@@ -2322,100 +1812,290 @@ export default function MyClassPage() {
             <div className="text-center py-10 text-muted-foreground">포인트 활동 내역이 없습니다.</div>
         )}
         <DialogFooter className="pt-4">
-          <Button variant="outline" onClick={() => { setIsPointHistoryOpen(false); setIsSendPointsDialogOpen(true); }} disabled={!canSendPoints}>
+          <Button variant="outline" onClick={() => { setIsPointHistoryOpen(false); handleOpenSendPointsDialog(); }} disabled={!canSendPoints}>
             <Send className="mr-2 h-4 w-4" /> 포인트 보내기
           </Button>
         </DialogFooter>
        </DialogContent>
     </Dialog>
-    {/* Bulk Send Points Dialog */}
-    <Dialog open={isBulkSendDialogOpen} onOpenChange={setIsBulkSendDialogOpen}>
+
+
+    {/* Incorrect Answers Dialog */}
+    <Dialog open={showIncorrectAnswersDialog} onOpenChange={setShowIncorrectAnswersDialog}>
         <DialogContent className="max-w-2xl">
-            <DialogHeader>
-                <DialogTitle>포인트 일괄 보내기</DialogTitle>
-                <DialogDescription>
-                    선택한 모든 학생에게 동일한 양의 포인트를 보냅니다.
-                </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-                <div className="space-y-2">
-                    <Label htmlFor="bulk-points-amount">보낼 금액 (1인당)</Label>
-                    <Input 
-                        id="bulk-points-amount"
-                        type="number"
-                        min="1"
-                        value={bulkSendAmount}
-                        onChange={(e) => setBulkSendAmount(parseInt(e.target.value) || 0)}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="bulk-points-reason">지급 사유</Label>
-                    <Input 
-                        id="bulk-points-reason"
-                        placeholder="예: 받아쓰기 100점 보상"
-                        value={bulkSendReason}
-                        onChange={(e) => setBulkSendReason(e.target.value)}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <Label>받는 사람 선택</Label>
-                    <div className="flex items-center space-x-2 pb-2">
-                        <Checkbox
-                            id="select-all"
-                            checked={bulkSendRecipients.length === classMembers.filter(m => !m.role || m.role !== 'teacher').length && classMembers.length > 1}
-                            onCheckedChange={(checked) => {
-                                if (checked) {
-                                    setBulkSendRecipients(classMembers.filter(m => !m.role || m.role !== 'teacher').map(m => m.uid));
-                                } else {
-                                    setBulkSendRecipients([]);
-                                }
-                            }}
-                        />
-                        <Label htmlFor="select-all" className="font-medium">전체 선택</Label>
+          <DialogHeader>
+            <DialogTitle>오답 기록 확인하기</DialogTitle>
+            <DialogDescription>
+              {selectedUnit !== 'all' ? `"${selectedUnit}" 단원에서 ` : selectedSubject !== 'all' ? `"${selectedSubject}" 과목에서 ` : '전체 과목에서 '}
+              틀린 문제 목록입니다.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-96 pr-4">
+            <div className="space-y-4">
+              {incorrectAnswersToShow.length > 0 ? (
+                incorrectAnswersToShow.map(item => (
+                  <div key={item.id} className="p-4 rounded-md border bg-muted/50 space-y-2">
+                    {item.question.imageUrl && (
+                        <div className="relative aspect-video">
+                            <Image src={item.question.imageUrl} alt="질문 이미지" fill className="rounded-md object-contain" />
+                        </div>
+                    )}
+                    <p className="font-semibold whitespace-pre-wrap">{item.question.question}</p>
+                    <div className="text-sm space-y-1">
+                      <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                          <span>정답: <span className="font-medium">{item.question.answer || item.question.correctAnswer}</span></span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                          <XCircle className="w-4 h-4 text-red-600" />
+                          <span>내 오답: <span className="font-medium">{item.userAnswer}</span></span>
+                      </div>
+                       <div className="flex items-center gap-2">
+                            {item.wasReviewCorrect ? <CheckCircle className="w-4 h-4 text-blue-600" /> : <XCircle className="w-4 h-4 text-orange-500" />}
+                            <span>복습 시 답변: <span className="font-medium">{item.reviewAnswer}</span></span>
+                        </div>
                     </div>
-                    <ScrollArea className="h-48 border rounded-md">
-                        <div className="p-4 space-y-2">
-                            {classMembers.filter(m => !m.role || m.role !== 'teacher').map(member => (
-                                <div key={member.uid} className="flex items-center space-x-2">
-                                    <Checkbox
-                                        id={`student-${member.uid}`}
-                                        checked={bulkSendRecipients.includes(member.uid)}
-                                        onCheckedChange={(checked) => {
-                                            if (checked) {
-                                                setBulkSendRecipients(prev => [...prev, member.uid]);
-                                            } else {
-                                                setBulkSendRecipients(prev => prev.filter(id => id !== member.uid));
-                                            }
-                                        }}
-                                    />
-                                    <Label htmlFor={`student-${member.uid}`} className="w-full">{member.displayName} ({member.name})</Label>
+                  </div>
+                ))
+              ) : (
+                <p className="text-muted-foreground text-center py-8">이 범위에서 복습한 오답 기록이 없습니다.</p>
+              )}
+            </div>
+          </ScrollArea>
+        </DialogContent>
+    </Dialog>
+    
+    {/* My Game Set Preview Dialog */}
+    {previewGameSet && (
+        <Dialog open={!!previewGameSet} onOpenChange={() => setPreviewGameSet(null)}>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>{previewGameSet.title}</DialogTitle>
+                    <DialogDescription>{[previewGameSet.grade, previewGameSet.semester, previewGameSet.subject, previewGameSet.unit].filter(Boolean).join(' / ')}</DialogDescription>
+                </DialogHeader>
+                <Tabs defaultValue="questions" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="questions"><BookOpen className="mr-2 h-4 w-4"/>문제 목록</TabsTrigger>
+                    <TabsTrigger value="comments"><MessageSquare className="mr-2 h-4 w-4"/>댓글 ({comments.length})</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="questions">
+                    <ScrollArea className="h-96 pr-4">
+                        <div className="space-y-4">
+                            {previewGameSet.questions.map((q, index) => (
+                                <div key={index} className="p-4 rounded-md border bg-muted/50">
+                                    <p className="font-semibold whitespace-pre-wrap">{index + 1}. {q.question}</p>
+                                    {q.type === 'multipleChoice' && q.options && (
+                                        <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                                            {q.options.map((opt, i) => <div key={i} className={cn(q.correctAnswer === opt && "font-bold text-primary")}>- {opt}</div>)}
+                                        </div>
+                                    )}
+                                    <p className="mt-2 text-sm">정답: <span className="font-semibold text-primary">{q.correctAnswer || q.answer}</span></p>
                                 </div>
                             ))}
                         </div>
                     </ScrollArea>
-                </div>
+                  </TabsContent>
+                  <TabsContent value="comments">
+                    <div className="flex flex-col h-96">
+                      <ScrollArea className="flex-grow pr-6">
+                        <div className="space-y-4">
+                          {comments.length === 0 ? (
+                            <div className="text-center py-12 text-muted-foreground">아직 댓글이 없습니다.</div>
+                          ) : (
+                            comments.map(comment => {
+                              let pixelAvatarData = null;
+                              if (comment.userAvatar) {
+                                try { pixelAvatarData = JSON.parse(comment.userAvatar); } catch (e) {}
+                              }
+                              return (
+                                <div key={comment.id} className="flex gap-3">
+                                  <Avatar className="h-9 w-9">
+                                    <PixelAvatar pixels={pixelAvatarData} />
+                                  </Avatar>
+                                  <div className="flex-grow">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold text-sm">{comment.userNickname}</span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {comment.createdAt && formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko })}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
+                                  </div>
+                                </div>
+                              )
+                            })
+                          )}
+                        </div>
+                      </ScrollArea>
+                      {hasUserPlayedSelectedSet && (
+                        <div className="mt-4 pt-4 border-t">
+                          <div className="flex gap-2">
+                            <Input 
+                              placeholder="댓글을 입력하세요..." 
+                              value={newComment}
+                              onChange={(e) => setNewComment(e.target.value)}
+                              disabled={isPostingComment}
+                            />
+                            <Button onClick={handlePostComment} disabled={isPostingComment || !newComment.trim()}>
+                              {isPostingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </TabsContent>
+                </Tabs>
+            </DialogContent>
+        </Dialog>
+    )}
+
+    {/* Delete Game Set Confirmation */}
+    <AlertDialog open={!!deleteCandidate} onOpenChange={() => setDeleteCandidate(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>정말 삭제하시겠습니까?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    "{deleteCandidate?.title}" 퀴즈 세트를 삭제하면 되돌릴 수 없습니다.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>취소</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteGameSet} className="bg-destructive hover:bg-destructive/90">삭제</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+
+    {/* Dialogs for class and teacher management */}
+    <AlertDialog open={isTeacherDialog} onOpenChange={setIsTeacherDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>교사 계정으로 전환</AlertDialogTitle>
+            <AlertDialogDescription>
+              교사 계정으로 전환하려면 관리자로부터 받은 코드를 입력하세요.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Input 
+                placeholder="전환 코드 입력"
+                value={teacherCode}
+                onChange={(e) => setTeacherCode(e.target.value)}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSwitchToTeacher}>전환하기</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+
+    <AlertDialog open={isClassCodeDialog} onOpenChange={setIsClassCodeDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>학급 코드 관리</AlertDialogTitle>
+            <AlertDialogDescription>
+              학생들이 학급에 참여할 수 있도록 코드를 설정하거나 변경하세요. (최소 4자 이상)
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Input 
+                placeholder="학급 코드 입력"
+                value={classCode}
+                onChange={(e) => setClassCode(e.target.value)}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSetClassCode}>저장하기</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+
+     <Dialog open={isPointManagementDialogOpen} onOpenChange={setIsPointManagementDialogOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>학급 포인트 관리</DialogTitle>
+                <DialogDescription>학생들의 학급 포인트 획득 규칙을 설정합니다.</DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+                <RadioGroup value={pointRule} onValueChange={(value: 'teacher_only' | 'class_only' | 'all') => setPointRule(value)}>
+                    <div className="space-y-1 rounded-md border p-3">
+                        <div className="flex items-center gap-2">
+                            <RadioGroupItem value="teacher_only" id="teacher_only" />
+                            <Label htmlFor="teacher_only" className="font-medium">
+                                우리 학급 교사가 만든 퀴즈만
+                            </Label>
+                        </div>
+                        <p className="text-xs text-muted-foreground ml-6">
+                            학생들은 현재 학급의 선생님이 만든 퀴즈를 플레이할 때만 학급 포인트를 얻습니다.
+                        </p>
+                    </div>
+                    <div className="space-y-1 rounded-md border p-3">
+                        <div className="flex items-center gap-2">
+                            <RadioGroupItem value="class_only" id="class_only" />
+                            <Label htmlFor="class_only" className="font-medium">
+                                우리 학급 구성원이 만든 모든 퀴즈
+                            </Label>
+                        </div>
+                        <p className="text-xs text-muted-foreground ml-6">
+                            학생들은 같은 학급의 교사 또는 다른 학생들이 만든 퀴즈를 플레이할 때 학급 포인트를 얻습니다.
+                        </p>
+                    </div>
+                    <div className="space-y-1 rounded-md border p-3">
+                       <div className="flex items-center gap-2">
+                            <RadioGroupItem value="all" id="all" />
+                            <Label htmlFor="all" className="font-medium">
+                                모든 퀴즈
+                            </Label>
+                        </div>
+                        <p className="text-xs text-muted-foreground ml-6">
+                            학생들은 플랫폼에 있는 모든 공개 퀴즈를 플레이할 때 학급 포인트를 얻습니다.
+                        </p>
+                    </div>
+                </RadioGroup>
             </div>
             <DialogFooter>
-                <Button variant="secondary" onClick={() => setIsBulkSendDialogOpen(false)}>취소</Button>
-                <Button 
-                    onClick={handleBulkSendPoints} 
-                    disabled={isBulkSending || bulkSendRecipients.length === 0 || bulkSendAmount <= 0 || !bulkSendReason.trim()}
-                >
-                    {isBulkSending && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
-                    {bulkSendRecipients.length}명에게 보내기
-                </Button>
+                <Button variant="ghost" onClick={() => setIsPointManagementDialogOpen(false)}>취소</Button>
+                <Button onClick={handleSavePointRule}>저장</Button>
             </DialogFooter>
         </DialogContent>
     </Dialog>
-    </>
+
+    <AlertDialog open={isJoinClassDialog} onOpenChange={setIsJoinClassDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>학급 참여하기</AlertDialogTitle>
+            <AlertDialogDescription>
+              선생님께 받은 학급 코드를 입력하여 학급에 참여하세요.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2">
+            <Input 
+                placeholder="학급 코드 입력"
+                value={joinClassCode}
+                onChange={(e) => setJoinClassCode(e.target.value)}
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>취소</AlertDialogCancel>
+            <AlertDialogAction onClick={handleJoinClass}>참여하기</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+    
+    <AlertDialog open={isLeaveClassDialogOpen} onOpenChange={setIsLeaveClassDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>정말 학급에서 탈퇴하시겠습니까?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    학급에서 나가면 더 이상 학급 랭킹과 매점을 이용할 수 없습니다. 이 작업은 되돌릴 수 없습니다.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>취소</AlertDialogCancel>
+                <AlertDialogAction onClick={handleLeaveClass} className="bg-destructive hover:bg-destructive/90">탈퇴하기</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
+    </TooltipProvider>
   );
 }
-
-
-
-
-
-
-
-
-    
