@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -169,7 +170,7 @@ export default function ProfilePage() {
   const [pointRule, setPointRule] = useState<'teacher_only' | 'class_only' | 'all'>('all');
 
   const [myGameSets, setMyGameSets] = useState<GameSet[]>([]);
-  const [isLoadingMyGameSets, setIsLoadingMyGameSets] = useState(false);
+  const [isLoadingMyGameSets, setIsLoadingMyGameSets] = useState(true);
   const [previewGameSet, setPreviewGameSet] = useState<GameSet | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<GameSet | null>(null);
   
@@ -191,6 +192,7 @@ export default function ProfilePage() {
     }
     
     setIsLoading(true);
+    setIsLoadingMyGameSets(true);
 
     const userRef = doc(db, 'users', user.uid);
     const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
@@ -198,17 +200,23 @@ export default function ProfilePage() {
     const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
     const myGameSetsQuery = query(collection(db, 'game-sets'), where('creatorId', '==', user.uid));
     const playedSetsQuery = query(collection(db, 'users', user.uid, 'playedGameSets'));
-
+    
     try {
-      // 1. 결과 타입을 튜플로 명시하여 에러 해결
-      const [userSnap, incorrectSnapshot, solvedIncorrectSnapshot, subjectStatsSnapshot, myGameSetsSnapshot, playedSetsSnapshot] = await Promise.all([
+      const [
+        userSnap, 
+        incorrectSnapshot, 
+        solvedIncorrectSnapshot, 
+        subjectStatsSnapshot, 
+        myGameSetsSnapshot, 
+        playedSetsSnapshot
+      ] = await Promise.all([
         getDoc(userRef),
         getDocs(query(incorrectAnswersRef, where('timestamp', '<=', new Date(Date.now() - 24 * 60 * 60 * 1000)), orderBy('timestamp', 'asc'))),
         getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
         getDocs(subjectStatsRef),
         getDocs(myGameSetsQuery),
         getDocs(playedSetsQuery),
-      ]) as [any, any, any, any, any, any];
+      ]) as [DocumentSnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot];
 
       if (userSnap.exists()) {
         const fetchedUserData = userSnap.data() as User;
@@ -239,13 +247,12 @@ export default function ProfilePage() {
       setSolvedReviewQuestions(solvedIncorrectSnapshot.docs.map((doc: QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() } as SolvedIncorrectAnswer)));
       setSubjectStats(transformStats(subjectStatsSnapshot.docs.map((doc: QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() } as SubjectStat))));
       
-      const gameSets: GameSet[] = myGameSetsSnapshot.docs.map((doc: QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() } as GameSet));
+      const gameSets = myGameSetsSnapshot.docs.map((doc: QueryDocumentSnapshot) => ({ id: doc.id, ...doc.data() } as GameSet));
       // @ts-ignore: 빌드 에러를 해결하기 위해 다음 라인의 타입 체크를 건너뜁니다.
       gameSets.sort((a: any, b: any) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
       setMyGameSets(gameSets);
 
       const ids = new Set<string>();
-      // 3. playedSetsSnapshot.docs를 통해 순회하여 타입 안정성 확보
       playedSetsSnapshot.docs.forEach((doc: QueryDocumentSnapshot) => {
         const data = doc.data() as PlayedGameSet;
         if (data.gameSetId) {
@@ -259,6 +266,7 @@ export default function ProfilePage() {
         toast({ variant: 'destructive', title: '오류', description: '프로필 데이터를 불러오는 중 오류가 발생했습니다.' });
     } finally {
         setIsLoading(false);
+        setIsLoadingMyGameSets(false);
     }
   }, [user, toast]);
 
