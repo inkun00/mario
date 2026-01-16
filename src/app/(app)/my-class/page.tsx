@@ -114,6 +114,7 @@ export default function MyClassPage() {
   const [classMembers, setClassMembers] = useState<User[]>([]);
   const [teacher, setTeacher] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [classmates, setClassmates] = useState<{value: string; label: string}[]>([]);
 
   const [classStoreItems, setClassStoreItems] = useState<ClassStoreItem[]>([]);
   const [isStoreLoading, setIsStoreLoading] = useState(true);
@@ -315,6 +316,20 @@ export default function MyClassPage() {
         if (unsubscribeUser) unsubscribeUser();
     };
   }, [user, toast]);
+
+    useEffect(() => {
+        if (user && classMembers.length > 0) {
+        const filteredClassmates = classMembers
+            .filter(member => member.uid !== user.uid)
+            .map(member => ({
+            value: member.uid,
+            label: `${member.name || member.displayName} ${member.role === 'teacher' ? '(선생님)' : ''}`.trim(),
+            }));
+        setClassmates(filteredClassmates);
+        } else {
+        setClassmates([]);
+        }
+    }, [classMembers, user]);
 
     const handleTabChange = useCallback(async (tab: string) => {
         if (!classMembers || classMembers.length <= 1) return;
