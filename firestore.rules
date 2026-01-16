@@ -1,6 +1,5 @@
 rules_version = '2';
 
-// Re-applying rules to fix any potential deployment issues.
 service cloud.firestore {
   match /databases/{database}/documents {
     
@@ -9,26 +8,37 @@ service cloud.firestore {
     }
 
     function isTeacher(uid) {
+      // Teachers can perform certain admin-level actions.
       return isSignedIn() && get(/databases/$(database)/documents/users/$(uid)).data.role == 'teacher';
     }
 
     match /users/{userId} {
-      // A user can read/write their own document, or a teacher can.
-      allow read, write: if isSignedIn() && (request.auth.uid == userId || isTeacher(request.auth.uid));
-      
-      // Allow specific cross-user updates for store functionality
-      allow update: if isSignedIn() &&
-        request.resource.data.diff(resource.data).affectedKeys().subsetOf(['classPoints', 'inventory']);
+      // Let any signed in user read profiles, and list users.
+      // The client-side queries are responsible for filtering appropriately (e.g., by class).
+      allow read, list: if isSignedIn();
 
-      allow list: if isSignedIn() && 
-                    (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.classId == request.query.where[2] ||
-                     get(/databases/$(database)/documents/users/$(request.auth.uid)).data.uid == request.query.where[2]);
+      // Users can create their own doc.
+      allow create: if request.auth.uid == userId;
+      
+      // Update logic is now combined and more flexible.
+      allow update: if isSignedIn() && 
+                      (
+                        // Case 1: Owner or a teacher can update the document.
+                        request.auth.uid == userId || isTeacher(request.auth.uid) ||
+                        // Case 2: Other users can update only classPoints or inventory for store functionality.
+                        request.resource.data.diff(resource.data).affectedKeys().subsetOf(['classPoints', 'inventory'])
+                      );
+                      
+      // Only teachers can delete users.
+      allow delete: if isTeacher(request.auth.uid);
     }
 
     match /class-store-items/{itemId} {
       allow read, list: if isSignedIn();
       allow create: if isSignedIn() && request.auth.uid == request.resource.data.sellerId;
       
+      // Sellers or teachers can update anything.
+      // Buyers can only update the quantity (when purchasing).
       allow update: if isSignedIn() && (
         request.auth.uid == resource.data.sellerId || 
         isTeacher(request.auth.uid) ||
@@ -38,38 +48,42 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (request.auth.uid == resource.data.sellerId || isTeacher(request.auth.uid));
     }
     
-    // Allow any signed-in user to create and read point logs for anyone.
-    // This is necessary for sales history, gifts, and other cross-user logging.
+    // This allows any signed-in user to create logs for anyone, which is needed for sales, gifts, etc.
     match /{path=**}/pointLogs/{logId} {
-      allow create: if isSignedIn();
-      allow read, list: if isSignedIn();
+      allow create, read, list: if isSignedIn();
     }
 
     match /game-sets/{gameSetId} {
-      allow read: if isSignedIn();
-      allow list: if isSignedIn();
+      allow read, list: if isSignedIn();
       allow create: if isSignedIn() && request.auth.uid == request.resource.data.creatorId;
+      
+      // Creator or teacher can update anything.
+      // Other users can only update the playCount.
       allow update: if isSignedIn() && (
         request.auth.uid == resource.data.creatorId || 
         isTeacher(request.auth.uid) ||
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['playCount'])
       );
+      
       allow delete: if isSignedIn() && (request.auth.uid == resource.data.creatorId || isTeacher(request.auth.uid));
       
       match /comments/{commentId} {
         allow read, create: if isSignedIn();
-        allow update, delete: if false; 
+        allow update, delete: if false; // Comments are immutable for now
       }
     }
     
     match /game-rooms/{roomId} {
-        allow read, create, delete: if isSignedIn();
+        allow read, create, delete, list: if isSignedIn();
+        // More granular update logic
         allow update: if isSignedIn() && (
+          // Allow updates if game is waiting for players
           resource.data.status == 'waiting' ||
+          // Host can always update
           request.auth.uid == resource.data.hostId ||
+          // Players in the game can update (e.g. their scores)
           request.auth.uid in resource.data.playerUIDs
         );
-        allow list: if isSignedIn();
     }
   }
 }
