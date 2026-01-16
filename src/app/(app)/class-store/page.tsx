@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import {
@@ -282,6 +282,10 @@ export default function ClassStorePage() {
         const buyerData = buyerDoc.data() as User;
         const price = buyCandidate.price;
 
+        if ((buyerData.classPoints || 0) < price) {
+          throw '학급 포인트가 부족하여 아이템을 구매할 수 없습니다.';
+        }
+
         transaction.update(buyerRef, { classPoints: increment(-price) });
         transaction.update(sellerRef, { classPoints: increment(price) });
         transaction.update(itemRef, { quantity: increment(-1) });
@@ -422,23 +426,25 @@ export default function ClassStorePage() {
             type: 'ITEM_USE',
             amount: 0,
             timestamp: serverTimestamp(),
-            description: `'${useCandidate.name}' 사용`,
+            description: `'${itemInInventory.name}' 사용`,
             relatedItemId: useCandidate.itemId,
         });
+
+        return itemInInventory.name;
     })
-    .then(() => {
-        toast({ title: "사용 완료", description: `'${useCandidate.name}' 아이템을 사용했습니다.`});
+    .then((itemName) => {
+        toast({ title: "사용 완료", description: `'${itemName}' 아이템을 사용했습니다.`});
     })
     .catch((error: any) => {
         if (typeof error === 'string') {
           toast({ variant: 'destructive', title: '사용 실패', description: error });
-          return;
+        } else {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: `users/${user.uid}`,
+                operation: 'update',
+                requestResourceData: { inventoryUpdate: { [useCandidate.itemId]: 'DECREMENT or DELETE' } }
+            }));
         }
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: `users/${user.uid}`,
-            operation: 'update',
-            requestResourceData: { inventoryUpdate: { [useCandidate.itemId]: 'DECREMENT or DELETE' } }
-        }));
     })
     .finally(() => {
         setIsProcessing(false);
@@ -479,23 +485,25 @@ export default function ClassStorePage() {
         
         const recipientData = recipientDoc.data() as User;
         const itemInRecipientInventory = recipientData.inventory?.[giftCandidate.itemId];
+        const newRecipientItem = { ...itemInInventory, quantity: giftQuantity };
+
         if (itemInRecipientInventory) {
             transaction.update(recipientRef, { [`inventory.${giftCandidate.itemId}.quantity`]: increment(giftQuantity) });
         } else {
-              transaction.set(recipientRef, { inventory: { [giftCandidate.itemId]: {...giftCandidate, quantity: giftQuantity } } }, { merge: true });
+              transaction.set(recipientRef, { inventory: { [giftCandidate.itemId]: newRecipientItem } }, { merge: true });
         }
         
         const senderLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
         transaction.set(senderLogRef, {
             type: 'ITEM_GIFT_SEND', amount: 0, timestamp: serverTimestamp(),
-            description: `'${giftCandidate.name}' ${giftQuantity}개 선물 (${recipientData.displayName}에게)`,
+            description: `'${itemInInventory.name}' ${giftQuantity}개 선물 (${recipientData.displayName}에게)`,
             relatedItemId: giftCandidate.itemId, relatedUserId: giftRecipient
         });
         
         const recipientLogRef = doc(collection(db, 'users', giftRecipient, 'pointLogs'));
         transaction.set(recipientLogRef, {
             type: 'ITEM_GIFT_RECEIVE', amount: 0, timestamp: serverTimestamp(),
-            description: `'${giftCandidate.name}' ${giftQuantity}개 선물 받음 (${senderData.displayName}로부터)`,
+            description: `'${itemInInventory.name}' ${giftQuantity}개 선물 받음 (${senderData.displayName}로부터)`,
             relatedItemId: giftCandidate.itemId, relatedUserId: user.uid
         });
     })
@@ -505,18 +513,18 @@ export default function ClassStorePage() {
     .catch((error: any) => {
         if (typeof error === 'string') {
           toast({ variant: 'destructive', title: '선물 실패', description: error });
-          return;
+        } else {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: `users/${user.uid} and users/${giftRecipient}`,
+                operation: 'write',
+                requestResourceData: {
+                  sender: user.uid,
+                  recipient: giftRecipient,
+                  itemId: giftCandidate.itemId,
+                  quantity: giftQuantity,
+                }
+            }));
         }
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: `users/${user.uid} and users/${giftRecipient}`,
-            operation: 'write',
-            requestResourceData: {
-              sender: user.uid,
-              recipient: giftRecipient,
-              itemId: giftCandidate.itemId,
-              quantity: giftQuantity,
-            }
-        }));
     })
     .finally(() => {
         setIsProcessing(false);
@@ -527,7 +535,7 @@ export default function ClassStorePage() {
   };
   
   const handleRefundItem = async () => {
-    if (!user || !refundCandidate || !refundCandidate.sellerId || refundCandidate.price === undefined) return;
+    if (!user || !refundCandidate || !refundCandidate.sellerId) return;
     
     setIsProcessing(true);
     runTransaction(db, async (transaction) => {
@@ -551,7 +559,10 @@ export default function ClassStorePage() {
         const itemInInventory = buyerData.inventory?.[refundCandidate.itemId];
         if (!itemInInventory || itemInInventory.quantity < 1) throw "환불할 아이템이 없습니다.";
 
-        if((sellerData.classPoints || 0) < refundCandidate.price!) {
+        const refundPrice = itemInInventory.price || 0;
+        if(refundPrice === 0) throw "환불할 수 없는 아이템입니다 (가격 정보 없음).";
+
+        if((sellerData.classPoints || 0) < refundPrice) {
             throw '판매자의 포인트가 부족하여 환불할 수 없습니다.';
         }
 
@@ -562,40 +573,41 @@ export default function ClassStorePage() {
             transaction.update(buyerRef, { [`inventory.${refundCandidate.itemId}`]: deleteField() });
         }
 
-        transaction.update(buyerRef, { classPoints: increment(refundCandidate.price!) });
-        transaction.update(sellerRef, { classPoints: increment(-refundCandidate.price!) });
+        transaction.update(buyerRef, { classPoints: increment(refundPrice) });
+        transaction.update(sellerRef, { classPoints: increment(-refundPrice) });
         transaction.update(itemRef, { quantity: increment(1) });
 
         const buyerLogRef = doc(collection(db, 'users', user.uid, 'pointLogs'));
         transaction.set(buyerLogRef, {
-            type: 'ITEM_REFUND_BUYER', amount: refundCandidate.price, timestamp: serverTimestamp(),
-            description: `'${refundCandidate.name}' 환불`, relatedItemId: refundCandidate.itemId,
+            type: 'ITEM_REFUND_BUYER', amount: refundPrice, timestamp: serverTimestamp(),
+            description: `'${itemInInventory.name}' 환불`, relatedItemId: refundCandidate.itemId,
         });
 
         const sellerLogRef = doc(collection(db, 'users', refundCandidate.sellerId!, 'pointLogs'));
         transaction.set(sellerLogRef, {
-            type: 'ITEM_SALE_REFUND', amount: -refundCandidate.price, timestamp: serverTimestamp(),
-            description: `판매된 '${refundCandidate.name}' 환불 처리`, relatedItemId: refundCandidate.itemId,
+            type: 'ITEM_SALE_REFUND', amount: -refundPrice, timestamp: serverTimestamp(),
+            description: `판매된 '${itemInInventory.name}' 환불 처리`, relatedItemId: refundCandidate.itemId,
         });
+        return { name: itemInInventory.name, price: refundPrice };
     })
-    .then(() => {
-        toast({ title: '환불 완료', description: '아이템이 환불 처리되었습니다.' });
+    .then(({ name, price }) => {
+        toast({ title: '환불 완료', description: `'${name}' 아이템이 환불 처리되어 ${price}P를 돌려받았습니다.` });
     })
     .catch((error: any) => {
         if (typeof error === 'string') {
           toast({ variant: 'destructive', title: '환불 실패', description: error });
-          return;
+        } else {
+            errorEmitter.emit('permission-error', new FirestorePermissionError({
+                path: `users/${user.uid} and users/${refundCandidate.sellerId}`,
+                operation: 'write',
+                requestResourceData: {
+                  buyer: user.uid,
+                  seller: refundCandidate.sellerId,
+                  itemId: refundCandidate.itemId,
+                  price: refundCandidate.price
+                }
+            }));
         }
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: `users/${user.uid} and users/${refundCandidate.sellerId}`,
-            operation: 'write',
-            requestResourceData: {
-              buyer: user.uid,
-              seller: refundCandidate.sellerId,
-              itemId: refundCandidate.itemId,
-              price: refundCandidate.price
-            }
-        }));
     })
     .finally(() => {
         setIsProcessing(false);
@@ -603,10 +615,14 @@ export default function ClassStorePage() {
     });
   };
 
-
-  const inventoryItems = Object.entries(myInventory || {})
-    .map(([id, data]) => ({ ...data, itemId: id }))
-    .sort((a,b) => (a.name || "").localeCompare(b.name || ""));
+  const inventoryItems = useMemo(() => 
+    Object.entries(myInventory || {}).map(([id, data]) => {
+      return {
+        ...data,
+        itemId: id,
+      };
+    }).sort((a,b) => (a.name || "").localeCompare(b.name || "")),
+  [myInventory]);
 
   return (
     <>
