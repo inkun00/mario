@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -41,7 +42,7 @@ import { db, auth } from '@/lib/firebase';
 import type { User, GameSet, School, Question, GameRoom } from '@/lib/types';
 import { getLevelInfo } from '@/lib/level-system';
 import { collection, getDocs, limit, orderBy, query, where } from 'firebase/firestore';
-import { Crown, Loader2, School as SchoolIcon, BookOpen, Users, HelpCircle, Star, Sparkles, Tv, Smartphone } from 'lucide-react';
+import { Crown, Loader2, School as SchoolIcon, BookOpen, Users, HelpCircle, Star, Sparkles, Tv, Smartphone, ThumbsUp, MessageSquare } from 'lucide-react';
 import { useEffect, useState, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -318,6 +319,15 @@ export default function LeaderboardPage() {
     );
   };
 
+  let selectedUserAvatarData = null;
+  if (selectedUser?.pixelAvatar) {
+    try {
+      selectedUserAvatarData = JSON.parse(selectedUser.pixelAvatar);
+    } catch(e) {
+      console.error("Error parsing selected user avatar", e);
+    }
+  }
+
 
   return (
     <>
@@ -439,6 +449,8 @@ export default function LeaderboardPage() {
                                         <TableHead className="w-[80px] text-center">순위</TableHead>
                                         <TableHead>퀴즈 제목</TableHead>
                                         <TableHead>제작자</TableHead>
+                                        <TableHead className="text-center">좋아요</TableHead>
+                                        <TableHead className="text-center">댓글</TableHead>
                                         <TableHead className="text-center">문제 수</TableHead>
                                         <TableHead className="text-center">활용 횟수</TableHead>
                                         <TableHead className="text-right w-[120px]">작업</TableHead>
@@ -467,6 +479,8 @@ export default function LeaderboardPage() {
                                                 >
                                                     {gameSet.creatorNickname}
                                                 </TableCell>
+                                                <TableCell className="text-center">{gameSet.likeCount || 0}</TableCell>
+                                                <TableCell className="text-center">{gameSet.commentCount || 0}</TableCell>
                                                 <TableCell className="text-center">{gameSet.questions.length}개</TableCell>
                                                 <TableCell className="text-center font-bold text-primary">{gameSet.playCount || 0}</TableCell>
                                                 <TableCell className="text-right">
@@ -495,7 +509,7 @@ export default function LeaderboardPage() {
           <DialogHeader>
             <div className="flex items-center gap-4">
               <Avatar className="h-14 w-14">
-                <PixelAvatar pixels={selectedUser?.pixelAvatar ? JSON.parse(selectedUser.pixelAvatar) : null} />
+                <PixelAvatar pixels={selectedUserAvatarData} />
               </Avatar>
               <div>
                 <DialogTitle className="font-headline text-2xl">{selectedUser?.displayName}님이 만든 퀴즈</DialogTitle>

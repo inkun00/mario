@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -46,7 +47,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, GameSet, GameSetComment, PlayedGameSet, PointLog } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction, addDoc, QueryDocumentSnapshot, DocumentSnapshot, QuerySnapshot } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
-import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye, MessageSquare, LineChart, PieChart as PieChartIcon } from 'lucide-react';
+import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye, MessageSquare, LineChart, PieChart as PieChartIcon, History, ThumbsUp } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -170,7 +171,9 @@ export default function ProfilePage() {
   const [pointRule, setPointRule] = useState<'teacher_only' | 'class_only' | 'all'>('all');
 
   const [myGameSets, setMyGameSets] = useState<GameSet[]>([]);
-  const [isLoadingMyGameSets, setIsLoadingMyGameSets] = useState(true);
+  const [isLoadingMyGameSets, setIsLoadingMyGameSets] = useState(false);
+  const [playedGameSets, setPlayedGameSets] = useState<GameSet[]>([]);
+  const [isLoadingPlayedGameSets, setIsLoadingPlayedGameSets] = useState(true);
   const [previewGameSet, setPreviewGameSet] = useState<GameSet | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<GameSet | null>(null);
   
@@ -323,6 +326,59 @@ export default function ProfilePage() {
       fetchClassmates();
     }
   }, [userData, fetchClassmates]);
+  
+  useEffect(() => {
+    const fetchPlayedSets = async () => {
+        if (!user || playedGameSetIds.size === 0) {
+            setPlayedGameSets([]);
+            setIsLoadingPlayedGameSets(false);
+            return;
+        }
+
+        setIsLoadingPlayedGameSets(true);
+        try {
+            const playedSetIds = Array.from(playedGameSetIds);
+            const chunks: string[][] = [];
+            for (let i = 0; i < playedSetIds.length; i += 30) {
+                chunks.push(playedSetIds.slice(i, i + 30));
+            }
+
+            let fetchedGameSets: GameSet[] = [];
+            for (const chunk of chunks) {
+                if (chunk.length > 0) {
+                    const q = query(collection(db, 'game-sets'), where('__name__', 'in', chunk));
+                    const snapshot = await getDocs(q);
+                    fetchedGameSets = [...fetchedGameSets, ...snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSet))];
+                }
+            }
+            
+            const playedInfoQuery = query(collection(db, 'users', user.uid, 'playedGameSets'));
+            const playedInfoSnapshot = await getDocs(playedInfoQuery);
+            const playedInfo: Record<string, PlayedGameSet> = {};
+            playedInfoSnapshot.forEach(doc => {
+                const data = doc.data() as PlayedGameSet;
+                playedInfo[data.gameSetId] = data;
+            });
+
+            fetchedGameSets.sort((a, b) => {
+                const timeA = playedInfo[a.id]?.playedAt?.toMillis() || 0;
+                const timeB = playedInfo[b.id]?.playedAt?.toMillis() || 0;
+                return timeB - timeA;
+            });
+            
+            setPlayedGameSets(fetchedGameSets);
+        } catch (error) {
+            console.error('Error fetching played game sets:', error);
+            toast({ variant: 'destructive', title: '오류', description: '플레이한 퀴즈 목록을 불러오는 중 오류가 발생했습니다.' });
+        } finally {
+            setIsLoadingPlayedGameSets(false);
+        }
+    };
+
+    if (user) {
+        fetchPlayedSets();
+    }
+  }, [playedGameSetIds, user, toast]);
 
   useEffect(() => {
     if (!previewGameSet) {
@@ -339,20 +395,60 @@ export default function ProfilePage() {
     return () => unsubscribe();
   }, [previewGameSet]);
 
+  const handleLike = async (gameSet: GameSet) => {
+    if (!user) return;
+    const gameSetRef = doc(db, 'game-sets', gameSet.id);
+    const alreadyLiked = (gameSet.likedBy || []).includes(user.uid);
+    const newLikeCount = (gameSet.likeCount || 0) + (alreadyLiked ? -1 : 1);
+    const newLikedBy = alreadyLiked 
+      ? (gameSet.likedBy || []).filter(uid => uid !== user.uid)
+      : [...(gameSet.likedBy || []), user.uid];
+
+    try {
+      await updateDoc(gameSetRef, {
+        likeCount: newLikeCount,
+        likedBy: newLikedBy,
+      });
+
+      const updater = (set: GameSet) => {
+          if (set.id === gameSet.id) {
+              return { ...set, likeCount: newLikeCount, likedBy: newLikedBy };
+          }
+          return set;
+      };
+
+      setMyGameSets(prev => prev.map(updater));
+      setPlayedGameSets(prev => prev.map(updater));
+      setPreviewGameSet(prev => (prev && prev.id === gameSet.id ? updater(prev) : prev));
+
+    } catch (error) {
+      console.error("Error liking game set:", error);
+      toast({ variant: "destructive", title: "오류", description: "좋아요 처리 중 오류가 발생했습니다." });
+    }
+  };
+
   const handlePostComment = async () => {
     if (!newComment.trim() || !user || !previewGameSet || !userData) return;
 
     setIsPostingComment(true);
+    const gameSetRef = doc(db, 'game-sets', previewGameSet.id);
+    const newCommentRef = doc(collection(gameSetRef, 'comments'));
+    
     try {
-      const commentData = {
-        userId: user.uid,
-        userNickname: userData.displayName,
-        userAvatar: userData.pixelAvatar || null,
-        comment: newComment,
-        createdAt: serverTimestamp()
-      };
-      await addDoc(collection(db, 'game-sets', previewGameSet.id, 'comments'), commentData);
-      setNewComment("");
+       await runTransaction(db, async (transaction) => {
+            const commentData = {
+                id: newCommentRef.id,
+                userId: user.uid,
+                userNickname: userData.displayName,
+                userAvatar: userData.pixelAvatar || null,
+                comment: newComment,
+                createdAt: serverTimestamp()
+            };
+            transaction.set(newCommentRef, commentData);
+            transaction.update(gameSetRef, { commentCount: increment(1) });
+       });
+       setNewComment("");
+       setPreviewGameSet(prev => prev ? { ...prev, commentCount: (prev.commentCount || 0) + 1 } : null);
     } catch (error) {
       console.error("Error posting comment: ", error);
       toast({ variant: "destructive", title: "오류", description: "댓글 작성 중 오류가 발생했습니다."});
@@ -992,8 +1088,9 @@ export default function ProfilePage() {
       </Card>
       
       <Tabs defaultValue="my-quizzes" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="my-quizzes">내가 만든 퀴즈</TabsTrigger>
+          <TabsTrigger value="played-quizzes">내가 풀었던 문제</TabsTrigger>
           <TabsTrigger value="achievement">과목별 성취도</TabsTrigger>
           <TabsTrigger value="review-notes">오답노트</TabsTrigger>
         </TabsList>
@@ -1042,6 +1139,58 @@ export default function ProfilePage() {
                                                     <Trash2 className="mr-2 h-4 w-4"/> 삭제
                                                 </Button>
                                             </div>
+                                        </CardContent>
+                                    </Card>
+                                ))}
+                            </div>
+                        </ScrollArea>
+                    )}
+                </CardContent>
+            </Card>
+        </TabsContent>
+        <TabsContent value="played-quizzes">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline flex items-center gap-2">
+                        <History className="text-primary"/> 내가 풀었던 문제
+                    </CardTitle>
+                    <CardDescription>
+                        내가 플레이했던 퀴즈 목록입니다. 퀴즈에 대한 피드백을 남겨보세요.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoadingPlayedGameSets ? (
+                        <div className="text-center py-8"><Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" /></div>
+                    ) : playedGameSets.length === 0 ? (
+                        <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                            <p className="text-muted-foreground">아직 플레이한 퀴즈가 없습니다.</p>
+                            <Button asChild className="mt-4">
+                                <Link href="/dashboard">퀴즈 풀러 가기</Link>
+                            </Button>
+                        </div>
+                    ) : (
+                        <ScrollArea className="h-96 pr-4">
+                            <div className="space-y-2">
+                                {playedGameSets.map(set => (
+                                    <Card key={set.id}>
+                                        <CardContent className="p-4 flex items-center justify-between gap-2">
+                                            <div className="flex-grow overflow-hidden">
+                                                <p className="font-semibold truncate">{set.title}</p>
+                                                <p className="text-sm text-muted-foreground">
+                                                    제작자: {set.creatorNickname}
+                                                </p>
+                                                <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                                                    <span className="flex items-center gap-1">
+                                                        <ThumbsUp className="h-4 w-4" /> {set.likeCount || 0}
+                                                    </span>
+                                                    <span className="flex items-center gap-1">
+                                                        <MessageSquare className="h-4 w-4" /> {set.commentCount || 0}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <Button variant="outline" size="sm" onClick={() => setPreviewGameSet(set)}>
+                                                <Edit className="mr-2 h-4 w-4"/> 피드백 남기기
+                                            </Button>
                                         </CardContent>
                                     </Card>
                                 ))}
@@ -1473,7 +1622,12 @@ export default function ProfilePage() {
                 <Tabs defaultValue="questions" className="w-full">
                   <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="questions"><BookOpen className="mr-2 h-4 w-4"/>문제 목록</TabsTrigger>
-                    <TabsTrigger value="comments"><MessageSquare className="mr-2 h-4 w-4"/>댓글 ({comments.length})</TabsTrigger>
+                    <TabsTrigger value="comments" className="relative">
+                      <MessageSquare className="mr-2 h-4 w-4"/>댓글
+                      {previewGameSet.commentCount && previewGameSet.commentCount > 0 && (
+                        <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">{previewGameSet.commentCount}</span>
+                      )}
+                    </TabsTrigger>
                   </TabsList>
                   <TabsContent value="questions">
                     <ScrollArea className="h-96 pr-4">
@@ -1526,17 +1680,22 @@ export default function ProfilePage() {
                       </ScrollArea>
                       {hasUserPlayedSelectedSet && (
                         <div className="mt-4 pt-4 border-t">
-                          <div className="flex gap-2">
-                            <Input 
-                              placeholder="댓글을 입력하세요..." 
-                              value={newComment}
-                              onChange={(e) => setNewComment(e.target.value)}
-                              disabled={isPostingComment}
-                            />
-                            <Button onClick={handlePostComment} disabled={isPostingComment || !newComment.trim()}>
-                              {isPostingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                            </Button>
-                          </div>
+                           <div className="flex items-center gap-2">
+                              <Button variant="outline" size="sm" onClick={() => handleLike(previewGameSet)}>
+                                <ThumbsUp className={cn("mr-2 h-4 w-4", (previewGameSet.likedBy || []).includes(user.uid) && "fill-primary text-primary-foreground")} />
+                                  좋아요 {previewGameSet.likeCount || 0}
+                              </Button>
+                              <Input 
+                                placeholder="댓글을 입력하세요..." 
+                                value={newComment}
+                                onChange={(e) => setNewComment(e.target.value)}
+                                disabled={isPostingComment}
+                                className="flex-grow"
+                              />
+                              <Button onClick={handlePostComment} disabled={isPostingComment || !newComment.trim()}>
+                                {isPostingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                              </Button>
+                           </div>
                         </div>
                       )}
                     </div>

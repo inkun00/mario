@@ -108,6 +108,9 @@ export interface GameSet {
   questions: Question[];
   createdAt: any;
   playCount?: number;
+  likeCount?: number;
+  commentCount?: number;
+  likedBy?: string[];
   reportCount?: number;
   isDisabled?: boolean;
   reportedBy?: string[];

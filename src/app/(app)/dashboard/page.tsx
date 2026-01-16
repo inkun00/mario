@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -30,11 +31,11 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn, ShieldCheck, List, Gamepad2, Sparkles, Smartphone, Tv, Gem, MessageSquare, Send } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn, ShieldCheck, List, Gamepad2, Sparkles, Smartphone, Tv, Gem, MessageSquare, Send, ThumbsUp } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe, updateDoc, increment, arrayUnion, getDoc, serverTimestamp, Timestamp, getDocs, writeBatch, addDoc, orderBy } from 'firebase/firestore';
+import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe, updateDoc, increment, arrayUnion, getDoc, serverTimestamp, Timestamp, getDocs, writeBatch, addDoc, orderBy, runTransaction } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { GameSet, User as FsUser, GameRoom, PlayedGameSet, GameSetComment } from '@/lib/types';
 import { auth } from '@/lib/firebase';
@@ -555,20 +556,61 @@ export default function DashboardPage() {
     }
   };
 
+  const handleLike = async (gameSet: GameSet) => {
+    if (!user) return;
+    const gameSetRef = doc(db, 'game-sets', gameSet.id);
+    const alreadyLiked = (gameSet.likedBy || []).includes(user.uid);
+    const newLikeCount = (gameSet.likeCount || 0) + (alreadyLiked ? -1 : 1);
+    const newLikedBy = alreadyLiked 
+      ? (gameSet.likedBy || []).filter(uid => uid !== user.uid)
+      : [...(gameSet.likedBy || []), user.uid];
+  
+    try {
+      await updateDoc(gameSetRef, {
+        likeCount: newLikeCount,
+        likedBy: newLikedBy,
+      });
+  
+      const updater = (set: GameSetDocument) => {
+          if (set.id === gameSet.id) {
+              return { ...set, likeCount: newLikeCount, likedBy: newLikedBy };
+          }
+          return set;
+      };
+      
+      setAllGameSets(prev => prev.map(updater));
+      setFilteredGameSets(prev => prev.map(updater));
+      setSelectedGameSet(prev => (prev && prev.id === gameSet.id ? updater(prev) : prev));
+  
+    } catch (error) {
+      console.error("Error liking game set:", error);
+      toast({ variant: "destructive", title: "오류", description: "좋아요 처리 중 오류가 발생했습니다." });
+    }
+  };
+
   const handlePostComment = async () => {
     if (!newComment.trim() || !user || !selectedGameSet || !currentUserData) return;
 
     setIsPostingComment(true);
+    const gameSetRef = doc(db, 'game-sets', selectedGameSet.id);
+    const newCommentRef = doc(collection(gameSetRef, 'comments'));
+    
     try {
-      const commentData = {
-        userId: user.uid,
-        userNickname: currentUserData.displayName,
-        userAvatar: currentUserData.pixelAvatar || null,
-        comment: newComment,
-        createdAt: serverTimestamp()
-      };
-      await addDoc(collection(db, 'game-sets', selectedGameSet.id, 'comments'), commentData);
-      setNewComment("");
+       await runTransaction(db, async (transaction) => {
+            const commentData = {
+                userId: user.uid,
+                userNickname: currentUserData.displayName,
+                userAvatar: currentUserData.pixelAvatar || null,
+                comment: newComment,
+                createdAt: serverTimestamp()
+            };
+            transaction.set(newCommentRef, commentData);
+            transaction.update(gameSetRef, { commentCount: increment(1) });
+       });
+
+       setNewComment("");
+       setSelectedGameSet(prev => prev ? { ...prev, commentCount: (prev.commentCount || 0) + 1 } : null);
+
     } catch (error) {
       console.error("Error posting comment: ", error);
       toast({ variant: "destructive", title: "오류", description: "댓글 작성 중 오류가 발생했습니다."});
@@ -851,7 +893,7 @@ export default function DashboardPage() {
                                 </div>
                               )}
                           </div>
-                          <div className="flex flex-col items-end gap-2 text-sm text-muted-foreground">
+                          <div className="flex flex-col items-end gap-1 text-sm text-muted-foreground">
                               <div className="flex items-center gap-2">
                                 <Book className="h-4 w-4" />
                                 <span>{set.questions.length} 문제</span>
@@ -859,6 +901,14 @@ export default function DashboardPage() {
                               <div className="flex items-center gap-2 text-primary font-semibold">
                                 <BarChart3 className="h-4 w-4" />
                                 <span>활용 {set.playCount || 0}회</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                  <ThumbsUp className="h-4 w-4" />
+                                  <span>{set.likeCount || 0}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                  <MessageSquare className="h-4 w-4" />
+                                  <span>{set.commentCount || 0}</span>
                               </div>
                                 <TooltipProvider>
                                   <Tooltip>
@@ -973,7 +1023,12 @@ export default function DashboardPage() {
             <Tabs defaultValue="questions">
               <TabsList className="grid w-full grid-cols-2">
                 <TabsTrigger value="questions"><Book className="w-4 h-4 mr-2" />문제 목록</TabsTrigger>
-                <TabsTrigger value="comments"><MessageSquare className="w-4 h-4 mr-2" />댓글 ({comments.length})</TabsTrigger>
+                <TabsTrigger value="comments" className="relative">
+                  <MessageSquare className="w-4 h-4 mr-2" />댓글 
+                  {selectedGameSet.commentCount && selectedGameSet.commentCount > 0 ? (
+                    <span className="ml-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs">{selectedGameSet.commentCount}</span>
+                  ) : `(${comments.length})`}
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="questions">
                 <ScrollArea className="h-96 pr-6">
@@ -1059,11 +1114,16 @@ export default function DashboardPage() {
                   {hasUserPlayedSelectedSet && (
                     <div className="mt-4 pt-4 border-t">
                       <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => handleLike(selectedGameSet)}>
+                            <ThumbsUp className={cn("mr-2 h-4 w-4", (selectedGameSet.likedBy || []).includes(user.uid) && "fill-primary text-primary-foreground")} />
+                            좋아요 {selectedGameSet.likeCount || 0}
+                        </Button>
                         <Input 
                           placeholder="댓글을 입력하세요..." 
                           value={newComment}
                           onChange={(e) => setNewComment(e.target.value)}
                           disabled={isPostingComment}
+                          className="flex-grow"
                         />
                         <Button onClick={handlePostComment} disabled={isPostingComment || !newComment.trim()}>
                           {isPostingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
