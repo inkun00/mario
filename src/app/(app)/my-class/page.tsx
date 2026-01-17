@@ -18,7 +18,7 @@ import {
   serverTimestamp,
   orderBy,
 } from 'firebase/firestore';
-import type { User, ClassStoreItem, PointLog, GameSet, PlayedGameSet, SubjectStat, SolvedIncorrectAnswer } from '@/lib/types';
+import type { User, ClassStoreItem, PointLog, GameSet, PlayedGameSet, SubjectStat, SolvedIncorrectAnswer, GameSetComment } from '@/lib/types';
 import { getLevelInfo, getNextLevelInfo, LevelInfo, levelSystem } from '@/lib/level-system';
 import {
   Card,
@@ -70,6 +70,8 @@ import {
   FileWarning,
   CheckCircle,
   XCircle,
+  MessageSquare,
+  ThumbsUp,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PixelAvatar } from '@/components/pixel-avatar';
@@ -82,6 +84,9 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recha
 import { Progress } from '@/components/ui/progress';
 import { Tooltip as UITooltip, TooltipContent as UITooltipContent, TooltipProvider, TooltipTrigger as UITooltipTrigger } from '@/components/ui/tooltip';
 import Image from 'next/image';
+import { formatDistanceToNow } from 'date-fns';
+import { ko } from 'date-fns/locale';
+
 
 const COLORS = [
   "hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))",
@@ -242,7 +247,30 @@ export default function MyClassPage() {
   const [studentSelectedUnit, setStudentSelectedUnit] = useState('all');
   const [showStudentIncorrectAnswersDialog, setShowStudentIncorrectAnswersDialog] = useState(false);
   const [studentIncorrectAnswersToShow, setStudentIncorrectAnswersToShow] = useState<SolvedIncorrectAnswer[]>([]);
+  const [studentQuizPreview, setStudentQuizPreview] = useState<GameSet | null>(null);
+  const [studentQuizComments, setStudentQuizComments] = useState<GameSetComment[]>([]);
+  const [isClient, setIsClient] = useState(false);
 
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  useEffect(() => {
+    if (!studentQuizPreview) {
+      setStudentQuizComments([]);
+      return;
+    }
+
+    const commentsQuery = query(collection(db, 'game-sets', studentQuizPreview.id, 'comments'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(commentsQuery, (snapshot) => {
+      const fetchedComments = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSetComment));
+      setStudentQuizComments(fetchedComments);
+    }, (error) => {
+      console.error("Error fetching comments for student quiz preview:", error);
+    });
+
+    return () => unsubscribe();
+  }, [studentQuizPreview]);
 
   useEffect(() => {
     if (!user) {
@@ -1191,7 +1219,14 @@ export default function MyClassPage() {
                             <TabsTrigger value="solved-review-notes">푼 오답</TabsTrigger>
                             </TabsList>
                             <TabsContent value="my-quizzes">
-                                {studentProfileData.myGameSets.length === 0 ? <p className='text-center py-4 text-muted-foreground'>만든 퀴즈가 없습니다.</p> : studentProfileData.myGameSets.map(set => <Card key={set.id} className='mb-2'><CardContent className='p-3'><p className='font-semibold'>{set.title}</p><p className='text-sm text-muted-foreground'>{set.questions.length} 문제</p></CardContent></Card>)}
+                                {studentProfileData.myGameSets.length === 0 ? <p className='text-center py-4 text-muted-foreground'>만든 퀴즈가 없습니다.</p> : studentProfileData.myGameSets.map(set => (
+                                    <Card key={set.id} className='mb-2 cursor-pointer hover:bg-secondary' onClick={() => setStudentQuizPreview(set)}>
+                                        <CardContent className='p-3'>
+                                            <p className='font-semibold'>{set.title}</p>
+                                            <p className='text-sm text-muted-foreground'>{set.questions.length} 문제</p>
+                                        </CardContent>
+                                    </Card>
+                                ))}
                             </TabsContent>
                             <TabsContent value="played-quizzes">
                                 {studentProfileData.playedGameSets.length === 0 ? <p className='text-center py-4 text-muted-foreground'>푼 퀴즈가 없습니다.</p> : studentProfileData.playedGameSets.map(set => <Card key={set.id} className='mb-2'><CardContent className='p-3'><p className='font-semibold'>{set.title}</p><p className='text-sm text-muted-foreground'>제작자: {set.creatorNickname}</p></CardContent></Card>)}
@@ -1269,6 +1304,81 @@ export default function MyClassPage() {
             )}
         </DialogContent>
       </Dialog>
+      
+      {/* Student Quiz Preview Dialog */}
+      {studentQuizPreview && (
+        <Dialog open={!!studentQuizPreview} onOpenChange={() => setStudentQuizPreview(null)}>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>{studentQuizPreview.title}</DialogTitle>
+                    <DialogDescription>{[studentQuizPreview.grade, studentQuizPreview.semester, studentQuizPreview.subject, studentQuizPreview.unit].filter(Boolean).join(' / ')}</DialogDescription>
+                </DialogHeader>
+                <Tabs defaultValue="questions" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="questions"><BookOpen className="mr-2 h-4 w-4"/>문제 목록</TabsTrigger>
+                    <TabsTrigger value="comments"><MessageSquare className="mr-2 h-4 w-4"/>댓글 ({studentQuizComments.length})</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="questions">
+                    <ScrollArea className="h-96 pr-4">
+                        <div className="space-y-4">
+                            {studentQuizPreview.questions.map((q, index) => (
+                                <div key={index} className="p-4 rounded-md border bg-muted/50">
+                                    <p className="font-semibold whitespace-pre-wrap">{index + 1}. {q.question}</p>
+                                    {q.imageUrl && (
+                                        <div className="mt-2 relative aspect-video">
+                                            <Image src={q.imageUrl} alt={`질문 ${index + 1} 이미지`} fill className="rounded-md object-contain" />
+                                        </div>
+                                    )}
+                                    {q.type === 'multipleChoice' && q.options && (
+                                        <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                                            {q.options.map((opt, i) => <div key={i} className={cn(q.correctAnswer === opt && "font-bold text-primary")}>- {opt}</div>)}
+                                        </div>
+                                    )}
+                                    <p className="mt-2 text-sm">정답: <span className="font-semibold text-primary">{q.correctAnswer || q.answer}</span></p>
+                                </div>
+                            ))}
+                        </div>
+                    </ScrollArea>
+                  </TabsContent>
+                  <TabsContent value="comments">
+                    <div className="flex flex-col h-96">
+                      <ScrollArea className="flex-grow pr-6">
+                        <div className="space-y-4">
+                          {studentQuizComments.length === 0 ? (
+                            <div className="text-center py-12 text-muted-foreground">아직 댓글이 없습니다.</div>
+                          ) : (
+                            studentQuizComments.map(comment => {
+                              let pixelAvatarData = null;
+                              if (comment.userAvatar) {
+                                try { pixelAvatarData = JSON.parse(comment.userAvatar); } catch (e) {}
+                              }
+                              return (
+                                <div key={comment.id} className="flex gap-3">
+                                  <Avatar className="h-9 w-9">
+                                    <PixelAvatar pixels={pixelAvatarData} />
+                                  </Avatar>
+                                  <div className="flex-grow">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-semibold text-sm">{comment.userNickname}</span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {isClient && comment.createdAt ? formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko }) : null}
+                                      </span>
+                                    </div>
+                                    <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
+                                  </div>
+                                </div>
+                              )
+                            })
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+            </DialogContent>
+        </Dialog>
+      )}
+
        {/* Student incorrect answers dialog */}
        <Dialog open={showStudentIncorrectAnswersDialog} onOpenChange={setShowStudentIncorrectAnswersDialog}>
         <DialogContent className="max-w-2xl">
@@ -1320,5 +1430,6 @@ export default function MyClassPage() {
     
 
     
+
 
 
