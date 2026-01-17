@@ -32,10 +32,14 @@ export async function generateWritingTopic(input: GenerateWritingTopicInput): Pr
   return generateWritingTopicFlow(input);
 }
 
+// Define a schema for the prompt's input, which will take a stringified version of the stats.
+const PromptInputSchema = z.object({
+  subjectStatsString: z.string(),
+});
 
 const generateWritingTopicPrompt = ai.definePrompt({
   name: 'generateWritingTopicPrompt',
-  input: { schema: GenerateWritingTopicInputSchema },
+  input: { schema: PromptInputSchema },
   output: { schema: GenerateWritingTopicOutputSchema },
   model: 'googleai/gemini-2.5-flash',
   prompt: `You are an expert elementary school teacher in South Korea.
@@ -43,7 +47,7 @@ Your task is to analyze the provided student learning data to identify their wea
 
 **Student's Learning Data:**
 \`\`\`json
-{{{JSON.stringify subjectStats}}}
+{{{subjectStatsString}}}
 \`\`\`
 
 **Instructions:**
@@ -61,7 +65,10 @@ const generateWritingTopicFlow = ai.defineFlow(
     outputSchema: GenerateWritingTopicOutputSchema,
   },
   async (input) => {
-    const { output } = await generateWritingTopicPrompt(input);
+    // Stringify the subject stats before passing them to the prompt.
+    const { output } = await generateWritingTopicPrompt({
+      subjectStatsString: JSON.stringify(input.subjectStats, null, 2)
+    });
     if (!output) {
       throw new Error('Failed to generate a writing topic.');
     }
