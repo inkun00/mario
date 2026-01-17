@@ -1583,12 +1583,6 @@ export default function ProfilePage() {
                         <p className="text-sm">{writingTopic.evaluation.expressionFeedback}</p>
                     </CardContent>
                 </Card>
-                <Card>
-                    <CardHeader><CardTitle className="text-lg flex items-center gap-2"><FileWarning className="w-5 h-5 text-orange-500"/>AI 생성 및 외부 도움 검사</CardTitle></CardHeader>
-                    <CardContent>
-                        <p className="text-sm">{writingTopic.evaluation.integrityFeedback}</p>
-                    </CardContent>
-                </Card>
                  <Card>
                     <CardHeader><CardTitle className="text-lg">AI 교정 답안</CardTitle></CardHeader>
                     <CardContent>
@@ -2114,5 +2108,6 @@ export default function ProfilePage() {
     </TooltipProvider>
   );
 }
+
 
 

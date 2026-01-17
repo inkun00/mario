@@ -21,7 +21,6 @@ const EvaluateWritingOutputSchema = z.object({
   contentFeedback: z.string().describe("Detailed feedback on content validity based on the rubric."),
   organizationFeedback: z.string().describe("Detailed feedback on logical structure based on the rubric."),
   expressionFeedback: z.string().describe("Detailed feedback on appropriateness of expression, including spelling and vocabulary."),
-  integrityFeedback: z.string().describe("Feedback on writing integrity, including checks for AI-generated content and use of age-inappropriate vocabulary."),
   finalFeedback: z.string().describe("A final, encouraging summary of the evaluation."),
   correctedText: z.string().describe("The student's original text with spelling and grammatical corrections applied."),
 });
@@ -52,10 +51,6 @@ Your task is to score the student's response based on the provided prompt and a 
 2.  **Logical Structure (30 points):** Assess if the writing is well-organized, with clear cause-and-effect relationships and complete, coherent sentences (subject-verb agreement, punctuation).
 3.  **Appropriateness of Expression (30 points):** Check for correct spelling and spacing appropriate for the student's level. Also, evaluate the use of relevant vocabulary learned in the unit. For spelling/grammar, provide corrections rather than just penalizing.
 
-**Integrity Check:**
-1.  **Age-Inappropriate Vocabulary:** Check if the text contains a significant number of words or complex sentence structures that are not suitable for the student's grade level.
-2.  **AI-Generated Text Detection:** Analyze the text for patterns, vocabulary, and sentence structures characteristic of generative AI.
-
 **Scoring Guide:**
 - **Excellent (90-100):** Meets all criteria excellently. Key concepts are included, logical, and error-free.
 - **Good (70-89):** Core concepts included, but structure or expression could be slightly improved. Minor errors.
@@ -66,7 +61,6 @@ Your task is to score the student's response based on the provided prompt and a 
 Provide a detailed evaluation in JSON format.
 - Give a score between 0 and 100.
 - Provide specific, encouraging feedback for each of the three rubric categories (Content, Organization, Expression). The language used in the feedback must be easy for a student of the specified grade to understand.
-- Provide feedback on the writing's integrity based on the "Integrity Check" criteria.
 - Write a final, encouraging summary of the evaluation.
 - Provide a corrected version of the student's text, fixing spelling and grammatical mistakes.
 `,
