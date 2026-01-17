@@ -80,7 +80,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Progress } from '@/components/ui/progress';
-import { Tooltip as UITooltip, TooltipContent as UITooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip as UITooltip, TooltipContent as UITooltipContent, TooltipProvider, TooltipTrigger as UITooltipTrigger } from '@/components/ui/tooltip';
 import Image from 'next/image';
 
 const COLORS = [
@@ -697,6 +697,26 @@ export default function MyClassPage() {
 
   const allStudentsSelected = classmates.length > 0 && Object.keys(selectedStudents).length === classmates.length && Object.values(selectedStudents).every(v => v);
 
+  const teacherPixelAvatar = useMemo(() => {
+    if (!teacher?.pixelAvatar) return null;
+    try {
+      return JSON.parse(teacher.pixelAvatar);
+    } catch (e) {
+      console.error("Failed to parse teacher pixel avatar", e);
+      return null;
+    }
+  }, [teacher]);
+  
+  const viewingStudentPixelData = useMemo(() => {
+    if (!viewingStudent?.pixelAvatar) return null;
+    try {
+        return JSON.parse(viewingStudent.pixelAvatar);
+    } catch(e) {
+        console.error("Failed to parse viewing student pixel avatar", e);
+        return null;
+    }
+  }, [viewingStudent]);
+
   if (loadingUser || isLoading) {
     return (
       <div className="container mx-auto py-8 space-y-8">
@@ -801,7 +821,7 @@ export default function MyClassPage() {
             <div className="flex items-center gap-4">
               <Avatar className="h-16 w-16">
                 <PixelAvatar
-                  pixels={teacher.pixelAvatar ? JSON.parse(teacher.pixelAvatar) : null}
+                  pixels={teacherPixelAvatar}
                 />
               </Avatar>
               <div>
@@ -834,7 +854,9 @@ export default function MyClassPage() {
                 if (member.pixelAvatar) {
                   try {
                     pixelAvatarData = JSON.parse(member.pixelAvatar);
-                  } catch (e) {}
+                  } catch (e) {
+                    console.error("Failed to parse member pixel avatar", e);
+                  }
                 }
                 return (
                   <div
@@ -1114,7 +1136,7 @@ export default function MyClassPage() {
                 <DialogHeader>
                     <div className="flex flex-col sm:flex-row sm:items-start gap-4">
                         <div className="relative h-24 w-24 flex items-center justify-center rounded-lg bg-secondary flex-shrink-0">
-                            <PixelAvatar pixels={viewingStudent.pixelAvatar ? JSON.parse(viewingStudent.pixelAvatar) : null} className="w-full h-full" />
+                            <PixelAvatar pixels={viewingStudentPixelData} className="w-full h-full" />
                         </div>
                         <div className="flex-grow">
                             <DialogTitle className="font-headline text-3xl flex items-center gap-2">
@@ -1231,9 +1253,9 @@ export default function MyClassPage() {
                                 <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-4">
                                     {levelSystem.filter(level => viewingStudent.xp >= level.xpThreshold).map((level) => (
                                         <UITooltip key={level.level}>
-                                            <TooltipTrigger asChild>
+                                            <UITooltipTrigger asChild>
                                                 <div className="group relative aspect-square flex items-center justify-center p-1 rounded-full bg-secondary"><span className="text-4xl">{level.icon}</span></div>
-                                            </TooltipTrigger>
+                                            </UITooltipTrigger>
                                             <UITooltipContent><p className="font-semibold">Lv. {level.level}: {level.title}</p></UITooltipContent>
                                         </UITooltip>
                                     ))}
@@ -1298,4 +1320,5 @@ export default function MyClassPage() {
     
 
     
+
 
