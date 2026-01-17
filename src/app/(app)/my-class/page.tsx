@@ -15,8 +15,10 @@ import {
   getDocs,
   getDoc,
   serverTimestamp,
+  orderBy,
 } from 'firebase/firestore';
-import type { User, ClassStoreItem, PointLog } from '@/lib/types';
+import type { User, ClassStoreItem, PointLog, GameSet, PlayedGameSet, SubjectStat, SolvedIncorrectAnswer } from '@/lib/types';
+import { getLevelInfo, getNextLevelInfo, LevelInfo, levelSystem } from '@/lib/level-system';
 import {
   Card,
   CardContent,
@@ -60,6 +62,13 @@ import {
   BarChart,
   PieChart as PieChartIcon,
   Wallet,
+  Trophy,
+  BookOpen,
+  History,
+  BarChart2,
+  FileWarning,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PixelAvatar } from '@/components/pixel-avatar';
@@ -68,12 +77,59 @@ import { cn } from '@/lib/utils';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { PieChart, Pie, Cell, ResponsiveContainer, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { Progress } from '@/components/ui/progress';
+import { Tooltip as UITooltip, TooltipContent as UITooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import Image from 'next/image';
 
 const COLORS = [
   "hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))",
   "hsl(var(--chart-4))", "hsl(var(--chart-5))"
 ];
+
+const transformStats = (flatStats: SubjectStat[]): SubjectStat[] => {
+  return flatStats.map(stat => {
+    if (stat.units && typeof stat.units === 'object' && !Array.isArray(stat.units)) {
+      const sanitizedStat = {
+        ...stat,
+        totalCorrect: stat.totalCorrect || 0,
+        totalIncorrect: stat.totalIncorrect || 0,
+        units: { ...stat.units },
+      };
+      for (const unit in sanitizedStat.units) {
+        sanitizedStat.units[unit] = {
+          totalCorrect: sanitizedStat.units[unit].totalCorrect || 0,
+          totalIncorrect: sanitizedStat.units[unit].totalIncorrect || 0,
+        };
+      }
+      return sanitizedStat;
+    }
+
+    const newStat: SubjectStat = {
+      id: stat.id,
+      totalCorrect: stat.totalCorrect || 0,
+      totalIncorrect: stat.totalIncorrect || 0,
+      units: {},
+    };
+
+    for (const key in stat) {
+      if (key.startsWith('units.')) {
+        const parts = key.split('.');
+        const unitName = parts.slice(1, -1).join('.');
+        const metric = parts[parts.length - 1];
+
+        if (unitName && (metric === 'totalCorrect' || metric === 'totalIncorrect')) {
+          if (!newStat.units![unitName]) {
+            newStat.units![unitName] = { totalCorrect: 0, totalIncorrect: 0 };
+          }
+          newStat.units![unitName][metric as 'totalCorrect' | 'totalIncorrect'] = (stat[key as keyof SubjectStat] as number) || 0;
+        }
+      }
+    }
+    return newStat;
+  });
+};
+
 
 export default function MyClassPage() {
   const [user, loadingUser] = useAuthState(auth);
@@ -101,6 +157,20 @@ export default function MyClassPage() {
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
   const [pointAnalysisData, setPointAnalysisData] = useState<any | null>(null);
   const [itemSalesData, setItemSalesData] = useState<any[]>([]);
+
+  // Student Profile View State
+  const [viewingStudent, setViewingStudent] = useState<User | null>(null);
+  const [studentProfileData, setStudentProfileData] = useState<{
+    myGameSets: GameSet[];
+    playedGameSets: GameSet[];
+    subjectStats: SubjectStat[];
+    solvedReviewQuestions: SolvedIncorrectAnswer[];
+    levelInfo: LevelInfo | null;
+    nextLevelInfo: LevelInfo | null;
+  } | null>(null);
+  const [isStudentProfileLoading, setIsStudentProfileLoading] = useState(false);
+  const [studentSelectedSubject, setStudentSelectedSubject] = useState('all');
+  const [studentSelectedUnit, setStudentSelectedUnit] = useState('all');
 
   useEffect(() => {
     if (!user) {
@@ -178,6 +248,78 @@ export default function MyClassPage() {
       setIsLoading(false);
     }
   }, [userData]);
+  
+  useEffect(() => {
+    if (!viewingStudent) return;
+
+    const fetchStudentProfile = async () => {
+      setIsStudentProfileLoading(true);
+      try {
+        const studentId = viewingStudent.uid;
+        const myGameSetsQuery = query(collection(db, 'game-sets'), where('creatorId', '==', studentId), where('isPublic', '==', true));
+        const playedSetsQuery = query(collection(db, 'users', studentId, 'playedGameSets'));
+        const subjectStatsRef = collection(db, 'users', studentId, 'subjectStats');
+        const solvedIncorrectAnswersRef = collection(db, 'users', studentId, 'solved-incorrect-answers');
+
+        const [
+          myGameSetsSnapshot,
+          playedSetsSnapshot,
+          subjectStatsSnapshot,
+          solvedIncorrectSnapshot,
+        ] = await Promise.all([
+          getDocs(myGameSetsQuery),
+          getDocs(playedSetsQuery),
+          getDocs(subjectStatsRef),
+          getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
+        ]);
+
+        const myGameSets = myGameSetsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSet))
+          .sort((a, b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+
+        const playedSetIds = playedSetsSnapshot.docs.map(doc => (doc.data() as PlayedGameSet).gameSetId);
+        let playedGameSets: GameSet[] = [];
+        if (playedSetIds.length > 0) {
+          const chunks: string[][] = [];
+          for (let i = 0; i < playedSetIds.length; i += 30) {
+            chunks.push(playedSetIds.slice(i, i + 30));
+          }
+          let fetchedGameSets: GameSet[] = [];
+          for (const chunk of chunks) {
+            if (chunk.length > 0) {
+              const q = query(collection(db, 'game-sets'), where('__name__', 'in', chunk));
+              const snapshot = await getDocs(q);
+              fetchedGameSets = [...fetchedGameSets, ...snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSet))];
+            }
+          }
+          playedGameSets = fetchedGameSets;
+        }
+
+        const subjectStats = transformStats(subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat)));
+        const solvedReviewQuestions = solvedIncorrectSnapshot.docs.map(doc => doc.data() as SolvedIncorrectAnswer);
+
+        const levelInfo = getLevelInfo(viewingStudent.xp);
+        const nextLevelInfo = getNextLevelInfo(levelInfo.level);
+
+        setStudentProfileData({
+          myGameSets,
+          playedGameSets,
+          subjectStats,
+          solvedReviewQuestions,
+          levelInfo,
+          nextLevelInfo,
+        });
+
+      } catch (error) {
+        console.error("Error fetching student profile:", error);
+        toast({ variant: 'destructive', title: '오류', description: '학생 정보를 불러오는 중 오류가 발생했습니다.' });
+      } finally {
+        setIsStudentProfileLoading(false);
+      }
+    };
+
+    fetchStudentProfile();
+  }, [viewingStudent, toast]);
+
 
   const totalClassPoints = useMemo(() => {
     return classmates.reduce((sum, cm) => sum + (cm.classPoints || 0), 0);
@@ -407,6 +549,18 @@ export default function MyClassPage() {
         default: return '';
     }
   }, [analyticsMode]);
+  
+  const studentOverallAccuracy = useMemo(() => {
+    if (!studentProfileData) return '0.0';
+    let totalCorrect = 0;
+    let totalIncorrect = 0;
+    studentProfileData.subjectStats.forEach(stat => {
+      totalCorrect += stat.totalCorrect || 0;
+      totalIncorrect += stat.totalIncorrect || 0;
+    });
+    const total = totalCorrect + totalIncorrect;
+    return total > 0 ? ((totalCorrect / total) * 100).toFixed(1) : '0.0';
+  }, [studentProfileData]);
 
   const allStudentsSelected = classmates.length > 0 && Object.keys(selectedStudents).length === classmates.length && Object.values(selectedStudents).every(v => v);
 
@@ -536,7 +690,7 @@ export default function MyClassPage() {
             우리 학급 친구들
           </CardTitle>
           <CardDescription>
-            총 {classmates.length}명의 친구들이 함께하고 있습니다.
+            총 {classmates.length}명의 친구들이 함께하고 있습니다. {userData?.role === 'teacher' && '학생을 클릭하여 상세 정보를 확인하세요.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -552,7 +706,11 @@ export default function MyClassPage() {
                 return (
                   <div
                     key={member.uid}
-                    className="flex flex-col items-center gap-2 text-center"
+                    className={cn(
+                        "flex flex-col items-center gap-2 text-center",
+                        userData?.role === 'teacher' && "p-2 rounded-lg cursor-pointer hover:bg-accent transition-colors"
+                    )}
+                    onClick={() => userData?.role === 'teacher' && setViewingStudent(member)}
                   >
                     <Avatar className="h-20 w-20">
                       <PixelAvatar pixels={pixelAvatarData} />
@@ -808,6 +966,111 @@ export default function MyClassPage() {
                 </>
             )}
             </div>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Student Profile View Dialog */}
+      <Dialog open={!!viewingStudent} onOpenChange={(isOpen) => {if (!isOpen) { setViewingStudent(null); setStudentProfileData(null); }}}>
+        <DialogContent className="max-w-4xl min-h-[90vh]">
+            {isStudentProfileLoading || !studentProfileData || !viewingStudent ? (
+                <div className="flex justify-center items-center h-full min-h-[80vh]">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary"/>
+                </div>
+            ) : (
+                <>
+                <DialogHeader>
+                    <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                        <div className="relative h-24 w-24 flex items-center justify-center rounded-lg bg-secondary flex-shrink-0">
+                            <PixelAvatar pixels={viewingStudent.pixelAvatar ? JSON.parse(viewingStudent.pixelAvatar) : null} className="w-full h-full" />
+                        </div>
+                        <div className="flex-grow">
+                            <DialogTitle className="font-headline text-3xl flex items-center gap-2">
+                                {viewingStudent.displayName}
+                                <span className="text-lg text-muted-foreground font-normal">({viewingStudent.name})</span>
+                            </DialogTitle>
+                            <DialogDescription>{studentProfileData.levelInfo?.title}</DialogDescription>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                                <School className="w-4 h-4"/>
+                                <span>{[viewingStudent.schoolName].filter(Boolean).join(' ')}</span>
+                            </div>
+                        </div>
+                    </div>
+                </DialogHeader>
+                 <ScrollArea className="h-[calc(90vh-12rem)] -mx-6 px-6">
+                    <div className="space-y-6 pt-4">
+                        <Card>
+                            <CardContent className="pt-6 space-y-6">
+                                <div>
+                                    <div className="flex justify-between items-end mb-1">
+                                    <span className="text-sm font-medium">Lv. {studentProfileData.levelInfo?.level}</span>
+                                    <span className="text-sm text-muted-foreground">
+                                        {studentProfileData.nextLevelInfo ? `${viewingStudent.xp.toLocaleString()} / ${studentProfileData.nextLevelInfo.xpThreshold.toLocaleString()} XP` : '최고 레벨'}
+                                    </span>
+                                    </div>
+                                    <Progress value={studentProfileData.nextLevelInfo ? ((viewingStudent.xp - (studentProfileData.levelInfo?.xpThreshold || 0)) / (studentProfileData.nextLevelInfo.xpThreshold - (studentProfileData.levelInfo?.xpThreshold || 0))) * 100 : 100} className="h-3" />
+                                </div>
+                                <div className="grid grid-cols-3 gap-4 text-center">
+                                    <div>
+                                    <p className="text-2xl font-bold">{viewingStudent.xp.toLocaleString()}</p>
+                                    <p className="text-sm text-muted-foreground">누적 포인트</p>
+                                    </div>
+                                    <div>
+                                    <p className="flex items-center justify-center text-2xl font-bold">
+                                        <Wallet className="w-5 h-5 mr-1 text-blue-500"/>
+                                        {(viewingStudent.classPoints || 0).toLocaleString()}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">학급 포인트</p>
+                                    </div>
+                                    <div>
+                                    <p className="text-2xl font-bold">{studentOverallAccuracy}%</p>
+                                    <p className="text-sm text-muted-foreground">전체 정답률</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                        <Tabs defaultValue="my-quizzes" className="w-full">
+                            <TabsList className="grid w-full grid-cols-4">
+                            <TabsTrigger value="my-quizzes">만든 퀴즈</TabsTrigger>
+                            <TabsTrigger value="played-quizzes">푼 퀴즈</TabsTrigger>
+                            <TabsTrigger value="achievement">성취도</TabsTrigger>
+                            <TabsTrigger value="solved-review-notes">푼 오답</TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="my-quizzes">
+                                {studentProfileData.myGameSets.length === 0 ? <p className='text-center py-4 text-muted-foreground'>만든 퀴즈가 없습니다.</p> : studentProfileData.myGameSets.map(set => <Card key={set.id} className='mb-2'><CardContent className='p-3'><p className='font-semibold'>{set.title}</p><p className='text-sm text-muted-foreground'>{set.questions.length} 문제</p></CardContent></Card>)}
+                            </TabsContent>
+                            <TabsContent value="played-quizzes">
+                                {studentProfileData.playedGameSets.length === 0 ? <p className='text-center py-4 text-muted-foreground'>푼 퀴즈가 없습니다.</p> : studentProfileData.playedGameSets.map(set => <Card key={set.id} className='mb-2'><CardContent className='p-3'><p className='font-semibold'>{set.title}</p><p className='text-sm text-muted-foreground'>제작자: {set.creatorNickname}</p></CardContent></Card>)}
+                            </TabsContent>
+                            <TabsContent value="achievement">
+                                 {/* 성취도 표시 로직 추가 */}
+                            </TabsContent>
+                            <TabsContent value="solved-review-notes">
+                                {studentProfileData.solvedReviewQuestions.length === 0 ? <p className='text-center py-4 text-muted-foreground'>푼 오답 기록이 없습니다.</p> : studentProfileData.solvedReviewQuestions.map(item => (
+                                    <Card key={item.id} className='mb-2'><CardContent className='p-3 space-y-1'><p className="font-semibold whitespace-pre-wrap">{item.question.question}</p><p className={cn("text-sm", item.wasReviewCorrect ? 'text-green-600' : 'text-red-600')}>복습 결과: {item.wasReviewCorrect ? '정답' : '오답'}</p></CardContent></Card>
+                                ))}
+                            </TabsContent>
+                        </Tabs>
+                        <Card>
+                            <CardHeader><CardTitle className="font-headline flex items-center gap-2"><Trophy className="text-primary" /> 레벨 엠블럼</CardTitle></CardHeader>
+                            <CardContent>
+                               <TooltipProvider>
+                                <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-4">
+                                    {levelSystem.filter(level => viewingStudent.xp >= level.xpThreshold).map((level) => (
+                                        <UITooltip key={level.level}>
+                                            <UITooltipTrigger asChild>
+                                                <div className="group relative aspect-square flex items-center justify-center p-1 rounded-full bg-secondary"><span className="text-4xl">{level.icon}</span></div>
+                                            </UITooltipTrigger>
+                                            <UITooltipContent><p className="font-semibold">Lv. {level.level}: {level.title}</p></UITooltipContent>
+                                        </UITooltip>
+                                    ))}
+                                </div>
+                               </TooltipProvider>
+                            </CardContent>
+                        </Card>
+                    </div>
+                 </ScrollArea>
+                </>
+            )}
         </DialogContent>
       </Dialog>
     </div>
