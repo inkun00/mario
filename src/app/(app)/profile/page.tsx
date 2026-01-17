@@ -80,46 +80,87 @@ interface ReviewQuestion extends IncorrectAnswer {
     isSubmitting?: boolean;
 }
 
+const getCommonWordCount = (name1: string, name2: string): number => {
+  const words1 = new Set(name1.replace(/^[0-9]+\.\s*/, '').trim().split(/\s+/));
+  const words2 = new Set(name2.replace(/^[0-9]+\.\s*/, '').trim().split(/\s+/));
+  let commonCount = 0;
+  for (const word of words1) {
+    if (words2.has(word)) {
+      commonCount++;
+    }
+  }
+  return commonCount;
+};
+
 const transformStats = (flatStats: SubjectStat[]): SubjectStat[] => {
   return flatStats.map(stat => {
+    let unitsObject: { [unitName: string]: { totalCorrect: number; totalIncorrect: number; } } = {};
     if (stat.units && typeof stat.units === 'object' && !Array.isArray(stat.units)) {
-      const sanitizedStat = {
-        ...stat,
-        totalCorrect: stat.totalCorrect || 0,
-        totalIncorrect: stat.totalIncorrect || 0,
-        units: { ...stat.units },
-      };
-      for (const unit in sanitizedStat.units) {
-        sanitizedStat.units[unit] = {
-          totalCorrect: sanitizedStat.units[unit].totalCorrect || 0,
-          totalIncorrect: sanitizedStat.units[unit].totalIncorrect || 0,
+      unitsObject = stat.units;
+      for (const unit of Object.keys(unitsObject)) {
+        unitsObject[unit] = {
+          totalCorrect: unitsObject[unit].totalCorrect || 0,
+          totalIncorrect: unitsObject[unit].totalIncorrect || 0,
         };
       }
-      return sanitizedStat;
-    }
-
-    const newStat: SubjectStat = {
-      id: stat.id,
-      totalCorrect: stat.totalCorrect || 0,
-      totalIncorrect: stat.totalIncorrect || 0,
-      units: {},
-    };
-
-    for (const key in stat) {
-      if (key.startsWith('units.')) {
-        const parts = key.split('.');
-        const unitName = parts.slice(1, -1).join('.');
-        const metric = parts[parts.length - 1];
-
-        if (unitName && (metric === 'totalCorrect' || metric === 'totalIncorrect')) {
-          if (!newStat.units![unitName]) {
-            newStat.units![unitName] = { totalCorrect: 0, totalIncorrect: 0 };
+    } else {
+      for (const key in stat) {
+        if (key.startsWith('units.')) {
+          const parts = key.split('.');
+          const unitName = parts.slice(1, -1).join('.');
+          const metric = parts[parts.length - 1];
+          if (unitName && (metric === 'totalCorrect' || metric === 'totalIncorrect')) {
+            if (!unitsObject[unitName]) {
+              unitsObject[unitName] = { totalCorrect: 0, totalIncorrect: 0 };
+            }
+            (unitsObject[unitName] as any)[metric] = (stat[key as keyof SubjectStat] as number) || 0;
           }
-          newStat.units![unitName][metric as 'totalCorrect' | 'totalIncorrect'] = (stat[key as keyof SubjectStat] as number) || 0;
         }
       }
     }
-    return newStat;
+
+    const unitNames = Object.keys(unitsObject);
+    const groups: string[][] = [];
+
+    for (const unitName of unitNames) {
+      let foundGroup = false;
+      for (const group of groups) {
+        if (getCommonWordCount(unitName, group[0]) >= 2) {
+          group.push(unitName);
+          foundGroup = true;
+          break;
+        }
+      }
+      if (!foundGroup) {
+        groups.push([unitName]);
+      }
+    }
+
+    const mergedUnits: { [unitName: string]: { totalCorrect: number; totalIncorrect: number; } } = {};
+    let totalCorrectAggregated = 0;
+    let totalIncorrectAggregated = 0;
+
+    for (const group of groups) {
+      const canonicalName = group.reduce((a, b) => (a.length <= b.length ? a : b));
+      
+      const aggregatedStats = { totalCorrect: 0, totalIncorrect: 0 };
+
+      for (const unitName of group) {
+        aggregatedStats.totalCorrect += unitsObject[unitName]?.totalCorrect || 0;
+        aggregatedStats.totalIncorrect += unitsObject[unitName]?.totalIncorrect || 0;
+      }
+      
+      mergedUnits[canonicalName] = aggregatedStats;
+      totalCorrectAggregated += aggregatedStats.totalCorrect;
+      totalIncorrectAggregated += aggregatedStats.totalIncorrect;
+    }
+
+    return {
+      id: stat.id,
+      totalCorrect: totalCorrectAggregated,
+      totalIncorrect: totalIncorrectAggregated,
+      units: mergedUnits,
+    };
   });
 };
 
@@ -1864,4 +1905,5 @@ export default function ProfilePage() {
     </TooltipProvider>
   );
 }
+
 
