@@ -67,6 +67,8 @@ import { formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart, ResponsiveContainer, Cell, Pie, PieChart, Legend } from 'recharts';
+import { generateWritingTopic } from '@/ai/flows/generate-writing-topic-flow';
+import { evaluateWriting, type EvaluateWritingOutput } from '@/ai/flows/evaluate-writing-flow';
 
 
 const PixelEditor = dynamic(() => import('@/components/pixel-editor').then(mod => mod.PixelEditor), {
@@ -255,6 +257,24 @@ export default function ProfilePage() {
   const [isPointHistoryLoading, setIsPointHistoryLoading] = useState(false);
   const [chartView, setChartView] = useState<'income' | 'expense'>('income');
   const [isClient, setIsClient] = useState(false);
+
+  const [writingTopic, setWritingTopic] = useState<{
+    isOpen: boolean;
+    isLoading: boolean;
+    isEvaluating: boolean;
+    topic: string | null;
+    prompt: string | null;
+    response: string;
+    evaluation: EvaluateWritingOutput | null;
+  }>({
+    isOpen: false,
+    isLoading: false,
+    isEvaluating: false,
+    topic: null,
+    prompt: null,
+    response: "",
+    evaluation: null,
+  });
 
   useEffect(() => {
     setIsClient(true);
@@ -919,6 +939,72 @@ export default function ProfilePage() {
     }
   }
 
+  const handleOpenWritingTopicDialog = async () => {
+    setWritingTopic({
+      isOpen: true,
+      isLoading: true,
+      isEvaluating: false,
+      topic: null,
+      prompt: null,
+      response: "",
+      evaluation: null,
+    });
+
+    if (subjectStats.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: '데이터 부족',
+        description: '글쓰기 주제를 생성하려면 학습 기록이 더 필요합니다.',
+      });
+      setWritingTopic(prev => ({ ...prev, isOpen: false, isLoading: false }));
+      return;
+    }
+
+    try {
+      const result = await generateWritingTopic({ subjectStats });
+      setWritingTopic(prev => ({
+        ...prev,
+        isLoading: false,
+        topic: result.topic,
+        prompt: result.prompt,
+      }));
+    } catch (error) {
+      console.error("Error generating writing topic:", error);
+      toast({ variant: 'destructive', title: '오류', description: '글쓰기 주제 생성 중 오류가 발생했습니다.'});
+      setWritingTopic(prev => ({ ...prev, isOpen: false, isLoading: false }));
+    }
+  };
+
+  const handleEvaluateWriting = async () => {
+    if (!writingTopic.prompt || !writingTopic.response) {
+      toast({ variant: 'destructive', title: '오류', description: '글을 작성해주세요.'});
+      return;
+    }
+
+    setWritingTopic(prev => ({ ...prev, isEvaluating: true }));
+
+    try {
+      const result = await evaluateWriting({
+        prompt: writingTopic.prompt,
+        userResponse: writingTopic.response,
+        topic: writingTopic.topic || '',
+      });
+      setWritingTopic(prev => ({ ...prev, isEvaluating: false, evaluation: result }));
+
+      if (user) {
+        const userRef = doc(db, 'users', user.uid);
+        await updateDoc(userRef, { xp: increment(30), classPoints: increment(30) });
+        setUserData(prev => prev ? {...prev, xp: prev.xp + 30, classPoints: (prev.classPoints || 0) + 30} : null);
+        toast({ title: '채점 완료!', description: 'AI 글쓰기 평가가 완료되었습니다. 30 XP와 30 학급 포인트를 획득했습니다!' });
+      }
+    } catch (error) {
+      console.error("Error evaluating writing:", error);
+      toast({ variant: 'destructive', title: '오류', description: '글쓰기 평가 중 오류가 발생했습니다.'});
+      setWritingTopic(prev => ({ ...prev, isEvaluating: false }));
+    }
+  };
+
+
   const pointHistoryChartData = useMemo(() => pointLogs.reduce((acc, log) => {
     if (!log.timestamp) return acc;
     const date = (log.timestamp as any)?.toDate().toISOString().split('T')[0];
@@ -1331,12 +1417,19 @@ export default function ProfilePage() {
         <TabsContent value="review-notes">
             <Card>
                 <CardHeader>
-                    <CardTitle className="font-headline flex items-center gap-2">
-                        <FileWarning className="text-primary"/> 오답노트
-                    </CardTitle>
-                    <CardDescription>
-                        틀렸던 문제들을 다시 풀어보고 점수를 만회하세요! 복습 효과를 높이기 위해 틀린 문제는 24시간 후에 공개됩니다.
-                    </CardDescription>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <CardTitle className="font-headline flex items-center gap-2">
+                                <FileWarning className="text-primary"/> 오답노트
+                            </CardTitle>
+                            <CardDescription>
+                                틀렸던 문제들을 다시 풀어보고 점수를 만회하세요! 복습 효과를 높이기 위해 틀린 문제는 24시간 후에 공개됩니다.
+                            </CardDescription>
+                        </div>
+                        <Button onClick={handleOpenWritingTopicDialog} variant="outline">
+                            <Pencil className="mr-2 h-4 w-4"/> AI 주제 글쓰기
+                        </Button>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     {reviewQuestions.length === 0 ? (
@@ -1444,6 +1537,91 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
     </div>
+
+    {/* AI Writing Topic Dialog */}
+    <Dialog open={writingTopic.isOpen} onOpenChange={(isOpen) => !isOpen && setWritingTopic(prev => ({...prev, isOpen: false}))}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>AI 주제 글쓰기</DialogTitle>
+          <DialogDescription>
+            AI가 나의 학습 기록을 분석하여 취약한 부분에 대한 글쓰기 주제를 만들어주었습니다.
+          </DialogDescription>
+        </DialogHeader>
+        {writingTopic.isLoading ? (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : writingTopic.evaluation ? (
+          <ScrollArea className="max-h-[60vh] pr-4">
+            <div className="space-y-6 py-4">
+                <div className="text-center">
+                    <p className="text-sm text-muted-foreground">총점</p>
+                    <p className="text-5xl font-bold text-primary">{writingTopic.evaluation.score}</p>
+                </div>
+                <Card>
+                    <CardHeader><CardTitle className="text-lg">AI 종합 평가</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm">{writingTopic.evaluation.finalFeedback}</p>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader><CardTitle className="text-lg">내용 타당성</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm">{writingTopic.evaluation.contentFeedback}</p>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader><CardTitle className="text-lg">논리적 구조</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm">{writingTopic.evaluation.organizationFeedback}</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader><CardTitle className="text-lg">표현의 적절성</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm">{writingTopic.evaluation.expressionFeedback}</p>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader><CardTitle className="text-lg">AI 교정 답안</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{writingTopic.evaluation.correctedText}</p>
+                    </CardContent>
+                </Card>
+            </div>
+          </ScrollArea>
+        ) : (
+          <div className="space-y-4 py-4">
+            <div>
+              <Label className="font-semibold text-base">주제: {writingTopic.topic}</Label>
+              <p className="p-4 bg-secondary rounded-md mt-2 text-sm">{writingTopic.prompt}</p>
+            </div>
+            <Textarea
+              value={writingTopic.response}
+              onChange={(e) => setWritingTopic(prev => ({ ...prev, response: e.target.value }))}
+              placeholder="여기에 글을 작성해주세요."
+              rows={10}
+              className="text-base"
+              disabled={writingTopic.isEvaluating}
+            />
+          </div>
+        )}
+        <DialogFooter>
+          {writingTopic.evaluation ? (
+            <Button onClick={() => setWritingTopic(prev => ({...prev, isOpen: false}))}>닫기</Button>
+          ) : (
+            <>
+              <Button variant="ghost" onClick={() => setWritingTopic(prev => ({...prev, isOpen: false}))}>취소</Button>
+              <Button onClick={handleEvaluateWriting} disabled={writingTopic.isEvaluating || !writingTopic.response}>
+                {writingTopic.isEvaluating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                채점 받기
+              </Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
 
     {/* Avatar Editor Dialog */}
     <Dialog open={isAvatarEditorOpen} onOpenChange={setIsAvatarEditorOpen}>
@@ -1929,4 +2107,5 @@ export default function ProfilePage() {
     </TooltipProvider>
   );
 }
+
 
