@@ -988,6 +988,7 @@ export default function ProfilePage() {
         prompt: writingTopic.prompt,
         userResponse: writingTopic.response,
         topic: writingTopic.topic || '',
+        grade: userData?.grade || '',
       });
       setWritingTopic(prev => ({ ...prev, isEvaluating: false, evaluation: result }));
 
@@ -2107,5 +2108,6 @@ export default function ProfilePage() {
     </TooltipProvider>
   );
 }
+
 
 

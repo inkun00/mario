@@ -11,6 +11,7 @@ const EvaluateWritingInputSchema = z.object({
   prompt: z.string().describe("The original writing prompt given to the student."),
   userResponse: z.string().describe("The student's written response."),
   topic: z.string().describe("The general topic of the prompt to provide context (e.g., 'Science / Gases')."),
+  grade: z.string().describe("The student's grade level (e.g., '5학년')."),
 });
 export type EvaluateWritingInput = z.infer<typeof EvaluateWritingInputSchema>;
 
@@ -35,8 +36,9 @@ const evaluateWritingPrompt = ai.definePrompt({
   output: { schema: EvaluateWritingOutputSchema },
   model: 'googleai/gemini-2.5-flash',
   prompt: `You are an AI assistant for evaluating elementary school students' descriptive writing in Korean.
-Your task is to score the student's response based on the provided prompt and a detailed rubric, and provide constructive feedback.
+Your task is to score the student's response based on the provided prompt and a detailed rubric, and provide constructive feedback. All feedback and analysis MUST use vocabulary and sentence structures appropriate for the student's grade level.
 
+**Student's Grade:** {{grade}}
 **Topic:** {{topic}}
 **Writing Prompt:** {{prompt}}
 **Student's Response:**
@@ -58,7 +60,7 @@ Your task is to score the student's response based on the provided prompt and a 
 **Your Task:**
 Provide a detailed evaluation in JSON format.
 - Give a score between 0 and 100.
-- Provide specific, encouraging feedback for each of the three rubric categories (Content, Organization, Expression).
+- Provide specific, encouraging feedback for each of the three rubric categories (Content, Organization, Expression). The language used in the feedback must be easy for a student of the specified grade to understand.
 - Write a final, encouraging summary of the evaluation.
 - Provide a corrected version of the student's text, fixing spelling and grammatical mistakes.
 `,
