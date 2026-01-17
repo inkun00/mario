@@ -81,22 +81,25 @@ interface ReviewQuestion extends IncorrectAnswer {
 }
 
 const calculateSimilarity = (a: string, b: string): number => {
-  if (a.length === 0) return b.length === 0 ? 100 : 0;
-  if (b.length === 0) return a.length === 0 ? 100 : 0;
+  const s1 = a.replace(/\s+/g, '');
+  const s2 = b.replace(/\s+/g, '');
 
+  if (s1.length === 0) return s2.length === 0 ? 100 : 0;
+  if (s2.length === 0) return s1.length === 0 ? 100 : 0;
+  
   const matrix = [];
 
-  for (let i = 0; i <= b.length; i++) {
+  for (let i = 0; i <= s2.length; i++) {
     matrix[i] = [i];
   }
 
-  for (let j = 0; j <= a.length; j++) {
+  for (let j = 0; j <= s1.length; j++) {
     matrix[0][j] = j;
   }
 
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+  for (let i = 1; i <= s2.length; i++) {
+    for (let j = 1; j <= s1.length; j++) {
+      if (s2.charAt(i - 1) === s1.charAt(j - 1)) {
         matrix[i][j] = matrix[i - 1][j - 1];
       } else {
         matrix[i][j] = Math.min(
@@ -108,8 +111,8 @@ const calculateSimilarity = (a: string, b: string): number => {
     }
   }
 
-  const distance = matrix[b.length][a.length];
-  const maxLength = Math.max(a.length, b.length);
+  const distance = matrix[s2.length][s1.length];
+  const maxLength = Math.max(s1.length, s2.length);
   if (maxLength === 0) return 100;
 
   return (1 - distance / maxLength) * 100;
@@ -1929,6 +1932,7 @@ export default function ProfilePage() {
     </TooltipProvider>
   );
 }
+
 
 
 
