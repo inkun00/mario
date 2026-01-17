@@ -82,7 +82,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Progress } from '@/components/ui/progress';
-import { Tooltip as UITooltip, TooltipContent as UITooltipContent, TooltipProvider, TooltipTrigger as UITooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip as UITooltip, TooltipContent as UITooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import Image from 'next/image';
 import { formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
@@ -1306,9 +1306,9 @@ export default function MyClassPage() {
                                 <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-4">
                                     {levelSystem.filter(level => viewingStudent.xp >= level.xpThreshold).map((level) => (
                                         <UITooltip key={level.level}>
-                                            <UITooltipTrigger asChild>
+                                            <TooltipTrigger asChild>
                                                 <div className="group relative aspect-square flex items-center justify-center p-1 rounded-full bg-secondary"><span className="text-4xl">{level.icon}</span></div>
-                                            </UITooltipTrigger>
+                                            </TooltipTrigger>
                                             <UITooltipContent><p className="font-semibold">Lv. {level.level}: {level.title}</p></UITooltipContent>
                                         </UITooltip>
                                     ))}
@@ -1458,6 +1458,12 @@ export default function MyClassPage() {
                         <p className="text-5xl font-bold text-primary">{viewingWritingSubmission.evaluation.score}</p>
                     </div>
                     <Card>
+                        <CardHeader><CardTitle className="text-lg">글쓰기 주제</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm whitespace-pre-wrap">{viewingWritingSubmission.prompt}</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
                         <CardHeader><CardTitle className="text-lg">학생 답안</CardTitle></CardHeader>
                         <CardContent>
                             <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{viewingWritingSubmission.response}</p>
@@ -1507,6 +1513,7 @@ export default function MyClassPage() {
     
 
     
+
 
 
 

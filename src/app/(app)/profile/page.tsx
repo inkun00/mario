@@ -275,6 +275,9 @@ export default function ProfilePage() {
     response: "",
     evaluation: null,
   });
+  const [writingSubmissions, setWritingSubmissions] = useState<WritingSubmission[]>([]);
+  const [viewingWritingSubmission, setViewingWritingSubmission] = useState<WritingSubmission | null>(null);
+
 
   useEffect(() => {
     setIsClient(true);
@@ -296,6 +299,7 @@ export default function ProfilePage() {
     const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
     const myGameSetsQuery = query(collection(db, 'game-sets'), where('creatorId', '==', user.uid));
     const playedSetsQuery = query(collection(db, 'users', user.uid, 'playedGameSets'));
+    const writingSubmissionsRef = collection(db, 'users', user.uid, 'writingSubmissions');
     
     try {
       const [
@@ -304,7 +308,8 @@ export default function ProfilePage() {
         solvedIncorrectSnapshot, 
         subjectStatsSnapshot, 
         myGameSetsSnapshot, 
-        playedSetsSnapshot
+        playedSetsSnapshot,
+        writingSubmissionsSnapshot
       ] = await Promise.all([
         getDoc(userRef),
         getDocs(query(incorrectAnswersRef, where('timestamp', '<=', new Date(Date.now() - 24 * 60 * 60 * 1000)), orderBy('timestamp', 'asc'))),
@@ -312,7 +317,8 @@ export default function ProfilePage() {
         getDocs(subjectStatsRef),
         getDocs(myGameSetsQuery),
         getDocs(playedSetsQuery),
-      ]) as [DocumentSnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot];
+        getDocs(query(writingSubmissionsRef, orderBy('createdAt', 'desc')))
+      ]) as [DocumentSnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot];
 
       if (userSnap.exists()) {
         const fetchedUserData = userSnap.data() as User;
@@ -356,6 +362,9 @@ export default function ProfilePage() {
         }
       });
       setPlayedGameSetIds(ids);
+      
+      const submissions = writingSubmissionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WritingSubmission));
+      setWritingSubmissions(submissions);
 
     } catch (error) {
         console.error("Error fetching profile data:", error);
@@ -1039,6 +1048,9 @@ export default function ProfilePage() {
             classPoints: (prev.classPoints || 0) + points,
             lastWritingSubmission: new Date(), // Optimistic update for UI
         } : null);
+
+        setWritingSubmissions(prev => [{...submissionData, id: submissionRef.id, createdAt: new Date() }, ...prev]);
+        
         toast({ title: '채점 완료!', description: `AI 글쓰기 평가가 완료되었습니다. ${points} XP와 ${points} 학급 포인트를 획득했습니다!` });
       }
     } catch (error) {
@@ -1291,11 +1303,12 @@ export default function ProfilePage() {
       </Card>
       
       <Tabs defaultValue="my-quizzes" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="my-quizzes">내가 만든 퀴즈</TabsTrigger>
           <TabsTrigger value="played-quizzes">내가 풀었던 문제</TabsTrigger>
           <TabsTrigger value="achievement">과목별 성취도</TabsTrigger>
           <TabsTrigger value="review-notes">오답노트</TabsTrigger>
+          <TabsTrigger value="writing-activity">글쓰기 활동</TabsTrigger>
         </TabsList>
         <TabsContent value="my-quizzes">
             <Card>
@@ -1544,6 +1557,43 @@ export default function ProfilePage() {
                 </CardContent>
             </Card>
         </TabsContent>
+        <TabsContent value="writing-activity">
+            <Card>
+              <CardHeader>
+                <CardTitle className="font-headline flex items-center gap-2">
+                  <Pencil className="text-primary" /> 글쓰기 활동
+                </CardTitle>
+                <CardDescription>
+                  AI가 생성한 주제에 대해 작성했던 글과 평가 결과를 확인합니다.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {writingSubmissions.length === 0 ? (
+                  <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                    <p className="text-muted-foreground">아직 글쓰기 활동 기록이 없습니다.</p>
+                  </div>
+                ) : (
+                  <ScrollArea className="h-96 pr-4">
+                    <div className="space-y-2">
+                      {writingSubmissions.map(sub => (
+                        <Card key={sub.id} className="cursor-pointer hover:bg-accent" onClick={() => setViewingWritingSubmission(sub)}>
+                          <CardContent className="p-4 flex items-center justify-between">
+                            <div>
+                              <p className="font-semibold">{sub.topic}</p>
+                              <p className="text-sm text-muted-foreground">{isClient && sub.createdAt ? formatDistanceToNow(sub.createdAt.toDate(), { addSuffix: true, locale: ko }) : ''}</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-lg font-bold text-primary">{sub.evaluation.score}점</p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </CardContent>
+            </Card>
+        </TabsContent>
       </Tabs>
 
       <Card>
@@ -1602,6 +1652,18 @@ export default function ProfilePage() {
                     <p className="text-sm text-muted-foreground">총점</p>
                     <p className="text-5xl font-bold text-primary">{writingTopic.evaluation.score}</p>
                 </div>
+                 <Card>
+                    <CardHeader><CardTitle className="text-lg">글쓰기 주제</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm whitespace-pre-wrap">{writingTopic.prompt}</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader><CardTitle className="text-lg">내 답안</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{writingTopic.response}</p>
+                    </CardContent>
+                </Card>
                 <Card>
                     <CardHeader><CardTitle className="text-lg">AI 종합 평가</CardTitle></CardHeader>
                     <CardContent>
@@ -1665,6 +1727,73 @@ export default function ProfilePage() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    
+    {viewingWritingSubmission && (
+      <Dialog open={!!viewingWritingSubmission} onOpenChange={() => setViewingWritingSubmission(null)}>
+        <DialogContent className="max-w-3xl">
+            <DialogHeader>
+                <DialogTitle>AI 글쓰기 평가 결과</DialogTitle>
+                <DialogDescription>
+                    주제: {viewingWritingSubmission?.topic}
+                </DialogDescription>
+            </DialogHeader>
+            {viewingWritingSubmission?.evaluation ? (
+              <ScrollArea className="max-h-[60vh] pr-4">
+                <div className="space-y-6 py-4">
+                    <div className="text-center">
+                        <p className="text-sm text-muted-foreground">총점</p>
+                        <p className="text-5xl font-bold text-primary">{viewingWritingSubmission.evaluation.score}</p>
+                    </div>
+                    <Card>
+                        <CardHeader><CardTitle className="text-lg">글쓰기 주제</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm whitespace-pre-wrap">{viewingWritingSubmission.prompt}</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader><CardTitle className="text-lg">학생 답안</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{viewingWritingSubmission.response}</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader><CardTitle className="text-lg">AI 종합 평가</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm">{viewingWritingSubmission.evaluation.finalFeedback}</p>
+                        </CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader><CardTitle className="text-lg">내용 타당성</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm">{viewingWritingSubmission.evaluation.contentFeedback}</p>
+                        </CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader><CardTitle className="text-lg">논리적 구조</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm">{viewingWritingSubmission.evaluation.organizationFeedback}</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader><CardTitle className="text-lg">표현의 적절성</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm">{viewingWritingSubmission.evaluation.expressionFeedback}</p>
+                        </CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader><CardTitle className="text-lg">AI 교정 답안</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{viewingWritingSubmission.evaluation.correctedText}</p>
+                        </CardContent>
+                    </Card>
+                </div>
+              </ScrollArea>
+            ) : (
+                <div className="text-center py-10">평가 정보가 없습니다.</div>
+            )}
+        </DialogContent>
+      </Dialog>
+    )}
 
 
     {/* Avatar Editor Dialog */}
@@ -2151,6 +2280,7 @@ export default function ProfilePage() {
     </TooltipProvider>
   );
 }
+
 
 
 
