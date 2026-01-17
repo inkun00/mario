@@ -88,7 +88,7 @@ const calculateSimilarity = (a: string, b: string): number => {
 
   if (s1.length === 0) return s2.length === 0 ? 100 : 0;
   if (s2.length === 0) return s1.length === 0 ? 100 : 0;
-  
+
   const matrix = [];
 
   for (let i = 0; i <= s2.length; i++) {
@@ -1583,6 +1583,12 @@ export default function ProfilePage() {
                         <p className="text-sm">{writingTopic.evaluation.expressionFeedback}</p>
                     </CardContent>
                 </Card>
+                <Card>
+                    <CardHeader><CardTitle className="text-lg flex items-center gap-2"><FileWarning className="w-5 h-5 text-orange-500"/>AI 생성 및 외부 도움 검사</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm">{writingTopic.evaluation.integrityFeedback}</p>
+                    </CardContent>
+                </Card>
                  <Card>
                     <CardHeader><CardTitle className="text-lg">AI 교정 답안</CardTitle></CardHeader>
                     <CardContent>
@@ -1934,7 +1940,7 @@ export default function ProfilePage() {
                       {hasUserPlayedSelectedSet && (
                         <div className="mt-4 pt-4 border-t">
                            <div className="flex items-center gap-2">
-                              <Button variant="outline" size="sm" onClick={() => handleLike(previewGameSet)}>
+                              <Button variant="outline" size="sm" onClick={() => previewGameSet && handleLike(previewGameSet)}>
                                 <ThumbsUp className={cn("mr-2 h-4 w-4", (previewGameSet.likedBy || []).includes(user.uid) && "fill-primary text-primary-foreground")} />
                                   좋아요 {previewGameSet.likeCount || 0}
                               </Button>
@@ -2108,6 +2114,5 @@ export default function ProfilePage() {
     </TooltipProvider>
   );
 }
-
 
 
