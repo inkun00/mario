@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import {
@@ -57,10 +57,23 @@ import {
   ShoppingBag,
   Gift,
   Send,
+  BarChart,
+  PieChart as PieChartIcon,
+  Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PixelAvatar } from '@/components/pixel-avatar';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { PieChart, Pie, Cell, ResponsiveContainer, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+
+const COLORS = [
+  "hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))", "hsl(var(--chart-5))"
+];
 
 export default function MyClassPage() {
   const [user, loadingUser] = useAuthState(auth);
@@ -82,6 +95,12 @@ export default function MyClassPage() {
   const [selectedItemForBulkSend, setSelectedItemForBulkSend] = useState('');
   const [bulkItemQuantity, setBulkItemQuantity] = useState(1);
   const { toast } = useToast();
+
+  // Analytics State
+  const [analyticsMode, setAnalyticsMode] = useState<'students' | 'points' | 'items' | null>(null);
+  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(false);
+  const [pointAnalysisData, setPointAnalysisData] = useState<any | null>(null);
+  const [itemSalesData, setItemSalesData] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user) {
@@ -128,7 +147,7 @@ export default function MyClassPage() {
       );
       const unsubClassmates = onSnapshot(classmatesQuery, (snapshot) => {
         const members = snapshot.docs.map((doc) => doc.data() as User);
-        setClassmates(members.filter((m) => m.uid !== teacherId));
+        setClassmates(members.filter((m) => m.uid !== teacherId).sort((a,b) => (b.classPoints || 0) - (a.classPoints || 0)));
         setIsLoading(false);
       });
 
@@ -291,6 +310,104 @@ export default function MyClassPage() {
     }
   }
 
+  const handleOpenAnalytics = async (mode: 'students' | 'points' | 'items') => {
+    if (classmates.length === 0 && mode !== 'items') {
+      toast({
+        variant: 'destructive',
+        title: '데이터 부족',
+        description: '분석할 학생 데이터가 없습니다.',
+      });
+      return;
+    }
+  
+    setAnalyticsMode(mode);
+    if (mode === 'students') return;
+  
+    setIsAnalyticsLoading(true);
+  
+    try {
+      if (mode === 'points') {
+        const studentUids = classmates.map((cm) => cm.uid);
+        const allLogsPromises = studentUids.map((uid) => getDocs(collection(db, 'users', uid, 'pointLogs')));
+        const allLogsSnapshots = await Promise.all(allLogsPromises);
+        const allLogs: PointLog[] = allLogsSnapshots.flatMap((snapshot) => snapshot.docs.map((doc) => doc.data() as PointLog));
+        
+        const incomeByCategory: Record<string, number> = {};
+        const expenseByCategory: Record<string, number> = {};
+
+        allLogs.forEach(log => {
+          if (log.amount > 0) {
+            let category = "기타 수입";
+            if (log.type === 'QUIZ_REWARD' || log.type === 'REVIEW_REWARD') category = "퀴즈/복습 보상";
+            else if (log.type === 'ITEM_SALE') category = "아이템 판매";
+            else if (log.type === 'RECEIVE_POINTS') category = "포인트 받기";
+            else if (log.type === 'TEACHER_GRANT') category = "선생님 지급";
+            else if (log.type === 'ITEM_REFUND_BUYER') category = "환불 받음";
+            incomeByCategory[category] = (incomeByCategory[category] || 0) + log.amount;
+          } else {
+            let category = "기타 지출";
+            if (log.type === 'ITEM_PURCHASE') category = "아이템 구매";
+            else if (log.type === 'SEND_POINTS') category = "포인트 보내기";
+            else if (log.type === 'TEACHER_DEDUCT') category = "선생님 회수";
+            else if (log.type === 'ITEM_REFUND_SELLER') category = "환불 처리";
+            expenseByCategory[category] = (expenseByCategory[category] || 0) + Math.abs(log.amount);
+          }
+        });
+        
+        const totalIncome = Object.values(incomeByCategory).reduce((sum, value) => sum + value, 0);
+        const totalExpense = Object.values(expenseByCategory).reduce((sum, value) => sum + value, 0);
+        const incomeChartData = Object.entries(incomeByCategory).map(([name, value]) => ({ name, value }));
+        const expenseChartData = Object.entries(expenseByCategory).map(([name, value]) => ({ name, value }));
+
+        setPointAnalysisData({ incomeChartData, expenseChartData, totalIncome, totalExpense });
+
+      } else if (mode === 'items') {
+        const studentUids = classmates.map((cm) => cm.uid);
+        const allLogsPromises = studentUids.map((uid) => getDocs(query(collection(db, 'users', uid, 'pointLogs'), where('type', '==', 'ITEM_PURCHASE'))));
+        const allLogsSnapshots = await Promise.all(allLogsPromises);
+        const purchaseLogs: PointLog[] = allLogsSnapshots.flatMap((snapshot) => snapshot.docs.map((doc) => doc.data() as PointLog));
+
+        const salesByItem: Record<string, { name: string; count: number; total: number }> = {};
+        
+        purchaseLogs.forEach((log) => {
+          if (log.relatedItemId) {
+            if (!salesByItem[log.relatedItemId]) {
+              const itemInfo = classStoreItems.find(i => i.id === log.relatedItemId);
+              salesByItem[log.relatedItemId] = {
+                name: log.description?.replace(/'/g, '').replace(' 구매', '') || itemInfo?.name || '알 수 없는 상품',
+                count: 0,
+                total: 0,
+              };
+            }
+            salesByItem[log.relatedItemId].count += 1;
+            salesByItem[log.relatedItemId].total += Math.abs(log.amount);
+          }
+        });
+        
+        const sortedSales = Object.values(salesByItem).sort((a, b) => b.count - a.count);
+        setItemSalesData(sortedSales);
+      }
+    } catch (error) {
+      console.error('Error fetching analytics data:', error);
+      toast({
+        variant: 'destructive',
+        title: '오류',
+        description: '분석 데이터를 불러오는 중 오류가 발생했습니다.',
+      });
+    } finally {
+      setIsAnalyticsLoading(false);
+    }
+  };
+
+  const analyticsDialogTitle = useMemo(() => {
+    switch(analyticsMode) {
+        case 'students': return '학생별 포인트 현황';
+        case 'points': return '학급 포인트 유통 현황';
+        case 'items': return '상품 판매 순위';
+        default: return '';
+    }
+  }, [analyticsMode]);
+
   const allStudentsSelected = classmates.length > 0 && Object.keys(selectedStudents).length === classmates.length && Object.values(selectedStudents).every(v => v);
 
   if (loadingUser || isLoading) {
@@ -345,7 +462,7 @@ export default function MyClassPage() {
                     <CardDescription>학급의 전반적인 현황을 확인하고 관리합니다.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card>
+                    <Card onClick={() => handleOpenAnalytics('students')} className="cursor-pointer hover:bg-accent transition-colors">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">학급 인원</CardTitle>
                         <Users className="h-4 w-4 text-muted-foreground" />
@@ -354,7 +471,7 @@ export default function MyClassPage() {
                         <div className="text-2xl font-bold">{classmates.length}명</div>
                         </CardContent>
                     </Card>
-                    <Card>
+                    <Card onClick={() => handleOpenAnalytics('points')} className="cursor-pointer hover:bg-accent transition-colors">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">유통된 총 포인트</CardTitle>
                         <Banknote className="h-4 w-4 text-muted-foreground" />
@@ -363,7 +480,7 @@ export default function MyClassPage() {
                         <div className="text-2xl font-bold">{totalClassPoints.toLocaleString()} P</div>
                         </CardContent>
                     </Card>
-                    <Card>
+                    <Card onClick={() => handleOpenAnalytics('items')} className="cursor-pointer hover:bg-accent transition-colors">
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">판매중인 상품</CardTitle>
                         <ShoppingBag className="h-4 w-4 text-muted-foreground" />
@@ -566,6 +683,131 @@ export default function MyClassPage() {
                     지급하기
                 </Button>
             </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Analytics Dialog */}
+      <Dialog open={!!analyticsMode} onOpenChange={(isOpen) => !isOpen && setAnalyticsMode(null)}>
+        <DialogContent className="max-w-4xl">
+            <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                    {analyticsMode === 'students' && <Users className="w-6 h-6 text-primary"/>}
+                    {analyticsMode === 'points' && <Wallet className="w-6 h-6 text-primary"/>}
+                    {analyticsMode === 'items' && <BarChart className="w-6 h-6 text-primary"/>}
+                    {analyticsDialogTitle}
+                </DialogTitle>
+            </DialogHeader>
+            <div className="min-h-[60vh]">
+            {isAnalyticsLoading ? (
+                <div className="flex justify-center items-center h-full">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary"/>
+                </div>
+            ) : (
+                <>
+                {analyticsMode === 'students' && (
+                    <ScrollArea className="h-[60vh]">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-16">순위</TableHead>
+                                    <TableHead>이름</TableHead>
+                                    <TableHead className="text-right">보유 포인트</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {classmates.map((student, index) => (
+                                    <TableRow key={student.uid}>
+                                        <TableCell className="font-bold text-center">{index + 1}</TableCell>
+                                        <TableCell>{student.displayName}</TableCell>
+                                        <TableCell className="text-right font-semibold">{(student.classPoints || 0).toLocaleString()} P</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </ScrollArea>
+                )}
+                {analyticsMode === 'points' && pointAnalysisData && (
+                    <Tabs defaultValue="overview">
+                        <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="overview">수입 분석</TabsTrigger>
+                            <TabsTrigger value="expense">지출 분석</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="overview">
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>포인트 수입 항목</CardTitle>
+                                    <CardDescription>총 수입: {pointAnalysisData.totalIncome.toLocaleString()} P</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <ChartContainer config={{}} className="h-64 w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Tooltip content={<ChartTooltipContent nameKey="name" />} />
+                                                <Pie data={pointAnalysisData.incomeChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                                                    {pointAnalysisData.incomeChartData.map((entry: any, index: number) => (
+                                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                    ))}
+                                                </Pie>
+                                                <Legend />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </ChartContainer>
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                        <TabsContent value="expense">
+                             <Card>
+                                <CardHeader>
+                                    <CardTitle>포인트 지출 항목</CardTitle>
+                                    <CardDescription>총 지출: {pointAnalysisData.totalExpense.toLocaleString()} P</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <ChartContainer config={{}} className="h-64 w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Tooltip content={<ChartTooltipContent nameKey="name" />} />
+                                                <Pie data={pointAnalysisData.expenseChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                                                    {pointAnalysisData.expenseChartData.map((entry: any, index: number) => (
+                                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                    ))}
+                                                </Pie>
+                                                 <Legend />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </ChartContainer>
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                    </Tabs>
+                )}
+                 {analyticsMode === 'items' && (
+                    <ScrollArea className="h-[60vh]">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-16">순위</TableHead>
+                                    <TableHead>상품명</TableHead>
+                                    <TableHead className="text-right">판매량</TableHead>
+                                    <TableHead className="text-right">총 판매액</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {itemSalesData.map((item, index) => (
+                                    <TableRow key={item.name}>
+                                        <TableCell className="font-bold text-center">{index + 1}</TableCell>
+                                        <TableCell>{item.name}</TableCell>
+                                        <TableCell className="text-right">{item.count.toLocaleString()}개</TableCell>
+                                        <TableCell className="text-right font-semibold">{item.total.toLocaleString()} P</TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                         {itemSalesData.length === 0 && <p className="text-center text-muted-foreground p-8">아직 판매된 상품이 없습니다.</p>}
+                    </ScrollArea>
+                )}
+                </>
+            )}
+            </div>
         </DialogContent>
       </Dialog>
     </div>
