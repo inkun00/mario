@@ -172,6 +172,9 @@ export default function MyClassPage() {
   const [isStudentProfileLoading, setIsStudentProfileLoading] = useState(false);
   const [studentSelectedSubject, setStudentSelectedSubject] = useState('all');
   const [studentSelectedUnit, setStudentSelectedUnit] = useState('all');
+  const [showStudentIncorrectAnswersDialog, setShowStudentIncorrectAnswersDialog] = useState(false);
+  const [studentIncorrectAnswersToShow, setStudentIncorrectAnswersToShow] = useState<SolvedIncorrectAnswer[]>([]);
+
 
   useEffect(() => {
     if (!user) {
@@ -562,6 +565,67 @@ export default function MyClassPage() {
     const total = totalCorrect + totalIncorrect;
     return total > 0 ? ((totalCorrect / total) * 100).toFixed(1) : '0.0';
   }, [studentProfileData]);
+
+  const studentAvailableUnits = useMemo(() => {
+    if (studentSelectedSubject === 'all' || !studentProfileData) {
+      return [];
+    }
+    const subject = studentProfileData.subjectStats.find(s => s.id === studentSelectedSubject);
+    const units = subject?.units ? Object.keys(subject.units) : [];
+    return units;
+  }, [studentSelectedSubject, studentProfileData]);
+
+  useEffect(() => {
+    setStudentSelectedUnit('all');
+  }, [studentSelectedSubject]);
+
+  const { studentFilteredCorrect, studentFilteredIncorrect, studentFilteredAccuracy } = useMemo(() => {
+    if (!studentProfileData) return { studentFilteredCorrect: 0, studentFilteredIncorrect: 0, studentFilteredAccuracy: '0.0' };
+    
+    let correct = 0;
+    let incorrect = 0;
+    
+    if (studentSelectedSubject === 'all') {
+      studentProfileData.subjectStats.forEach(stat => {
+        correct += stat.totalCorrect || 0;
+        incorrect += stat.totalIncorrect || 0;
+      });
+    } else {
+      const subject = studentProfileData.subjectStats.find(s => s.id === studentSelectedSubject);
+      if (subject) {
+        if (studentSelectedUnit === 'all') {
+          correct = subject.totalCorrect || 0;
+          incorrect = subject.totalIncorrect || 0;
+        } else {
+          if (subject.units && subject.units[studentSelectedUnit]) {
+            correct = subject.units[studentSelectedUnit].totalCorrect || 0;
+            incorrect = subject.units[studentSelectedUnit].totalIncorrect || 0;
+          }
+        }
+      }
+    }
+
+    const total = correct + incorrect;
+    const acc = total > 0 ? ((correct / total) * 100).toFixed(1) : '0.0';
+    
+    return { studentFilteredCorrect: correct, studentFilteredIncorrect: incorrect, studentFilteredAccuracy: acc };
+  }, [studentProfileData, studentSelectedSubject, studentSelectedUnit]);
+
+  const handleShowStudentIncorrectAnswers = () => {
+    if (!studentProfileData) return;
+    let filtered = studentProfileData.solvedReviewQuestions;
+
+    if (studentSelectedSubject !== 'all') {
+      filtered = filtered.filter(q => q.question.subject === studentSelectedSubject);
+    }
+    if (studentSelectedUnit !== 'all') {
+      filtered = filtered.filter(q => q.question.unit === studentSelectedUnit);
+    }
+    
+    setStudentIncorrectAnswersToShow(filtered);
+    setShowStudentIncorrectAnswersDialog(true);
+  };
+
 
   const allStudentsSelected = classmates.length > 0 && Object.keys(selectedStudents).length === classmates.length && Object.values(selectedStudents).every(v => v);
 
@@ -1043,7 +1107,48 @@ export default function MyClassPage() {
                                 {studentProfileData.playedGameSets.length === 0 ? <p className='text-center py-4 text-muted-foreground'>푼 퀴즈가 없습니다.</p> : studentProfileData.playedGameSets.map(set => <Card key={set.id} className='mb-2'><CardContent className='p-3'><p className='font-semibold'>{set.title}</p><p className='text-sm text-muted-foreground'>제작자: {set.creatorNickname}</p></CardContent></Card>)}
                             </TabsContent>
                             <TabsContent value="achievement">
-                                 {/* 성취도 표시 로직 추가 */}
+                                {studentProfileData.subjectStats.length === 0 ? <p className='text-center py-4 text-muted-foreground'>학습 기록이 없습니다.</p> : (
+                                    <div className="space-y-4 pt-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <Select value={studentSelectedSubject} onValueChange={setStudentSelectedSubject}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="과목 선택" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">전체 과목</SelectItem>
+                                                    {studentProfileData.subjectStats.map(stat => (
+                                                        <SelectItem key={stat.id} value={stat.id}>{stat.id}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <Select value={studentSelectedUnit} onValueChange={setStudentSelectedUnit} disabled={studentSelectedSubject === 'all' || studentAvailableUnits.length === 0}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="단원 선택" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="all">전체 단원</SelectItem>
+                                                    {studentAvailableUnits.map(unit => (
+                                                        <SelectItem key={unit} value={unit}>{unit}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-4 text-center p-4 bg-secondary rounded-lg">
+                                            <div>
+                                                <p className="text-2xl font-bold text-blue-600">{studentFilteredCorrect}</p>
+                                                <p className="text-sm text-muted-foreground">정답</p>
+                                            </div>
+                                            <div className="cursor-pointer" onClick={handleShowStudentIncorrectAnswers}>
+                                                <p className="text-2xl font-bold text-red-600">{studentFilteredIncorrect}</p>
+                                                <p className="text-sm text-muted-foreground">오답</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-2xl font-bold text-primary">{studentFilteredAccuracy}%</p>
+                                                <p className="text-sm text-muted-foreground">정답률</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </TabsContent>
                             <TabsContent value="solved-review-notes">
                                 {studentProfileData.solvedReviewQuestions.length === 0 ? <p className='text-center py-4 text-muted-foreground'>푼 오답 기록이 없습니다.</p> : studentProfileData.solvedReviewQuestions.map(item => (
@@ -1072,6 +1177,50 @@ export default function MyClassPage() {
                  </ScrollArea>
                 </>
             )}
+        </DialogContent>
+      </Dialog>
+       {/* Student incorrect answers dialog */}
+       <Dialog open={showStudentIncorrectAnswersDialog} onOpenChange={setShowStudentIncorrectAnswersDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>오답 기록 확인</DialogTitle>
+            <DialogDescription>
+              {studentSelectedUnit !== 'all' ? `"${studentSelectedUnit}" 단원에서 ` : studentSelectedSubject !== 'all' ? `"${studentSelectedSubject}" 과목에서 ` : '전체 과목에서 '}
+              틀린 문제 목록입니다.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-96 pr-4">
+            <div className="space-y-4">
+              {studentIncorrectAnswersToShow.length > 0 ? (
+                studentIncorrectAnswersToShow.map(item => (
+                  <div key={item.id} className="p-4 rounded-md border bg-muted/50 space-y-2">
+                    {item.question.imageUrl && (
+                        <div className="relative aspect-video">
+                            <Image src={item.question.imageUrl} alt="질문 이미지" fill className="rounded-md object-contain" />
+                        </div>
+                    )}
+                    <p className="font-semibold whitespace-pre-wrap">{item.question.question}</p>
+                    <div className="text-sm space-y-1">
+                      <div className="flex items-center gap-2">
+                          <CheckCircle className="w-4 h-4 text-green-600" />
+                          <span>정답: <span className="font-medium">{item.question.answer || item.question.correctAnswer}</span></span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                          <XCircle className="w-4 h-4 text-red-600" />
+                          <span>내 오답: <span className="font-medium">{item.userAnswer}</span></span>
+                      </div>
+                       <div className="flex items-center gap-2">
+                            {item.wasReviewCorrect ? <CheckCircle className="w-4 h-4 text-blue-600" /> : <XCircle className="w-4 h-4 text-orange-500" />}
+                            <span>복습 시 답변: <span className="font-medium">{item.reviewAnswer}</span></span>
+                        </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-muted-foreground text-center py-8">이 범위에서 복습한 오답 기록이 없습니다.</p>
+              )}
+            </div>
+          </ScrollArea>
         </DialogContent>
       </Dialog>
     </div>
