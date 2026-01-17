@@ -80,17 +80,41 @@ interface ReviewQuestion extends IncorrectAnswer {
     isSubmitting?: boolean;
 }
 
-const getCommonWordCount = (name1: string, name2: string): number => {
-  const words1 = new Set(name1.replace(/^[0-9]+\.\s*/, '').trim().split(/\s+/));
-  const words2 = new Set(name2.replace(/^[0-9]+\.\s*/, '').trim().split(/\s+/));
-  let commonCount = 0;
-  for (const word of words1) {
-    if (words2.has(word)) {
-      commonCount++;
+const calculateSimilarity = (a: string, b: string): number => {
+  if (a.length === 0) return b.length === 0 ? 100 : 0;
+  if (b.length === 0) return a.length === 0 ? 100 : 0;
+
+  const matrix = [];
+
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
     }
   }
-  return commonCount;
+
+  const distance = matrix[b.length][a.length];
+  const maxLength = Math.max(a.length, b.length);
+  if (maxLength === 0) return 100;
+
+  return (1 - distance / maxLength) * 100;
 };
+
 
 const transformStats = (flatStats: SubjectStat[]): SubjectStat[] => {
   return flatStats.map(stat => {
@@ -125,7 +149,7 @@ const transformStats = (flatStats: SubjectStat[]): SubjectStat[] => {
     for (const unitName of unitNames) {
       let foundGroup = false;
       for (const group of groups) {
-        if (getCommonWordCount(unitName, group[0]) >= 2) {
+        if (calculateSimilarity(unitName, group[0]) > 70) {
           group.push(unitName);
           foundGroup = true;
           break;
@@ -1905,5 +1929,6 @@ export default function ProfilePage() {
     </TooltipProvider>
   );
 }
+
 
 
