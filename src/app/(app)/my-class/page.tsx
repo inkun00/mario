@@ -72,6 +72,7 @@ import {
   XCircle,
   MessageSquare,
   ThumbsUp,
+  Pencil,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PixelAvatar } from '@/components/pixel-avatar';
@@ -165,7 +166,7 @@ const transformStats = (flatStats: SubjectStat[]): SubjectStat[] => {
     for (const unitName of unitNames) {
       let foundGroup = false;
       for (const group of groups) {
-        if (calculateSimilarity(unitName, group[0]) > 70) {
+        if (calculateSimilarity(unitName.replace(/\s+/g, ''), group[0].replace(/\s+/g, '')) > 70) {
           group.push(unitName);
           foundGroup = true;
           break;
@@ -1299,23 +1300,6 @@ export default function MyClassPage() {
                                 ))}
                             </TabsContent>
                         </Tabs>
-                        <Card>
-                            <CardHeader><CardTitle className="font-headline flex items-center gap-2"><Trophy className="text-primary" /> 레벨 엠블럼</CardTitle></CardHeader>
-                            <CardContent>
-                               <TooltipProvider>
-                                <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-4">
-                                    {levelSystem.filter(level => viewingStudent.xp >= level.xpThreshold).map((level) => (
-                                        <UITooltip key={level.level}>
-                                            <TooltipTrigger asChild>
-                                                <div className="group relative aspect-square flex items-center justify-center p-1 rounded-full bg-secondary"><span className="text-4xl">{level.icon}</span></div>
-                                            </TooltipTrigger>
-                                            <UITooltipContent><p className="font-semibold">Lv. {level.level}: {level.title}</p></UITooltipContent>
-                                        </UITooltip>
-                                    ))}
-                                </div>
-                               </TooltipProvider>
-                            </CardContent>
-                        </Card>
                     </div>
                  </ScrollArea>
                 </>
@@ -1509,12 +1493,3 @@ export default function MyClassPage() {
     </div>
   );
 }
-
-    
-
-    
-
-
-
-
-

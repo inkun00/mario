@@ -154,7 +154,7 @@ const transformStats = (flatStats: SubjectStat[]): SubjectStat[] => {
     for (const unitName of unitNames) {
       let foundGroup = false;
       for (const group of groups) {
-        if (calculateSimilarity(unitName, group[0]) > 70) {
+        if (calculateSimilarity(unitName.replace(/\s+/g, ''), group[0].replace(/\s+/g, '')) > 70) {
           group.push(unitName);
           foundGroup = true;
           break;
@@ -1595,41 +1595,6 @@ export default function ProfilePage() {
             </Card>
         </TabsContent>
       </Tabs>
-
-      <Card>
-        <CardHeader>
-            <CardTitle className="font-headline flex items-center gap-2">
-                <Trophy className="text-primary" /> 레벨 엠블럼 컬렉션
-            </CardTitle>
-            <CardDescription>지금까지 획득한 엠블럼들을 확인해보세요!</CardDescription>
-        </CardHeader>
-        <CardContent>
-            <TooltipProvider>
-                <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-4">
-                    {levelSystem.filter(level => userData.xp >= level.xpThreshold).map((level) => (
-                        <Tooltip key={level.level}>
-                            <TooltipTrigger asChild>
-                                <div className={cn(
-                                    "group relative aspect-square flex items-center justify-center p-1 rounded-full transition-all duration-300",
-                                    'bg-secondary'
-                                )}>
-                                    <span className={cn(
-                                        "text-4xl transition-all duration-300 group-hover:scale-110"
-                                    )}>
-                                        {level.icon}
-                                    </span>
-                                </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p className="font-semibold">Lv. {level.level}: {level.title}</p>
-                                <p className="text-sm text-muted-foreground">필요 XP: {level.xpThreshold.toLocaleString()}</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    ))}
-                </div>
-            </TooltipProvider>
-        </CardContent>
-      </Card>
     </div>
 
     {/* AI Writing Topic Dialog */}
@@ -2280,8 +2245,3 @@ export default function ProfilePage() {
     </TooltipProvider>
   );
 }
-
-
-
-
-
