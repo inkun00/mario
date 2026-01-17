@@ -47,7 +47,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, GameSet, GameSetComment, PlayedGameSet, PointLog, WritingSubmission } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction, addDoc, QueryDocumentSnapshot, DocumentSnapshot, QuerySnapshot, writeBatch } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
-import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye, MessageSquare, LineChart, PieChart as PieChartIcon, History, ThumbsUp } from 'lucide-react';
+import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye, MessageSquare, LineChart, PieChart as PieChartIcon, ThumbsUp } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -1334,25 +1334,40 @@ export default function ProfilePage() {
                         <ScrollArea className="h-96 pr-4">
                             <div className="space-y-2">
                                 {myGameSets.map(set => (
-                                    <Card key={set.id} className="cursor-pointer hover:bg-accent" onClick={() => setPreviewGameSet(set)}>
-                                        <CardContent className="p-4 flex items-center justify-between gap-2">
-                                            <div className="flex-grow overflow-hidden">
-                                                <p className="font-semibold truncate">{set.title}</p>
-                                                <p className="text-sm text-muted-foreground">
-                                                    {set.questions.length} 문제 · {set.isPublic ? '공개' : '비공개'}
-                                                </p>
+                                    <Card key={set.id}>
+                                        <CardHeader className="pb-2">
+                                            <CardTitle className="font-headline text-lg truncate">{set.title}</CardTitle>
+                                            <CardDescription>
+                                                {set.questions.length} 문제 · {set.isPublic ? '공개' : '비공개'}
+                                            </CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="grid grid-cols-3 gap-1 text-center text-sm text-muted-foreground py-2">
+                                            <div className="flex items-center justify-center gap-1">
+                                                <Users className="h-4 w-4"/>
+                                                <span>활용 {set.playCount || 0}</span>
                                             </div>
-                                            <div className="flex items-center gap-2 flex-shrink-0">
-                                                <Button variant="secondary" size="sm" asChild onClick={(e) => e.stopPropagation()}>
-                                                    <Link href={`/game-sets/edit/${set.id}`}>
-                                                        <Pencil className="mr-2 h-4 w-4"/> 수정
-                                                    </Link>
-                                                </Button>
-                                                <Button variant="destructive" size="sm" onClick={(e) => { e.stopPropagation(); setDeleteCandidate(set); }}>
-                                                    <Trash2 className="mr-2 h-4 w-4"/> 삭제
-                                                </Button>
+                                            <div className="flex items-center justify-center gap-1">
+                                                <ThumbsUp className="h-4 w-4"/>
+                                                <span>{set.likeCount || 0}</span>
+                                            </div>
+                                            <div className="flex items-center justify-center gap-1">
+                                                <MessageSquare className="h-4 w-4"/>
+                                                <span>{set.commentCount || 0}</span>
                                             </div>
                                         </CardContent>
+                                        <CardFooter className="flex justify-end gap-2 pt-2">
+                                            <Button variant="outline" size="sm" onClick={() => setPreviewGameSet(set)}>
+                                                <Eye className="mr-2 h-4 w-4"/> 미리보기
+                                            </Button>
+                                            <Button variant="secondary" size="sm" asChild>
+                                                <Link href={`/game-sets/edit/${set.id}`}>
+                                                    <Pencil className="mr-2 h-4 w-4"/> 수정
+                                                </Link>
+                                            </Button>
+                                            <Button variant="destructive" size="sm" onClick={() => setDeleteCandidate(set)}>
+                                                <Trash2 className="mr-2 h-4 w-4"/> 삭제
+                                            </Button>
+                                        </CardFooter>
                                     </Card>
                                 ))}
                             </div>
@@ -2007,7 +2022,8 @@ export default function ProfilePage() {
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
                         <span>{[previewGameSet.grade, previewGameSet.semester, previewGameSet.subject, previewGameSet.unit].filter(Boolean).join(' / ')}</span>
                         <span className="flex items-center gap-1"><BookOpen className="w-4 h-4" />{previewGameSet.questions.length} 문제</span>
-                        <span className="flex items-center gap-1"><ThumbsUp className="w-4 w-4" />{previewGameSet.likeCount || 0}</span>
+                        <span className="flex items-center gap-1"><Users className="w-4 h-4" />활용 {previewGameSet.playCount || 0}</span>
+                        <span className="flex items-center gap-1"><ThumbsUp className="w-4 h-4" />{previewGameSet.likeCount || 0}</span>
                         <span className="flex items-center gap-1"><MessageSquare className="w-4 w-4" />{previewGameSet.commentCount || 0}</span>
                       </div>
                     </DialogDescription>
