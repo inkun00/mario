@@ -1191,7 +1191,7 @@ export default function ProfilePage() {
                         <ScrollArea className="h-96 pr-4">
                             <div className="space-y-2">
                                 {myGameSets.map(set => (
-                                    <Card key={set.id}>
+                                    <Card key={set.id} className="cursor-pointer hover:bg-accent" onClick={() => setPreviewGameSet(set)}>
                                         <CardContent className="p-4 flex items-center justify-between gap-2">
                                             <div className="flex-grow overflow-hidden">
                                                 <p className="font-semibold truncate">{set.title}</p>
@@ -1200,15 +1200,12 @@ export default function ProfilePage() {
                                                 </p>
                                             </div>
                                             <div className="flex items-center gap-2 flex-shrink-0">
-                                                <Button variant="outline" size="sm" onClick={() => setPreviewGameSet(set)}>
-                                                    <Eye className="mr-2 h-4 w-4"/> 미리보기
-                                                </Button>
-                                                <Button variant="secondary" size="sm" asChild>
+                                                <Button variant="secondary" size="sm" asChild onClick={(e) => e.stopPropagation()}>
                                                     <Link href={`/game-sets/edit/${set.id}`}>
                                                         <Pencil className="mr-2 h-4 w-4"/> 수정
                                                     </Link>
                                                 </Button>
-                                                <Button variant="destructive" size="sm" onClick={() => setDeleteCandidate(set)}>
+                                                <Button variant="destructive" size="sm" onClick={(e) => { e.stopPropagation(); setDeleteCandidate(set); }}>
                                                     <Trash2 className="mr-2 h-4 w-4"/> 삭제
                                                 </Button>
                                             </div>
@@ -1694,8 +1691,8 @@ export default function ProfilePage() {
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mt-1">
                         <span>{[previewGameSet.grade, previewGameSet.semester, previewGameSet.subject, previewGameSet.unit].filter(Boolean).join(' / ')}</span>
                         <span className="flex items-center gap-1"><BookOpen className="w-4 h-4" />{previewGameSet.questions.length} 문제</span>
-                        <span className="flex items-center gap-1"><ThumbsUp className="w-4 h-4" />{previewGameSet.likeCount || 0}</span>
-                        <span className="flex items-center gap-1"><MessageSquare className="w-4 h-4" />{previewGameSet.commentCount || 0}</span>
+                        <span className="flex items-center gap-1"><ThumbsUp className="w-4 w-4" />{previewGameSet.likeCount || 0}</span>
+                        <span className="flex items-center gap-1"><MessageSquare className="w-4 w-4" />{previewGameSet.commentCount || 0}</span>
                       </div>
                     </DialogDescription>
                 </DialogHeader>
@@ -1932,7 +1929,4 @@ export default function ProfilePage() {
     </TooltipProvider>
   );
 }
-
-
-
 
