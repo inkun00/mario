@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -79,7 +80,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Progress } from '@/components/ui/progress';
-import { Tooltip as UITooltip, TooltipContent as UITooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import { Tooltip as UITooltip, TooltipContent as UITooltipContent, TooltipProvider, TooltipTrigger as UITooltipTrigger } from '@/components/ui/tooltip';
 import Image from 'next/image';
 
 const COLORS = [
@@ -1076,5 +1077,7 @@ export default function MyClassPage() {
     </div>
   );
 }
+
+    
 
     
