@@ -44,8 +44,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, GameSet, GameSetComment, PlayedGameSet, PointLog } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction, addDoc, QueryDocumentSnapshot, DocumentSnapshot, QuerySnapshot } from 'firebase/firestore';
+import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, GameSet, GameSetComment, PlayedGameSet, PointLog, WritingSubmission } from '@/lib/types';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction, addDoc, QueryDocumentSnapshot, DocumentSnapshot, QuerySnapshot, writeBatch } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
 import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye, MessageSquare, LineChart, PieChart as PieChartIcon, History, ThumbsUp } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -940,6 +940,23 @@ export default function ProfilePage() {
   }
 
   const handleOpenWritingTopicDialog = async () => {
+    if (userData?.lastWritingSubmission) {
+      const lastSubmissionTime = (userData.lastWritingSubmission as Timestamp).toDate();
+      const twentyFourHours = 24 * 60 * 60 * 1000;
+      const timeSinceLast = new Date().getTime() - lastSubmissionTime.getTime();
+      if (timeSinceLast < twentyFourHours) {
+        const waitTime = twentyFourHours - timeSinceLast;
+        const hours = Math.floor(waitTime / (1000 * 60 * 60));
+        const minutes = Math.floor((waitTime % (1000 * 60 * 60)) / (1000 * 60));
+        toast({
+          variant: 'destructive',
+          title: '아직 글을 쓸 수 없습니다',
+          description: `다음 글쓰기는 ${hours}시간 ${minutes}분 후에 가능합니다.`,
+        });
+        return;
+      }
+    }
+
     setWritingTopic({
       isOpen: true,
       isLoading: true,
@@ -990,13 +1007,39 @@ export default function ProfilePage() {
         topic: writingTopic.topic || '',
         grade: userData?.grade || '',
       });
+      
+      const points = Math.round(30 * (result.score / 100));
+
       setWritingTopic(prev => ({ ...prev, isEvaluating: false, evaluation: result }));
 
       if (user) {
+        const batch = writeBatch(db);
         const userRef = doc(db, 'users', user.uid);
-        await updateDoc(userRef, { xp: increment(30), classPoints: increment(30) });
-        setUserData(prev => prev ? {...prev, xp: prev.xp + 30, classPoints: (prev.classPoints || 0) + 30} : null);
-        toast({ title: '채점 완료!', description: 'AI 글쓰기 평가가 완료되었습니다. 30 XP와 30 학급 포인트를 획득했습니다!' });
+        batch.update(userRef, { 
+            xp: increment(points), 
+            classPoints: increment(points),
+            lastWritingSubmission: serverTimestamp() 
+        });
+
+        const submissionRef = doc(collection(db, 'users', user.uid, 'writingSubmissions'));
+        const submissionData: Omit<WritingSubmission, 'id'> = {
+          topic: writingTopic.topic || '알 수 없는 주제',
+          prompt: writingTopic.prompt || '알 수 없는 프롬프트',
+          response: writingTopic.response,
+          evaluation: result,
+          createdAt: serverTimestamp(),
+        };
+        batch.set(submissionRef, submissionData);
+
+        await batch.commit();
+        
+        setUserData(prev => prev ? {
+            ...prev, 
+            xp: prev.xp + points, 
+            classPoints: (prev.classPoints || 0) + points,
+            lastWritingSubmission: new Date(), // Optimistic update for UI
+        } : null);
+        toast({ title: '채점 완료!', description: `AI 글쓰기 평가가 완료되었습니다. ${points} XP와 ${points} 학급 포인트를 획득했습니다!` });
       }
     } catch (error) {
       console.error("Error evaluating writing:", error);
@@ -2108,6 +2151,7 @@ export default function ProfilePage() {
     </TooltipProvider>
   );
 }
+
 
 
 

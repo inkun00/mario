@@ -64,6 +64,7 @@ export interface User {
   };
   pixelAvatar?: string; // JSON string of string[][]
   pointAcquisitionRule?: PointAcquisitionRule;
+  lastWritingSubmission?: any;
 }
 
 export interface Question {
@@ -272,4 +273,22 @@ export interface ClassStoreItem {
 export interface ItemBuyer {
     uid: string;
     name: string;
+}
+
+export interface EvaluateWritingOutput {
+  score: number;
+  contentFeedback: string;
+  organizationFeedback: string;
+  expressionFeedback: string;
+  finalFeedback: string;
+  correctedText: string;
+}
+
+export interface WritingSubmission {
+  id: string;
+  topic: string;
+  prompt: string;
+  response: string;
+  evaluation: EvaluateWritingOutput;
+  createdAt: any;
 }

@@ -18,7 +18,7 @@ import {
   serverTimestamp,
   orderBy,
 } from 'firebase/firestore';
-import type { User, ClassStoreItem, PointLog, GameSet, PlayedGameSet, SubjectStat, SolvedIncorrectAnswer, GameSetComment } from '@/lib/types';
+import type { User, ClassStoreItem, PointLog, GameSet, PlayedGameSet, SubjectStat, SolvedIncorrectAnswer, GameSetComment, WritingSubmission, EvaluateWritingOutput } from '@/lib/types';
 import { getLevelInfo, getNextLevelInfo, LevelInfo, levelSystem } from '@/lib/level-system';
 import {
   Card,
@@ -239,6 +239,7 @@ export default function MyClassPage() {
     playedGameSets: GameSet[];
     subjectStats: SubjectStat[];
     solvedReviewQuestions: SolvedIncorrectAnswer[];
+    writingSubmissions: WritingSubmission[];
     levelInfo: LevelInfo | null;
     nextLevelInfo: LevelInfo | null;
   } | null>(null);
@@ -249,6 +250,7 @@ export default function MyClassPage() {
   const [studentIncorrectAnswersToShow, setStudentIncorrectAnswersToShow] = useState<SolvedIncorrectAnswer[]>([]);
   const [studentQuizPreview, setStudentQuizPreview] = useState<GameSet | null>(null);
   const [studentQuizComments, setStudentQuizComments] = useState<GameSetComment[]>([]);
+  const [viewingWritingSubmission, setViewingWritingSubmission] = useState<WritingSubmission | null>(null);
   const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
@@ -360,17 +362,20 @@ export default function MyClassPage() {
         const playedSetsQuery = query(collection(db, 'users', studentId, 'playedGameSets'));
         const subjectStatsRef = collection(db, 'users', studentId, 'subjectStats');
         const solvedIncorrectAnswersRef = collection(db, 'users', studentId, 'solved-incorrect-answers');
+        const writingSubmissionsRef = collection(db, 'users', studentId, 'writingSubmissions');
 
         const [
           myGameSetsSnapshot,
           playedSetsSnapshot,
           subjectStatsSnapshot,
           solvedIncorrectSnapshot,
+          writingSubmissionsSnapshot,
         ] = await Promise.all([
           getDocs(myGameSetsQuery),
           getDocs(playedSetsQuery),
           getDocs(subjectStatsRef),
           getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
+          getDocs(query(writingSubmissionsRef, orderBy('createdAt', 'desc'))),
         ]);
 
         const myGameSets = myGameSetsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSet))
@@ -396,6 +401,7 @@ export default function MyClassPage() {
 
         const subjectStats = transformStats(subjectStatsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SubjectStat)));
         const solvedReviewQuestions = solvedIncorrectSnapshot.docs.map(doc => doc.data() as SolvedIncorrectAnswer);
+        const writingSubmissions = writingSubmissionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WritingSubmission));
 
         const levelInfo = getLevelInfo(viewingStudent.xp);
         const nextLevelInfo = getNextLevelInfo(levelInfo.level);
@@ -405,6 +411,7 @@ export default function MyClassPage() {
           playedGameSets,
           subjectStats,
           solvedReviewQuestions,
+          writingSubmissions,
           levelInfo,
           nextLevelInfo,
         });
@@ -1212,10 +1219,11 @@ export default function MyClassPage() {
                             </CardContent>
                         </Card>
                         <Tabs defaultValue="my-quizzes" className="w-full">
-                            <TabsList className="grid w-full grid-cols-4">
+                            <TabsList className="grid w-full grid-cols-5">
                             <TabsTrigger value="my-quizzes">만든 퀴즈</TabsTrigger>
                             <TabsTrigger value="played-quizzes">푼 퀴즈</TabsTrigger>
                             <TabsTrigger value="achievement">성취도</TabsTrigger>
+                            <TabsTrigger value="writing-activity">글쓰기 활동</TabsTrigger>
                             <TabsTrigger value="solved-review-notes">푼 오답</TabsTrigger>
                             </TabsList>
                             <TabsContent value="my-quizzes">
@@ -1274,6 +1282,16 @@ export default function MyClassPage() {
                                         </div>
                                     </div>
                                 )}
+                            </TabsContent>
+                             <TabsContent value="writing-activity">
+                                {studentProfileData.writingSubmissions.length === 0 ? <p className='text-center py-4 text-muted-foreground'>글쓰기 활동 기록이 없습니다.</p> : studentProfileData.writingSubmissions.map(sub => (
+                                    <Card key={sub.id} className='mb-2 cursor-pointer hover:bg-secondary' onClick={() => setViewingWritingSubmission(sub)}>
+                                        <CardContent className='p-3'>
+                                            <p className='font-semibold'>{sub.topic}</p>
+                                            <p className='text-sm text-muted-foreground'>{isClient && sub.createdAt ? formatDistanceToNow(sub.createdAt.toDate(), { addSuffix: true, locale: ko }) : ''}</p>
+                                        </CardContent>
+                                    </Card>
+                                ))}
                             </TabsContent>
                             <TabsContent value="solved-review-notes">
                                 {studentProfileData.solvedReviewQuestions.length === 0 ? <p className='text-center py-4 text-muted-foreground'>푼 오답 기록이 없습니다.</p> : studentProfileData.solvedReviewQuestions.map(item => (
@@ -1423,6 +1441,65 @@ export default function MyClassPage() {
           </ScrollArea>
         </DialogContent>
       </Dialog>
+      {/* Student Writing Submission Dialog */}
+      <Dialog open={!!viewingWritingSubmission} onOpenChange={() => setViewingWritingSubmission(null)}>
+        <DialogContent className="max-w-3xl">
+            <DialogHeader>
+                <DialogTitle>AI 글쓰기 평가 결과</DialogTitle>
+                <DialogDescription>
+                    주제: {viewingWritingSubmission?.topic}
+                </DialogDescription>
+            </DialogHeader>
+            {viewingWritingSubmission?.evaluation ? (
+              <ScrollArea className="max-h-[60vh] pr-4">
+                <div className="space-y-6 py-4">
+                    <div className="text-center">
+                        <p className="text-sm text-muted-foreground">총점</p>
+                        <p className="text-5xl font-bold text-primary">{viewingWritingSubmission.evaluation.score}</p>
+                    </div>
+                    <Card>
+                        <CardHeader><CardTitle className="text-lg">학생 답안</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{viewingWritingSubmission.response}</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader><CardTitle className="text-lg">AI 종합 평가</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm">{viewingWritingSubmission.evaluation.finalFeedback}</p>
+                        </CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader><CardTitle className="text-lg">내용 타당성</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm">{viewingWritingSubmission.evaluation.contentFeedback}</p>
+                        </CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader><CardTitle className="text-lg">논리적 구조</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm">{viewingWritingSubmission.evaluation.organizationFeedback}</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader><CardTitle className="text-lg">표현의 적절성</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm">{viewingWritingSubmission.evaluation.expressionFeedback}</p>
+                        </CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader><CardTitle className="text-lg">AI 교정 답안</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{viewingWritingSubmission.evaluation.correctedText}</p>
+                        </CardContent>
+                    </Card>
+                </div>
+              </ScrollArea>
+            ) : (
+                <div className="text-center py-10">평가 정보가 없습니다.</div>
+            )}
+        </DialogContent>
+    </Dialog>
     </div>
   );
 }
@@ -1430,6 +1507,7 @@ export default function MyClassPage() {
     
 
     
+
 
 
 
