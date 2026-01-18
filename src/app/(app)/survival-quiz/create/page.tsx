@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ShieldAlert, Swords, Eye } from 'lucide-react';
+import { Loader2, ShieldAlert, Swords, Eye, Search, RotateCcw } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
   Dialog,
@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type SurvivalGameSet = GameSet & { isSelected?: boolean };
 
@@ -39,6 +40,13 @@ export default function CreateSurvivalQuizPage() {
   const [participationScope, setParticipationScope] = useState<'class' | 'public'>('class');
   const [selectedSets, setSelectedSets] = useState<Record<string, boolean>>({});
   const [previewGameSet, setPreviewGameSet] = useState<GameSet | null>(null);
+
+  const [filteredGameSets, setFilteredGameSets] = useState<SurvivalGameSet[]>([]);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchGrade, setSearchGrade] = useState('');
+  const [searchSemester, setSearchSemester] = useState('');
+  const [searchSubject, setSearchSubject] = useState('');
+  const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '음악', '미술', '체육', '영어', '창체'];
 
   // Fetch user data to check for teacher role
   useEffect(() => {
@@ -87,6 +95,7 @@ export default function CreateSurvivalQuizPage() {
         const sortedSets = Object.values(combinedSets).sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
 
         setGameSets(sortedSets);
+        setFilteredGameSets(sortedSets);
       } catch (error) {
         console.error("Error fetching game sets:", error);
         toast({ variant: 'destructive', title: '오류', description: '퀴즈 세트를 불러오는 중 오류가 발생했습니다.' });
@@ -97,6 +106,35 @@ export default function CreateSurvivalQuizPage() {
 
     fetchGameSets();
   }, [userData, user, toast]);
+
+  const handleSearch = () => {
+    let sets = [...gameSets];
+    if (searchKeyword) {
+      const keyword = searchKeyword.toLowerCase();
+      sets = sets.filter(s => 
+        s.title.toLowerCase().includes(keyword) || 
+        (s.description && s.description.toLowerCase().includes(keyword))
+      );
+    }
+    if (searchGrade) {
+      sets = sets.filter(s => s.grade === searchGrade);
+    }
+    if (searchSemester) {
+      sets = sets.filter(s => s.semester === searchSemester);
+    }
+    if (searchSubject) {
+      sets = sets.filter(s => s.subject === searchSubject);
+    }
+    setFilteredGameSets(sets);
+  };
+  
+  const handleResetSearch = () => {
+    setSearchKeyword('');
+    setSearchGrade('');
+    setSearchSemester('');
+    setSearchSubject('');
+    setFilteredGameSets(gameSets);
+  };
 
   const handleSetSelection = (setId: string, isSelected: boolean) => {
     setSelectedSets(prev => ({ ...prev, [setId]: isSelected }));
@@ -201,10 +239,68 @@ export default function CreateSurvivalQuizPage() {
 
                 <div className="space-y-4">
                     <h3 className="text-lg font-semibold">문제로 사용할 퀴즈 세트 선택</h3>
-                    <ScrollArea className="h-72 border rounded-md p-4">
-                        {gameSets.length > 0 ? (
+                    <Card className="p-4">
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+                            <div className="md:col-span-5 lg:col-span-2 space-y-1">
+                                <Label htmlFor="search-keyword">제목/설명</Label>
+                                <Input 
+                                id="search-keyword" 
+                                placeholder="키워드 입력..." 
+                                value={searchKeyword}
+                                onChange={(e) => setSearchKeyword(e.target.value)}
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <Label htmlFor="search-grade">학년</Label>
+                                <Select value={searchGrade} onValueChange={(value) => setSearchGrade(value === 'all' ? '' : value)}>
+                                <SelectTrigger id="search-grade" className="w-full">
+                                    <SelectValue placeholder="전체" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">전체</SelectItem>
+                                    {Array.from({ length: 6 }, (_, i) => i + 1).map(grade => (
+                                    <SelectItem key={grade} value={`${grade}학년`}>{grade}학년</SelectItem>
+                                    ))}
+                                </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1">
+                                <Label htmlFor="search-semester">학기</Label>
+                                <Select value={searchSemester} onValueChange={(value) => setSearchSemester(value === 'all' ? '' : value)}>
+                                <SelectTrigger id="search-semester" className="w-full">
+                                    <SelectValue placeholder="전체" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">전체</SelectItem>
+                                    <SelectItem value="1학기">1학기</SelectItem>
+                                    <SelectItem value="2학기">2학기</SelectItem>
+                                </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1">
+                                <Label htmlFor="search-subject">과목</Label>
+                                <Select value={searchSubject} onValueChange={(value) => setSearchSubject(value === 'all' ? '' : value)}>
+                                <SelectTrigger id="search-subject" className="w-full">
+                                    <SelectValue placeholder="전체" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">전체</SelectItem>
+                                    {subjects.map(subject => (
+                                    <SelectItem key={subject} value={subject}>{subject}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="flex gap-2 col-start-1 md:col-start-auto md:col-span-2 lg:col-span-1">
+                                <Button onClick={handleSearch} className="w-full"><Search className="mr-2 h-4 w-4" />검색</Button>
+                                <Button onClick={handleResetSearch} variant="outline" className="w-full"><RotateCcw className="mr-2 h-4 w-4" />초기화</Button>
+                            </div>
+                        </div>
+                    </Card>
+                    <ScrollArea className="h-72 border rounded-md p-4 mt-4">
+                        {filteredGameSets.length > 0 ? (
                             <div className="space-y-2">
-                                {gameSets.map(set => (
+                                {filteredGameSets.map(set => (
                                     <div key={set.id} className="flex items-center space-x-3 p-2 rounded-md hover:bg-secondary">
                                         <Checkbox 
                                             id={`set-${set.id}`}
@@ -226,8 +322,10 @@ export default function CreateSurvivalQuizPage() {
                             </div>
                         ) : (
                             <div className="text-center text-muted-foreground py-10">
-                                <p>불러올 퀴즈 세트가 없습니다.</p>
-                                <p className="text-xs">퀴즈를 만들거나 공개된 다른 퀴즈를 이용해주세요.</p>
+                                <p>
+                                    {gameSets.length > 0 ? '검색 결과가 없습니다.' : '불러올 퀴즈 세트가 없습니다.'}
+                                </p>
+                                {gameSets.length === 0 && <p className="text-xs">퀴즈를 만들거나 공개된 다른 퀴즈를 이용해주세요.</p>}
                             </div>
                         )}
                     </ScrollArea>
