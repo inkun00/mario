@@ -125,6 +125,9 @@ export default function ClassStorePage() {
   const [giftQuantity, setGiftQuantity] = useState(1);
   const [giftRecipient, setGiftRecipient] = useState('');
   const [classmates, setClassmates] = useState<{ value: string; label: string }[]>([]);
+  
+  const [adjustQuantityCandidate, setAdjustQuantityCandidate] = useState<ClassStoreItem | null>(null);
+  const [newQuantity, setNewQuantity] = useState(0);
 
   const { toast } = useToast();
 
@@ -627,6 +630,32 @@ export default function ClassStorePage() {
     });
   };
 
+  const handleAdjustQuantity = async () => {
+    if (!adjustQuantityCandidate || newQuantity < 0) {
+      toast({ variant: 'destructive', title: '오류', description: '수량은 0 이상이어야 합니다.'});
+      return;
+    }
+
+    setIsProcessing(true);
+    const itemRef = doc(db, 'class-store-items', adjustQuantityCandidate.id);
+
+    updateDoc(itemRef, { quantity: newQuantity })
+    .then(() => {
+        toast({ title: '성공', description: '아이템 수량이 업데이트되었습니다.' });
+    })
+    .catch((serverError) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `class-store-items/${adjustQuantityCandidate.id}`,
+            operation: 'update',
+            requestResourceData: { quantity: newQuantity },
+        }));
+    })
+    .finally(() => {
+        setIsProcessing(false);
+        setAdjustQuantityCandidate(null);
+    });
+  };
+
   const inventoryItems = useMemo(() => 
     Object.entries(myInventory || {}).map(([id, data]) => {
       return {
@@ -743,8 +772,12 @@ export default function ClassStorePage() {
                             <CardTitle>{item.name}</CardTitle>
                             <CardDescription>재고: {item.quantity} / 가격: {item.price}P</CardDescription>
                           </CardHeader>
-                          <CardFooter className="gap-2">
+                          <CardFooter className="grid grid-cols-3 gap-2">
                             <Button size="sm" onClick={() => handleManageSellingItem(item)}>판매 내역</Button>
+                            <Button size="sm" variant="outline" onClick={() => {
+                                setAdjustQuantityCandidate(item);
+                                setNewQuantity(item.quantity);
+                            }}>수량 변경</Button>
                             <Button size="sm" variant="destructive" onClick={() => setDeleteCandidate(item)}>삭제</Button>
                           </CardFooter>
                         </Card>
@@ -894,6 +927,33 @@ export default function ClassStorePage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <Dialog open={!!adjustQuantityCandidate} onOpenChange={(isOpen) => !isOpen && setAdjustQuantityCandidate(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>'{adjustQuantityCandidate?.name}' 수량 조절</DialogTitle>
+            <DialogDescription>
+              현재 재고: {adjustQuantityCandidate?.quantity}개. 변경할 수량을 입력하세요.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Label htmlFor="new-quantity">새 수량</Label>
+            <Input
+              id="new-quantity"
+              type="number"
+              min="0"
+              value={newQuantity}
+              onChange={(e) => setNewQuantity(parseInt(e.target.value) || 0)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAdjustQuantityCandidate(null)}>취소</Button>
+            <Button onClick={handleAdjustQuantity} disabled={isProcessing}>
+              {isProcessing && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              저장
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
