@@ -293,3 +293,39 @@ export interface WritingSubmission {
   evaluation: EvaluateWritingOutput;
   createdAt: any;
 }
+
+export interface SurvivalPlayer extends Player {
+  isEliminated: boolean;
+  eliminatedAtQuestion?: number; // question index when eliminated
+  answers: {
+    questionId: string; // combination of gameSetId and questionId
+    isCorrect: boolean;
+    submittedAt: Timestamp;
+    points: number;
+  }[];
+}
+
+export interface SurvivalGameRoom {
+    id: string;
+    roomTitle: string;
+    hostId: string;
+    status: 'waiting' | 'playing' | 'finished';
+    createdAt: Timestamp;
+    
+    // Game Settings
+    gameSetIds: string[];
+    allQuestions: Question[]; // All questions from all sets, shuffled
+    timeLimitPerQuestion: number; // in seconds
+    revivalEnabled: boolean;
+    revivalPercentage: number; // 0-100
+    participationScope: 'class' | 'public';
+
+    // Game State
+    players: Record<string, SurvivalPlayer>;
+    playerUIDs: string[];
+    currentQuestionIndex: number;
+    currentQuestionEndsAt?: Timestamp;
+    isAnswerRevealed: boolean;
+    eliminatedPlayerIds: string[];
+    revivalHappened: boolean;
+}

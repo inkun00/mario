@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, onSnapshot } from 'firebase/firestore';
-import type { GameSet, User } from '@/lib/types';
+import { collection, query, where, getDocs, doc, onSnapshot, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import type { GameSet, User, SurvivalGameRoom, Question, SurvivalPlayer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -24,6 +24,8 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from '@/components/ui/switch';
+import { Slider } from '@/components/ui/slider';
 
 type SurvivalGameSet = GameSet & { isSelected?: boolean };
 
@@ -47,6 +49,12 @@ export default function CreateSurvivalQuizPage() {
   const [searchSemester, setSearchSemester] = useState('');
   const [searchSubject, setSearchSubject] = useState('');
   const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '음악', '미술', '체육', '영어', '창체'];
+
+  // Golden Bell settings
+  const [timeLimit, setTimeLimit] = useState(60);
+  const [revivalEnabled, setRevivalEnabled] = useState(true);
+  const [revivalPercentage, setRevivalPercentage] = useState(20);
+
 
   // Fetch user data to check for teacher role
   useEffect(() => {
@@ -140,7 +148,7 @@ export default function CreateSurvivalQuizPage() {
     setSelectedSets(prev => ({ ...prev, [setId]: isSelected }));
   };
   
-  const handleCreateSurvivalQuiz = () => {
+  const handleCreateSurvivalQuiz = async () => {
     const selectedIds = Object.keys(selectedSets).filter(id => selectedSets[id]);
     
     if (!roomTitle.trim()) {
@@ -151,14 +159,68 @@ export default function CreateSurvivalQuizPage() {
         toast({ variant: 'destructive', title: '오류', description: '하나 이상의 퀴즈 세트를 선택해주세요.' });
         return;
     }
+    if (!user || !userData) {
+        toast({ variant: 'destructive', title: '오류', description: '사용자 정보를 찾을 수 없습니다.' });
+        return;
+    }
 
-    console.log({
-        title: roomTitle,
-        scope: participationScope,
-        gameSetIds: selectedIds,
-    });
+    setIsCreating(true);
 
-    toast({ title: '구현 예정', description: '서바이벌 퀴즈방 생성 로직은 아직 구현되지 않았습니다.' });
+    try {
+        // 1. Get all questions from selected game sets
+        const selectedGameSets = gameSets.filter(set => selectedIds.includes(set.id));
+        let allQuestions: Question[] = [];
+        selectedGameSets.forEach(set => {
+            allQuestions = [...allQuestions, ...set.questions];
+        });
+        // Shuffle questions
+        allQuestions.sort(() => Math.random() - 0.5);
+        allQuestions = allQuestions.map((q, i) => ({...q, id: i}));
+
+
+        // 2. Create the host player
+        const hostPlayer: SurvivalPlayer = {
+            uid: user.uid,
+            nickname: userData.displayName || '호스트',
+            score: 0,
+            isHost: true,
+            isEliminated: false,
+            answers: [],
+        };
+
+        // 3. Create the new survival game room document
+        const newRoomData: Omit<SurvivalGameRoom, 'id'> = {
+            roomTitle,
+            hostId: user.uid,
+            status: 'waiting',
+            createdAt: serverTimestamp() as Timestamp,
+            gameSetIds: selectedIds,
+            allQuestions,
+            timeLimitPerQuestion: timeLimit,
+            revivalEnabled,
+            revivalPercentage,
+            participationScope,
+            players: {
+                [user.uid]: hostPlayer
+            },
+            playerUIDs: [user.uid],
+            currentQuestionIndex: -1, // -1 means lobby
+            isAnswerRevealed: false,
+            eliminatedPlayerIds: [],
+            revivalHappened: false,
+        };
+
+        const roomRef = await addDoc(collection(db, 'survival-game-rooms'), newRoomData);
+        
+        toast({ title: '성공', description: '서바이벌 퀴즈방을 만들었습니다! 로비로 이동합니다.' });
+        router.push(`/survival-quiz/${roomRef.id}/lobby`);
+
+    } catch (error) {
+        console.error("Error creating survival quiz room:", error);
+        toast({ variant: 'destructive', title: '오류', description: '방 생성에 실패했습니다.' });
+    } finally {
+        setIsCreating(false);
+    }
   };
 
   if (isLoading || loadingUser) {
@@ -231,10 +293,54 @@ export default function CreateSurvivalQuizPage() {
                 </div>
                 
                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">게임 모드 선택 (구현 예정)</h3>
-                    <div className="p-8 border-2 border-dashed rounded-lg text-center text-muted-foreground">
-                        <p>다양한 게임 모드가 여기에 표시됩니다.</p>
-                    </div>
+                    <h3 className="text-lg font-semibold">게임 모드 선택</h3>
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center gap-3">
+                                <RadioGroupItem value="golden-bell" id="mode-golden-bell" className="peer" checked={true} />
+                                <Label htmlFor="mode-golden-bell" className="flex-1 cursor-pointer">
+                                    <CardTitle>골든벨 모드</CardTitle>
+                                    <CardDescription>마지막 한 명이 남을 때까지 진행되는 서바이벌 퀴즈입니다.</CardDescription>
+                                </Label>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="space-y-6 pt-4 pl-12">
+                            <div className="space-y-2">
+                                <Label>문제당 시간 제한</Label>
+                                <RadioGroup value={String(timeLimit)} onValueChange={(val) => setTimeLimit(Number(val))} className="flex gap-4">
+                                    <Label htmlFor="time-60" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                                        <RadioGroupItem value="60" id="time-60" /> 1분
+                                    </Label>
+                                    <Label htmlFor="time-120" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                                        <RadioGroupItem value="120" id="time-120" /> 2분
+                                    </Label>
+                                    <Label htmlFor="time-180" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                                        <RadioGroupItem value="180" id="time-180" /> 3분
+                                    </Label>
+                                </RadioGroup>
+                            </div>
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <Label htmlFor="revival-enabled" className="flex flex-col gap-1">
+                                        <span>패자부활전 활성화</span>
+                                        <span className="text-xs text-muted-foreground">게임이 70% 진행되었을 때 탈락자 중 일부가 부활합니다.</span>
+                                    </Label>
+                                    <Switch id="revival-enabled" checked={revivalEnabled} onCheckedChange={setRevivalEnabled} />
+                                </div>
+                                {revivalEnabled && (
+                                    <div className="space-y-2 pl-2">
+                                        <Label>부활 조건: 탈락자 중 상위 {revivalPercentage}%</Label>
+                                        <Slider 
+                                            value={[revivalPercentage]}
+                                            onValueChange={(val) => setRevivalPercentage(val[0])}
+                                            max={50}
+                                            step={5}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
 
                 <div className="space-y-4">
