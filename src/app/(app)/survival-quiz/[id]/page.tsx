@@ -117,7 +117,7 @@ export default function SurvivalQuizGamePage() {
         const roomData = { id: docSnap.id, ...docSnap.data() } as SurvivalGameRoom;
 
         setGameRoom((prevRoom) => {
-            if (prevRoom && prevRoom.players[user.uid] && !roomData.players[user.uid]) {
+            if (prevRoom && user && prevRoom.players[user.uid] && !roomData.players[user.uid]) {
                 toast({ variant: "destructive", title: "방에서 내보내졌습니다." });
                 router.push('/dashboard');
                 return prevRoom;
@@ -142,7 +142,7 @@ export default function SurvivalQuizGamePage() {
   }, [gameRoomId, user, router, toast]);
 
   const handleSubmitAnswer = async () => {
-    if (!user || !currentQuestion || !userAnswer || hasAnswered) return;
+    if (!user || !currentQuestion || !userAnswer || hasAnswered || isHost) return;
     setIsSubmitting(true);
     try {
         const roomRef = doc(db, 'survival-game-rooms', gameRoomId as string);
@@ -178,6 +178,8 @@ export default function SurvivalQuizGamePage() {
         const timeLimit = currentRoom.timeLimitPerQuestion * 1000;
         
         for (const uid in players) {
+          if (uid === currentRoom.hostId) continue;
+
           const player = players[uid];
           const wasPreviouslyEliminated = player.isEliminated;
 
@@ -278,16 +280,18 @@ export default function SurvivalQuizGamePage() {
       return <div className="text-center p-8">게임을 찾을 수 없거나 참여자가 아닙니다.</div>
   }
 
-  const { players, lastQuestionResults } = gameRoom;
-  const allPlayers = Object.values(players).sort((a,b)=> b.score - a.score);
-  const survivors = allPlayers.filter(p => !p.isEliminated);
-  const eliminated = allPlayers.filter(p => p.isEliminated);
+  const { players, lastQuestionResults, hostId } = gameRoom;
+  const allPlayingPlayers = Object.values(players).filter(p => p.uid !== hostId).sort((a,b)=> b.score - a.score);
+  
+  const survivors = allPlayingPlayers.filter(p => !p.isEliminated);
+  const eliminated = allPlayingPlayers.filter(p => p.isEliminated);
 
-  const correctPlayers = allPlayers.filter(p => lastQuestionResults?.[p.uid]?.isCorrect);
-  const incorrectPlayers = allPlayers.filter(p => lastQuestionResults && lastQuestionResults[p.uid] && !lastQuestionResults[p.uid].isCorrect);
-  const noAnswerPlayers = allPlayers.filter(p => !lastQuestionResults?.[p.uid]);
+  const correctPlayers = survivors.filter(p => lastQuestionResults?.[p.uid]?.isCorrect);
+  const incorrectPlayers = allPlayingPlayers.filter(p => lastQuestionResults && lastQuestionResults[p.uid] && !lastQuestionResults[p.uid].isCorrect);
+  const noAnswerPlayers = allPlayingPlayers.filter(p => !lastQuestionResults?.[p.uid]);
 
   if (gameRoom.status === 'finished') {
+    const finalPlayers = Object.values(players).filter(p => !p.isHost).sort((a,b)=> b.score - a.score);
     return (
         <div className="container mx-auto py-8 text-center">
             <Card className="max-w-md mx-auto">
@@ -302,7 +306,7 @@ export default function SurvivalQuizGamePage() {
                     <h3 className="font-semibold mb-2">최종 순위</h3>
                     <ScrollArea className="h-60">
                         <div className="space-y-2 pr-4">
-                            {allPlayers.map((p, i) => (
+                            {finalPlayers.map((p, i) => (
                                 <div key={p.uid} className="flex justify-between items-center p-2 rounded-md bg-secondary">
                                     <span className="font-medium">{i+1}. {p.nickname}</span>
                                     <span className="font-bold text-primary">{p.score}점</span>
@@ -369,7 +373,7 @@ export default function SurvivalQuizGamePage() {
                         )}
                         <p className="text-lg font-medium whitespace-pre-wrap">{currentQuestion.question}</p>
                         
-                        {currentPlayer && !hasAnswered && (
+                        {currentPlayer && !hasAnswered && !isHost && (
                             <div className="space-y-4 pt-4 border-t">
                                 {currentPlayer.isEliminated && (
                                     <p className="text-center font-semibold text-orange-500">현재 탈락 상태입니다. 패자부활을 위해 계속 문제를 풀어보세요!</p>
@@ -403,7 +407,8 @@ export default function SurvivalQuizGamePage() {
                                 </Button>
                             </div>
                         )}
-                        {currentPlayer && hasAnswered && <p className="text-center text-primary font-semibold">답변을 제출했습니다. 결과를 기다려주세요.</p>}
+                        {currentPlayer && hasAnswered && !isHost && <p className="text-center text-primary font-semibold">답변을 제출했습니다. 결과를 기다려주세요.</p>}
+                        {isHost && <p className="text-center text-muted-foreground font-semibold">호스트는 문제를 풀지 않습니다. 학생들이 문제를 풀고 있습니다.</p>}
                     </>
                     )}
                 </div>
@@ -445,5 +450,3 @@ export default function SurvivalQuizGamePage() {
     </div>
   );
 }
-
-    
