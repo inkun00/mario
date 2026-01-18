@@ -273,6 +273,7 @@ export interface ClassStoreItem {
 export interface ItemBuyer {
     uid: string;
     name: string;
+    quantity: number;
 }
 
 export interface EvaluateWritingOutput {

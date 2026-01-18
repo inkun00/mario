@@ -384,13 +384,27 @@ export default function ClassStorePage() {
       );
       const querySnapshot = await getDocs(q);
       
-      const buyerIds = querySnapshot.docs.map(doc => doc.ref.parent.parent?.id).filter(Boolean) as string[];
+      const buyerPurchaseCounts: Record<string, number> = {};
+      querySnapshot.docs.forEach(doc => {
+          const buyerId = doc.ref.parent.parent?.id;
+          if (buyerId) {
+              buyerPurchaseCounts[buyerId] = (buyerPurchaseCounts[buyerId] || 0) + 1;
+          }
+      });
+      
+      const uniqueBuyerIds = Object.keys(buyerPurchaseCounts);
 
-      if (buyerIds.length > 0) {
-        const uniqueBuyerIds = [...new Set(buyerIds)];
+      if (uniqueBuyerIds.length > 0) {
         const usersQuery = query(collection(db, 'users'), where('uid', 'in', uniqueBuyerIds));
         const usersSnapshot = await getDocs(usersQuery);
-        const buyersData = usersSnapshot.docs.map(doc => ({ uid: doc.id, name: (doc.data() as User).name || (doc.data() as User).displayName }))
+        const buyersData = usersSnapshot.docs.map(doc => {
+            const user = doc.data() as User;
+            return { 
+                uid: user.uid, 
+                name: user.name || user.displayName || '이름없음',
+                quantity: buyerPurchaseCounts[user.uid] || 0
+            };
+        });
         setBuyers(buyersData);
       } else {
         setBuyers([]);
@@ -865,7 +879,12 @@ export default function ClassStorePage() {
                   {isLoadingBuyers ? <Loader2 className="mx-auto h-6 w-6 animate-spin"/> : (
                       buyers.length === 0 
                           ? <p className="text-muted-foreground">아직 구매한 학생이 없습니다.</p>
-                          : <ul className="space-y-2">{buyers.map(b => <li key={b.uid}>{b.name}</li>)}</ul>
+                          : <ul className="space-y-2">{buyers.map(b => 
+                            <li key={b.uid} className="flex justify-between items-center">
+                              <span>{b.name}</span>
+                              <span className="font-semibold text-primary">{b.quantity}개 구매</span>
+                            </li>)}
+                           </ul>
                   )}
               </div>
           </DialogContent>
