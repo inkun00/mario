@@ -13,8 +13,16 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ShieldAlert, Swords } from 'lucide-react';
+import { Loader2, ShieldAlert, Swords, Eye } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 type SurvivalGameSet = GameSet & { isSelected?: boolean };
 
@@ -30,6 +38,7 @@ export default function CreateSurvivalQuizPage() {
   const [roomTitle, setRoomTitle] = useState('');
   const [participationScope, setParticipationScope] = useState<'class' | 'public'>('class');
   const [selectedSets, setSelectedSets] = useState<Record<string, boolean>>({});
+  const [previewGameSet, setPreviewGameSet] = useState<GameSet | null>(null);
 
   // Fetch user data to check for teacher role
   useEffect(() => {
@@ -139,6 +148,7 @@ export default function CreateSurvivalQuizPage() {
   }
 
   return (
+    <>
     <div className="container mx-auto py-8 max-w-4xl">
         <Card>
             <CardHeader>
@@ -201,19 +211,16 @@ export default function CreateSurvivalQuizPage() {
                                             checked={selectedSets[set.id] || false}
                                             onCheckedChange={(checked) => handleSetSelection(set.id, !!checked)}
                                         />
-                                        <Label htmlFor={`set-${set.id}`} className="w-full cursor-pointer">
-                                            <div className="flex justify-between items-center">
-                                                <div>
-                                                    <p className="font-semibold">{set.title}</p>
-                                                    <p className="text-sm text-muted-foreground">
-                                                        {set.questions.length} 문제 · 제작자: {set.creatorNickname}
-                                                    </p>
-                                                </div>
-                                                <p className="text-xs text-muted-foreground">
-                                                    {set.isPublic ? '공개' : '내 퀴즈'}
-                                                </p>
-                                            </div>
+                                        <Label htmlFor={`set-${set.id}`} className="w-full cursor-pointer flex-grow">
+                                            <p className="font-semibold">{set.title}</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                {set.questions.length} 문제 · 제작자: {set.creatorNickname} · {set.isPublic ? '공개' : '내 퀴즈'}
+                                            </p>
                                         </Label>
+                                        <Button variant="outline" size="sm" onClick={() => setPreviewGameSet(set)}>
+                                            <Eye className="h-4 w-4 mr-1" />
+                                            미리보기
+                                        </Button>
                                     </div>
                                 ))}
                             </div>
@@ -239,5 +246,31 @@ export default function CreateSurvivalQuizPage() {
             </CardContent>
         </Card>
     </div>
-  )
+      <Dialog open={!!previewGameSet} onOpenChange={() => setPreviewGameSet(null)}>
+        <DialogContent className="max-w-2xl">
+            <DialogHeader>
+                <DialogTitle>{previewGameSet?.title}</DialogTitle>
+                <DialogDescription>
+                    총 {previewGameSet?.questions.length}개의 질문이 있습니다.
+                </DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="h-[60vh] pr-4">
+                <div className="space-y-4 py-4">
+                    {previewGameSet?.questions.map((q, index) => (
+                        <div key={index} className="p-4 rounded-md border bg-muted/50">
+                            <p className="font-semibold whitespace-pre-wrap">{index + 1}. {q.question}</p>
+                            {q.type === 'multipleChoice' && q.options && (
+                                <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                                    {q.options.map((opt, i) => <div key={i} className={cn(q.correctAnswer === opt && "font-bold text-primary")}>- {opt}</div>)}
+                                </div>
+                            )}
+                            <p className="mt-2 text-sm">정답: <span className="font-semibold text-primary">{q.correctAnswer || q.answer}</span></p>
+                        </div>
+                    ))}
+                </div>
+            </ScrollArea>
+        </DialogContent>
+    </Dialog>
+    </>
+  );
 }
