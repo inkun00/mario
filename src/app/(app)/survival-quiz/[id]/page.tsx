@@ -177,12 +177,10 @@ export default function SurvivalQuizGamePage() {
         const startTime = (currentRoom.currentQuestionStartedAt as any)?.toDate()?.getTime();
         const timeLimit = currentRoom.timeLimitPerQuestion * 1000;
         
-        // Don't process host's answer
         const playerUIDs = Object.keys(players).filter(uid => uid !== currentRoom.hostId);
 
         for (const uid of playerUIDs) {
           const player = players[uid];
-          // Eliminated players can still answer for points, but it won't change their survivor status
           const wasPreviouslyEliminated = player.isEliminated;
 
           const submission = currentAnswers[uid];
@@ -206,7 +204,6 @@ export default function SurvivalQuizGamePage() {
 
           players[uid].score += points;
           
-          // Only eliminate players who were not already eliminated
           if (!wasPreviouslyEliminated && !isCorrect) {
               players[uid].isEliminated = true;
           }
@@ -239,8 +236,7 @@ export default function SurvivalQuizGamePage() {
         await updateDoc(doc(db, 'survival-game-rooms', gameRoomId as string), { status: 'finished' });
         return;
     }
-
-    // TODO: 패자부활 로직
+    
     const nextIndex = gameRoom.currentQuestionIndex + 1;
     if (nextIndex >= gameRoom.allQuestions.length) {
         await updateDoc(doc(db, 'survival-game-rooms', gameRoomId as string), { status: 'finished' });
@@ -295,6 +291,8 @@ export default function SurvivalQuizGamePage() {
   
   const survivors = allPlayingPlayers.filter(p => !p.isEliminated);
   const eliminated = allPlayingPlayers.filter(p => p.isEliminated);
+  const answeredCount = gameRoom.currentAnswers ? Object.keys(gameRoom.currentAnswers).length : 0;
+  const totalPlayers = allPlayingPlayers.length;
 
   if (gameRoom.status === 'finished') {
     const finalPlayers = Object.values(players).filter(p => !p.isHost).sort((a,b)=> b.score - a.score);
@@ -331,10 +329,8 @@ export default function SurvivalQuizGamePage() {
 
   const correctPlayers = survivors.filter(p => lastQuestionResults?.[p.uid]?.isCorrect);
   
-  // Incorrect players now include eliminated players who answered incorrectly
   const incorrectPlayers = allPlayingPlayers.filter(p => lastQuestionResults && lastQuestionResults[p.uid] && !lastQuestionResults[p.uid].isCorrect);
   
-  // No answer players also include eliminated players who didn't answer
   const noAnswerPlayers = allPlayingPlayers.filter(p => !lastQuestionResults?.[p.uid]);
 
 
@@ -428,7 +424,11 @@ export default function SurvivalQuizGamePage() {
                                 )}
                             </div>
                         )}
-                        {isHost && <p className="text-center text-muted-foreground font-semibold">호스트는 문제를 풀지 않습니다. 학생들이 문제를 풀고 있습니다.</p>}
+                        {isHost && !gameRoom.isAnswerRevealed && (
+                            <p className="text-center text-muted-foreground font-semibold">
+                                호스트는 문제를 풀지 않습니다. 학생들이 문제를 풀고 있습니다.
+                            </p>
+                        )}
                     </>
                     )}
                 </div>
@@ -440,7 +440,14 @@ export default function SurvivalQuizGamePage() {
         
         {isHost && (
              <Card>
-                <CardHeader><CardTitle>호스트 컨트롤</CardTitle></CardHeader>
+                <CardHeader>
+                  <CardTitle>호스트 컨트롤</CardTitle>
+                  {!gameRoom.isAnswerRevealed && (
+                    <CardDescription>
+                      답변 제출 현황: {answeredCount} / {totalPlayers}
+                    </CardDescription>
+                  )}
+                </CardHeader>
                 <CardContent className="flex gap-2">
                     {gameRoom.isAnswerRevealed ? (
                         <Button onClick={handleNextQuestion}>다음 문제</Button>
