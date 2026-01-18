@@ -1,5 +1,3 @@
-
-
 import { Timestamp } from 'firebase/firestore';
 
 export type PointAcquisitionRule = 'teacher_only' | 'class_only' | 'all';
@@ -298,7 +296,7 @@ export interface SurvivalPlayer extends Player {
   isEliminated: boolean;
   eliminatedAtQuestion?: number; // question index when eliminated
   answers: {
-    questionId: string; // combination of gameSetId and questionId
+    questionId: number;
     isCorrect: boolean;
     submittedAt: Timestamp;
     points: number;
@@ -324,8 +322,17 @@ export interface SurvivalGameRoom {
     players: Record<string, SurvivalPlayer>;
     playerUIDs: string[];
     currentQuestionIndex: number;
+    currentQuestionStartedAt?: Timestamp;
     currentQuestionEndsAt?: Timestamp;
     isAnswerRevealed: boolean;
     eliminatedPlayerIds: string[];
     revivalHappened: boolean;
+    currentAnswers?: Record<string, {
+        answer: string;
+        submittedAt: Timestamp;
+    }>;
+    lastQuestionResults?: Record<string, {
+        isCorrect: boolean;
+        points: number;
+    }>;
 }
