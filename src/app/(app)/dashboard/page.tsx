@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn, ShieldCheck, List, Gamepad2, Sparkles, Smartphone, Tv, Gem, MessageSquare, Send, ThumbsUp } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn, ShieldCheck, List, Gamepad2, Sparkles, Smartphone, Tv, Gem, MessageSquare, Send, ThumbsUp, Swords } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState, useRef, useMemo } from 'react';
@@ -651,17 +651,35 @@ export default function DashboardPage() {
           <p className="text-muted-foreground mt-1">오늘도 즐거운 학습을 시작해볼까요?</p>
         </div>
 
-        <Card>
-            <CardHeader>
-                <CardTitle className="font-headline">새로운 퀴즈 만들기</CardTitle>
-                <CardDescription>나만의 퀴즈를 만들고 친구들과 함께 플레이하세요.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Button asChild className="w-full">
-                    <Link href="/game-sets/create"><PlusCircle className="mr-2 h-4 w-4"/>만들기</Link>
-                </Button>
-            </CardContent>
-        </Card>
+        <div className={cn(
+            "grid gap-6",
+            currentUserData?.role === 'teacher' ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"
+        )}>
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline">새로운 퀴즈 만들기</CardTitle>
+                    <CardDescription>나만의 퀴즈를 만들고 친구들과 함께 플레이하세요.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Button asChild className="w-full">
+                        <Link href="/game-sets/create"><PlusCircle className="mr-2 h-4 w-4"/>만들기</Link>
+                    </Button>
+                </CardContent>
+            </Card>
+            {currentUserData?.role === 'teacher' && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="font-headline flex items-center gap-2"><Swords className="text-primary"/>서바이벌 퀴즈 만들기</CardTitle>
+                        <CardDescription>여러 퀴즈를 묶어 최후의 1인을 가리는 퀴즈쇼를 만듭니다.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Button asChild className="w-full">
+                            <Link href="/survival-quiz/create"><Swords className="mr-2 h-4 w-4"/>만들기</Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+            )}
+        </div>
 
         <div>
             <h2 className="text-2xl font-bold font-headline mb-4 flex items-center gap-2">
@@ -1268,4 +1286,5 @@ export default function DashboardPage() {
     </>
   );
 }
+
 
