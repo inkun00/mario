@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -126,7 +127,12 @@ export default function SurvivalLobbyPage() {
         if (!isHost || !gameRoom) return;
         const roomRef = doc(db, 'survival-game-rooms', gameRoom.id);
         try {
-            await updateDoc(roomRef, { status: 'playing', currentQuestionIndex: 0, currentQuestionEndsAt: serverTimestamp() });
+            await updateDoc(roomRef, { 
+                status: 'playing', 
+                currentQuestionIndex: 0, 
+                currentQuestionStartedAt: serverTimestamp(),
+                currentQuestionEndsAt: new Date(Date.now() + gameRoom.timeLimitPerQuestion * 1000)
+            });
         } catch (error) {
             toast({ variant: 'destructive', title: '오류', description: '게임 시작에 실패했습니다.' });
         }

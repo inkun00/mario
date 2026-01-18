@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
@@ -135,7 +136,7 @@ export default function SurvivalQuizGamePage() {
         const players = currentRoom.players;
         const currentAnswers = currentRoom.currentAnswers || {};
         const newResults: Record<string, {isCorrect: boolean, points: number}> = {};
-        const startTime = (currentRoom.currentQuestionStartedAt as any)?.toDate().getTime();
+        const startTime = (currentRoom.currentQuestionStartedAt as any)?.toDate()?.getTime();
         const timeLimit = currentRoom.timeLimitPerQuestion * 1000;
         
         for (const uid in players) {
@@ -147,10 +148,16 @@ export default function SurvivalQuizGamePage() {
           let points = 0;
           
           if (isCorrect) {
-              const submissionTime = (submission.submittedAt as any).toDate().getTime();
-              const timeTaken = submissionTime - startTime;
-              const timeBonus = Math.max(0, Math.floor((1 - (timeTaken / timeLimit)) * (currentQuestion.points / 2)));
-              points = (currentQuestion.points || 10) + timeBonus;
+              const basePoints = currentQuestion.points > 0 ? currentQuestion.points : 30; // Handle random points as 30
+              let timeBonus = 0;
+              if (startTime && submission?.submittedAt) {
+                  const submissionTime = (submission.submittedAt as any).toDate().getTime();
+                  const timeTaken = submissionTime - startTime;
+                  if (timeTaken > 0 && timeTaken < timeLimit) {
+                    timeBonus = Math.max(0, Math.floor((1 - (timeTaken / timeLimit)) * (basePoints / 2)));
+                  }
+              }
+              points = basePoints + timeBonus;
           }
           
           newResults[uid] = { isCorrect, points };
