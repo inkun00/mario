@@ -171,16 +171,18 @@ export default function SurvivalQuizGamePage() {
         if (!roomDoc.exists()) throw "Game room not found";
 
         const currentRoom = roomDoc.data() as SurvivalGameRoom;
-        const players = currentRoom.players;
+        const players = { ...currentRoom.players }; // Create a mutable copy
         const currentAnswers = currentRoom.currentAnswers || {};
         const newResults: Record<string, {isCorrect: boolean, points: number}> = {};
         const startTime = (currentRoom.currentQuestionStartedAt as any)?.toDate()?.getTime();
         const timeLimit = currentRoom.timeLimitPerQuestion * 1000;
         
-        for (const uid in players) {
-          if (uid === currentRoom.hostId) continue;
+        // Don't process host's answer
+        const playerUIDs = Object.keys(players).filter(uid => uid !== currentRoom.hostId);
 
+        for (const uid of playerUIDs) {
           const player = players[uid];
+          // Eliminated players can still answer for points, but it won't change their survivor status
           const wasPreviouslyEliminated = player.isEliminated;
 
           const submission = currentAnswers[uid];
@@ -204,9 +206,11 @@ export default function SurvivalQuizGamePage() {
 
           players[uid].score += points;
           
+          // Only eliminate players who were not already eliminated
           if (!wasPreviouslyEliminated && !isCorrect) {
               players[uid].isEliminated = true;
           }
+          
           players[uid].answers.push({
               questionId: currentQuestion.id,
               isCorrect,
@@ -229,6 +233,12 @@ export default function SurvivalQuizGamePage() {
 
   const handleNextQuestion = async () => {
     if (!isHost || !gameRoom) return;
+
+    const currentSurvivors = Object.values(gameRoom.players).filter(p => !p.isHost && !p.isEliminated);
+    if (currentSurvivors.length <= 1) {
+        await updateDoc(doc(db, 'survival-game-rooms', gameRoomId as string), { status: 'finished' });
+        return;
+    }
 
     // TODO: 패자부활 로직
     const nextIndex = gameRoom.currentQuestionIndex + 1;
@@ -286,10 +296,6 @@ export default function SurvivalQuizGamePage() {
   const survivors = allPlayingPlayers.filter(p => !p.isEliminated);
   const eliminated = allPlayingPlayers.filter(p => p.isEliminated);
 
-  const correctPlayers = survivors.filter(p => lastQuestionResults?.[p.uid]?.isCorrect);
-  const incorrectPlayers = allPlayingPlayers.filter(p => lastQuestionResults && lastQuestionResults[p.uid] && !lastQuestionResults[p.uid].isCorrect);
-  const noAnswerPlayers = allPlayingPlayers.filter(p => !lastQuestionResults?.[p.uid]);
-
   if (gameRoom.status === 'finished') {
     const finalPlayers = Object.values(players).filter(p => !p.isHost).sort((a,b)=> b.score - a.score);
     return (
@@ -322,6 +328,15 @@ export default function SurvivalQuizGamePage() {
         </div>
     )
   }
+
+  const correctPlayers = survivors.filter(p => lastQuestionResults?.[p.uid]?.isCorrect);
+  
+  // Incorrect players now include eliminated players who answered incorrectly
+  const incorrectPlayers = allPlayingPlayers.filter(p => lastQuestionResults && lastQuestionResults[p.uid] && !lastQuestionResults[p.uid].isCorrect);
+  
+  // No answer players also include eliminated players who didn't answer
+  const noAnswerPlayers = allPlayingPlayers.filter(p => !lastQuestionResults?.[p.uid]);
+
 
   return (
     <div className="container mx-auto py-8 flex flex-col lg:flex-row gap-6">
@@ -373,41 +388,46 @@ export default function SurvivalQuizGamePage() {
                         )}
                         <p className="text-lg font-medium whitespace-pre-wrap">{currentQuestion.question}</p>
                         
-                        {currentPlayer && !hasAnswered && !isHost && (
+                        {currentPlayer && !isHost && (
                             <div className="space-y-4 pt-4 border-t">
-                                {currentPlayer.isEliminated && (
+                                {currentPlayer.isEliminated && !hasAnswered && (
                                     <p className="text-center font-semibold text-orange-500">현재 탈락 상태입니다. 패자부활을 위해 계속 문제를 풀어보세요!</p>
                                 )}
-                                {currentQuestion.type === 'subjective' && (
-                                    <Input placeholder="정답을 입력하세요" value={userAnswer} onChange={(e) => setUserAnswer(e.target.value)} disabled={isSubmitting} />
-                                )}
-                                {currentQuestion.type === 'multipleChoice' && currentQuestion.options && (
-                                    <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="grid grid-cols-1 sm:grid-cols-2 gap-2" disabled={isSubmitting}>
-                                        {currentQuestion.options.map((option, index) => (
-                                            <Label key={index} htmlFor={`option-${index}`} className="flex items-center gap-3 p-3 rounded-md border hover:border-primary cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/10">
-                                                <RadioGroupItem value={option} id={`option-${index}`} />
-                                                {option}
+                                {hasAnswered ? (
+                                    <p className="text-center text-primary font-semibold">답변을 제출했습니다. 결과를 기다려주세요.</p>
+                                ) : (
+                                <>
+                                    {currentQuestion.type === 'subjective' && (
+                                        <Input placeholder="정답을 입력하세요" value={userAnswer} onChange={(e) => setUserAnswer(e.target.value)} disabled={isSubmitting} />
+                                    )}
+                                    {currentQuestion.type === 'multipleChoice' && currentQuestion.options && (
+                                        <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="grid grid-cols-1 sm:grid-cols-2 gap-2" disabled={isSubmitting}>
+                                            {currentQuestion.options.map((option, index) => (
+                                                <Label key={index} htmlFor={`option-${index}`} className="flex items-center gap-3 p-3 rounded-md border hover:border-primary cursor-pointer has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                                                    <RadioGroupItem value={option} id={`option-${index}`} />
+                                                    {option}
+                                                </Label>
+                                            ))}
+                                        </RadioGroup>
+                                    )}
+                                    {currentQuestion.type === 'ox' && (
+                                        <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="grid grid-cols-2 gap-4" disabled={isSubmitting}>
+                                            <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'O' && 'border-primary bg-primary/10')}>
+                                                <RadioGroupItem value="O" id="option-o" className="sr-only"/>O
                                             </Label>
-                                        ))}
-                                    </RadioGroup>
+                                            <Label htmlFor="option-x" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'X' && 'border-primary bg-primary/10')}>
+                                                <RadioGroupItem value="X" id="option-x" className="sr-only"/>X
+                                            </Label>
+                                        </RadioGroup>
+                                    )}
+                                    <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting || !userAnswer}>
+                                        {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : <Send className="w-4 h-4 mr-2" />}
+                                        제출하기
+                                    </Button>
+                                </>
                                 )}
-                                {currentQuestion.type === 'ox' && (
-                                     <RadioGroup value={userAnswer} onValueChange={setUserAnswer} className="grid grid-cols-2 gap-4" disabled={isSubmitting}>
-                                        <Label htmlFor="option-o" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'O' && 'border-primary bg-primary/10')}>
-                                            <RadioGroupItem value="O" id="option-o" className="sr-only"/>O
-                                        </Label>
-                                        <Label htmlFor="option-x" className={cn("p-4 border rounded-md text-center text-2xl font-bold cursor-pointer", userAnswer === 'X' && 'border-primary bg-primary/10')}>
-                                            <RadioGroupItem value="X" id="option-x" className="sr-only"/>X
-                                        </Label>
-                                    </RadioGroup>
-                                )}
-                                <Button className="w-full" onClick={handleSubmitAnswer} disabled={isSubmitting || !userAnswer}>
-                                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : <Send className="w-4 h-4 mr-2" />}
-                                    제출하기
-                                </Button>
                             </div>
                         )}
-                        {currentPlayer && hasAnswered && !isHost && <p className="text-center text-primary font-semibold">답변을 제출했습니다. 결과를 기다려주세요.</p>}
                         {isHost && <p className="text-center text-muted-foreground font-semibold">호스트는 문제를 풀지 않습니다. 학생들이 문제를 풀고 있습니다.</p>}
                     </>
                     )}
@@ -450,3 +470,5 @@ export default function SurvivalQuizGamePage() {
     </div>
   );
 }
+
+    
