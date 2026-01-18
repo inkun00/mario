@@ -1,19 +1,19 @@
 
 'use client';
 
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, updateDoc, writeBatch, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import type { SurvivalGameRoom, Question } from '@/lib/types';
+import type { SurvivalGameRoom, Question, SurvivalPlayer } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { PixelAvatar } from '@/components/pixel-avatar';
-import { Loader2, Crown, Shield, Skull, Swords, Send, UserCheck, UserX, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Crown, Shield, Skull, Swords, Send, CheckCircle, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { Input } from '@/components/ui/input';
@@ -29,6 +29,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const checkAnswer = (question: Question, userAnswer: string) => {
     if (question.type === 'subjective') {
@@ -36,6 +37,31 @@ const checkAnswer = (question: Question, userAnswer: string) => {
     }
     return userAnswer === question.correctAnswer;
 };
+
+const PlayerStatus = ({ player, result }: { player: SurvivalPlayer, result?: { isCorrect: boolean, points: number }}) => (
+    <div className="flex items-center justify-between p-2 rounded-md bg-secondary">
+        <div className="flex items-center gap-2">
+            <Avatar className="w-8 h-8">
+                <PixelAvatar pixels={player.pixelAvatar ? JSON.parse(player.pixelAvatar) : null} />
+                <AvatarFallback>{player.nickname.substring(0,1)}</AvatarFallback>
+            </Avatar>
+            <span className="text-sm font-medium truncate">{player.nickname}</span>
+        </div>
+        {result && (
+            <div className="flex items-center gap-1 text-sm">
+                {result.isCorrect ? (
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                ) : (
+                    <XCircle className="w-4 h-4 text-red-500" />
+                )}
+                <span className={cn("font-semibold", result.isCorrect ? "text-green-600" : "text-red-600")}>
+                    {result.isCorrect ? `+${result.points}` : ''}
+                </span>
+            </div>
+        )}
+    </div>
+);
+
 
 export default function SurvivalQuizGamePage() {
   const { id: gameRoomId } = useParams();
@@ -59,6 +85,7 @@ export default function SurvivalQuizGamePage() {
   // Timer logic
   useEffect(() => {
     if (!gameRoom || !gameRoom.currentQuestionEndsAt || gameRoom.isAnswerRevealed) {
+      if (gameRoom?.isAnswerRevealed) setTimeProgress(0);
       return;
     }
     const interval = setInterval(() => {
@@ -70,38 +97,49 @@ export default function SurvivalQuizGamePage() {
 
       if (remaining === 0) {
         clearInterval(interval);
-        if (isHost) {
-          // Time is up, host processes results
-        }
       }
     }, 100);
 
     return () => clearInterval(interval);
-  }, [gameRoom, isHost]);
+  }, [gameRoom]);
   
   // Firestore listener
   useEffect(() => {
-    if (!gameRoomId || typeof gameRoomId !== 'string') return;
-    const roomRef = doc(db, 'survival-game-rooms', gameRoomId);
+    if (!gameRoomId || typeof gameRoomId !== 'string' || !user) {
+        setIsLoading(false);
+        return;
+    };
+    
+    const roomRef = doc(db, 'survival-game-rooms', gameRoomId as string);
+
     const unsubscribe = onSnapshot(roomRef, (docSnap) => {
       if (docSnap.exists()) {
         const roomData = { id: docSnap.id, ...docSnap.data() } as SurvivalGameRoom;
-        setGameRoom(roomData);
 
-        // Reset user answer for new question
-        if (gameRoom && roomData.currentQuestionIndex !== gameRoom.currentQuestionIndex) {
-            setUserAnswer('');
-            setIsSubmitting(false);
-        }
+        setGameRoom((prevRoom) => {
+            if (prevRoom && prevRoom.players[user.uid] && !roomData.players[user.uid]) {
+                toast({ variant: "destructive", title: "방에서 내보내졌습니다." });
+                router.push('/dashboard');
+                return prevRoom;
+            }
+
+            if (prevRoom && roomData.currentQuestionIndex !== prevRoom.currentQuestionIndex) {
+                setUserAnswer('');
+                setIsSubmitting(false);
+            }
+            
+            return roomData;
+        });
 
       } else {
-        toast({variant: 'destructive', title: '오류', description: '게임을 찾을 수 없습니다.'});
+        toast({ variant: 'destructive', title: '방이 삭제되었습니다.' });
         router.push('/dashboard');
       }
       setIsLoading(false);
     });
+
     return () => unsubscribe();
-  }, [gameRoomId, router, toast, gameRoom]);
+  }, [gameRoomId, user, router, toast]);
 
   const handleSubmitAnswer = async () => {
     if (!user || !currentQuestion || !userAnswer || hasAnswered) return;
@@ -141,14 +179,14 @@ export default function SurvivalQuizGamePage() {
         
         for (const uid in players) {
           const player = players[uid];
-          if (player.isEliminated) continue;
+          const wasPreviouslyEliminated = player.isEliminated;
 
           const submission = currentAnswers[uid];
           const isCorrect = submission ? checkAnswer(currentQuestion, submission.answer) : false;
           let points = 0;
           
           if (isCorrect) {
-              const basePoints = currentQuestion.points > 0 ? currentQuestion.points : 30; // Handle random points as 30
+              const basePoints = currentQuestion.points > 0 ? currentQuestion.points : 30;
               let timeBonus = 0;
               if (startTime && submission?.submittedAt) {
                   const submissionTime = (submission.submittedAt as any).toDate().getTime();
@@ -163,7 +201,8 @@ export default function SurvivalQuizGamePage() {
           newResults[uid] = { isCorrect, points };
 
           players[uid].score += points;
-          if (!isCorrect) {
+          
+          if (!wasPreviouslyEliminated && !isCorrect) {
               players[uid].isEliminated = true;
           }
           players[uid].answers.push({
@@ -192,7 +231,6 @@ export default function SurvivalQuizGamePage() {
     // TODO: 패자부활 로직
     const nextIndex = gameRoom.currentQuestionIndex + 1;
     if (nextIndex >= gameRoom.allQuestions.length) {
-        // Game over
         await updateDoc(doc(db, 'survival-game-rooms', gameRoomId as string), { status: 'finished' });
     } else {
         await updateDoc(doc(db, 'survival-game-rooms', gameRoomId as string), {
@@ -211,7 +249,7 @@ export default function SurvivalQuizGamePage() {
     setShowEndGameConfirm(false);
   }
 
-  const renderPlayerList = (title: string, players: any[], icon: React.ReactNode) => (
+  const renderPlayerList = (title: string, players: SurvivalPlayer[], icon: React.ReactNode) => (
     <Card>
         <CardHeader className="p-4">
             <CardTitle className="text-lg flex items-center gap-2">{icon} {title} ({players.length})</CardTitle>
@@ -240,9 +278,14 @@ export default function SurvivalQuizGamePage() {
       return <div className="text-center p-8">게임을 찾을 수 없거나 참여자가 아닙니다.</div>
   }
 
-  const { players } = gameRoom;
-  const survivors = Object.values(players).filter(p => !p.isEliminated);
-  const eliminated = Object.values(players).filter(p => p.isEliminated);
+  const { players, lastQuestionResults } = gameRoom;
+  const allPlayers = Object.values(players).sort((a,b)=> b.score - a.score);
+  const survivors = allPlayers.filter(p => !p.isEliminated);
+  const eliminated = allPlayers.filter(p => p.isEliminated);
+
+  const correctPlayers = allPlayers.filter(p => lastQuestionResults?.[p.uid]?.isCorrect);
+  const incorrectPlayers = allPlayers.filter(p => lastQuestionResults && lastQuestionResults[p.uid] && !lastQuestionResults[p.uid].isCorrect);
+  const noAnswerPlayers = allPlayers.filter(p => !lastQuestionResults?.[p.uid]);
 
   if (gameRoom.status === 'finished') {
     return (
@@ -257,14 +300,16 @@ export default function SurvivalQuizGamePage() {
                 </CardHeader>
                 <CardContent>
                     <h3 className="font-semibold mb-2">최종 순위</h3>
-                    <div className="space-y-2">
-                        {Object.values(players).sort((a,b) => b.score - a.score).map((p, i) => (
-                             <div key={p.uid} className="flex justify-between items-center p-2 rounded-md bg-secondary">
-                                <span className="font-medium">{i+1}. {p.nickname}</span>
-                                <span className="font-bold text-primary">{p.score}점</span>
-                             </div>
-                        ))}
-                    </div>
+                    <ScrollArea className="h-60">
+                        <div className="space-y-2 pr-4">
+                            {allPlayers.map((p, i) => (
+                                <div key={p.uid} className="flex justify-between items-center p-2 rounded-md bg-secondary">
+                                    <span className="font-medium">{i+1}. {p.nickname}</span>
+                                    <span className="font-bold text-primary">{p.score}점</span>
+                                </div>
+                            ))}
+                        </div>
+                    </ScrollArea>
                 </CardContent>
                 <CardFooter>
                   <Button className="w-full" onClick={() => router.push('/dashboard')}>대시보드로 돌아가기</Button>
@@ -290,13 +335,30 @@ export default function SurvivalQuizGamePage() {
             {currentQuestion ? (
                 <div className="space-y-6">
                     {gameRoom.isAnswerRevealed ? (
-                        <div className="text-center p-8 rounded-lg bg-secondary space-y-4">
-                            <h3 className="font-bold text-xl">정답: {currentQuestion.answer || currentQuestion.correctAnswer}</h3>
-                            {currentPlayer && gameRoom.lastQuestionResults && gameRoom.lastQuestionResults[currentPlayer.uid] && (
-                                <div className={cn("text-lg font-semibold", gameRoom.lastQuestionResults[currentPlayer.uid].isCorrect ? "text-green-600" : "text-red-600")}>
-                                    {gameRoom.lastQuestionResults[currentPlayer.uid].isCorrect ? `정답! +${gameRoom.lastQuestionResults[currentPlayer.uid].points}점` : '오답...'}
-                                </div>
-                            )}
+                        <div className="space-y-4">
+                           <div className="text-center p-4 rounded-lg bg-secondary space-y-2">
+                                <h3 className="font-bold text-xl">정답: {currentQuestion.answer || currentQuestion.correctAnswer}</h3>
+                           </div>
+                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <Card>
+                                    <CardHeader className="p-3"><CardTitle className="text-base text-green-600">정답자 ({correctPlayers.length})</CardTitle></CardHeader>
+                                    <CardContent className="p-3 pt-0 h-40 overflow-y-auto space-y-2">
+                                        {correctPlayers.map(p => <PlayerStatus key={p.uid} player={p} result={lastQuestionResults?.[p.uid]}/>)}
+                                    </CardContent>
+                                </Card>
+                                <Card>
+                                    <CardHeader className="p-3"><CardTitle className="text-base text-red-600">오답자 ({incorrectPlayers.length})</CardTitle></CardHeader>
+                                    <CardContent className="p-3 pt-0 h-40 overflow-y-auto space-y-2">
+                                        {incorrectPlayers.map(p => <PlayerStatus key={p.uid} player={p} result={lastQuestionResults?.[p.uid]}/>)}
+                                    </CardContent>
+                                </Card>
+                                <Card>
+                                    <CardHeader className="p-3"><CardTitle className="text-base text-muted-foreground">미제출 ({noAnswerPlayers.length})</CardTitle></CardHeader>
+                                    <CardContent className="p-3 pt-0 h-40 overflow-y-auto space-y-2">
+                                        {noAnswerPlayers.map(p => <PlayerStatus key={p.uid} player={p} />)}
+                                    </CardContent>
+                                </Card>
+                           </div>
                         </div>
                     ) : (
                     <>
@@ -307,8 +369,11 @@ export default function SurvivalQuizGamePage() {
                         )}
                         <p className="text-lg font-medium whitespace-pre-wrap">{currentQuestion.question}</p>
                         
-                        {currentPlayer && !currentPlayer.isEliminated && !hasAnswered && (
+                        {currentPlayer && !hasAnswered && (
                             <div className="space-y-4 pt-4 border-t">
+                                {currentPlayer.isEliminated && (
+                                    <p className="text-center font-semibold text-orange-500">현재 탈락 상태입니다. 패자부활을 위해 계속 문제를 풀어보세요!</p>
+                                )}
                                 {currentQuestion.type === 'subjective' && (
                                     <Input placeholder="정답을 입력하세요" value={userAnswer} onChange={(e) => setUserAnswer(e.target.value)} disabled={isSubmitting} />
                                 )}
@@ -339,7 +404,6 @@ export default function SurvivalQuizGamePage() {
                             </div>
                         )}
                         {currentPlayer && hasAnswered && <p className="text-center text-primary font-semibold">답변을 제출했습니다. 결과를 기다려주세요.</p>}
-                        {currentPlayer && currentPlayer.isEliminated && <p className="text-center text-destructive font-semibold">탈락했습니다. 다른 플레이어들을 응원해주세요.</p>}
                     </>
                     )}
                 </div>
@@ -381,3 +445,5 @@ export default function SurvivalQuizGamePage() {
     </div>
   );
 }
+
+    
