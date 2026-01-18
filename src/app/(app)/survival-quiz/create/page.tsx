@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -294,53 +295,55 @@ export default function CreateSurvivalQuizPage() {
                 
                  <div className="space-y-4">
                     <h3 className="text-lg font-semibold">게임 모드 선택</h3>
-                    <Card>
-                        <CardHeader>
-                            <div className="flex items-center gap-3">
-                                <RadioGroupItem value="golden-bell" id="mode-golden-bell" className="peer" checked={true} />
-                                <Label htmlFor="mode-golden-bell" className="flex-1 cursor-pointer">
-                                    <CardTitle>골든벨 모드</CardTitle>
-                                    <CardDescription>마지막 한 명이 남을 때까지 진행되는 서바이벌 퀴즈입니다.</CardDescription>
-                                </Label>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="space-y-6 pt-4 pl-12">
-                            <div className="space-y-2">
-                                <Label>문제당 시간 제한</Label>
-                                <RadioGroup value={String(timeLimit)} onValueChange={(val) => setTimeLimit(Number(val))} className="flex gap-4">
-                                    <Label htmlFor="time-60" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
-                                        <RadioGroupItem value="60" id="time-60" /> 1분
-                                    </Label>
-                                    <Label htmlFor="time-120" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
-                                        <RadioGroupItem value="120" id="time-120" /> 2분
-                                    </Label>
-                                    <Label htmlFor="time-180" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
-                                        <RadioGroupItem value="180" id="time-180" /> 3분
-                                    </Label>
-                                </RadioGroup>
-                            </div>
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <Label htmlFor="revival-enabled" className="flex flex-col gap-1">
-                                        <span>패자부활전 활성화</span>
-                                        <span className="text-xs text-muted-foreground">게임이 70% 진행되었을 때 탈락자 중 일부가 부활합니다.</span>
-                                    </Label>
-                                    <Switch id="revival-enabled" checked={revivalEnabled} onCheckedChange={setRevivalEnabled} />
-                                </div>
-                                {revivalEnabled && (
-                                    <div className="space-y-2 pl-2">
-                                        <Label>부활 조건: 탈락자 중 상위 {revivalPercentage}%</Label>
-                                        <Slider 
-                                            value={[revivalPercentage]}
-                                            onValueChange={(val) => setRevivalPercentage(val[0])}
-                                            max={50}
-                                            step={5}
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
+                    <RadioGroup defaultValue="golden-bell">
+                      <Card>
+                          <CardHeader>
+                              <div className="flex items-center gap-3">
+                                  <RadioGroupItem value="golden-bell" id="mode-golden-bell" className="peer" />
+                                  <Label htmlFor="mode-golden-bell" className="flex-1 cursor-pointer">
+                                      <CardTitle>골든벨 모드</CardTitle>
+                                      <CardDescription>마지막 한 명이 남을 때까지 진행되는 서바이벌 퀴즈입니다.</CardDescription>
+                                  </Label>
+                              </div>
+                          </CardHeader>
+                          <CardContent className="space-y-6 pt-4 pl-12">
+                              <div className="space-y-2">
+                                  <Label>문제당 시간 제한</Label>
+                                  <RadioGroup value={String(timeLimit)} onValueChange={(val) => setTimeLimit(Number(val))} className="flex gap-4">
+                                      <Label htmlFor="time-60" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                                          <RadioGroupItem value="60" id="time-60" /> 1분
+                                      </Label>
+                                      <Label htmlFor="time-120" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                                          <RadioGroupItem value="120" id="time-120" /> 2분
+                                      </Label>
+                                      <Label htmlFor="time-180" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                                          <RadioGroupItem value="180" id="time-180" /> 3분
+                                      </Label>
+                                  </RadioGroup>
+                              </div>
+                              <div className="space-y-4">
+                                  <div className="flex items-center justify-between">
+                                      <Label htmlFor="revival-enabled" className="flex flex-col gap-1">
+                                          <span>패자부활전 활성화</span>
+                                          <span className="text-xs text-muted-foreground">게임이 70% 진행되었을 때 탈락자 중 일부가 부활합니다.</span>
+                                      </Label>
+                                      <Switch id="revival-enabled" checked={revivalEnabled} onCheckedChange={setRevivalEnabled} />
+                                  </div>
+                                  {revivalEnabled && (
+                                      <div className="space-y-2 pl-2">
+                                          <Label>부활 조건: 탈락자 중 상위 {revivalPercentage}%</Label>
+                                          <Slider 
+                                              value={[revivalPercentage]}
+                                              onValueChange={(val) => setRevivalPercentage(val[0])}
+                                              max={50}
+                                              step={5}
+                                          />
+                                      </div>
+                                  )}
+                              </div>
+                          </CardContent>
+                      </Card>
+                    </RadioGroup>
                 </div>
 
                 <div className="space-y-4">
@@ -478,3 +481,5 @@ export default function CreateSurvivalQuizPage() {
     </>
   );
 }
+
+    
