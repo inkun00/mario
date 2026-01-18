@@ -37,7 +37,7 @@ import Image from 'next/image';
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe, updateDoc, increment, arrayUnion, getDoc, serverTimestamp, Timestamp, getDocs, writeBatch, addDoc, orderBy, runTransaction } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { GameSet, User as FsUser, GameRoom, PlayedGameSet, GameSetComment } from '@/lib/types';
+import type { GameSet, User as FsUser, GameRoom, PlayedGameSet, GameSetComment, SurvivalGameRoom } from '@/lib/types';
 import { auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -69,6 +69,20 @@ interface OpenGameRoom extends GameRoom {
     gameSet?: GameSet;
 }
 
+interface CombinedOpenRoom {
+  id: string;
+  roomTitle: string;
+  gameSetTitle: string;
+  playerCount: number;
+  maxPlayers: number;
+  questionCount: number | string;
+  password?: string;
+  type: 'regular' | 'survival';
+  raw: GameRoom | SurvivalGameRoom;
+  createdAt: Timestamp;
+}
+
+
 const getStarRating = (score?: number): { stars: number, color: string } => {
   if (score === undefined || score === null) return { stars: 0, color: 'text-muted-foreground' };
   if (score >= 81) return { stars: 5, color: 'text-yellow-400' };
@@ -90,6 +104,7 @@ export default function DashboardPage() {
   const [filteredGameSets, setFilteredGameSets] = useState<GameSetDocument[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [openGameRooms, setOpenGameRooms] = useState<OpenGameRoom[]>([]);
+  const [openSurvivalRooms, setOpenSurvivalRooms] = useState<SurvivalGameRoom[]>([]);
   const [playedGameSetIds, setPlayedGameSetIds] = useState<Set<string>>(new Set());
 
   const [loading, setLoading] = useState(true);
@@ -245,21 +260,26 @@ export default function DashboardPage() {
     };
   }, [user, toast]);
 
-  useEffect(() => {
+useEffect(() => {
     setLoadingRooms(true);
 
     const cleanupOldRooms = async () => {
         const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-        const oldRoomsQuery = query(
-            collection(db, 'game-rooms'),
-            where('status', '==', 'waiting')
-        );
+        const oldRoomsQuery = query(collection(db, 'game-rooms'), where('status', '==', 'waiting'));
+        const oldSurvivalRoomsQuery = query(collection(db, 'survival-game-rooms'), where('status', '==', 'waiting'));
 
         try {
-            const snapshot = await getDocs(oldRoomsQuery);
+            const [regularSnapshot, survivalSnapshot] = await Promise.all([getDocs(oldRoomsQuery), getDocs(oldSurvivalRoomsQuery)]);
             const batch = writeBatch(db);
-            snapshot.forEach(doc => {
+
+            regularSnapshot.forEach(doc => {
                 const room = doc.data() as GameRoom;
+                if (room.createdAt && room.createdAt.toDate() < tenMinutesAgo) {
+                    batch.delete(doc.ref);
+                }
+            });
+            survivalSnapshot.forEach(doc => {
+                const room = doc.data() as SurvivalGameRoom;
                 if (room.createdAt && room.createdAt.toDate() < tenMinutesAgo) {
                     batch.delete(doc.ref);
                 }
@@ -272,22 +292,12 @@ export default function DashboardPage() {
 
     cleanupOldRooms();
 
-    const roomsQuery = query(
-      collection(db, 'game-rooms'),
-      where('status', '==', 'waiting'),
-      where('joinType', '==', 'remote')
-    );
-
+    const roomsQuery = query(collection(db, 'game-rooms'), where('status', '==', 'waiting'), where('joinType', '==', 'remote'));
     const roomsUnsubscribe = onSnapshot(roomsQuery, async (snapshot) => {
       const roomsPromises = snapshot.docs.map(async (roomDoc) => {
         const roomData = roomDoc.data() as GameRoom;
-        
-        // 호스트가 현재 players 목록에 있는지 확인
         const isHostPresent = roomData.players && roomData.hostId && roomData.players[roomData.hostId];
-        
-        if (!isHostPresent) {
-          return null; // 호스트가 없으면 목록에 포함하지 않음
-        }
+        if (!isHostPresent) return null;
 
         const setDocRef = doc(db, 'game-sets', roomData.gameSetId);
         const setDocSnap = await getDoc(setDocRef);
@@ -297,9 +307,7 @@ export default function DashboardPage() {
           gameSet: setDocSnap.exists() ? (setDocSnap.data() as GameSet) : undefined,
         };
       });
-
       const rooms = (await Promise.all(roomsPromises)).filter(room => room !== null) as OpenGameRoom[];
-      
       setOpenGameRooms(rooms);
       setLoadingRooms(false);
     }, (error) => {
@@ -308,8 +316,27 @@ export default function DashboardPage() {
       setLoadingRooms(false);
     });
 
-    return () => roomsUnsubscribe();
-  }, [toast]);
+    const survivalRoomsQuery = query(collection(db, 'survival-game-rooms'), where('status', '==', 'waiting'));
+    const survivalRoomsUnsubscribe = onSnapshot(survivalRoomsQuery, (snapshot) => {
+        const rooms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SurvivalGameRoom));
+        const joinableRooms = rooms.filter(room => {
+            if (room.hostId === user?.uid) return false;
+            if (room.participationScope === 'public') return true;
+            if (room.participationScope === 'class' && currentUserData?.classId === room.hostId) {
+                return true;
+            }
+            return false;
+        });
+        setOpenSurvivalRooms(joinableRooms);
+    }, (error) => {
+        console.error("Error fetching survival game rooms:", error);
+    });
+
+    return () => {
+        roomsUnsubscribe();
+        survivalRoomsUnsubscribe();
+    };
+}, [user, currentUserData, toast]);
 
 
   useEffect(() => {
@@ -493,13 +520,15 @@ export default function DashboardPage() {
     setCurrentPage(1);
   };
 
-  const handleJoinGame = async (room: OpenGameRoom) => {
+  const handleJoinGame = async (room: CombinedOpenRoom) => {
     setIsJoining(room.id);
-    if (room.password) {
-        setTargetRoom(room);
+    if (room.type === 'regular' && room.password) {
+        setTargetRoom(room.raw as GameRoom);
         setTargetRoomId(room.id);
         setShowPasswordDialog(true);
         setIsJoining(null);
+    } else if (room.type === 'survival') {
+        router.push(`/survival-quiz/${room.id}/lobby`);
     } else {
         router.push(`/game/${room.id}/lobby`);
     }
@@ -624,6 +653,36 @@ export default function DashboardPage() {
     }
   };
 
+  const allOpenRooms = useMemo((): CombinedOpenRoom[] => {
+    const regularRooms: CombinedOpenRoom[] = openGameRooms.map(room => ({
+        id: room.id,
+        roomTitle: room.roomTitle,
+        gameSetTitle: room.gameSet?.title || '퀴즈 정보 로딩 중...',
+        playerCount: Object.keys(room.players).length,
+        maxPlayers: 6,
+        questionCount: room.gameSet?.questions?.length || '?',
+        password: room.password,
+        type: 'regular',
+        raw: room,
+        createdAt: room.createdAt,
+    }));
+
+    const survivalRooms: CombinedOpenRoom[] = openSurvivalRooms.map(room => ({
+        id: room.id,
+        roomTitle: room.roomTitle,
+        gameSetTitle: '서바이벌 퀴즈',
+        playerCount: Object.keys(room.players).length,
+        maxPlayers: 100,
+        questionCount: room.allQuestions.length,
+        password: '', // No password for survival rooms yet
+        type: 'survival',
+        raw: room,
+        createdAt: room.createdAt,
+    }));
+
+    return [...regularRooms, ...survivalRooms].sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+}, [openGameRooms, openSurvivalRooms]);
+
 
   const indexOfLastItem = currentPage * ITEMS_PER_PAGE;
   const indexOfFirstItem = indexOfLastItem - ITEMS_PER_PAGE;
@@ -691,26 +750,29 @@ export default function DashboardPage() {
                     <Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" />
                     <p className="mt-2 text-muted-foreground">게임방 목록을 불러오는 중...</p>
                 </div>
-            ) : openGameRooms.length === 0 ? (
+            ) : allOpenRooms.length === 0 ? (
                 <div className="text-center py-12 border-2 border-dashed rounded-lg">
                     <p className="text-muted-foreground">현재 참여 가능한 게임방이 없습니다. 새로운 게임방을 만들어보세요!</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {openGameRooms.map(room => (
+                    {allOpenRooms.map(room => (
                         <Card key={room.id} className="flex flex-col">
                             <CardHeader>
-                                <CardTitle className="font-headline truncate">{room.roomTitle}</CardTitle>
-                                <CardDescription className="truncate">{room.gameSet?.title || '퀴즈 정보 로딩 중...'}</CardDescription>
+                                <CardTitle className="font-headline truncate flex items-center gap-2">
+                                     {room.type === 'survival' && <Swords className="w-5 h-5 text-destructive"/>}
+                                     {room.roomTitle}
+                                </CardTitle>
+                                <CardDescription className="truncate">{room.gameSetTitle}</CardDescription>
                             </CardHeader>
                             <CardContent className="flex-grow space-y-2 text-sm text-muted-foreground">
                                 <div className="flex items-center gap-2">
                                     <Users className="w-4 h-4"/>
-                                    <span>{Object.keys(room.players).length} / 6명</span>
+                                    <span>{room.playerCount} / {room.maxPlayers}명</span>
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <Book className="w-4 h-4"/>
-                                    <span>{room.gameSet?.questions?.length || '?'} 문제</span>
+                                    <span>{room.questionCount} 문제</span>
                                 </div>
                             </CardContent>
                             <CardFooter>
@@ -1286,5 +1348,6 @@ export default function DashboardPage() {
     </>
   );
 }
+
 
 
