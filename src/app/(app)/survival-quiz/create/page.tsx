@@ -176,7 +176,14 @@ export default function CreateSurvivalQuizPage() {
         const selectedGameSets = gameSets.filter(set => selectedIds.includes(set.id));
         let allQuestions: Question[] = [];
         selectedGameSets.forEach(set => {
-            allQuestions = [...allQuestions, ...set.questions];
+            const sanitizedQuestions = set.questions.map(q => {
+                const points = Number(q.points);
+                return {
+                    ...q,
+                    points: isNaN(points) ? 10 : points,
+                };
+            });
+            allQuestions = [...allQuestions, ...sanitizedQuestions];
         });
         allQuestions.sort(() => Math.random() - 0.5);
         allQuestions = allQuestions.map((q, i) => ({...q, id: i}));

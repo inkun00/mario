@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -181,30 +182,33 @@ export default function SurvivalQuizGamePage() {
 
         for (const uid of playerUIDs) {
           const player = players[uid];
-          const wasPreviouslyEliminated = player.isEliminated;
 
           const submission = currentAnswers[uid];
           const isCorrect = submission ? checkAnswer(currentQuestion, submission.answer) : false;
-          let points = 0;
           
+          let points = 0;
           if (isCorrect) {
               const basePoints = currentQuestion.points > 0 ? currentQuestion.points : 30;
               let timeBonus = 0;
               if (startTime && submission?.submittedAt) {
                   const submissionTime = (submission.submittedAt as any).toDate().getTime();
                   const timeTaken = submissionTime - startTime;
-                  if (timeTaken > 0 && timeTaken < timeLimit) {
+                  if (timeTaken > 0 && timeLimit > 0) {
                     timeBonus = Math.max(0, Math.floor((1 - (timeTaken / timeLimit)) * (basePoints / 2)));
                   }
               }
-              points = basePoints + timeBonus;
+              points = (basePoints || 30) + (timeBonus || 0);
           }
           
+          if(isNaN(points)) {
+            points = 0;
+          }
+
           newResults[uid] = { isCorrect, points };
 
-          players[uid].score += points;
+          players[uid].score = (players[uid].score || 0) + points;
           
-          if (!wasPreviouslyEliminated && !isCorrect) {
+          if (!player.isEliminated && !isCorrect) {
               players[uid].isEliminated = true;
           }
           
@@ -452,7 +456,7 @@ export default function SurvivalQuizGamePage() {
                     {gameRoom.isAnswerRevealed ? (
                         <Button onClick={handleNextQuestion}>다음 문제</Button>
                     ) : (
-                        <Button onClick={handleShowResults}>결과 보기</Button>
+                        <Button onClick={handleShowResults} disabled={timeRemaining > 0}>결과 보기</Button>
                     )}
                     <Button variant="destructive" onClick={() => setShowEndGameConfirm(true)}>게임 종료</Button>
                 </CardContent>
