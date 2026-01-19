@@ -41,6 +41,8 @@ export default function TeamCooperationGamePage() {
     const projectileRef = useRef<any>(null);
     const cameraXRef = useRef(0);
     const [message, setMessage] = useState('스페이스바를 꾹 눌러 파워를 조절하세요!');
+    const [userAnswer, setUserAnswer] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Game constants
     const WORLD_WIDTH = 2400; 
@@ -63,7 +65,14 @@ export default function TeamCooperationGamePage() {
         const roomRef = doc(db, 'team-cooperation-rooms', gameRoomId as string);
         const unsubscribe = onSnapshot(roomRef, (docSnap) => {
             if (docSnap.exists()) {
-                setGameRoom({ id: docSnap.id, ...docSnap.data() } as TeamCooperationGameRoom);
+                const newRoomData = { id: docSnap.id, ...docSnap.data() } as TeamCooperationGameRoom;
+                setGameRoom((prevRoom) => {
+                    if (prevRoom && newRoomData.currentQuestionIndex !== prevRoom.currentQuestionIndex) {
+                        setUserAnswer('');
+                        setIsSubmitting(false);
+                    }
+                    return newRoomData;
+                });
             } else {
                 toast({ variant: 'destructive', title: '방이 삭제되었습니다.' });
                 router.push('/dashboard');
@@ -131,7 +140,7 @@ export default function TeamCooperationGamePage() {
                     plants: updatedPlants,
                     teamScore: newTeamScore,
                     phase: 'QUIZ',
-                    plantingTurnUid: null,
+                    plantingTurnUid: undefined,
                     currentQuestionIndex: nextQuestionIndex,
                     status: newStatus,
                 });
@@ -290,13 +299,14 @@ export default function TeamCooperationGamePage() {
 
     const handleSubmitAnswer = async () => {
         if (!user || !currentQuestion || !userAnswer || hasAnsweredCurrentQuestion || isHost) return;
-        
+        setIsSubmitting(true);
         try {
             const roomRef = doc(db, 'team-cooperation-rooms', gameRoomId as string);
             await updateDoc(roomRef, { [`currentAnswers.${user.uid}`]: { answer: userAnswer, submittedAt: Timestamp.now() } });
             toast({ title: '답변 제출 완료!', description: '다른 플레이어들의 답변을 기다려주세요.' });
         } catch (error) {
             toast({ variant: 'destructive', title: '오류', description: '답변 제출에 실패했습니다.' });
+            setIsSubmitting(false);
         }
     };
     
