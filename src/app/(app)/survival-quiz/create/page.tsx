@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -349,8 +350,8 @@ export default function CreateSurvivalQuizPage() {
                 <div className="space-y-4">
                     <h3 className="text-lg font-semibold">문제로 사용할 퀴즈 세트 선택</h3>
                     <Card className="p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-                            <div className="md:col-span-5 lg:col-span-2 space-y-1">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
+                            <div className="sm:col-span-2 lg:col-span-2 space-y-1">
                                 <Label htmlFor="search-keyword">제목/설명</Label>
                                 <Input 
                                 id="search-keyword" 
@@ -400,7 +401,7 @@ export default function CreateSurvivalQuizPage() {
                                 </SelectContent>
                                 </Select>
                             </div>
-                            <div className="flex gap-2 col-start-1 md:col-start-auto md:col-span-2 lg:col-span-1">
+                            <div className="flex gap-2 col-start-1 sm:col-start-auto">
                                 <Button onClick={handleSearch} className="w-full"><Search className="mr-2 h-4 w-4" />검색</Button>
                                 <Button onClick={handleResetSearch} variant="outline" className="w-full"><RotateCcw className="mr-2 h-4 w-4" />초기화</Button>
                             </div>
@@ -454,7 +455,7 @@ export default function CreateSurvivalQuizPage() {
         </Card>
     </div>
       <Dialog open={!!previewGameSet} onOpenChange={() => setPreviewGameSet(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
                 <DialogTitle>{previewGameSet?.title}</DialogTitle>
                 <DialogDescription>

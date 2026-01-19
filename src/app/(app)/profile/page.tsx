@@ -1303,7 +1303,7 @@ export default function ProfilePage() {
       </Card>
       
       <Tabs defaultValue="my-quizzes" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
           <TabsTrigger value="my-quizzes">내가 만든 퀴즈</TabsTrigger>
           <TabsTrigger value="played-quizzes">내가 풀었던 문제</TabsTrigger>
           <TabsTrigger value="achievement">과목별 성취도</TabsTrigger>
@@ -1614,7 +1614,7 @@ export default function ProfilePage() {
 
     {/* AI Writing Topic Dialog */}
     <Dialog open={writingTopic.isOpen} onOpenChange={(isOpen) => !isOpen && setWritingTopic(prev => ({...prev, isOpen: false}))}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>AI 주제 글쓰기</DialogTitle>
           <DialogDescription>
@@ -1710,7 +1710,7 @@ export default function ProfilePage() {
     
     {viewingWritingSubmission && (
       <Dialog open={!!viewingWritingSubmission} onOpenChange={() => setViewingWritingSubmission(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="sm:max-w-3xl">
             <DialogHeader>
                 <DialogTitle>AI 글쓰기 평가 결과</DialogTitle>
                 <DialogDescription>
@@ -1778,7 +1778,7 @@ export default function ProfilePage() {
 
     {/* Avatar Editor Dialog */}
     <Dialog open={isAvatarEditorOpen} onOpenChange={setIsAvatarEditorOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="sm:max-w-4xl">
             <DialogHeader>
                 <DialogTitle>프로필 이미지 편집</DialogTitle>
                 <DialogDescription>
@@ -1794,7 +1794,7 @@ export default function ProfilePage() {
 
     {/* Send Points Dialog */}
     <Dialog open={isSendPointsDialogOpen} onOpenChange={setIsSendPointsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
             <DialogHeader>
                 <DialogTitle>학급 포인트 보내기</DialogTitle>
                 <DialogDescription>
@@ -1837,7 +1837,7 @@ export default function ProfilePage() {
 
     {/* Point History Dialog */}
     <Dialog open={isPointHistoryOpen} onOpenChange={setIsPointHistoryOpen}>
-       <DialogContent className="max-w-4xl">
+       <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>포인트 활동 내역</DialogTitle>
           <DialogDescription>
@@ -1969,7 +1969,7 @@ export default function ProfilePage() {
 
     {/* Incorrect Answers Dialog */}
     <Dialog open={showIncorrectAnswersDialog} onOpenChange={setShowIncorrectAnswersDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>오답 기록 확인하기</DialogTitle>
             <DialogDescription>
@@ -2015,7 +2015,7 @@ export default function ProfilePage() {
     {/* My Game Set Preview Dialog */}
     {previewGameSet && (
         <Dialog open={!!previewGameSet} onOpenChange={() => setPreviewGameSet(null)}>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>{previewGameSet.title}</DialogTitle>
                     <DialogDescription>

@@ -791,8 +791,8 @@ useEffect(() => {
           <h2 className="text-2xl font-bold font-headline mb-4">게임 세트 둘러보기</h2>
           
           <Card className="mb-6 p-4">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
-              <div className="md:col-span-5 lg:col-span-2 space-y-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
+              <div className="sm:col-span-2 lg:col-span-2 space-y-1">
                 <Label htmlFor="search-keyword">제목/설명</Label>
                 <Input 
                   id="search-keyword" 
@@ -842,7 +842,7 @@ useEffect(() => {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex gap-2 col-start-1 md:col-start-auto md:col-span-2 lg:col-span-1">
+              <div className="flex gap-2 col-start-1 sm:col-start-auto">
                 <Button onClick={handleSearch} className="w-full"><Search className="mr-2 h-4 w-4" />검색</Button>
                 <Button onClick={handleResetSearch} variant="outline" className="w-full"><RotateCcw className="mr-2 h-4 w-4" />초기화</Button>
               </div>
@@ -1071,7 +1071,7 @@ useEffect(() => {
 
       {selectedGameSet && (
         <Dialog open={!!selectedGameSet} onOpenChange={(isOpen) => !isOpen && setSelectedGameSet(null)}>
-          <DialogContent className="max-w-5xl">
+          <DialogContent className="sm:max-w-5xl">
             <DialogHeader>
               <div className="flex justify-between items-start">
                   <div>
@@ -1348,6 +1348,7 @@ useEffect(() => {
     </>
   );
 }
+
 
 
 

@@ -941,7 +941,7 @@ export default function MyClassPage() {
 
       {/* Teacher Dialogs */}
       <Dialog open={showBulkPointDialog} onOpenChange={setShowBulkPointDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
             <DialogHeader>
                 <DialogTitle>포인트 일괄 지급</DialogTitle>
                 <DialogDescription>선택한 학생들에게 포인트를 지급합니다.</DialogDescription>
@@ -984,7 +984,7 @@ export default function MyClassPage() {
       </Dialog>
       
       <Dialog open={showBulkItemDialog} onOpenChange={setShowBulkItemDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="sm:max-w-md">
             <DialogHeader>
                 <DialogTitle>상품 일괄 지급</DialogTitle>
                 <DialogDescription>선택한 학생들에게 상품을 지급합니다.</DialogDescription>
@@ -1037,7 +1037,7 @@ export default function MyClassPage() {
 
       {/* Analytics Dialog */}
       <Dialog open={!!analyticsMode} onOpenChange={(isOpen) => !isOpen && setAnalyticsMode(null)}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="w-full max-w-4xl h-auto md:h-[80vh]">
             <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                     {analyticsMode === 'students' && <Users className="w-6 h-6 text-primary"/>}
@@ -1046,7 +1046,7 @@ export default function MyClassPage() {
                     {analyticsDialogTitle}
                 </DialogTitle>
             </DialogHeader>
-            <div className="min-h-[60vh]">
+            <div className="h-full">
             {isAnalyticsLoading ? (
                 <div className="flex justify-center items-center h-full">
                     <Loader2 className="w-8 h-8 animate-spin text-primary"/>
@@ -1162,7 +1162,7 @@ export default function MyClassPage() {
       
       {/* Student Profile View Dialog */}
       <Dialog open={!!viewingStudent} onOpenChange={(isOpen) => {if (!isOpen) { setViewingStudent(null); setStudentProfileData(null); }}}>
-        <DialogContent className="max-w-4xl min-h-[90vh]">
+        <DialogContent className="md:max-w-4xl h-auto md:h-[90vh]">
             {isStudentProfileLoading || !studentProfileData || !viewingStudent ? (
                 <div className="flex justify-center items-center h-full min-h-[80vh]">
                     <Loader2 className="w-8 h-8 animate-spin text-primary"/>
@@ -1220,7 +1220,7 @@ export default function MyClassPage() {
                             </CardContent>
                         </Card>
                         <Tabs defaultValue="my-quizzes" className="w-full">
-                            <TabsList className="grid w-full grid-cols-5">
+                            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
                             <TabsTrigger value="my-quizzes">만든 퀴즈</TabsTrigger>
                             <TabsTrigger value="played-quizzes">푼 퀴즈</TabsTrigger>
                             <TabsTrigger value="achievement">성취도</TabsTrigger>
@@ -1310,7 +1310,7 @@ export default function MyClassPage() {
       {/* Student Quiz Preview Dialog */}
       {studentQuizPreview && (
         <Dialog open={!!studentQuizPreview} onOpenChange={() => setStudentQuizPreview(null)}>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>{studentQuizPreview.title}</DialogTitle>
                     <DialogDescription>{[studentQuizPreview.grade, studentQuizPreview.semester, studentQuizPreview.subject, studentQuizPreview.unit].filter(Boolean).join(' / ')}</DialogDescription>
@@ -1383,7 +1383,7 @@ export default function MyClassPage() {
 
        {/* Student incorrect answers dialog */}
        <Dialog open={showStudentIncorrectAnswersDialog} onOpenChange={setShowStudentIncorrectAnswersDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>오답 기록 확인</DialogTitle>
             <DialogDescription>
@@ -1427,7 +1427,7 @@ export default function MyClassPage() {
       </Dialog>
       {/* Student Writing Submission Dialog */}
       <Dialog open={!!viewingWritingSubmission} onOpenChange={() => setViewingWritingSubmission(null)}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="sm:max-w-3xl">
             <DialogHeader>
                 <DialogTitle>AI 글쓰기 평가 결과</DialogTitle>
                 <DialogDescription>
