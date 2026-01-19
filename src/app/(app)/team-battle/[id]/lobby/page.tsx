@@ -49,7 +49,6 @@ export default function TeamBattleLobbyPage() {
                         isHost: userToJoin.uid === roomData.hostId,
                         isEliminated: false,
                         answers: [],
-                        teamId: undefined,
                     };
                     transaction.update(roomRef, { [`players.${userToJoin.uid}`]: newPlayer });
                 });
