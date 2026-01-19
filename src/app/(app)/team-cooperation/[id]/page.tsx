@@ -72,6 +72,11 @@ export default function TeamCooperationGamePage() {
         return () => unsubscribe();
     }, [gameRoomId, user, router, toast]);
 
+    const hasAnsweredCurrentQuestion = useMemo(() => {
+        if (!gameRoom || !user || !currentQuestion) return false;
+        return !!gameRoom.currentAnswers?.[user.uid];
+    }, [gameRoom, user, currentQuestion]);
+
     const handleCollision = useCallback(async (x: number, y: number, type: 'SEED' | 'WATER') => {
         if (!gameRoom || typeof gameRoomId !== 'string') return;
         
@@ -197,7 +202,7 @@ export default function TeamCooperationGamePage() {
                 proj.trail.push({ x: proj.x, y: proj.y });
                 if (proj.trail.length > 30) proj.trail.shift();
 
-                ctx.beginPath(); proj.trail.forEach(p => ctx.lineTo(p.x, p.y));
+                ctx.beginPath(); proj.trail.forEach((p: {x: number, y: number}) => ctx.lineTo(p.x, p.y));
                 ctx.strokeStyle = proj.type === 'SEED' ? 'rgba(67, 20, 7, 0.3)' : 'rgba(14, 165, 233, 0.3)';
                 ctx.lineWidth = 5; ctx.stroke();
 
@@ -266,7 +271,7 @@ export default function TeamCooperationGamePage() {
         if (!isCharging && chargePower > 0 && !projectileRef.current) {
           fire(chargePower);
         }
-    }, [isCharging]);
+    }, [isCharging, chargePower]);
 
     useEffect(() => {
         if (isCharging) {
@@ -285,15 +290,13 @@ export default function TeamCooperationGamePage() {
 
     const handleSubmitAnswer = async () => {
         if (!user || !currentQuestion || !userAnswer || hasAnsweredCurrentQuestion || isHost) return;
-        setIsSubmitting(true);
+        
         try {
             const roomRef = doc(db, 'team-cooperation-rooms', gameRoomId as string);
             await updateDoc(roomRef, { [`currentAnswers.${user.uid}`]: { answer: userAnswer, submittedAt: Timestamp.now() } });
             toast({ title: '답변 제출 완료!', description: '다른 플레이어들의 답변을 기다려주세요.' });
         } catch (error) {
             toast({ variant: 'destructive', title: '오류', description: '답변 제출에 실패했습니다.' });
-        } finally {
-            setIsSubmitting(false);
         }
     };
     
