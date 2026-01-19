@@ -284,8 +284,8 @@ export default function CreateSurvivalQuizPage() {
                 participationScope,
                 players: { [user.uid]: {...hostPlayer, isEliminated: false, answers: [] } },
                 teams: {
-                    teamA: { id: 'teamA', name: '레드 팀', score: 100 },
-                    teamB: { id: 'teamB', name: '블루 팀', score: 100 },
+                    teamA: { id: 'teamA', name: '레드 팀', score: 200 },
+                    teamB: { id: 'teamB', name: '블루 팀', score: 200 },
                 },
             };
             await setDoc(doc(db, 'team-battle-rooms', newRoomId), newRoomData);
