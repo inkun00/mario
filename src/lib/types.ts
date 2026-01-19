@@ -363,4 +363,14 @@ export interface TeamBattleGameRoom {
       teamB: Team;
   };
   currentQuestionIndex: number;
+  currentQuestionStartedAt?: Timestamp;
+  isAnswerRevealed?: boolean;
+  currentAnswers?: Record<string, {
+      answer: string;
+      submittedAt: Timestamp;
+  }>;
+  lastQuestionResults?: Record<string, {
+      isCorrect: boolean;
+      points: number;
+  }>;
 }
