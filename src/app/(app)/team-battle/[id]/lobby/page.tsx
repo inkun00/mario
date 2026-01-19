@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -8,7 +9,7 @@ import { auth, db } from '@/lib/firebase';
 import type { TeamBattleGameRoom, TeamBattlePlayer, User as FsUser } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Copy, Crown, Users, Loader2, Gamepad2, LogOut, Shuffle, Shield } from 'lucide-react';
 import { PixelAvatar } from '@/components/pixel-avatar';
@@ -29,7 +30,7 @@ export default function TeamBattleLobbyPage() {
     useEffect(() => {
         if (!gameRoomId || typeof gameRoomId !== 'string' || loadingUser || !user) return;
 
-        const roomRef = doc(db, 'team-battle-rooms', gameRoomId);
+        const roomRef = doc(db, 'team-battle-rooms', gameRoomId as string);
         
         const joinRoom = async (userToJoin: FsUser) => {
              try {
@@ -142,13 +143,39 @@ export default function TeamBattleLobbyPage() {
             return;
         }
 
+        const teamAPlayers = Object.values(gameRoom.players).filter(p => p.teamId === 'teamA');
+        const teamBPlayers = Object.values(gameRoom.players).filter(p => p.teamId === 'teamB');
+
+        if (teamAPlayers.length === 0 || teamBPlayers.length === 0) {
+            toast({variant: 'destructive', title: '팀 인원 부족', description: '양 팀에 최소 1명 이상의 플레이어가 필요합니다.'});
+            return;
+        }
+
         try {
             const roomRef = doc(db, 'team-battle-rooms', gameRoomId as string);
+            
+            const updates: Record<string, any> = {};
+            const questionIndices = Array.from({ length: gameRoom.allQuestions.length }, (_, i) => i);
+            
+            Object.values(gameRoom.players).forEach(player => {
+                if (!player.isHost) {
+                    const shuffledIndices = [...questionIndices].sort(() => Math.random() - 0.5);
+                    updates[`players.${player.uid}.questionOrder`] = shuffledIndices;
+                    updates[`players.${player.uid}.currentQuestionIndex`] = 0;
+                }
+            });
+
+            const gameStartTime = serverTimestamp();
+            const gameEndTime = new Date(Date.now() + (gameRoom.gameDuration || 5) * 60 * 1000);
+
             await updateDoc(roomRef, { 
-                status: 'playing', 
-                currentQuestionIndex: 0,
+                ...updates,
+                status: 'playing',
+                gameStartedAt: gameStartTime,
+                gameEndTime: gameEndTime,
             });
         } catch (error) {
+            console.error("Error starting game: ", error)
             toast({ variant: 'destructive', title: '오류', description: '게임 시작에 실패했습니다.' });
         }
     };

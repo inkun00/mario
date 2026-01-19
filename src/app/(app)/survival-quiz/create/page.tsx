@@ -69,6 +69,7 @@ export default function CreateSurvivalQuizPage() {
   
   // Team Battle settings
   const [teamAssignment, setTeamAssignment] = useState<'manual' | 'random'>('manual');
+  const [gameDuration, setGameDuration] = useState(5);
 
   // Team Cooperation settings
   const [targetScore, setTargetScore] = useState(1000);
@@ -279,12 +280,12 @@ export default function CreateSurvivalQuizPage() {
                 gameSetIds: selectedIds,
                 allQuestions,
                 teamAssignment,
+                gameDuration,
                 players: { [user.uid]: {...hostPlayer, isEliminated: false, answers: [] } },
                 teams: {
-                    teamA: { id: 'teamA', name: '레드 팀', score: 0 },
-                    teamB: { id: 'teamB', name: '블루 팀', score: 0 },
+                    teamA: { id: 'teamA', name: '레드 팀', score: 100 },
+                    teamB: { id: 'teamB', name: '블루 팀', score: 100 },
                 },
-                currentQuestionIndex: -1,
             };
             await setDoc(doc(db, 'team-battle-rooms', newRoomId), newRoomData);
             toast({ title: '성공', description: '팀 대항전 퀴즈방을 만들었습니다! 로비로 이동합니다.' });
@@ -465,6 +466,20 @@ export default function CreateSurvivalQuizPage() {
                                         </Label>
                                         <Label htmlFor="assign-random" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
                                             <RadioGroupItem value="random" id="assign-random" /> 랜덤 배정
+                                        </Label>
+                                    </RadioGroup>
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>게임 시간</Label>
+                                    <RadioGroup value={String(gameDuration)} onValueChange={(val) => setGameDuration(Number(val))} className="flex gap-4">
+                                        <Label htmlFor="duration-3" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                                            <RadioGroupItem value="3" id="duration-3" /> 3분
+                                        </Label>
+                                        <Label htmlFor="duration-5" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                                            <RadioGroupItem value="5" id="duration-5" /> 5분
+                                        </Label>
+                                        <Label htmlFor="duration-10" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                                            <RadioGroupItem value="10" id="duration-10" /> 10분
                                         </Label>
                                     </RadioGroup>
                                 </div>

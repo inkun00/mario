@@ -346,6 +346,8 @@ export interface Team {
 
 export interface TeamBattlePlayer extends SurvivalPlayer {
   teamId?: 'teamA' | 'teamB';
+  questionOrder?: number[];
+  currentQuestionIndex?: number;
 }
 
 export interface TeamBattleGameRoom {
@@ -362,7 +364,9 @@ export interface TeamBattleGameRoom {
       teamA: Team;
       teamB: Team;
   };
-  currentQuestionIndex: number;
+  gameDuration?: number; // in minutes
+  gameStartedAt?: Timestamp;
+  gameEndTime?: Timestamp;
   currentQuestionStartedAt?: Timestamp;
   isAnswerRevealed?: boolean;
   currentAnswers?: Record<string, {
