@@ -288,7 +288,7 @@ export default function CreateSurvivalQuizPage() {
                 teamAssignment,
                 gameDuration,
                 participationScope,
-                players: { [user.uid]: hostPlayer },
+                players: { [user.uid]: { ...hostPlayer, isEliminated: false, answers: [] } },
                 teams: {
                     teamA: { id: 'teamA', name: '레드 팀', score: 200 },
                     teamB: { id: 'teamB', name: '블루 팀', score: 200 },
