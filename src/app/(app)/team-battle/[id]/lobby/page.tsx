@@ -10,9 +10,7 @@ import type { TeamBattleGameRoom, TeamBattlePlayer, User as FsUser } from '@/lib
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Copy, Crown, Users, Loader2, Gamepad2, LogOut, Shuffle, Shield, XCircle } from 'lucide-react';
-import { PixelAvatar } from '@/components/pixel-avatar';
+import { Copy, Crown, Users, Loader2, Gamepad2, LogOut, Shuffle } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function TeamBattleLobbyPage() {
@@ -238,9 +236,15 @@ export default function TeamBattleLobbyPage() {
                             <CardContent>
                                 {renderPlayerList(teamAPlayers)}
                             </CardContent>
-                            {gameRoom.teamAssignment === 'manual' && !isHost && !currentPlayer?.teamId && (
+                            {gameRoom.teamAssignment === 'manual' && !isHost && (
                                 <CardFooter>
-                                    <Button className="w-full bg-red-600 hover:bg-red-700" onClick={() => handleTeamJoin('teamA')}>레드 팀 참가</Button>
+                                    <Button 
+                                        className="w-full bg-red-600 hover:bg-red-700 disabled:bg-red-600/50" 
+                                        onClick={() => handleTeamJoin('teamA')}
+                                        disabled={currentPlayer?.teamId === 'teamA'}
+                                    >
+                                        {currentPlayer?.teamId === 'teamA' ? '✔ 레드 팀' : '레드 팀 참가'}
+                                    </Button>
                                 </CardFooter>
                             )}
                         </Card>
@@ -253,9 +257,15 @@ export default function TeamBattleLobbyPage() {
                             <CardContent>
                                 {renderPlayerList(teamBPlayers)}
                             </CardContent>
-                             {gameRoom.teamAssignment === 'manual' && !isHost && !currentPlayer?.teamId && (
+                             {gameRoom.teamAssignment === 'manual' && !isHost && (
                                 <CardFooter>
-                                    <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={() => handleTeamJoin('teamB')}>블루 팀 참가</Button>
+                                    <Button 
+                                        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50" 
+                                        onClick={() => handleTeamJoin('teamB')}
+                                        disabled={currentPlayer?.teamId === 'teamB'}
+                                    >
+                                        {currentPlayer?.teamId === 'teamB' ? '✔ 블루 팀' : '블루 팀 참가'}
+                                    </Button>
                                 </CardFooter>
                             )}
                         </Card>

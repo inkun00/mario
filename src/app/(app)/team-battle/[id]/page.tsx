@@ -11,8 +11,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { PixelAvatar } from '@/components/pixel-avatar';
 import { Loader2, Crown, Shield, Send, CheckCircle, XCircle, Clock, Swords } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
@@ -145,7 +143,7 @@ export default function TeamBattleGamePage() {
         await updateDoc(doc(db, 'team-battle-rooms', gameRoomId as string), { status: 'finished' });
         setShowEndGameConfirm(false);
     }
-
+    
     const { teamAScore, teamBScore, totalScore, teamAPercentage, teamBPercentage } = useMemo(() => {
         const teamAScore = gameRoom?.teams.teamA.score || 0;
         const teamBScore = gameRoom?.teams.teamB.score || 0;
@@ -163,27 +161,11 @@ export default function TeamBattleGamePage() {
         }
     }, [teamAScore, teamBScore, totalScore, gameRoom?.status, isHost, gameRoomId]);
 
-    const { teamAPlayers, teamBPlayers } = useMemo(() => {
-        if (!gameRoom) return { teamAPlayers: [], teamBPlayers: [] };
-        const players = Object.values(gameRoom.players).filter(p => !p.isHost);
-        return {
-            teamAPlayers: players.filter(p => p.teamId === 'teamA'),
-            teamBPlayers: players.filter(p => p.teamId === 'teamB'),
-        };
-    }, [gameRoom]);
+    const winnerTeam = useMemo(() => {
+        if (gameRoom?.status !== 'finished') return null;
+        return teamAScore > teamBScore ? gameRoom.teams.teamA : (teamBScore > teamAScore ? gameRoom.teams.teamB : null);
+    }, [gameRoom, teamAScore, teamBScore]);
 
-    const renderPlayerList = (players: TeamBattlePlayer[], teamColor: string) => (
-      <ScrollArea className="h-40">
-          <div className="space-y-2 pr-4">
-              {players.sort((a,b) => b.score - a.score).map(player => (
-                  <div key={player.uid} className="flex items-center justify-between p-2 rounded-md bg-background">
-                       <p className="text-sm font-medium truncate">{player.nickname}</p>
-                       <p className={'text-sm font-bold'} style={{color: teamColor}}>{player.score}점</p>
-                  </div>
-              ))}
-          </div>
-      </ScrollArea>
-    );
 
     if (isLoading || loadingUser) {
         return <div className="flex justify-center items-center h-screen"><Loader2 className="w-12 h-12 animate-spin text-primary" /></div>;
@@ -194,35 +176,62 @@ export default function TeamBattleGamePage() {
     }
 
     if (gameRoom.status === 'finished') {
-        const winnerTeam = teamAScore > teamBScore ? gameRoom.teams.teamA : (teamBScore > teamAScore ? gameRoom.teams.teamB : null);
-        
         const handleFinishAndSave = async () => {
-             const winningTeamId = winnerTeam?.id;
-             if (!winningTeamId) {
+            if (!gameRoom) {
                 router.push('/dashboard');
                 return;
-             }
-             
-             const batch = writeBatch(db);
-             const winningPlayers = Object.values(gameRoom.players).filter(p => p.teamId === winningTeamId);
-             
-             for (const player of winningPlayers) {
-                const playerRef = doc(db, 'users', player.uid);
-                const points = 100; // Simplified reward
-                batch.update(playerRef, {
-                    xp: increment(points),
-                    classPoints: increment(points)
-                });
-                const logRef = doc(collection(db, 'users', player.uid, 'pointLogs'));
-                batch.set(logRef, {
-                  type: 'QUIZ_REWARD',
-                  amount: points,
-                  timestamp: serverTimestamp(),
-                  description: '팀 대항전 승리'
-                } as Omit<PointLog, 'id' | 'userId'>);
-             }
-             await batch.commit();
-             router.push('/dashboard');
+            }
+        
+            try {
+                const batch = writeBatch(db);
+                const allPlayingPlayers = Object.values(gameRoom.players).filter(p => !p.isHost);
+                const totalPlayers = allPlayingPlayers.length;
+                
+                if (totalPlayers > 0) {
+                    const baseReward = 10 * totalPlayers;
+                    const losingTeamReward = baseReward;
+                    const winningTeamReward = baseReward * 2;
+                    
+                    const winnerTeamId = winnerTeam?.id;
+        
+                    for (const player of allPlayingPlayers) {
+                        const playerRef = doc(db, 'users', player.uid);
+                        let points = 0;
+                        let description = '';
+        
+                        if (!winnerTeamId) { // Draw
+                            points = losingTeamReward;
+                            description = '팀 대항전 무승부';
+                        } else if (player.teamId === winnerTeamId) {
+                            points = winningTeamReward;
+                            description = '팀 대항전 승리';
+                        } else {
+                            points = losingTeamReward;
+                            description = '팀 대항전 참여';
+                        }
+        
+                        if (points > 0) {
+                            batch.update(playerRef, {
+                                xp: increment(points),
+                                classPoints: increment(points)
+                            });
+                            const logRef = doc(collection(db, 'users', player.uid, 'pointLogs'));
+                            batch.set(logRef, {
+                                type: 'QUIZ_REWARD',
+                                amount: points,
+                                timestamp: Timestamp.now(),
+                                description
+                            } as Omit<PointLog, 'id' | 'userId'>);
+                        }
+                    }
+                }
+                await batch.commit();
+            } catch (error) {
+                console.error("Error saving game results:", error);
+                toast({ variant: 'destructive', title: '오류', description: '게임 결과를 저장하는 중 오류가 발생했습니다.'});
+            } finally {
+                router.push('/dashboard');
+            }
         };
 
         return (
@@ -284,17 +293,6 @@ export default function TeamBattleGamePage() {
                 </CardContent>
             </Card>
 
-            <div className="grid lg:grid-cols-2 gap-6">
-                <Card className="bg-red-100/30 dark:bg-red-900/30 border-red-500">
-                    <CardHeader className="p-4"><CardTitle className="text-red-600 dark:text-red-400">레드 팀 ({teamAPlayers.length})</CardTitle></CardHeader>
-                    <CardContent className="p-4 pt-0">{renderPlayerList(teamAPlayers, 'hsl(var(--destructive))')}</CardContent>
-                </Card>
-                 <Card className="bg-blue-100/30 dark:bg-blue-900/30 border-blue-500">
-                    <CardHeader className="p-4"><CardTitle className="text-blue-600 dark:text-blue-400">블루 팀 ({teamBPlayers.length})</CardTitle></CardHeader>
-                    <CardContent className="p-4 pt-0">{renderPlayerList(teamBPlayers, 'hsl(var(--primary))')}</CardContent>
-                </Card>
-            </div>
-            
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
