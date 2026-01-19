@@ -11,6 +11,7 @@ import {
   LogOut,
   Users,
   Menu,
+  Sprout,
 } from 'lucide-react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { signOut } from 'firebase/auth';
@@ -47,6 +48,7 @@ const navItems = [
   { href: '/game-sets/create', icon: PlusSquare, label: '퀴즈 만들기' },
   { href: '/leaderboard', icon: Trophy, label: '리더보드' },
   { href: '/my-class', icon: Users, label: '나의 학급' },
+  { href: '/plant-game', icon: Sprout, label: '숲 가꾸기' },
 ];
 
 export function Header() {
