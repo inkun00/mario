@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Copy, Crown, Users, Loader2, Gamepad2, LogOut, Shuffle, Shield } from 'lucide-react';
+import { Copy, Crown, Users, Loader2, Gamepad2, LogOut, Shuffle, Shield, XCircle } from 'lucide-react';
 import { PixelAvatar } from '@/components/pixel-avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
@@ -206,10 +206,6 @@ export default function TeamBattleLobbyPage() {
             <div className="space-y-2 pr-4">
                 {players.map(player => (
                     <div key={player.uid} className="flex items-center gap-2 p-2 rounded-md bg-background">
-                         <Avatar className="w-8 h-8">
-                             <PixelAvatar pixels={player.pixelAvatar ? JSON.parse(player.pixelAvatar) : null} />
-                             <AvatarFallback>{player.nickname.substring(0,1)}</AvatarFallback>
-                         </Avatar>
                          <p className="text-sm font-medium truncate">{player.nickname}</p>
                     </div>
                 ))}

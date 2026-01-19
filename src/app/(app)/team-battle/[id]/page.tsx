@@ -24,9 +24,9 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 const checkAnswer = (question: Question, userAnswer: string) => {
     if (question.type === 'subjective') {
-      return userAnswer.trim().toLowerCase() === question.answer?.trim().toLowerCase();
+      return userAnswer.trim().toLowerCase() === (question.answer || '').trim().toLowerCase();
     }
-    return userAnswer === question.correctAnswer;
+    return userAnswer.trim() === (question.correctAnswer || '').trim();
 };
 
 export default function TeamBattleGamePage() {
@@ -102,8 +102,7 @@ export default function TeamBattleGamePage() {
 
                 const currentRoom = roomDoc.data() as TeamBattleGameRoom;
                 const player = currentRoom.players[user.uid];
-                const teams = { ...currentRoom.teams };
-
+                
                 if (!player || !player.teamId) throw "Player or team not found";
 
                 const isCorrect = checkAnswer(currentQuestion, userAnswer);
@@ -114,6 +113,7 @@ export default function TeamBattleGamePage() {
                 }
                 
                 const teamScoreField = player.teamId === 'teamA' ? 'teams.teamA.score' : 'teams.teamB.score';
+                const opponentTeamScoreField = player.teamId === 'teamA' ? 'teams.teamB.score' : 'teams.teamA.score';
 
                 const newAnswer = {
                     questionId: currentQuestion.id,
@@ -126,6 +126,7 @@ export default function TeamBattleGamePage() {
                 
                 transaction.update(roomRef, {
                     [teamScoreField]: increment(points),
+                    [opponentTeamScoreField]: increment(-points),
                     [`players.${user.uid}.answers`]: newAnswers,
                     [`players.${user.uid}.score`]: increment(points),
                     [`players.${user.uid}.currentQuestionIndex`]: nextQuestionIndex
@@ -148,10 +149,10 @@ export default function TeamBattleGamePage() {
     const { teamAScore, teamBScore, totalScore, teamAPercentage, teamBPercentage } = useMemo(() => {
         const teamAScore = gameRoom?.teams.teamA.score || 0;
         const teamBScore = gameRoom?.teams.teamB.score || 0;
-        const totalScore = teamAScore + teamBScore;
-        const teamAPercentage = totalScore > 0 ? (teamAScore / totalScore) * 100 : 50;
+        const total = teamAScore + teamBScore;
+        const teamAPercentage = total > 0 ? (teamAScore / total) * 100 : 50;
         const teamBPercentage = 100 - teamAPercentage;
-        return { teamAScore, teamBScore, totalScore, teamAPercentage, teamBPercentage };
+        return { teamAScore, teamBScore, totalScore: total, teamAPercentage, teamBPercentage };
     }, [gameRoom?.teams]);
 
     useEffect(() => {
@@ -176,13 +177,7 @@ export default function TeamBattleGamePage() {
           <div className="space-y-2 pr-4">
               {players.sort((a,b) => b.score - a.score).map(player => (
                   <div key={player.uid} className="flex items-center justify-between p-2 rounded-md bg-background">
-                       <div className="flex items-center gap-2">
-                           <Avatar className="w-8 h-8">
-                               <PixelAvatar pixels={player.pixelAvatar ? JSON.parse(player.pixelAvatar) : null} />
-                               <AvatarFallback>{player.nickname.substring(0,1)}</AvatarFallback>
-                           </Avatar>
-                           <p className="text-sm font-medium truncate">{player.nickname}</p>
-                       </div>
+                       <p className="text-sm font-medium truncate">{player.nickname}</p>
                        <p className={'text-sm font-bold'} style={{color: teamColor}}>{player.score}점</p>
                   </div>
               ))}
