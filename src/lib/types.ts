@@ -359,6 +359,7 @@ export interface TeamBattleGameRoom {
   gameSetIds: string[];
   allQuestions: Question[];
   teamAssignment: 'manual' | 'random';
+  participationScope: 'class' | 'public';
   players: Record<string, TeamBattlePlayer>;
   teams: {
       teamA: Team;

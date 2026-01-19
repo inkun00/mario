@@ -37,7 +37,7 @@ import Image from 'next/image';
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe, updateDoc, increment, arrayUnion, getDoc, serverTimestamp, Timestamp, getDocs, writeBatch, addDoc, orderBy, runTransaction } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { GameSet, User as FsUser, GameRoom, PlayedGameSet, GameSetComment, SurvivalGameRoom } from '@/lib/types';
+import type { GameSet, User as FsUser, GameRoom, PlayedGameSet, GameSetComment, SurvivalGameRoom, TeamBattleGameRoom } from '@/lib/types';
 import { auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -77,8 +77,8 @@ interface CombinedOpenRoom {
   maxPlayers: number;
   questionCount: number | string;
   password?: string;
-  type: 'regular' | 'survival';
-  raw: GameRoom | SurvivalGameRoom;
+  type: 'regular' | 'survival' | 'team-battle';
+  raw: GameRoom | SurvivalGameRoom | TeamBattleGameRoom;
   createdAt: Timestamp;
 }
 
@@ -105,6 +105,7 @@ export default function DashboardPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [openGameRooms, setOpenGameRooms] = useState<OpenGameRoom[]>([]);
   const [openSurvivalRooms, setOpenSurvivalRooms] = useState<SurvivalGameRoom[]>([]);
+  const [openTeamBattleRooms, setOpenTeamBattleRooms] = useState<TeamBattleGameRoom[]>([]);
   const [playedGameSetIds, setPlayedGameSetIds] = useState<Set<string>>(new Set());
 
   const [loading, setLoading] = useState(true);
@@ -267,9 +268,14 @@ useEffect(() => {
         const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
         const oldRoomsQuery = query(collection(db, 'game-rooms'), where('status', '==', 'waiting'));
         const oldSurvivalRoomsQuery = query(collection(db, 'survival-game-rooms'), where('status', '==', 'waiting'));
+        const oldTeamBattleRoomsQuery = query(collection(db, 'team-battle-rooms'), where('status', '==', 'waiting'));
 
         try {
-            const [regularSnapshot, survivalSnapshot] = await Promise.all([getDocs(oldRoomsQuery), getDocs(oldSurvivalRoomsQuery)]);
+            const [regularSnapshot, survivalSnapshot, teamBattleSnapshot] = await Promise.all([
+              getDocs(oldRoomsQuery), 
+              getDocs(oldSurvivalRoomsQuery),
+              getDocs(oldTeamBattleRoomsQuery)
+            ]);
             const batch = writeBatch(db);
 
             regularSnapshot.forEach(doc => {
@@ -280,6 +286,12 @@ useEffect(() => {
             });
             survivalSnapshot.forEach(doc => {
                 const room = doc.data() as SurvivalGameRoom;
+                if (room.createdAt && room.createdAt.toDate() < tenMinutesAgo) {
+                    batch.delete(doc.ref);
+                }
+            });
+             teamBattleSnapshot.forEach(doc => {
+                const room = doc.data() as TeamBattleGameRoom;
                 if (room.createdAt && room.createdAt.toDate() < tenMinutesAgo) {
                     batch.delete(doc.ref);
                 }
@@ -332,9 +344,27 @@ useEffect(() => {
         console.error("Error fetching survival game rooms:", error);
     });
 
+    const teamBattleRoomsQuery = query(collection(db, 'team-battle-rooms'), where('status', '==', 'waiting'));
+    const teamBattleRoomsUnsubscribe = onSnapshot(teamBattleRoomsQuery, (snapshot) => {
+        const rooms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TeamBattleGameRoom));
+        const joinableRooms = rooms.filter(room => {
+            if (room.hostId === user?.uid) return false;
+            if (room.participationScope === 'public') return true;
+            if (room.participationScope === 'class' && currentUserData?.classId === room.hostId) {
+                return true;
+            }
+            return false;
+        });
+        setOpenTeamBattleRooms(joinableRooms);
+    }, (error) => {
+        console.error("Error fetching team battle rooms:", error);
+    });
+
+
     return () => {
         roomsUnsubscribe();
         survivalRoomsUnsubscribe();
+        teamBattleRoomsUnsubscribe();
     };
 }, [user, currentUserData, toast]);
 
@@ -529,6 +559,8 @@ useEffect(() => {
         setIsJoining(null);
     } else if (room.type === 'survival') {
         router.push(`/survival-quiz/${room.id}/lobby`);
+    } else if (room.type === 'team-battle') {
+        router.push(`/team-battle/${room.id}/lobby`);
     } else {
         router.push(`/game/${room.id}/lobby`);
     }
@@ -680,8 +712,21 @@ useEffect(() => {
         createdAt: room.createdAt,
     }));
 
-    return [...regularRooms, ...survivalRooms].sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
-}, [openGameRooms, openSurvivalRooms]);
+    const teamBattleRooms: CombinedOpenRoom[] = openTeamBattleRooms.map(room => ({
+        id: room.id,
+        roomTitle: room.roomTitle,
+        gameSetTitle: '팀 대항전',
+        playerCount: Object.keys(room.players).length,
+        maxPlayers: 100, 
+        questionCount: room.allQuestions.length,
+        password: '',
+        type: 'team-battle',
+        raw: room,
+        createdAt: room.createdAt,
+    }));
+
+    return [...regularRooms, ...survivalRooms, ...teamBattleRooms].sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+}, [openGameRooms, openSurvivalRooms, openTeamBattleRooms]);
 
 
   const indexOfLastItem = currentPage * ITEMS_PER_PAGE;
@@ -761,6 +806,7 @@ useEffect(() => {
                             <CardHeader>
                                 <CardTitle className="font-headline truncate flex items-center gap-2">
                                      {room.type === 'survival' && <Swords className="w-5 h-5 text-destructive"/>}
+                                     {room.type === 'team-battle' && <Swords className="w-5 h-5 text-purple-500"/>}
                                      {room.roomTitle}
                                 </CardTitle>
                                 <CardDescription className="truncate">{room.gameSetTitle}</CardDescription>
@@ -1348,6 +1394,7 @@ useEffect(() => {
     </>
   );
 }
+
 
 
 
