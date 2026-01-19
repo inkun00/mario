@@ -4,30 +4,30 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 244 33% 13%;
-    --card: 0 0% 100%;
-    --card-foreground: 244 33% 13%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 244 33% 13%;
-    --primary: 180 82% 45%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 315 66% 95%;
-    --secondary-foreground: 315 66% 40%;
-    --muted: 240 5% 96%;
-    --muted-foreground: 240 4% 46%;
-    --accent: 315 66% 95%;
-    --accent-foreground: 315 66% 40%;
+    --background: 45 60% 95%;
+    --foreground: 30 50% 15%;
+    --card: 45 80% 98%;
+    --card-foreground: 30 50% 15%;
+    --popover: 45 80% 98%;
+    --popover-foreground: 30 50% 15%;
+    --primary: 35 85% 55%;
+    --primary-foreground: 30 80% 98%;
+    --secondary: 35 60% 90%;
+    --secondary-foreground: 35 85% 35%;
+    --muted: 40 50% 96%;
+    --muted-foreground: 30 25% 45%;
+    --accent: 35 75% 85%;
+    --accent-foreground: 35 85% 25%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 240 6% 90%;
-    --input: 240 6% 90%;
-    --ring: 180 82% 45%;
-    --chart-1: 180 82% 55%;
-    --chart-2: 315 66% 51%;
-    --chart-3: 45 90% 55%;
-    --chart-4: 250 70% 70%;
-    --chart-5: 25 90% 60%;
+    --border: 40 40% 85%;
+    --input: 40 40% 85%;
+    --ring: 35 85% 55%;
+    --chart-1: 35 85% 55%;
+    --chart-2: 180 82% 45%;
+    --chart-3: 250 70% 70%;
+    --chart-4: 45 90% 55%;
+    --chart-5: 315 66% 51%;
     --radius: 0.5rem;
   }
 
@@ -65,12 +65,6 @@
   }
   body {
     @apply bg-background text-foreground;
-  }
-  /* Forcing pixelated rendering */
-  img, canvas, video {
-    image-rendering: pixelated;
-    image-rendering: -moz-crisp-edges;
-    image-rendering: crisp-edges;
   }
 }
 

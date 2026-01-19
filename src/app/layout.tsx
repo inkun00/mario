@@ -1,18 +1,12 @@
 import type { Metadata } from 'next';
-import { Press_Start_2P, VT323 } from 'next/font/google';
+import { Noto_Sans_KR } from 'next/font/google';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 
-const pressStart2P = Press_Start_2P({
+const notoSansKR = Noto_Sans_KR({
   subsets: ['latin'],
-  weight: ['400'],
-  variable: '--font-headline',
-});
-
-const vt323 = VT323({
-  subsets: ['latin'],
-  weight: ['400'],
+  weight: ['400', '700'],
   variable: '--font-body',
 });
 
@@ -28,8 +22,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className="dark">
-      <body className={cn("font-body antialiased", pressStart2P.variable, vt323.variable)}>
+    <html lang="ko" suppressHydrationWarning>
+      <body className={cn("font-body antialiased", notoSansKR.variable)}>
         {children}
         <Toaster />
       </body>

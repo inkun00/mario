@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle2, Gamepad2, Lightbulb, Trophy, Gem, Users, Store } from 'lucide-react';
+import { CheckCircle2, Lightbulb, Trophy, Gem, Users, Store } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import AppLogo from '@/components/app-logo';
@@ -24,22 +24,17 @@ export default function Home() {
       </header>
 
       <main className="flex-grow">
-        <section className="relative pt-16 h-screen min-h-[700px] flex flex-col items-center justify-center text-center bg-gradient-to-br from-primary/10 via-background to-background overflow-hidden">
-           <div className="absolute inset-0">
-             <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary/10 rounded-full animate-blob animation-delay-1000" />
-             <div className="absolute -top-40 -right-40 w-80 h-80 bg-secondary/10 rounded-full animate-blob animation-delay-2000" />
-          </div>
+        <section className="relative pt-32 pb-12 md:pt-48 md:pb-24 flex flex-col items-center justify-center text-center bg-gradient-to-b from-amber-50 via-amber-100/50 to-background overflow-hidden">
           <MotionDiv
             className="container relative px-4 md:px-6 z-10 flex flex-col items-center"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <h1 className="font-headline text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl !leading-tight" 
-                style={{textShadow: '3px 3px 0px hsl(var(--secondary))'}}>
+            <h1 className="text-4xl font-extrabold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl text-amber-900">
               에듀칩(EduChip)
             </h1>
-            <p className="mx-auto max-w-[700px] text-foreground/80 md:text-xl mt-6">
+            <p className="mx-auto max-w-[700px] text-amber-800/80 md:text-xl mt-6">
               학습으로 자산을 모으고, 교실을 경제활동의 장으로 만들어 보세요.
             </p>
             <MotionDiv 
@@ -49,19 +44,19 @@ export default function Home() {
               transition={{ duration: 0.5, delay: 0.3, type: "spring", stiffness: 100 }}
             >
               <Image
-                src="https://i.postimg.cc/L5Lr5FnC/Gemini_Generated_Image_m56x61m56x61m56x.png"
+                src="https://i.postimg.cc/k5Ns2Mcc/Gemini-Generated-Image_m56x61m56x61m56x.png"
                 alt="EduChip main visual"
                 width={550}
                 height={310}
-                className="rounded-xl border-4 border-secondary/50 shadow-2xl shadow-primary/20"
+                className="rounded-xl"
                 priority
               />
             </MotionDiv>
             <div className="flex flex-col sm:flex-row justify-center gap-4">
-              <Button size="lg" asChild className="font-headline">
+              <Button size="lg" asChild>
                 <Link href="/signup">게임 시작하기</Link>
               </Button>
-              <Button size="lg" variant="secondary" asChild className="font-headline">
+              <Button size="lg" variant="secondary" asChild>
                 <Link href="#features">기능 둘러보기</Link>
               </Button>
             </div>
@@ -71,7 +66,7 @@ export default function Home() {
         <section id="features" className="py-12 md:py-24 lg:py-32">
           <div className="container px-4 md:px-6">
             <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl font-headline">주요 기능</h2>
+              <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl">주요 기능</h2>
               <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed mt-4">
                 학습과 재미를 동시에 잡는 강력한 기능들을 만나보세요.
               </p>
@@ -147,15 +142,20 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="py-12 md:py-24 lg:py-32 bg-secondary/20">
+        <section className="py-12 md:py-24 lg:py-32 bg-secondary/50">
           <div className="container grid items-center justify-center gap-4 px-4 text-center md:px-6">
             <div className="space-y-3">
-              <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight font-headline">
+              <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">
                 지금 바로 교실을 게임 스테이지로 바꿔보세요!
               </h2>
               <p className="mx-auto max-w-[600px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
                 간단한 회원가입 후 바로 당신만의 학습 게임을 시작할 수 있습니다.
               </p>
+            </div>
+            <div className="mt-6">
+              <Button size="lg" asChild>
+                <Link href="/signup">지금 시작하기</Link>
+              </Button>
             </div>
           </div>
         </section>
@@ -180,7 +180,7 @@ function FeatureCard({ icon, title, description }: { icon: React.ReactNode, titl
           {icon}
         </div>
       </CardHeader>
-      <CardTitle className="font-headline text-xl mb-2">{title}</CardTitle>
+      <CardTitle className="text-xl font-bold mb-2">{title}</CardTitle>
       <CardContent>
         <p className="text-muted-foreground">{description}</p>
       </CardContent>

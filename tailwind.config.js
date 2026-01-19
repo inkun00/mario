@@ -16,8 +16,7 @@ module.exports = {
     },
     extend: {
       fontFamily: {
-        body: ['var(--font-body)', 'VT323', 'monospace'],
-        headline: ['var(--font-headline)', "'Press Start 2P'", 'cursive'],
+        body: ['var(--font-body)', 'sans-serif'],
       },
       colors: {
         border: 'hsl(var(--border))',
