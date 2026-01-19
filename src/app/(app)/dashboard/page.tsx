@@ -37,7 +37,7 @@ import Image from 'next/image';
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { collection, onSnapshot, query, doc, deleteDoc, where, Unsubscribe, updateDoc, increment, arrayUnion, getDoc, serverTimestamp, Timestamp, getDocs, writeBatch, addDoc, orderBy, runTransaction } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { GameSet, User as FsUser, GameRoom, PlayedGameSet, GameSetComment, SurvivalGameRoom, TeamBattleGameRoom } from '@/lib/types';
+import type { GameSet, User as FsUser, GameRoom, PlayedGameSet, GameSetComment, SurvivalGameRoom, TeamBattleGameRoom, TeamCooperationGameRoom } from '@/lib/types';
 import { auth } from '@/lib/firebase';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -77,8 +77,8 @@ interface CombinedOpenRoom {
   maxPlayers: number;
   questionCount: number | string;
   password?: string;
-  type: 'regular' | 'survival' | 'team-battle';
-  raw: GameRoom | SurvivalGameRoom | TeamBattleGameRoom;
+  type: 'regular' | 'survival' | 'team-battle' | 'team-cooperation';
+  raw: GameRoom | SurvivalGameRoom | TeamBattleGameRoom | TeamCooperationGameRoom;
   createdAt: Timestamp;
 }
 
@@ -106,6 +106,7 @@ export default function DashboardPage() {
   const [openGameRooms, setOpenGameRooms] = useState<OpenGameRoom[]>([]);
   const [openSurvivalRooms, setOpenSurvivalRooms] = useState<SurvivalGameRoom[]>([]);
   const [openTeamBattleRooms, setOpenTeamBattleRooms] = useState<TeamBattleGameRoom[]>([]);
+  const [openTeamCooperationRooms, setOpenTeamCooperationRooms] = useState<TeamCooperationGameRoom[]>([]);
   const [playedGameSetIds, setPlayedGameSetIds] = useState<Set<string>>(new Set());
 
   const [loading, setLoading] = useState(true);
@@ -269,12 +270,14 @@ useEffect(() => {
         const oldRoomsQuery = query(collection(db, 'game-rooms'), where('status', '==', 'waiting'));
         const oldSurvivalRoomsQuery = query(collection(db, 'survival-game-rooms'), where('status', '==', 'waiting'));
         const oldTeamBattleRoomsQuery = query(collection(db, 'team-battle-rooms'), where('status', '==', 'waiting'));
+        const oldTeamCooperationRoomsQuery = query(collection(db, 'team-cooperation-rooms'), where('status', '==', 'waiting'));
 
         try {
-            const [regularSnapshot, survivalSnapshot, teamBattleSnapshot] = await Promise.all([
+            const [regularSnapshot, survivalSnapshot, teamBattleSnapshot, teamCooperationSnapshot] = await Promise.all([
               getDocs(oldRoomsQuery), 
               getDocs(oldSurvivalRoomsQuery),
-              getDocs(oldTeamBattleRoomsQuery)
+              getDocs(oldTeamBattleRoomsQuery),
+              getDocs(oldTeamCooperationRoomsQuery)
             ]);
             const batch = writeBatch(db);
 
@@ -292,6 +295,12 @@ useEffect(() => {
             });
              teamBattleSnapshot.forEach(doc => {
                 const room = doc.data() as TeamBattleGameRoom;
+                if (room.createdAt && room.createdAt.toDate() < tenMinutesAgo) {
+                    batch.delete(doc.ref);
+                }
+            });
+            teamCooperationSnapshot.forEach(doc => {
+                const room = doc.data() as TeamCooperationGameRoom;
                 if (room.createdAt && room.createdAt.toDate() < tenMinutesAgo) {
                     batch.delete(doc.ref);
                 }
@@ -360,11 +369,21 @@ useEffect(() => {
         console.error("Error fetching team battle rooms:", error);
     });
 
+    const teamCooperationRoomsQuery = query(collection(db, 'team-cooperation-rooms'), where('status', '==', 'waiting'));
+    const teamCooperationRoomsUnsubscribe = onSnapshot(teamCooperationRoomsQuery, (snapshot) => {
+        const rooms = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TeamCooperationGameRoom));
+        const joinableRooms = rooms.filter(room => room.hostId !== user?.uid);
+        setOpenTeamCooperationRooms(joinableRooms);
+    }, (error) => {
+        console.error("Error fetching team cooperation rooms:", error);
+    });
+
 
     return () => {
         roomsUnsubscribe();
         survivalRoomsUnsubscribe();
         teamBattleRoomsUnsubscribe();
+        teamCooperationRoomsUnsubscribe();
     };
 }, [user, currentUserData, toast]);
 
@@ -561,6 +580,8 @@ useEffect(() => {
         router.push(`/survival-quiz/${room.id}/lobby`);
     } else if (room.type === 'team-battle') {
         router.push(`/team-battle/${room.id}/lobby`);
+    } else if (room.type === 'team-cooperation') {
+        router.push(`/team-cooperation/${room.id}/lobby`);
     } else {
         router.push(`/game/${room.id}/lobby`);
     }
@@ -725,8 +746,21 @@ useEffect(() => {
         createdAt: room.createdAt,
     }));
 
-    return [...regularRooms, ...survivalRooms, ...teamBattleRooms].sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
-}, [openGameRooms, openSurvivalRooms, openTeamBattleRooms]);
+    const teamCooperationRooms: CombinedOpenRoom[] = openTeamCooperationRooms.map(room => ({
+        id: room.id,
+        roomTitle: room.roomTitle,
+        gameSetTitle: '팀 협력전',
+        playerCount: Object.keys(room.players).length,
+        maxPlayers: 30, 
+        questionCount: room.allQuestions.length,
+        password: '',
+        type: 'team-cooperation',
+        raw: room,
+        createdAt: room.createdAt,
+    }));
+
+    return [...regularRooms, ...survivalRooms, ...teamBattleRooms, ...teamCooperationRooms].sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+}, [openGameRooms, openSurvivalRooms, openTeamBattleRooms, openTeamCooperationRooms]);
 
 
   const indexOfLastItem = currentPage * ITEMS_PER_PAGE;
@@ -807,6 +841,7 @@ useEffect(() => {
                                 <CardTitle className="font-headline truncate flex items-center gap-2">
                                      {room.type === 'survival' && <Swords className="w-5 h-5 text-destructive"/>}
                                      {room.type === 'team-battle' && <Swords className="w-5 h-5 text-purple-500"/>}
+                                     {room.type === 'team-cooperation' && <Users className="w-5 h-5 text-green-500"/>}
                                      {room.roomTitle}
                                 </CardTitle>
                                 <CardDescription className="truncate">{room.gameSetTitle}</CardDescription>
@@ -1394,6 +1429,7 @@ useEffect(() => {
     </>
   );
 }
+
 
 
 
