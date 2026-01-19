@@ -1,18 +1,18 @@
 import type { Metadata } from 'next';
-import { Poppins, PT_Sans } from 'next/font/google';
+import { Press_Start_2P, VT323 } from 'next/font/google';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 
-const poppins = Poppins({
+const pressStart2P = Press_Start_2P({
   subsets: ['latin'],
-  weight: ['400', '600', '700'],
+  weight: ['400'],
   variable: '--font-headline',
 });
 
-const ptSans = PT_Sans({
+const vt323 = VT323({
   subsets: ['latin'],
-  weight: ['400', '700'],
+  weight: ['400'],
   variable: '--font-body',
 });
 
@@ -28,8 +28,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={cn("font-body antialiased", poppins.variable, ptSans.variable)}>
+    <html lang="en" suppressHydrationWarning className="dark">
+      <body className={cn("font-body antialiased", pressStart2P.variable, vt323.variable)}>
         {children}
         <Toaster />
       </body>

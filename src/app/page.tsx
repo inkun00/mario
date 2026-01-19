@@ -24,24 +24,40 @@ export default function Home() {
       </header>
 
       <main className="flex-grow">
-        <section className="relative pt-16 h-[80vh] min-h-[600px] flex items-center justify-center text-center bg-gradient-to-br from-primary/10 via-background to-background">
-           <div className="absolute inset-0 overflow-hidden">
-             <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary/5 rounded-full animate-blob animation-delay-1000" />
-             <div className="absolute -top-40 -right-40 w-80 h-80 bg-accent/5 rounded-full animate-blob animation-delay-2000" />
+        <section className="relative pt-16 h-screen min-h-[700px] flex flex-col items-center justify-center text-center bg-gradient-to-br from-primary/10 via-background to-background overflow-hidden">
+           <div className="absolute inset-0">
+             <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-primary/10 rounded-full animate-blob animation-delay-1000" />
+             <div className="absolute -top-40 -right-40 w-80 h-80 bg-secondary/10 rounded-full animate-blob animation-delay-2000" />
           </div>
           <MotionDiv
-            className="container relative px-4 md:px-6 z-10"
+            className="container relative px-4 md:px-6 z-10 flex flex-col items-center"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <h1 className="font-headline text-4xl font-bold tracking-tighter text-primary sm:text-5xl md:text-6xl lg:text-7xl">
+            <h1 className="font-headline text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl !leading-tight" 
+                style={{textShadow: '3px 3px 0px hsl(var(--secondary))'}}>
               에듀칩(EduChip)
             </h1>
-            <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl mt-4">
+            <p className="mx-auto max-w-[700px] text-foreground/80 md:text-xl mt-6">
               학습으로 자산을 모으고, 교실을 경제활동의 장으로 만들어 보세요.
             </p>
-            <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
+            <MotionDiv 
+              className="my-8"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.5, delay: 0.3, type: "spring", stiffness: 100 }}
+            >
+              <Image
+                src="https://i.postimg.cc/L5Lr5FnC/Gemini_Generated_Image_m56x61m56x61m56x.png"
+                alt="EduChip main visual"
+                width={550}
+                height={310}
+                className="rounded-xl border-4 border-secondary/50 shadow-2xl shadow-primary/20"
+                priority
+              />
+            </MotionDiv>
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
               <Button size="lg" asChild className="font-headline">
                 <Link href="/signup">게임 시작하기</Link>
               </Button>
@@ -131,7 +147,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="py-12 md:py-24 lg:py-32 bg-secondary">
+        <section className="py-12 md:py-24 lg:py-32 bg-secondary/20">
           <div className="container grid items-center justify-center gap-4 px-4 text-center md:px-6">
             <div className="space-y-3">
               <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight font-headline">
@@ -158,7 +174,7 @@ export default function Home() {
 
 function FeatureCard({ icon, title, description }: { icon: React.ReactNode, title: string, description: string }) {
   return (
-    <Card className="text-center p-6 shadow-md hover:shadow-xl hover:-translate-y-2 transition-all duration-300 h-full">
+    <Card className="text-center p-6 shadow-md hover:shadow-xl hover:-translate-y-2 transition-all duration-300 h-full bg-card/50">
       <CardHeader className="flex justify-center items-center mb-4">
         <div className="bg-primary/10 p-4 rounded-full">
           {icon}
