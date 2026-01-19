@@ -455,7 +455,7 @@ export default function SurvivalQuizGamePage() {
                     {gameRoom.isAnswerRevealed ? (
                         <Button onClick={handleNextQuestion}>다음 문제</Button>
                     ) : (
-                        <Button onClick={handleShowResults} disabled={timeRemaining > 0}>결과 보기</Button>
+                        <Button onClick={handleShowResults} disabled={timeRemaining > 0 && totalPlayers > answeredCount}>결과 보기</Button>
                     )}
                     <Button variant="destructive" onClick={() => setShowEndGameConfirm(true)}>게임 종료</Button>
                 </CardContent>
