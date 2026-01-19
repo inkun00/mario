@@ -374,3 +374,40 @@ export interface TeamBattleGameRoom {
       points: number;
   }>;
 }
+
+export interface TeamCooperationPlayer extends Player {
+    answers: {
+        questionId: number;
+        isCorrect: boolean;
+        submittedAt: Timestamp;
+        points: number;
+    }[];
+}
+
+export interface TeamCooperationGameRoom {
+  id: string;
+  roomTitle: string;
+  hostId: string;
+  status: 'waiting' | 'playing' | 'finished';
+  createdAt: Timestamp;
+  gameSetIds: string[];
+  allQuestions: Question[];
+
+  // Mission
+  targetScore: number;
+  
+  // Game State
+  players: Record<string, TeamCooperationPlayer>;
+  teamScore: number;
+  currentQuestionIndex: number;
+  currentQuestionStartedAt?: Timestamp;
+  isAnswerRevealed?: boolean;
+  currentAnswers?: Record<string, {
+      answer: string;
+      submittedAt: Timestamp;
+  }>;
+  lastQuestionResults?: Record<string, {
+      isCorrect: boolean;
+      points: number;
+  }>;
+}

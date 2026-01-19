@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, onSnapshot, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import type { GameSet, User, SurvivalGameRoom, Question, SurvivalPlayer, TeamBattleGameRoom, Team } from '@/lib/types';
+import type { GameSet, User, SurvivalGameRoom, Question, SurvivalPlayer, TeamBattleGameRoom, Team, TeamCooperationGameRoom, TeamCooperationPlayer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, ShieldAlert, Swords, Eye, Search, RotateCcw } from 'lucide-react';
+import { Loader2, ShieldAlert, Swords, Eye, Search, RotateCcw, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
   Dialog,
@@ -44,7 +44,7 @@ export default function CreateSurvivalQuizPage() {
   const [participationScope, setParticipationScope] = useState<'class' | 'public'>('class');
   const [selectedSets, setSelectedSets] = useState<Record<string, boolean>>({});
   const [previewGameSet, setPreviewGameSet] = useState<GameSet | null>(null);
-  const [gameMode, setGameMode] = useState<'golden-bell' | 'team-battle'>('golden-bell');
+  const [gameMode, setGameMode] = useState<'golden-bell' | 'team-battle' | 'team-cooperation'>('golden-bell');
 
   const [filteredGameSets, setFilteredGameSets] = useState<SurvivalGameSet[]>([]);
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -60,6 +60,9 @@ export default function CreateSurvivalQuizPage() {
   
   // Team Battle settings
   const [teamAssignment, setTeamAssignment] = useState<'manual' | 'random'>('manual');
+
+  // Team Cooperation settings
+  const [targetScore, setTargetScore] = useState(1000);
 
 
   // Fetch user data to check for teacher role
@@ -188,13 +191,12 @@ export default function CreateSurvivalQuizPage() {
         allQuestions.sort(() => Math.random() - 0.5);
         allQuestions = allQuestions.map((q, i) => ({...q, id: i}));
 
-        const hostPlayer: SurvivalPlayer = {
+        const hostPlayer = {
             uid: user.uid,
             nickname: userData.displayName || '호스트',
             score: 0,
             isHost: true,
-            isEliminated: false,
-            answers: [],
+            pixelAvatar: userData.pixelAvatar,
         };
         
         if (gameMode === 'golden-bell') {
@@ -209,7 +211,7 @@ export default function CreateSurvivalQuizPage() {
                 revivalEnabled,
                 revivalPercentage,
                 participationScope,
-                players: { [user.uid]: hostPlayer },
+                players: { [user.uid]: { ...hostPlayer, isEliminated: false, answers: [] } },
                 playerUIDs: [user.uid],
                 currentQuestionIndex: -1,
                 isAnswerRevealed: false,
@@ -219,6 +221,22 @@ export default function CreateSurvivalQuizPage() {
             const roomRef = await addDoc(collection(db, 'survival-game-rooms'), newRoomData);
             toast({ title: '성공', description: '서바이벌 퀴즈방을 만들었습니다! 로비로 이동합니다.' });
             router.push(`/survival-quiz/${roomRef.id}/lobby`);
+        } else if (gameMode === 'team-cooperation') {
+            const newRoomData: Omit<TeamCooperationGameRoom, 'id'> = {
+                roomTitle,
+                hostId: user.uid,
+                status: 'waiting',
+                createdAt: serverTimestamp() as Timestamp,
+                gameSetIds: selectedIds,
+                allQuestions,
+                targetScore,
+                players: { [user.uid]: { ...hostPlayer, answers: [] } },
+                teamScore: 0,
+                currentQuestionIndex: -1,
+            };
+            const roomRef = await addDoc(collection(db, 'team-cooperation-rooms'), newRoomData);
+            toast({ title: '성공', description: '팀 협력전 퀴즈방을 만들었습니다! 로비로 이동합니다.' });
+            router.push(`/team-cooperation/${roomRef.id}/lobby`);
         } else { // team-battle
             const newRoomData: Omit<TeamBattleGameRoom, 'id'> = {
                 roomTitle,
@@ -228,7 +246,7 @@ export default function CreateSurvivalQuizPage() {
                 gameSetIds: selectedIds,
                 allQuestions,
                 teamAssignment,
-                players: { [user.uid]: {...hostPlayer, teamId: undefined} },
+                players: { [user.uid]: {...hostPlayer, isEliminated: false, answers: [], teamId: undefined} },
                 teams: {
                     teamA: { id: 'teamA', name: '레드 팀', score: 0 },
                     teamB: { id: 'teamB', name: '블루 팀', score: 0 },
@@ -365,6 +383,31 @@ export default function CreateSurvivalQuizPage() {
                                             />
                                         </div>
                                     )}
+                                </div>
+                            </CardContent>
+                          )}
+                      </Card>
+                       <Card className={cn(gameMode === 'team-cooperation' && 'border-primary ring-2 ring-primary')}>
+                          <CardHeader>
+                              <div className="flex items-center gap-3">
+                                  <RadioGroupItem value="team-cooperation" id="mode-team-cooperation" />
+                                  <Label htmlFor="mode-team-cooperation" className="flex-1 cursor-pointer">
+                                      <CardTitle className="flex items-center gap-2"><Users />팀 협력전</CardTitle>
+                                      <CardDescription>모든 참가자가 한 팀이 되어 공동의 목표 점수 달성을 위해 퀴즈를 풉니다.</CardDescription>
+                                  </Label>
+                              </div>
+                          </CardHeader>
+                          {gameMode === 'team-cooperation' && (
+                            <CardContent className="space-y-6 pt-4 pl-12">
+                                <div className="space-y-2">
+                                    <Label>목표 점수: {targetScore.toLocaleString()}점</Label>
+                                    <Slider 
+                                        value={[targetScore]}
+                                        onValueChange={(val) => setTargetScore(val[0])}
+                                        min={500}
+                                        max={5000}
+                                        step={100}
+                                    />
                                 </div>
                             </CardContent>
                           )}
