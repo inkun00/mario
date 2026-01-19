@@ -839,7 +839,7 @@ export default function MyClassPage() {
                     <CardTitle className='font-headline'>교사 도구</CardTitle>
                     <CardDescription>학생들에게 포인트를 지급하거나 상품을 보낼 수 있습니다.</CardDescription>
                 </CardHeader>
-                <CardContent className='flex gap-4'>
+                <CardContent className='flex flex-col sm:flex-row gap-4'>
                     <Button onClick={() => setShowBulkPointDialog(true)}>
                         <Send className="mr-2 h-4 w-4"/> 포인트 일괄 지급
                     </Button>

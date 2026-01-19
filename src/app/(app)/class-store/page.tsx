@@ -693,7 +693,7 @@ export default function ClassStorePage() {
           </CardHeader>
           <CardContent>
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
+              <TabsList className="grid w-full grid-cols-1 sm:grid-cols-3 h-auto">
                 <TabsTrigger value="store">
                   <ShoppingBag className="w-4 h-4 mr-2" />
                   아이템 구매

@@ -1303,7 +1303,7 @@ export default function ProfilePage() {
       </Card>
       
       <Tabs defaultValue="my-quizzes" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
+        <TabsList className="grid w-full grid-cols-2 gap-1 sm:grid-cols-3 md:grid-cols-5 h-auto">
           <TabsTrigger value="my-quizzes">내가 만든 퀴즈</TabsTrigger>
           <TabsTrigger value="played-quizzes">내가 풀었던 문제</TabsTrigger>
           <TabsTrigger value="achievement">과목별 성취도</TabsTrigger>
@@ -1355,7 +1355,7 @@ export default function ProfilePage() {
                                                 <span>{set.commentCount || 0}</span>
                                             </div>
                                         </CardContent>
-                                        <CardFooter className="flex justify-end gap-2 pt-2">
+                                        <CardFooter className="flex flex-wrap justify-end gap-2 pt-2">
                                             <Button variant="outline" size="sm" onClick={() => setPreviewGameSet(set)}>
                                                 <Eye className="mr-2 h-4 w-4"/> 미리보기
                                             </Button>

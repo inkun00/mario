@@ -632,7 +632,7 @@ export default function LeaderboardPage() {
       <Dialog open={!!selectedUser} onOpenChange={(isOpen) => !isOpen && setSelectedUser(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4">
               <Avatar className="h-14 w-14">
                 <PixelAvatar pixels={selectedUserAvatarData} />
               </Avatar>
@@ -657,7 +657,7 @@ export default function LeaderboardPage() {
                       const { stars, color } = getStarRating(set.evaluationScore);
                       return (
                         <Card key={set.id}>
-                            <CardContent className="p-4 flex items-center justify-between gap-2">
+                            <CardContent className="p-4 flex flex-col items-start sm:flex-row sm:items-center justify-between gap-2">
                                 <div className="flex-grow">
                                     <h4 className="font-semibold">{set.title}</h4>
                                     <p className="text-sm text-muted-foreground">
@@ -683,7 +683,7 @@ export default function LeaderboardPage() {
                                       </Tooltip>
                                     </TooltipProvider>
                                 </div>
-                                <div className="flex-shrink-0 flex items-center gap-2">
+                                <div className="flex-shrink-0 flex items-center gap-2 mt-2 sm:mt-0">
                                   <Button variant="secondary" size="sm" onClick={() => setSelectedGameSetForPreview(set)}>미리보기</Button>
                                   <Button asChild size="sm" onClick={() => setGameCreationCandidate(set)}>
                                       <span className="flex items-center cursor-pointer">
