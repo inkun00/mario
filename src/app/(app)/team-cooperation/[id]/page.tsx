@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -13,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { PixelAvatar } from '@/components/pixel-avatar';
-import { Loader2, Users, Trophy, Shield, Skull, Swords, Send, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Users, Trophy, Shield, Skull, Swords, Send, CheckCircle, XCircle, Sprout } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { Input } from '@/components/ui/input';
@@ -107,6 +106,7 @@ export default function TeamCooperationGamePage() {
                 const currentAnswers = currentRoom.currentAnswers || {};
                 
                 let pointsFromThisRound = 0;
+                let correctAnswersThisRound = 0;
 
                 for (const uid of Object.keys(currentAnswers)) {
                     const player = players[uid];
@@ -116,6 +116,7 @@ export default function TeamCooperationGamePage() {
                     let points = 0;
                     if (isCorrect) {
                         points = currentQuestion.points > 0 ? currentQuestion.points : 30;
+                        correctAnswersThisRound++;
                     }
                     
                     if(player){
@@ -130,7 +131,26 @@ export default function TeamCooperationGamePage() {
                     }
                 }
                 
-                const newTeamScore = currentRoom.teamScore + pointsFromThisRound;
+                let newTeamScore = currentRoom.teamScore + pointsFromThisRound;
+                let newSeedState = currentRoom.seedState;
+                let newWaterCount = currentRoom.waterCount;
+                
+                if (currentRoom.isSeedBombMission) {
+                    if (currentRoom.seedState === 'none' && currentRoom.currentQuestionIndex === 0 && correctAnswersThisRound > 0) {
+                        newSeedState = 'planted';
+                        toast({ title: "🌱 씨앗 심기 성공!", description: "팀원들과 협력하여 씨앗을 키워보세요!" });
+                    } else if (currentRoom.seedState === 'planted' && correctAnswersThisRound > 0) {
+                        newWaterCount = (currentRoom.waterCount || 0) + correctAnswersThisRound;
+                        if (newWaterCount >= (currentRoom.waterTarget || 5)) {
+                            const bonus = (currentRoom.targetScore || 1000) * 0.1;
+                            newTeamScore += bonus;
+                            newSeedState = 'none';
+                            newWaterCount = 0;
+                            toast({ title: "🌳 씨앗 발아 성공!", description: `보너스 점수 ${bonus}점을 획득했습니다!` });
+                        }
+                    }
+                }
+
                 const nextQuestionIndex = currentRoom.currentQuestionIndex + 1;
                 
                 let newStatus = currentRoom.status;
@@ -141,6 +161,8 @@ export default function TeamCooperationGamePage() {
                 transaction.update(roomRef, {
                   players: players,
                   teamScore: newTeamScore,
+                  seedState: newSeedState,
+                  waterCount: newWaterCount,
                   currentQuestionIndex: nextQuestionIndex,
                   currentAnswers: {},
                   status: newStatus,
@@ -199,6 +221,26 @@ export default function TeamCooperationGamePage() {
                          <Progress value={progressPercentage} className="mt-2" />
                     </CardHeader>
                 </Card>
+
+                {gameRoom.isSeedBombMission && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="text-lg flex items-center gap-2"><Sprout className="text-green-500"/>씨앗 폭탄 미션</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {gameRoom.seedState === 'planted' ? (
+                                <div>
+                                    <p className="text-center font-semibold mb-2">씨앗에 물을 주세요! (목표: {gameRoom.waterTarget || 5}개)</p>
+                                    <Progress value={((gameRoom.waterCount || 0) / (gameRoom.waterTarget || 5)) * 100} />
+                                    <p className="text-sm text-muted-foreground text-center mt-1">{gameRoom.waterCount || 0} / {gameRoom.waterTarget || 5}</p>
+                                </div>
+                            ) : (
+                                <p className="text-center text-muted-foreground">첫 번째 문제를 맞춰 씨앗을 심으세요!</p>
+                            )}
+                        </CardContent>
+                    </Card>
+                )}
+                
                 <Card>
                     <CardHeader>
                         <CardTitle>문제 {gameRoom.currentQuestionIndex + 1} / {gameRoom.allQuestions.length}</CardTitle>

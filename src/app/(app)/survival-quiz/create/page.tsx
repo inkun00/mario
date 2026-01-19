@@ -73,6 +73,8 @@ export default function CreateSurvivalQuizPage() {
 
   // Team Cooperation settings
   const [targetScore, setTargetScore] = useState(1000);
+  const [isSeedBombMission, setIsSeedBombMission] = useState(true);
+  const [waterTarget, setWaterTarget] = useState(5);
 
 
   // Fetch user data to check for teacher role
@@ -266,7 +268,11 @@ export default function CreateSurvivalQuizPage() {
                 targetScore,
                 players: { [user.uid]: { ...hostPlayer, answers: [] } },
                 teamScore: 0,
-                currentQuestionIndex: -1,
+                currentQuestionIndex: 0,
+                isSeedBombMission: isSeedBombMission,
+                seedState: isSeedBombMission ? 'none' : undefined,
+                waterCount: isSeedBombMission ? 0 : undefined,
+                waterTarget: isSeedBombMission ? waterTarget : undefined,
             };
             await setDoc(doc(db, 'team-cooperation-rooms', newRoomId), newRoomData);
             toast({ title: '성공', description: '팀 협력전 퀴즈방을 만들었습니다! 로비로 이동합니다.' });
@@ -282,7 +288,7 @@ export default function CreateSurvivalQuizPage() {
                 teamAssignment,
                 gameDuration,
                 participationScope,
-                players: { [user.uid]: {...hostPlayer, isEliminated: false, answers: [] } },
+                players: { [user.uid]: hostPlayer },
                 teams: {
                     teamA: { id: 'teamA', name: '레드 팀', score: 200 },
                     teamB: { id: 'teamB', name: '블루 팀', score: 200 },
@@ -443,6 +449,27 @@ export default function CreateSurvivalQuizPage() {
                                         max={5000}
                                         step={100}
                                     />
+                                </div>
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="seed-bomb-enabled" className="flex flex-col gap-1">
+                                            <span>씨앗 폭탄 미션 활성화</span>
+                                            <span className="text-xs text-muted-foreground">팀원들과 협력하여 씨앗을 키워 보너스 점수를 획득하세요.</span>
+                                        </Label>
+                                        <Switch id="seed-bomb-enabled" checked={isSeedBombMission} onCheckedChange={setIsSeedBombMission} />
+                                    </div>
+                                    {isSeedBombMission && (
+                                        <div className="space-y-2 pl-2">
+                                            <Label>씨앗 발아 조건 (정답 개수): {waterTarget}개</Label>
+                                            <Slider 
+                                                value={[waterTarget]}
+                                                onValueChange={(val) => setWaterTarget(val[0])}
+                                                min={3}
+                                                max={10}
+                                                step={1}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             </CardContent>
                           )}

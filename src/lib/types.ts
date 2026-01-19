@@ -368,16 +368,6 @@ export interface TeamBattleGameRoom {
   gameDuration?: number; // in minutes
   gameStartedAt?: Timestamp;
   gameEndTime?: Timestamp;
-  currentQuestionStartedAt?: Timestamp;
-  isAnswerRevealed?: boolean;
-  currentAnswers?: Record<string, {
-      answer: string;
-      submittedAt: Timestamp;
-  }>;
-  lastQuestionResults?: Record<string, {
-      isCorrect: boolean;
-      points: number;
-  }>;
 }
 
 export interface TeamCooperationPlayer extends Player {
@@ -410,4 +400,8 @@ export interface TeamCooperationGameRoom {
       answer: string;
       submittedAt: Timestamp;
   }>;
+  isSeedBombMission?: boolean;
+  seedState?: 'none' | 'planted';
+  waterCount?: number;
+  waterTarget?: number;
 }
