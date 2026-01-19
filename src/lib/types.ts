@@ -406,13 +406,8 @@ export interface TeamCooperationGameRoom {
   teamScore: number;
   currentQuestionIndex: number;
   currentQuestionStartedAt?: Timestamp;
-  isAnswerRevealed?: boolean;
   currentAnswers?: Record<string, {
       answer: string;
       submittedAt: Timestamp;
-  }>;
-  lastQuestionResults?: Record<string, {
-      isCorrect: boolean;
-      points: number;
   }>;
 }

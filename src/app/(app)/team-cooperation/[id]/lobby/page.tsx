@@ -49,6 +49,12 @@ export default function TeamCooperationLobbyPage() {
 
                 if (roomData.players && roomData.players[userToJoin.uid]) return;
                 
+                if (Object.keys(roomData.players).length >= 30) {
+                    toast({ variant: 'destructive', title: '방이 꽉 찼습니다.', description: '최대 30명까지 참여 가능합니다.' });
+                    router.push('/dashboard');
+                    return;
+                }
+
                 const newPlayer: TeamCooperationPlayer = {
                     uid: userToJoin.uid,
                     nickname: userToJoin?.displayName || `플레이어`,
@@ -189,7 +195,7 @@ export default function TeamCooperationLobbyPage() {
                     <div className="space-y-4">
                         <h3 className="font-headline text-xl font-semibold flex items-center gap-2">
                             <Users className="w-6 h-6"/>
-                            <span>참여한 플레이어 ({players.length})</span>
+                            <span>참여한 플레이어 ({players.length} / 30)</span>
                         </h3>
                         <ScrollArea className="h-60">
                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pr-4">
