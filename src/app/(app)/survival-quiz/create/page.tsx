@@ -73,8 +73,6 @@ export default function CreateSurvivalQuizPage() {
 
   // Team Cooperation settings
   const [targetScore, setTargetScore] = useState(1000);
-  const [isSeedBombMission, setIsSeedBombMission] = useState(true);
-  const [waterTarget, setWaterTarget] = useState(5);
 
 
   // Fetch user data to check for teacher role
@@ -258,6 +256,20 @@ export default function CreateSurvivalQuizPage() {
             toast({ title: '성공', description: '서바이벌 퀴즈방을 만들었습니다! 로비로 이동합니다.' });
             router.push(`/survival-quiz/${newRoomId}/lobby`);
         } else if (gameMode === 'team-cooperation') {
+            // New logic for team cooperation
+            const WORLD_WIDTH = 2400; 
+            const terrain = [];
+            for (let x = 0; x < WORLD_WIDTH; x++) {
+                let height = 520;
+                height -= Math.sin(x * 0.01) * 20; 
+                if (x > 800) {
+                    const mountain = Math.pow((x - 800) * 0.06, 1.4);
+                    height -= Math.min(mountain, 400);
+                    height += Math.sin(x * 0.04) * 20; 
+                }
+                terrain[x] = height;
+            }
+
             const newRoomData: Omit<TeamCooperationGameRoom, 'id'> = {
                 roomTitle,
                 hostId: user.uid,
@@ -269,10 +281,11 @@ export default function CreateSurvivalQuizPage() {
                 players: { [user.uid]: { ...hostPlayer, answers: [] } },
                 teamScore: 0,
                 currentQuestionIndex: 0,
-                isSeedBombMission: isSeedBombMission,
-                seedState: isSeedBombMission ? 'none' : undefined,
-                waterCount: isSeedBombMission ? 0 : undefined,
-                waterTarget: isSeedBombMission ? waterTarget : undefined,
+                // New Fields
+                phase: 'QUIZ',
+                plantingTurnUid: null,
+                plants: [],
+                terrain,
             };
             await setDoc(doc(db, 'team-cooperation-rooms', newRoomId), newRoomData);
             toast({ title: '성공', description: '팀 협력전 퀴즈방을 만들었습니다! 로비로 이동합니다.' });
@@ -450,27 +463,6 @@ export default function CreateSurvivalQuizPage() {
                                         step={100}
                                     />
                                 </div>
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <Label htmlFor="seed-bomb-enabled" className="flex flex-col gap-1">
-                                            <span>씨앗 폭탄 미션 활성화</span>
-                                            <span className="text-xs text-muted-foreground">팀원들과 협력하여 씨앗을 키워 보너스 점수를 획득하세요.</span>
-                                        </Label>
-                                        <Switch id="seed-bomb-enabled" checked={isSeedBombMission} onCheckedChange={setIsSeedBombMission} />
-                                    </div>
-                                    {isSeedBombMission && (
-                                        <div className="space-y-2 pl-2">
-                                            <Label>씨앗 발아 조건 (정답 개수): {waterTarget}개</Label>
-                                            <Slider 
-                                                value={[waterTarget]}
-                                                onValueChange={(val) => setWaterTarget(val[0])}
-                                                min={3}
-                                                max={10}
-                                                step={1}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
                             </CardContent>
                           )}
                       </Card>
@@ -539,7 +531,7 @@ export default function CreateSurvivalQuizPage() {
                                 <SelectContent>
                                     <SelectItem value="all">전체</SelectItem>
                                     {Array.from({ length: 6 }, (_, i) => i + 1).map(grade => (
-                                    <SelectItem key={grade} value={`${grade}학년`}>{grade}학년</SelectItem>
+                                    <SelectItem key={grade} value={`$\{grade}학년`}>{grade}학년</SelectItem>
                                     ))}
                                 </SelectContent>
                                 </Select>
@@ -583,11 +575,11 @@ export default function CreateSurvivalQuizPage() {
                                 {filteredGameSets.map(set => (
                                     <div key={set.id} className="flex items-center space-x-3 p-2 rounded-md hover:bg-secondary">
                                         <Checkbox 
-                                            id={`set-${set.id}`}
+                                            id={`set-$\{set.id}`}
                                             checked={selectedSets[set.id] || false}
                                             onCheckedChange={(checked) => handleSetSelection(set.id, !!checked)}
                                         />
-                                        <Label htmlFor={`set-${set.id}`} className="w-full cursor-pointer flex-grow">
+                                        <Label htmlFor={`set-$\{set.id}`} className="w-full cursor-pointer flex-grow">
                                             <p className="font-semibold">{set.title}</p>
                                             <p className="text-sm text-muted-foreground">
                                                 {set.questions.length} 문제 · 제작자: {set.creatorNickname} · {set.isPublic ? '공개' : '내 퀴즈'}
