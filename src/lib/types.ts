@@ -336,3 +336,31 @@ export interface SurvivalGameRoom {
         points: number;
     }>;
 }
+
+
+export interface Team {
+  id: 'teamA' | 'teamB';
+  name: string;
+  score: number;
+}
+
+export interface TeamBattlePlayer extends SurvivalPlayer {
+  teamId?: 'teamA' | 'teamB';
+}
+
+export interface TeamBattleGameRoom {
+  id: string;
+  roomTitle: string;
+  hostId: string;
+  status: 'waiting' | 'playing' | 'finished';
+  createdAt: Timestamp;
+  gameSetIds: string[];
+  allQuestions: Question[];
+  teamAssignment: 'manual' | 'random';
+  players: Record<string, TeamBattlePlayer>;
+  teams: {
+      teamA: Team;
+      teamB: Team;
+  };
+  currentQuestionIndex: number;
+}

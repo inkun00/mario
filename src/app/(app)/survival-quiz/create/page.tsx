@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, getDocs, doc, onSnapshot, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import type { GameSet, User, SurvivalGameRoom, Question, SurvivalPlayer } from '@/lib/types';
+import type { GameSet, User, SurvivalGameRoom, Question, SurvivalPlayer, TeamBattleGameRoom, Team } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -44,6 +44,7 @@ export default function CreateSurvivalQuizPage() {
   const [participationScope, setParticipationScope] = useState<'class' | 'public'>('class');
   const [selectedSets, setSelectedSets] = useState<Record<string, boolean>>({});
   const [previewGameSet, setPreviewGameSet] = useState<GameSet | null>(null);
+  const [gameMode, setGameMode] = useState<'golden-bell' | 'team-battle'>('golden-bell');
 
   const [filteredGameSets, setFilteredGameSets] = useState<SurvivalGameSet[]>([]);
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -56,6 +57,9 @@ export default function CreateSurvivalQuizPage() {
   const [timeLimit, setTimeLimit] = useState(60);
   const [revivalEnabled, setRevivalEnabled] = useState(true);
   const [revivalPercentage, setRevivalPercentage] = useState(20);
+  
+  // Team Battle settings
+  const [teamAssignment, setTeamAssignment] = useState<'manual' | 'random'>('manual');
 
 
   // Fetch user data to check for teacher role
@@ -150,7 +154,7 @@ export default function CreateSurvivalQuizPage() {
     setSelectedSets(prev => ({ ...prev, [setId]: isSelected }));
   };
   
-  const handleCreateSurvivalQuiz = async () => {
+  const handleCreateQuiz = async () => {
     const selectedIds = Object.keys(selectedSets).filter(id => selectedSets[id]);
     
     if (!roomTitle.trim()) {
@@ -169,18 +173,14 @@ export default function CreateSurvivalQuizPage() {
     setIsCreating(true);
 
     try {
-        // 1. Get all questions from selected game sets
         const selectedGameSets = gameSets.filter(set => selectedIds.includes(set.id));
         let allQuestions: Question[] = [];
         selectedGameSets.forEach(set => {
             allQuestions = [...allQuestions, ...set.questions];
         });
-        // Shuffle questions
         allQuestions.sort(() => Math.random() - 0.5);
         allQuestions = allQuestions.map((q, i) => ({...q, id: i}));
 
-
-        // 2. Create the host player
         const hostPlayer: SurvivalPlayer = {
             uid: user.uid,
             nickname: userData.displayName || '호스트',
@@ -189,36 +189,52 @@ export default function CreateSurvivalQuizPage() {
             isEliminated: false,
             answers: [],
         };
-
-        // 3. Create the new survival game room document
-        const newRoomData: Omit<SurvivalGameRoom, 'id'> = {
-            roomTitle,
-            hostId: user.uid,
-            status: 'waiting',
-            createdAt: serverTimestamp() as Timestamp,
-            gameSetIds: selectedIds,
-            allQuestions,
-            timeLimitPerQuestion: timeLimit,
-            revivalEnabled,
-            revivalPercentage,
-            participationScope,
-            players: {
-                [user.uid]: hostPlayer
-            },
-            playerUIDs: [user.uid],
-            currentQuestionIndex: -1, // -1 means lobby
-            isAnswerRevealed: false,
-            eliminatedPlayerIds: [],
-            revivalHappened: false,
-        };
-
-        const roomRef = await addDoc(collection(db, 'survival-game-rooms'), newRoomData);
         
-        toast({ title: '성공', description: '서바이벌 퀴즈방을 만들었습니다! 로비로 이동합니다.' });
-        router.push(`/survival-quiz/${roomRef.id}/lobby`);
+        if (gameMode === 'golden-bell') {
+            const newRoomData: Omit<SurvivalGameRoom, 'id'> = {
+                roomTitle,
+                hostId: user.uid,
+                status: 'waiting',
+                createdAt: serverTimestamp() as Timestamp,
+                gameSetIds: selectedIds,
+                allQuestions,
+                timeLimitPerQuestion: timeLimit,
+                revivalEnabled,
+                revivalPercentage,
+                participationScope,
+                players: { [user.uid]: hostPlayer },
+                playerUIDs: [user.uid],
+                currentQuestionIndex: -1,
+                isAnswerRevealed: false,
+                eliminatedPlayerIds: [],
+                revivalHappened: false,
+            };
+            const roomRef = await addDoc(collection(db, 'survival-game-rooms'), newRoomData);
+            toast({ title: '성공', description: '서바이벌 퀴즈방을 만들었습니다! 로비로 이동합니다.' });
+            router.push(`/survival-quiz/${roomRef.id}/lobby`);
+        } else { // team-battle
+            const newRoomData: Omit<TeamBattleGameRoom, 'id'> = {
+                roomTitle,
+                hostId: user.uid,
+                status: 'waiting',
+                createdAt: serverTimestamp() as Timestamp,
+                gameSetIds: selectedIds,
+                allQuestions,
+                teamAssignment,
+                players: { [user.uid]: {...hostPlayer, teamId: undefined} },
+                teams: {
+                    teamA: { id: 'teamA', name: '레드 팀', score: 0 },
+                    teamB: { id: 'teamB', name: '블루 팀', score: 0 },
+                },
+                currentQuestionIndex: -1,
+            };
+            const roomRef = await addDoc(collection(db, 'team-battle-rooms'), newRoomData);
+            toast({ title: '성공', description: '팀 대항전 퀴즈방을 만들었습니다! 로비로 이동합니다.' });
+            router.push(`/team-battle/${roomRef.id}/lobby`);
+        }
 
     } catch (error) {
-        console.error("Error creating survival quiz room:", error);
+        console.error("Error creating quiz room:", error);
         toast({ variant: 'destructive', title: '오류', description: '방 생성에 실패했습니다.' });
     } finally {
         setIsCreating(false);
@@ -259,7 +275,7 @@ export default function CreateSurvivalQuizPage() {
                     서바이벌 퀴즈방 만들기
                 </CardTitle>
                 <CardDescription>
-                    여러 퀴즈 세트를 조합하여 대규모 서바이벌 퀴즈를 만듭니다. 최후의 1인이 될 때까지 도전하세요!
+                    여러 퀴즈 세트를 조합하여 대규모 서바이벌 퀴즈를 만듭니다.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
@@ -296,53 +312,81 @@ export default function CreateSurvivalQuizPage() {
                 
                  <div className="space-y-4">
                     <h3 className="text-lg font-semibold">게임 모드 선택</h3>
-                    <RadioGroup defaultValue="golden-bell">
-                      <Card>
+                    <RadioGroup value={gameMode} onValueChange={(v: any) => setGameMode(v)} className="space-y-4">
+                      <Card className={cn(gameMode === 'golden-bell' && 'border-primary ring-2 ring-primary')}>
                           <CardHeader>
                               <div className="flex items-center gap-3">
-                                  <RadioGroupItem value="golden-bell" id="mode-golden-bell" className="peer" />
+                                  <RadioGroupItem value="golden-bell" id="mode-golden-bell" />
                                   <Label htmlFor="mode-golden-bell" className="flex-1 cursor-pointer">
                                       <CardTitle>골든벨 모드</CardTitle>
-                                      <CardDescription>마지막 한 명이 남을 때까지 진행되는 서바이벌 퀴즈입니다.</CardDescription>
+                                      <CardDescription>마지막 한 명이 남을 때까지 진행되는 개인 서바이벌 퀴즈입니다.</CardDescription>
                                   </Label>
                               </div>
                           </CardHeader>
-                          <CardContent className="space-y-6 pt-4 pl-12">
-                              <div className="space-y-2">
-                                  <Label>문제당 시간 제한</Label>
-                                  <RadioGroup value={String(timeLimit)} onValueChange={(val) => setTimeLimit(Number(val))} className="flex gap-4">
-                                      <Label htmlFor="time-60" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
-                                          <RadioGroupItem value="60" id="time-60" /> 1분
-                                      </Label>
-                                      <Label htmlFor="time-120" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
-                                          <RadioGroupItem value="120" id="time-120" /> 2분
-                                      </Label>
-                                      <Label htmlFor="time-180" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
-                                          <RadioGroupItem value="180" id="time-180" /> 3분
-                                      </Label>
-                                  </RadioGroup>
+                          {gameMode === 'golden-bell' && (
+                            <CardContent className="space-y-6 pt-4 pl-12">
+                                <div className="space-y-2">
+                                    <Label>문제당 시간 제한</Label>
+                                    <RadioGroup value={String(timeLimit)} onValueChange={(val) => setTimeLimit(Number(val))} className="flex gap-4">
+                                        <Label htmlFor="time-60" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                                            <RadioGroupItem value="60" id="time-60" /> 1분
+                                        </Label>
+                                        <Label htmlFor="time-120" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                                            <RadioGroupItem value="120" id="time-120" /> 2분
+                                        </Label>
+                                        <Label htmlFor="time-180" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                                            <RadioGroupItem value="180" id="time-180" /> 3분
+                                        </Label>
+                                    </RadioGroup>
+                                </div>
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="revival-enabled" className="flex flex-col gap-1">
+                                            <span>패자부활전 활성화</span>
+                                            <span className="text-xs text-muted-foreground">게임이 70% 진행되었을 때 탈락자 중 일부가 부활합니다.</span>
+                                        </Label>
+                                        <Switch id="revival-enabled" checked={revivalEnabled} onCheckedChange={setRevivalEnabled} />
+                                    </div>
+                                    {revivalEnabled && (
+                                        <div className="space-y-2 pl-2">
+                                            <Label>부활 조건: 탈락자 중 상위 {revivalPercentage}%</Label>
+                                            <Slider 
+                                                value={[revivalPercentage]}
+                                                onValueChange={(val) => setRevivalPercentage(val[0])}
+                                                max={50}
+                                                step={5}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            </CardContent>
+                          )}
+                      </Card>
+                      <Card className={cn(gameMode === 'team-battle' && 'border-primary ring-2 ring-primary')}>
+                          <CardHeader>
+                              <div className="flex items-center gap-3">
+                                  <RadioGroupItem value="team-battle" id="mode-team-battle" />
+                                  <Label htmlFor="mode-team-battle" className="flex-1 cursor-pointer">
+                                      <CardTitle>팀 대항전</CardTitle>
+                                      <CardDescription>두 팀으로 나뉘어 점수 대결을 펼칩니다.</CardDescription>
+                                  </Label>
                               </div>
-                              <div className="space-y-4">
-                                  <div className="flex items-center justify-between">
-                                      <Label htmlFor="revival-enabled" className="flex flex-col gap-1">
-                                          <span>패자부활전 활성화</span>
-                                          <span className="text-xs text-muted-foreground">게임이 70% 진행되었을 때 탈락자 중 일부가 부활합니다.</span>
-                                      </Label>
-                                      <Switch id="revival-enabled" checked={revivalEnabled} onCheckedChange={setRevivalEnabled} />
-                                  </div>
-                                  {revivalEnabled && (
-                                      <div className="space-y-2 pl-2">
-                                          <Label>부활 조건: 탈락자 중 상위 {revivalPercentage}%</Label>
-                                          <Slider 
-                                              value={[revivalPercentage]}
-                                              onValueChange={(val) => setRevivalPercentage(val[0])}
-                                              max={50}
-                                              step={5}
-                                          />
-                                      </div>
-                                  )}
-                              </div>
-                          </CardContent>
+                          </CardHeader>
+                          {gameMode === 'team-battle' && (
+                            <CardContent className="space-y-6 pt-4 pl-12">
+                               <div className="space-y-2">
+                                    <Label>팀 배정 방식</Label>
+                                    <RadioGroup value={teamAssignment} onValueChange={(val: any) => setTeamAssignment(val)} className="flex gap-4">
+                                        <Label htmlFor="assign-manual" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                                            <RadioGroupItem value="manual" id="assign-manual" /> 수동 배정
+                                        </Label>
+                                        <Label htmlFor="assign-random" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                                            <RadioGroupItem value="random" id="assign-random" /> 랜덤 배정
+                                        </Label>
+                                    </RadioGroup>
+                                </div>
+                            </CardContent>
+                          )}
                       </Card>
                     </RadioGroup>
                 </div>
@@ -445,7 +489,7 @@ export default function CreateSurvivalQuizPage() {
                     size="lg" 
                     className="w-full font-headline" 
                     disabled={isCreating}
-                    onClick={handleCreateSurvivalQuiz}
+                    onClick={handleCreateQuiz}
                 >
                     {isCreating ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <Swords className="mr-2 h-5 w-5" />}
                     서바이벌 퀴즈방 만들기
@@ -482,5 +526,3 @@ export default function CreateSurvivalQuizPage() {
     </>
   );
 }
-
-    
