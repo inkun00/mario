@@ -370,6 +370,14 @@ export interface TeamBattleGameRoom {
   gameEndTime?: Timestamp;
 }
 
+export interface GameItem {
+  id: string;
+  x: number;
+  y: number;
+  emoji: string;
+  level: number;
+}
+
 export interface TeamCooperationPlayer extends Player {
     answers: {
         questionId: number;
@@ -387,10 +395,8 @@ export interface TeamCooperationGameRoom {
   createdAt: Timestamp;
   gameSetIds: string[];
   allQuestions: Question[];
-
-  // Mission
   targetScore: number;
-  
+
   // Game State
   players: Record<string, TeamCooperationPlayer>;
   teamScore: number;
@@ -400,8 +406,10 @@ export interface TeamCooperationGameRoom {
       answer: string;
       submittedAt: Timestamp;
   }>;
-  isSeedBombMission?: boolean;
-  seedState?: 'none' | 'planted';
-  waterCount?: number;
-  waterTarget?: number;
+  
+  // New Green Oasis fields
+  phase: 'QUIZ' | 'PLANTING' | 'RESULT';
+  plantingTurnUid?: string;
+  plants: GameItem[];
+  terrain: number[];
 }
