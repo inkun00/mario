@@ -5,8 +5,8 @@
 import { useState, useEffect } from 'react';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
-import { collection, query, where, getDocs, doc, onSnapshot, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import type { GameSet, User, SurvivalGameRoom, Question, SurvivalPlayer, TeamBattleGameRoom, Team, TeamCooperationGameRoom, TeamCooperationPlayer } from '@/lib/types';
+import { collection, query, where, getDocs, doc, onSnapshot, addDoc, serverTimestamp, Timestamp, setDoc, getDoc } from 'firebase/firestore';
+import type { GameSet, User, SurvivalGameRoom, Question, TeamBattleGameRoom, Team, TeamCooperationGameRoom, TeamCooperationPlayer } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -30,6 +30,15 @@ import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 
 type SurvivalGameSet = GameSet & { isSelected?: boolean };
+
+function generateRoomId() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let result = '';
+  for (let i = 0; i < 5; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
 
 export default function CreateSurvivalQuizPage() {
   const [user, loadingUser] = useAuthState(auth);
@@ -191,6 +200,30 @@ export default function CreateSurvivalQuizPage() {
         allQuestions.sort(() => Math.random() - 0.5);
         allQuestions = allQuestions.map((q, i) => ({...q, id: i}));
 
+        let collectionName = '';
+        if (gameMode === 'golden-bell') {
+            collectionName = 'survival-game-rooms';
+        } else if (gameMode === 'team-cooperation') {
+            collectionName = 'team-cooperation-rooms';
+        } else { // team-battle
+            collectionName = 'team-battle-rooms';
+        }
+
+        let newRoomId: string | undefined;
+        let roomExists = true;
+        while (roomExists) {
+            newRoomId = generateRoomId();
+            const roomRef = doc(db, collectionName, newRoomId);
+            const roomSnap = await getDoc(roomRef);
+            if (!roomSnap.exists()) {
+                roomExists = false;
+            }
+        }
+
+        if (!newRoomId) {
+            throw new Error('고유한 방 ID 생성에 실패했습니다.');
+        }
+
         const hostPlayer = {
             uid: user.uid,
             nickname: userData.displayName || '호스트',
@@ -218,9 +251,9 @@ export default function CreateSurvivalQuizPage() {
                 eliminatedPlayerIds: [],
                 revivalHappened: false,
             };
-            const roomRef = await addDoc(collection(db, 'survival-game-rooms'), newRoomData);
+            await setDoc(doc(db, 'survival-game-rooms', newRoomId), newRoomData);
             toast({ title: '성공', description: '서바이벌 퀴즈방을 만들었습니다! 로비로 이동합니다.' });
-            router.push(`/survival-quiz/${roomRef.id}/lobby`);
+            router.push(`/survival-quiz/${newRoomId}/lobby`);
         } else if (gameMode === 'team-cooperation') {
             const newRoomData: Omit<TeamCooperationGameRoom, 'id'> = {
                 roomTitle,
@@ -234,9 +267,9 @@ export default function CreateSurvivalQuizPage() {
                 teamScore: 0,
                 currentQuestionIndex: -1,
             };
-            const roomRef = await addDoc(collection(db, 'team-cooperation-rooms'), newRoomData);
+            await setDoc(doc(db, 'team-cooperation-rooms', newRoomId), newRoomData);
             toast({ title: '성공', description: '팀 협력전 퀴즈방을 만들었습니다! 로비로 이동합니다.' });
-            router.push(`/team-cooperation/${roomRef.id}/lobby`);
+            router.push(`/team-cooperation/${newRoomId}/lobby`);
         } else { // team-battle
             const newRoomData: Omit<TeamBattleGameRoom, 'id'> = {
                 roomTitle,
@@ -253,9 +286,9 @@ export default function CreateSurvivalQuizPage() {
                 },
                 currentQuestionIndex: -1,
             };
-            const roomRef = await addDoc(collection(db, 'team-battle-rooms'), newRoomData);
+            await setDoc(doc(db, 'team-battle-rooms', newRoomId), newRoomData);
             toast({ title: '성공', description: '팀 대항전 퀴즈방을 만들었습니다! 로비로 이동합니다.' });
-            router.push(`/team-battle/${roomRef.id}/lobby`);
+            router.push(`/team-battle/${newRoomId}/lobby`);
         }
 
     } catch (error) {

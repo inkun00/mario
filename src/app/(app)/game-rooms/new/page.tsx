@@ -30,9 +30,9 @@ import {
 } from "@/components/ui/select"
 
 function generateRoomId() {
-  const chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789';
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   let result = '';
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 5; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
