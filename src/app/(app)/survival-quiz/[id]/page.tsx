@@ -1,10 +1,9 @@
 
-
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, updateDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, serverTimestamp, runTransaction, Timestamp } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { SurvivalGameRoom, Question, SurvivalPlayer } from '@/lib/types';
@@ -216,7 +215,7 @@ export default function SurvivalQuizGamePage() {
               questionId: currentQuestion.id,
               isCorrect,
               points,
-              submittedAt: submission?.submittedAt || serverTimestamp(),
+              submittedAt: submission?.submittedAt || Timestamp.now(),
           });
         }
         

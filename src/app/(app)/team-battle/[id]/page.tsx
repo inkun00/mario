@@ -3,7 +3,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, updateDoc, serverTimestamp, runTransaction, writeBatch, increment, getDoc, collection } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, serverTimestamp, runTransaction, writeBatch, increment, getDoc, collection, Timestamp } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { TeamBattleGameRoom, Question, TeamBattlePlayer, User, PointLog } from '@/lib/types';
@@ -119,7 +119,7 @@ export default function TeamBattleGamePage() {
                     questionId: currentQuestion.id,
                     isCorrect,
                     points,
-                    submittedAt: serverTimestamp(),
+                    submittedAt: Timestamp.now(),
                 };
                 const newAnswers = [...(player.answers || []), newAnswer];
                 const nextQuestionIndex = (player.currentQuestionIndex ?? -1) + 1;
