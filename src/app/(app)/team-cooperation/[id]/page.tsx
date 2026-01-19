@@ -8,7 +8,7 @@ import { auth, db } from '@/lib/firebase';
 import type { TeamCooperationGameRoom, Question, TeamCooperationPlayer, GameItem } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Loader2, Users, Trophy, Skull, Send, Sprout } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -211,7 +211,7 @@ export default function TeamCooperationGamePage() {
                 proj.trail.push({ x: proj.x, y: proj.y });
                 if (proj.trail.length > 30) proj.trail.shift();
 
-                ctx.beginPath(); proj.trail.forEach((p: {x: number, y: number}) => ctx.lineTo(p.x, p.y));
+                ctx.beginPath(); proj.trail.forEach((p: {x: number; y: number}) => ctx.lineTo(p.x, p.y));
                 ctx.strokeStyle = proj.type === 'SEED' ? 'rgba(67, 20, 7, 0.3)' : 'rgba(14, 165, 233, 0.3)';
                 ctx.lineWidth = 5; ctx.stroke();
 
@@ -280,7 +280,7 @@ export default function TeamCooperationGamePage() {
         if (!isCharging && chargePower > 0 && !projectileRef.current) {
           fire(chargePower);
         }
-    }, [isCharging, chargePower]);
+    }, [isCharging, chargePower, fire]);
 
     useEffect(() => {
         if (isCharging) {
@@ -306,6 +306,7 @@ export default function TeamCooperationGamePage() {
             toast({ title: '답변 제출 완료!', description: '다른 플레이어들의 답변을 기다려주세요.' });
         } catch (error) {
             toast({ variant: 'destructive', title: '오류', description: '답변 제출에 실패했습니다.' });
+        } finally {
             setIsSubmitting(false);
         }
     };
@@ -341,7 +342,7 @@ export default function TeamCooperationGamePage() {
                 
                 const newTeamScore = currentRoom.teamScore + pointsFromThisRound;
                 let newPhase: 'QUIZ' | 'PLANTING' = 'QUIZ';
-                let newPlantingTurnUid: string | null = null;
+                let newPlantingTurnUid: string | undefined = undefined;
                 let nextQuestionIndex = currentRoom.currentQuestionIndex;
 
                 if (correctPlayers.length > 0) {
