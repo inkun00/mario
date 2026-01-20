@@ -160,26 +160,39 @@ export default function ClassStorePage() {
   }, [user, loadingUser]);
 
   useEffect(() => {
-    if (!userData?.classId) {
-        if (!loadingUser && !isLoading) {
-            setClassStoreItems([]);
-        }
-        return;
-    };
-
+    if (loadingUser || !user) return;
+    
+    const classId = userData?.role === 'teacher' ? user.uid : userData?.classId;
+    
+    if (!classId) {
+      if (!loadingUser) {
+        setClassStoreItems([]);
+      }
+      return;
+    }
+    
     const itemsQuery = query(
       collection(db, 'class-store-items'),
-      where('classId', '==', userData.classId)
+      where('classId', '==', classId)
     );
+
     const unsubscribe = onSnapshot(itemsQuery, (snapshot) => {
       const items = snapshot.docs.map(
         (doc) => ({ id: doc.id, ...doc.data() } as ClassStoreItem)
       );
       items.sort((a,b) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
       setClassStoreItems(items);
+    }, (error) => {
+      console.error("Error fetching store items: ", error);
+      toast({
+        variant: "destructive",
+        title: "오류",
+        description: "상점 아이템을 불러오는 데 실패했습니다.",
+      });
     });
+
     return () => unsubscribe();
-  }, [userData, loadingUser, isLoading]);
+  }, [user, userData, loadingUser, toast]);
 
   useEffect(() => {
     if (!userData?.classId || !user) return;
@@ -216,7 +229,8 @@ export default function ClassStorePage() {
   }, [userData, user]);
 
   const handleAddItem = async (values: StoreItemFormValues) => {
-    if (!user || !userData?.classId) return;
+    const classId = userData?.role === 'teacher' ? user?.uid : userData?.classId;
+    if (!user || !userData || !classId) return;
 
     setIsSubmitting(true);
     const newItemData = {
@@ -224,7 +238,7 @@ export default function ClassStorePage() {
         sellerId: user.uid,
         sellerName: userData.name,
         sellerNickname: userData.displayName,
-        classId: userData.classId,
+        classId: classId,
         createdAt: serverTimestamp(),
       };
 
@@ -976,5 +990,3 @@ export default function ClassStorePage() {
     </>
   );
 }
-
-    
