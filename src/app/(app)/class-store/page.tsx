@@ -99,6 +99,8 @@ const storeItemSchema = z.object({
 type StoreItemFormValues = z.infer<typeof storeItemSchema>;
 type InventoryItem = NonNullable<User['inventory']>[string] & { itemId: string };
 
+const emojiList = ['🎁', '🎟️', '✨', '🔥', '💯', '👍', '❤️', '🚀', '⭐', '👑', '💣', '💡', '🎉', '🍀', '💰', '💎', '🍔', '🍕', '🍭', '🎮'];
+
 export default function ClassStorePage() {
   const [user, loadingUser] = useAuthState(auth);
   const [userData, setUserData] = useState<User | null>(null);
@@ -841,7 +843,25 @@ export default function ClassStorePage() {
                 <FormItem><FormLabel>수량</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
               )}/>
                <FormField name="emoji" control={form.control} render={({ field }) => (
-                <FormItem><FormLabel>대표 이모지</FormLabel><FormControl><Input {...field} maxLength={2} /></FormControl><FormMessage /></FormItem>
+                <FormItem>
+                  <FormLabel>대표 이모지</FormLabel>
+                  <FormControl>
+                    <div className="flex flex-wrap gap-2">
+                      {emojiList.map((emoji) => (
+                        <Button
+                          type="button"
+                          key={emoji}
+                          variant={field.value === emoji ? 'default' : 'outline'}
+                          className="text-2xl p-2 h-auto"
+                          onClick={() => field.onChange(emoji)}
+                        >
+                          {emoji}
+                        </Button>
+                      ))}
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}/>
               <DialogFooter>
                 <Button type="submit" disabled={isSubmitting}>
