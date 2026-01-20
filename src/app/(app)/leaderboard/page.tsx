@@ -905,7 +905,3 @@ function LeaderboardSkeleton() {
         </div>
     )
 }
-
-    
-
-
