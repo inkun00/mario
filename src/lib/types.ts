@@ -407,9 +407,13 @@ export interface TeamCooperationGameRoom {
       submittedAt: Timestamp;
   }>;
   
-  // New Green Oasis fields
+  // Green Oasis fields
   phase: 'QUIZ' | 'PLANTING' | 'RESULT';
   plantingTurnUid?: string;
   plants: GameItem[];
   terrain: number[];
+  lastQuestionResult?: {
+    correctPlayers: string[];
+    pointsFromThisRound: number;
+  };
 }

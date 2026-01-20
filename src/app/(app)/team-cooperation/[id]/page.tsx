@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Users, Trophy, Skull, Send, Sprout } from 'lucide-react';
+import { Loader2, Users, Trophy, Skull, Send, Sprout, CheckCircle, XCircle } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -129,7 +129,7 @@ export default function TeamCooperationGamePage() {
                 }
                 
                 const nextQuestionIndex = currentRoom.currentQuestionIndex + 1;
-                const newTeamScore = currentRoom.teamScore + pointsFromThisAction;
+                const newTeamScore = (currentRoom.teamScore || 0) + pointsFromThisAction;
 
                 let newStatus = currentRoom.status;
                 if (newTeamScore >= currentRoom.targetScore || nextQuestionIndex >= currentRoom.allQuestions.length) {
@@ -341,35 +341,58 @@ export default function TeamCooperationGamePage() {
                 }
                 
                 const newTeamScore = currentRoom.teamScore + pointsFromThisRound;
-                let newPhase: 'QUIZ' | 'PLANTING' = 'QUIZ';
-                let newPlantingTurnUid: string | undefined = undefined;
-                let nextQuestionIndex = currentRoom.currentQuestionIndex;
-
-                if (correctPlayers.length > 0) {
-                    newPhase = 'PLANTING';
-                    newPlantingTurnUid = correctPlayers[Math.floor(Math.random() * correctPlayers.length)];
-                } else {
-                    nextQuestionIndex += 1;
-                }
-
-                let newStatus = currentRoom.status;
-                if (newTeamScore >= currentRoom.targetScore || nextQuestionIndex >= currentRoom.allQuestions.length) {
-                    newStatus = 'finished';
-                }
-
+                
                 transaction.update(roomRef, {
                   players,
                   teamScore: newTeamScore,
-                  phase: newPhase,
-                  plantingTurnUid: newPlantingTurnUid,
-                  currentQuestionIndex: nextQuestionIndex,
-                  status: newStatus,
+                  phase: 'RESULT',
+                  lastQuestionResult: { correctPlayers, pointsFromThisRound },
                   currentAnswers: {},
                 });
             });
         } catch (error) {
             console.error("Error tallying answers:", error);
             toast({variant: 'destructive', title: '오류', description: '답변 집계 중 오류가 발생했습니다.'});
+        }
+    };
+
+    const handleProceedToNextStep = async () => {
+        if (!isHost || !gameRoom) return;
+        try {
+            await runTransaction(db, async (transaction) => {
+                const roomRef = doc(db, 'team-cooperation-rooms', gameRoomId as string);
+                const roomDoc = await transaction.get(roomRef);
+                if (!roomDoc.exists()) throw "Room not found";
+                const currentRoom = roomDoc.data() as TeamCooperationGameRoom;
+    
+                const correctPlayers = currentRoom.lastQuestionResult?.correctPlayers || [];
+                let newPhase: 'QUIZ' | 'PLANTING' = 'QUIZ';
+                let newPlantingTurnUid: string | undefined = undefined;
+                let nextQuestionIndex = currentRoom.currentQuestionIndex;
+    
+                if (correctPlayers.length > 0) {
+                    newPhase = 'PLANTING';
+                    newPlantingTurnUid = correctPlayers[Math.floor(Math.random() * correctPlayers.length)];
+                } else {
+                    nextQuestionIndex++;
+                }
+                
+                let newStatus = currentRoom.status;
+                if (nextQuestionIndex >= currentRoom.allQuestions.length) {
+                    newStatus = 'finished';
+                }
+    
+                transaction.update(roomRef, {
+                  phase: newPhase,
+                  plantingTurnUid: newPlantingTurnUid,
+                  currentQuestionIndex: nextQuestionIndex,
+                  status: newStatus,
+                  lastQuestionResult: null,
+                });
+            });
+        } catch (error) {
+            console.error("Error proceeding to next step:", error);
+            toast({variant: 'destructive', title: '오류', description: '다음 단계로 진행하는 중 오류가 발생했습니다.'});
         }
     };
     
@@ -439,11 +462,45 @@ export default function TeamCooperationGamePage() {
                         ) : ( <div className="text-center py-10 text-muted-foreground">다음 문제를 기다리고 있습니다...</div> )}
                     </CardContent>
                      {isHost && (
-                        <CardFooter><Button onClick={handleTallyAndProceed}>정답 확인 및 다음으로</Button></CardFooter>
+                        <CardFooter><Button onClick={handleTallyAndProceed}>정답 확인</Button></CardFooter>
                     )}
                 </Card>
             )}
 
+            {gameRoom.phase === 'RESULT' && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>퀴즈 결과</CardTitle>
+                        <CardDescription>
+                            {gameRoom.lastQuestionResult?.correctPlayers && gameRoom.lastQuestionResult.correctPlayers.length > 0
+                                ? `총 ${gameRoom.lastQuestionResult.pointsFromThisRound}점을 획득했습니다!`
+                                : "아쉽지만, 정답자가 없습니다."
+                            }
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-2">
+                            <h3 className="font-semibold text-green-600">정답자</h3>
+                            {gameRoom.lastQuestionResult?.correctPlayers && gameRoom.lastQuestionResult.correctPlayers.length > 0 ? (
+                                gameRoom.lastQuestionResult.correctPlayers.map(uid => (
+                                    <div key={uid} className="flex items-center gap-2">
+                                        <CheckCircle className="w-4 h-4 text-green-500" />
+                                        <span>{gameRoom.players[uid]?.nickname}</span>
+                                    </div>
+                                ))
+                            ) : (
+                                <p className="text-muted-foreground">정답자가 없습니다.</p>
+                            )}
+                        </div>
+                    </CardContent>
+                    {isHost && (
+                        <CardFooter>
+                            <Button onClick={handleProceedToNextStep}>다음으로</Button>
+                        </CardFooter>
+                    )}
+                </Card>
+            )}
+            
             {gameRoom.phase === 'PLANTING' && (
                 <Card>
                     <CardHeader>
