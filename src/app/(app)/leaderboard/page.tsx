@@ -466,8 +466,8 @@ export default function LeaderboardPage() {
               <Image
                 src="https://i.postimg.cc/B6grjvym/Gemini_Generated_Image_h8qwx4h8qwx4h8qw-removebg-preview.png"
                 alt="리더보드"
-                width={300}
-                height={200}
+                width={600}
+                height={400}
               />
             </CardHeader>
             <CardContent>
