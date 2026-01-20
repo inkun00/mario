@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -36,6 +35,7 @@ export default function TeamCooperationGamePage() {
 
     const [userAnswer, setUserAnswer] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [timeRemaining, setTimeRemaining] = useState(0);
     const [timeProgress, setTimeProgress] = useState(100);
 
@@ -192,28 +192,48 @@ export default function TeamCooperationGamePage() {
     if (gameRoom.status === 'finished') {
         const missionSuccess = gameRoom.teamScore >= gameRoom.targetScore;
         const handleFinishAndSave = async () => {
-            const batch = writeBatch(db);
-            const allPlayingPlayers = Object.values(gameRoom.players).filter(p => !p.isHost);
-            const totalPlayers = allPlayingPlayers.length;
+            if (isSaving || !gameRoom) return;
+            setIsSaving(true);
+        
+            try {
+                const roomRef = doc(db, 'team-cooperation-rooms', gameRoomId as string);
+                await runTransaction(db, async (transaction) => {
+                    const roomDoc = await transaction.get(roomRef);
+                    if (!roomDoc.exists()) throw "Game room not found";
+                    
+                    const currentRoom = roomDoc.data() as TeamCooperationGameRoom;
+                    if (currentRoom.rewardsDistributed) return;
+                    
+                    transaction.update(roomRef, { rewardsDistributed: true });
 
-            if (totalPlayers > 0) {
-                const baseReward = Math.floor(gameRoom.teamScore / totalPlayers);
-                const finalReward = missionSuccess ? baseReward * 2 : baseReward;
-                
-                for (const player of allPlayingPlayers) {
-                    const playerRef = doc(db, 'users', player.uid);
-                    batch.update(playerRef, { xp: increment(finalReward), classPoints: increment(finalReward) });
-                    const logRef = doc(collection(db, 'users', player.uid, 'pointLogs'));
-                    batch.set(logRef, {
-                        type: 'QUIZ_REWARD',
-                        amount: finalReward,
-                        timestamp: Timestamp.now(),
-                        description: `팀 협력전 ${missionSuccess ? '성공' : '참여'} 보상`
-                    } as Omit<PointLog, 'id' | 'userId'>);
-                }
+                    const allPlayingPlayers = Object.values(currentRoom.players).filter(p => !p.isHost);
+                    const totalPlayers = allPlayingPlayers.length;
+
+                    if (totalPlayers > 0) {
+                        const baseReward = Math.floor(currentRoom.teamScore / totalPlayers);
+                        const finalReward = missionSuccess ? baseReward * 2 : baseReward;
+                        
+                        for (const player of allPlayingPlayers) {
+                            const playerRef = doc(db, 'users', player.uid);
+                            if (finalReward > 0) {
+                                transaction.update(playerRef, { xp: increment(finalReward), classPoints: increment(finalReward) });
+                                const logRef = doc(collection(db, 'users', player.uid, 'pointLogs'));
+                                transaction.set(logRef, {
+                                    type: 'QUIZ_REWARD',
+                                    amount: finalReward,
+                                    timestamp: Timestamp.now(),
+                                    description: `팀 협력전 ${missionSuccess ? '성공' : '참여'} 보상`
+                                } as Omit<PointLog, 'id' | 'userId'>);
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Error saving game results:", error);
+                toast({ variant: 'destructive', title: '오류', description: '게임 결과를 저장하는 중 오류가 발생했습니다.' });
+            } finally {
+                router.push('/dashboard');
             }
-            await batch.commit();
-            router.push('/dashboard');
         };
 
         return (
@@ -229,7 +249,10 @@ export default function TeamCooperationGamePage() {
                        <p className="text-4xl font-bold text-primary">{gameRoom.teamScore.toLocaleString()}점</p>
                     </CardContent>
                     <CardFooter>
-                      <Button className="w-full" onClick={handleFinishAndSave}>결과 저장 및 나가기</Button>
+                      <Button className="w-full" onClick={handleFinishAndSave} disabled={isSaving}>
+                          {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          결과 저장 및 나가기
+                      </Button>
                     </CardFooter>
                 </Card>
             </div>

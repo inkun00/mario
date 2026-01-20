@@ -39,6 +39,7 @@ export default function TeamBattleGamePage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [gameTimeRemaining, setGameTimeRemaining] = useState(0);
     const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     const isHost = user?.uid === gameRoom?.hostId;
     const currentPlayer = user && gameRoom ? gameRoom.players[user.uid] : null;
@@ -177,55 +178,64 @@ export default function TeamBattleGamePage() {
 
     if (gameRoom.status === 'finished') {
         const handleFinishAndSave = async () => {
-            if (!gameRoom) {
-                router.push('/dashboard');
-                return;
-            }
+            if (isSaving || !gameRoom) return;
+            setIsSaving(true);
         
             try {
-                const batch = writeBatch(db);
-                const allPlayingPlayers = Object.values(gameRoom.players).filter(p => !p.isHost);
-                const totalPlayers = allPlayingPlayers.length;
-                
-                if (totalPlayers > 0) {
-                    const baseReward = 10 * totalPlayers;
-                    const losingTeamReward = baseReward;
-                    const winningTeamReward = baseReward * 2;
+                const roomRef = doc(db, 'team-battle-rooms', gameRoomId as string);
+                await runTransaction(db, async (transaction) => {
+                    const roomDoc = await transaction.get(roomRef);
+                    if (!roomDoc.exists()) throw "Game room not found.";
+
+                    const currentRoomData = roomDoc.data() as TeamBattleGameRoom;
+                    if (currentRoomData.rewardsDistributed) return;
                     
-                    const winnerTeamId = winnerTeam?.id;
-        
-                    for (const player of allPlayingPlayers) {
-                        const playerRef = doc(db, 'users', player.uid);
-                        let points = 0;
-                        let description = '';
-        
-                        if (!winnerTeamId) { // Draw
-                            points = losingTeamReward;
-                            description = '팀 대항전 무승부';
-                        } else if (player.teamId === winnerTeamId) {
-                            points = winningTeamReward;
-                            description = '팀 대항전 승리';
-                        } else {
-                            points = losingTeamReward;
-                            description = '팀 대항전 참여';
-                        }
-        
-                        if (points > 0) {
-                            batch.update(playerRef, {
-                                xp: increment(points),
-                                classPoints: increment(points)
-                            });
-                            const logRef = doc(collection(db, 'users', player.uid, 'pointLogs'));
-                            batch.set(logRef, {
-                                type: 'QUIZ_REWARD',
-                                amount: points,
-                                timestamp: Timestamp.now(),
-                                description
-                            } as Omit<PointLog, 'id' | 'userId'>);
+                    transaction.update(roomRef, { rewardsDistributed: true });
+
+                    const allPlayingPlayers = Object.values(currentRoomData.players).filter(p => !p.isHost);
+                    const totalPlayers = allPlayingPlayers.length;
+                    
+                    if (totalPlayers > 0) {
+                        const teamAScoreTx = currentRoomData.teams.teamA.score || 0;
+                        const teamBScoreTx = currentRoomData.teams.teamB.score || 0;
+                        const winnerTeamIdTx = teamAScoreTx > teamBScoreTx ? 'teamA' : (teamBScoreTx > teamAScoreTx ? 'teamB' : null);
+
+                        const baseReward = 10 * totalPlayers;
+                        const losingTeamReward = baseReward;
+                        const winningTeamReward = baseReward * 2;
+                        
+                        for (const player of allPlayingPlayers) {
+                            const playerRef = doc(db, 'users', player.uid);
+                            let points = 0;
+                            let description = '';
+            
+                            if (!winnerTeamIdTx) { // Draw
+                                points = losingTeamReward;
+                                description = '팀 대항전 무승부';
+                            } else if (player.teamId === winnerTeamIdTx) {
+                                points = winningTeamReward;
+                                description = '팀 대항전 승리';
+                            } else {
+                                points = losingTeamReward;
+                                description = '팀 대항전 참여';
+                            }
+            
+                            if (points > 0) {
+                                transaction.update(playerRef, {
+                                    xp: increment(points),
+                                    classPoints: increment(points)
+                                });
+                                const logRef = doc(collection(db, 'users', player.uid, 'pointLogs'));
+                                transaction.set(logRef, {
+                                    type: 'QUIZ_REWARD',
+                                    amount: points,
+                                    timestamp: Timestamp.now(),
+                                    description
+                                } as Omit<PointLog, 'id' | 'userId'>);
+                            }
                         }
                     }
-                }
-                await batch.commit();
+                });
             } catch (error) {
                 console.error("Error saving game results:", error);
                 toast({ variant: 'destructive', title: '오류', description: '게임 결과를 저장하는 중 오류가 발생했습니다.'});
@@ -259,7 +269,10 @@ export default function TeamBattleGamePage() {
                         </div>
                     </CardContent>
                     <CardFooter>
-                      <Button className="w-full" onClick={handleFinishAndSave}>결과 저장 및 나가기</Button>
+                      <Button className="w-full" onClick={handleFinishAndSave} disabled={isSaving}>
+                          {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          결과 저장 및 나가기
+                      </Button>
                     </CardFooter>
                 </Card>
             </div>

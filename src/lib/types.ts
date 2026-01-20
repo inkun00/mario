@@ -368,6 +368,7 @@ export interface TeamBattleGameRoom {
   gameDuration?: number; // in minutes
   gameStartedAt?: Timestamp;
   gameEndTime?: Timestamp;
+  rewardsDistributed?: boolean;
 }
 
 export interface GameItem {
@@ -415,4 +416,5 @@ export interface TeamCooperationGameRoom {
     correctPlayers: string[];
     pointsFromThisRound: number;
   };
+  rewardsDistributed?: boolean;
 }
