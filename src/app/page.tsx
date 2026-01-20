@@ -31,7 +31,7 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <h1 className="text-4xl font-extrabold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl text-primary">
+            <h1 className="text-4xl font-extrabold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl text-primary text-outline">
               에듀칩(EduChip)
             </h1>
             <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl mt-6">
