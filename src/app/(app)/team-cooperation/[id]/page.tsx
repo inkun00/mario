@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
@@ -135,7 +136,7 @@ export default function TeamCooperationGamePage() {
                     plants: updatedPlants,
                     teamScore: newTeamScore,
                     phase: 'QUIZ',
-                    plantingTurnUid: deleteField(),
+                    plantingTurnUid: null,
                     currentQuestionIndex: nextQuestionIndex,
                 };
                 
@@ -380,7 +381,7 @@ export default function TeamCooperationGamePage() {
                     updateData.phase = 'QUIZ';
                     nextQuestionIndex++;
                     updateData.currentQuestionIndex = nextQuestionIndex;
-                    updateData.plantingTurnUid = deleteField();
+                    updateData.plantingTurnUid = null;
                 }
                 
                 if (nextQuestionIndex >= currentRoom.allQuestions.length || currentRoom.teamScore >= currentRoom.targetScore) {
@@ -537,3 +538,5 @@ export default function TeamCooperationGamePage() {
         </div>
     );
 }
+
+    
