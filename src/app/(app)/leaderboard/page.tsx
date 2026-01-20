@@ -463,11 +463,13 @@ export default function LeaderboardPage() {
           transition={{ duration: 0.5 }}
         >
           <Card>
-            <CardHeader className="text-center">
-              <CardTitle className="font-headline text-3xl">리더보드</CardTitle>
-              <CardDescription>
-                다양한 순위를 확인하고 학습에 대한 동기를 부여받으세요!
-              </CardDescription>
+            <CardHeader className="flex items-center justify-center">
+              <Image
+                src="https://i.postimg.cc/FRX1sf46/geulim2.png"
+                alt="리더보드"
+                width={400}
+                height={95}
+              />
             </CardHeader>
             <CardContent>
                 <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
