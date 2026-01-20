@@ -463,16 +463,18 @@ export default function LeaderboardPage() {
           transition={{ duration: 0.5 }}
         >
           <Card>
-            <CardHeader className="text-center">
-              <CardTitle className="font-headline text-3xl">리더보드</CardTitle>
-              <CardDescription>전체, 학교, 학급별 순위를 확인하고 명예의 전당에 도전해보세요.</CardDescription>
-              <div className="flex justify-center pt-4">
+            <CardHeader>
+              <div className="flex items-center gap-6">
                 <Image
                   src="https://i.postimg.cc/B6grjvym/Gemini_Generated_Image_h8qwx4h8qwx4h8qw-removebg-preview.png"
                   alt="리더보드"
-                  width={300}
-                  height={200}
+                  width={150}
+                  height={100}
                 />
+                <div>
+                  <CardTitle className="font-headline text-3xl">리더보드</CardTitle>
+                  <CardDescription>전체, 학교, 학급별 순위를 확인하고 명예의 전당에 도전해보세요.</CardDescription>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -905,4 +907,5 @@ function LeaderboardSkeleton() {
 }
 
     
+
 
