@@ -300,8 +300,8 @@ export default function EditGameSetPage() {
             <Image
               src="https://i.postimg.cc/dt0qmRtc/geulim1.png"
               alt="퀴즈 만들기 아이콘"
-              width={104}
-              height={104}
+              width={135}
+              height={135}
               className="hidden sm:block"
             />
             <div>
