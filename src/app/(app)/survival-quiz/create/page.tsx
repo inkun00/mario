@@ -283,7 +283,6 @@ export default function CreateSurvivalQuizPage() {
                 currentQuestionIndex: 0,
                 // New Fields
                 phase: 'QUIZ',
-                plantingTurnUid: undefined,
                 plants: [],
                 terrain,
             };
