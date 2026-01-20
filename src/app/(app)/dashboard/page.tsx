@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -139,6 +140,10 @@ export default function DashboardPage() {
   const [searchGrade, setSearchGrade] = useState('');
   const [searchSemester, setSearchSemester] = useState('');
   const [searchSubject, setSearchSubject] = useState('');
+  
+  const [joinCode, setJoinCode] = useState('');
+  const [isJoiningWithCode, setIsJoiningWithCode] = useState(false);
+
 
   const isAdmin = user ? ADMIN_EMAILS.includes(user.email || '') : false;
 
@@ -597,6 +602,60 @@ useEffect(() => {
       }
   };
 
+    const handleJoinWithCode = async () => {
+    if (!joinCode || joinCode.length !== 5) {
+      toast({
+        variant: 'destructive',
+        title: '오류',
+        description: '5자리 참여 코드를 정확히 입력해주세요.',
+      });
+      return;
+    }
+    setIsJoiningWithCode(true);
+
+    const collectionsToSearch = [
+      'game-rooms',
+      'survival-game-rooms',
+      'team-battle-rooms',
+      'team-cooperation-rooms',
+    ];
+
+    let roomFound = false;
+
+    for (const collectionName of collectionsToSearch) {
+      try {
+        const roomRef = doc(db, collectionName, joinCode);
+        const roomSnap = await getDoc(roomRef);
+
+        if (roomSnap.exists()) {
+          roomFound = true;
+          if (collectionName === 'game-rooms') {
+            router.push(`/game/${joinCode}/lobby`);
+          } else if (collectionName === 'survival-game-rooms') {
+            router.push(`/survival-quiz/${joinCode}/lobby`);
+          } else if (collectionName === 'team-battle-rooms') {
+            router.push(`/team-battle/${joinCode}/lobby`);
+          } else if (collectionName === 'team-cooperation-rooms') {
+            router.push(`/team-cooperation/${joinCode}/lobby`);
+          }
+          break; // Exit loop once room is found
+        }
+      } catch (error) {
+        console.error(`Error searching in ${collectionName}:`, error);
+      }
+    }
+
+    if (!roomFound) {
+      toast({
+        variant: 'destructive',
+        title: '오류',
+        description: '존재하지 않는 방입니다. 코드를 다시 확인해주세요.',
+      });
+    }
+    setIsJoiningWithCode(false);
+  };
+
+
   const handlePreview = async (set: GameSetDocument) => {
     if (set.evaluationScore === undefined || set.evaluationScore === null) {
       setIsEvaluating(set.id);
@@ -788,12 +847,29 @@ useEffect(() => {
           <p className="text-muted-foreground mt-1">오늘도 즐거운 학습을 시작해볼까요?</p>
         </div>
 
-        <div className={cn(
-            "grid gap-6",
-            currentUserData?.role === 'teacher' ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"
-        )}>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
-                <div className="flex items-center gap-4 p-4">
+                <CardHeader>
+                    <CardTitle className="font-headline flex items-center gap-2"><LogIn className="text-primary"/>참여 코드로 입장</CardTitle>
+                    <CardDescription>친구에게 받은 참여 코드를 입력하여 게임에 참여하세요.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="flex gap-2">
+                        <Input
+                            placeholder="참여 코드 (5자리)"
+                            value={joinCode}
+                            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                            maxLength={5}
+                            className="font-mono tracking-widest text-center"
+                        />
+                        <Button onClick={handleJoinWithCode} disabled={isJoiningWithCode || joinCode.length !== 5}>
+                            {isJoiningWithCode ? <Loader2 className="h-4 w-4 animate-spin"/> : '입장'}
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+            <Card>
+                <div className="flex items-center gap-4 p-4 h-full">
                     <Image
                         src="https://i.postimg.cc/dt0qmRtc/geulim1.png"
                         alt="퀴즈 만들기 아이콘"
@@ -801,7 +877,7 @@ useEffect(() => {
                         height={120}
                         className="hidden sm:block rounded-lg"
                     />
-                    <div className="flex-1 space-y-2">
+                    <div className="flex-1 flex flex-col justify-center space-y-2">
                         <h3 className="font-headline font-semibold text-lg">새로운 퀴즈 만들기</h3>
                         <p className="text-sm text-muted-foreground">나만의 퀴즈를 만들고 친구들과 함께 플레이하세요.</p>
                         <div className="pt-2">
@@ -812,7 +888,9 @@ useEffect(() => {
                     </div>
                 </div>
             </Card>
-            {currentUserData?.role === 'teacher' && (
+        </div>
+        {currentUserData?.role === 'teacher' && (
+            <div className="mt-6">
                 <Card>
                     <CardHeader>
                         <CardTitle className="font-headline flex items-center gap-2"><Swords className="text-primary"/>서바이벌 퀴즈 만들기</CardTitle>
@@ -824,8 +902,8 @@ useEffect(() => {
                         </Button>
                     </CardContent>
                 </Card>
-            )}
-        </div>
+            </div>
+        )}
 
         <div>
             <h2 className="text-2xl font-bold font-headline mb-4 flex items-center gap-2">
@@ -1438,5 +1516,7 @@ useEffect(() => {
   );
 }
 
+
+    
 
     
