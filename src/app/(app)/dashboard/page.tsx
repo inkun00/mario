@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Button } from '@/components/ui/button';
@@ -798,8 +797,8 @@ useEffect(() => {
                     <Image
                         src="https://i.postimg.cc/dt0qmRtc/geulim1.png"
                         alt="퀴즈 만들기 아이콘"
-                        width={80}
-                        height={80}
+                        width={120}
+                        height={120}
                         className="hidden sm:block rounded-lg"
                     />
                     <div className="flex-1 space-y-2">
@@ -1440,8 +1439,4 @@ useEffect(() => {
 }
 
 
-
-
-
-
-
+    
