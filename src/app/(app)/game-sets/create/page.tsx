@@ -1,5 +1,3 @@
-
-
 'use client';
 
 import { useFieldArray, useForm, Controller } from 'react-hook-form';
@@ -423,10 +421,10 @@ export default function CreateGameSetPage() {
         <CardHeader>
           <div className="flex items-center gap-6">
             <Image
-              src="https://i.postimg.cc/rpsVgVwy/Gemini-Generated-Image-qbrhmaqbrhmaqbrh-removebg-preview.png"
+              src="https://i.postimg.cc/dt0qmRtc/geulim1.png"
               alt="퀴즈 만들기 아이콘"
-              width={80}
-              height={80}
+              width={104}
+              height={104}
               className="hidden sm:block"
             />
             <div>
