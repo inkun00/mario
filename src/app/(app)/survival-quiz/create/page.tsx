@@ -62,7 +62,7 @@ export default function CreateSurvivalQuizPage() {
   const [searchSubject, setSearchSubject] = useState('');
   const subjects = ['국어', '도덕', '사회', '과학', '수학', '실과', '음악', '미술', '체육', '영어', '창체'];
 
-  // Golden Bell settings
+  // Golden Bell & Coop settings
   const [timeLimit, setTimeLimit] = useState(60);
   const [revivalEnabled, setRevivalEnabled] = useState(true);
   const [revivalPercentage, setRevivalPercentage] = useState(20);
@@ -256,20 +256,6 @@ export default function CreateSurvivalQuizPage() {
             toast({ title: '성공', description: '서바이벌 퀴즈방을 만들었습니다! 로비로 이동합니다.' });
             router.push(`/survival-quiz/${newRoomId}/lobby`);
         } else if (gameMode === 'team-cooperation') {
-            // New logic for team cooperation
-            const WORLD_WIDTH = 2400; 
-            const terrain = [];
-            for (let x = 0; x < WORLD_WIDTH; x++) {
-                let height = 520;
-                height -= Math.sin(x * 0.01) * 20; 
-                if (x > 800) {
-                    const mountain = Math.pow((x - 800) * 0.06, 1.4);
-                    height -= Math.min(mountain, 400);
-                    height += Math.sin(x * 0.04) * 20; 
-                }
-                terrain[x] = height;
-            }
-
             const newRoomData: Omit<TeamCooperationGameRoom, 'id'> = {
                 roomTitle,
                 hostId: user.uid,
@@ -278,13 +264,10 @@ export default function CreateSurvivalQuizPage() {
                 gameSetIds: selectedIds,
                 allQuestions,
                 targetScore,
+                timeLimitPerQuestion: timeLimit,
                 players: { [user.uid]: { ...hostPlayer, answers: [] } },
                 teamScore: 0,
                 currentQuestionIndex: 0,
-                // New Fields
-                phase: 'QUIZ',
-                plants: [],
-                terrain,
             };
             await setDoc(doc(db, 'team-cooperation-rooms', newRoomId), newRoomData);
             toast({ title: '성공', description: '팀 협력전 퀴즈방을 만들었습니다! 로비로 이동합니다.' });
@@ -461,6 +444,20 @@ export default function CreateSurvivalQuizPage() {
                                         max={5000}
                                         step={100}
                                     />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>문제당 시간 제한</Label>
+                                    <RadioGroup value={String(timeLimit)} onValueChange={(val) => setTimeLimit(Number(val))} className="flex gap-4">
+                                        <Label htmlFor="coop-time-60" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                                            <RadioGroupItem value="60" id="coop-time-60" /> 1분
+                                        </Label>
+                                        <Label htmlFor="coop-time-120" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                                            <RadioGroupItem value="120" id="coop-time-120" /> 2분
+                                        </Label>
+                                        <Label htmlFor="coop-time-180" className="flex items-center gap-2 p-3 border rounded-lg cursor-pointer flex-1 has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                                            <RadioGroupItem value="180" id="coop-time-180" /> 3분
+                                        </Label>
+                                    </RadioGroup>
                                 </div>
                             </CardContent>
                           )}

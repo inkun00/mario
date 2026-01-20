@@ -385,6 +385,8 @@ export interface TeamCooperationPlayer extends Player {
         submittedAt: Timestamp;
         points: number;
     }[];
+    questionOrder?: number[];
+    currentQuestionIndex?: number;
 }
 
 export interface TeamCooperationGameRoom {
@@ -396,22 +398,19 @@ export interface TeamCooperationGameRoom {
   gameSetIds: string[];
   allQuestions: Question[];
   targetScore: number;
+  timeLimitPerQuestion: number;
 
   // Game State
   players: Record<string, TeamCooperationPlayer>;
   teamScore: number;
-  currentQuestionIndex: number;
+  currentQuestionIndex: number; // Overall progress for the host/game
   currentQuestionStartedAt?: Timestamp;
+  currentQuestionEndsAt?: Timestamp;
   currentAnswers?: Record<string, {
       answer: string;
       submittedAt: Timestamp;
   }>;
-  
-  // Green Oasis fields
-  phase: 'QUIZ' | 'PLANTING' | 'RESULT';
-  plantingTurnUid?: string;
-  plants: GameItem[];
-  terrain: number[];
+  isAnswerRevealed?: boolean;
   lastQuestionResult?: {
     correctPlayers: string[];
     pointsFromThisRound: number;

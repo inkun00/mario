@@ -1,3 +1,5 @@
+
+
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -124,10 +126,23 @@ export default function TeamCooperationLobbyPage() {
         if (!isHost || !gameRoom) return;
         const roomRef = doc(db, 'team-cooperation-rooms', gameRoom.id);
         try {
+            const updates: Record<string, any> = {};
+            const questionIndices = Array.from({ length: gameRoom.allQuestions.length }, (_, i) => i);
+    
+            Object.keys(gameRoom.players).forEach(uid => {
+                if (uid !== gameRoom.hostId) {
+                    const shuffledIndices = [...questionIndices].sort(() => Math.random() - 0.5);
+                    updates[`players.${uid}.questionOrder`] = shuffledIndices;
+                    updates[`players.${uid}.currentQuestionIndex`] = 0;
+                }
+            });
+
             await updateDoc(roomRef, { 
+                ...updates,
                 status: 'playing', 
                 currentQuestionIndex: 0,
                 currentQuestionStartedAt: serverTimestamp(),
+                currentQuestionEndsAt: new Date(Date.now() + gameRoom.timeLimitPerQuestion * 1000)
             });
         } catch (error) {
             toast({ variant: 'destructive', title: '오류', description: '게임 시작에 실패했습니다.' });
