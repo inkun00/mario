@@ -58,6 +58,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Loader2,
   Store,
@@ -99,7 +100,7 @@ const storeItemSchema = z.object({
 type StoreItemFormValues = z.infer<typeof storeItemSchema>;
 type InventoryItem = NonNullable<User['inventory']>[string] & { itemId: string };
 
-const emojiList = ['🎁', '🎟️', '✨', '🔥', '💯', '👍', '❤️', '🚀', '⭐', '👑', '💣', '💡', '🎉', '🍀', '💰', '💎', '🍔', '🍕', '🍭', '🎮', '🏫', '🎒', '📚', '📝', '✏️', '✂️', '🧸', '🎲', '🤖', '🛠️', '🤝', '💌', '👨‍🏫', '👩‍🏫', '🧑‍🎓', '👩‍🎓', '🏛️', '🔬', '🔭', '🧪', '🎨', '🎼', '🏀', '⚽', '🏆', '🥇', '🥈', '🥉', '📌', '📎', '📏', '📐', '🖌️', '🖍️', '🧩', '🪁', '🕹️', '🚗', '✈️', '🧼', '🧹', '🛒', '🔑', '🎤', '🎧', '🎬', '🍿', '🚕', '🚑', '🧑', '👧', '👦', '👩', '👨', '👮‍♀️', '👮‍♂️', '👷‍♀️', '👷‍♂️', '👩‍⚕️', '👨‍⚕️', '👩‍🍳', '👨‍🍳', '🦸‍♀️', '🦸‍♂️'];
+const emojiList = ['🎁', '🎟️', '✨', '🔥', '💯', '👍', '❤️', '🚀', '⭐', '👑', '💣', '💡', '🎉', '🍀', '💰', '💎', '🍔', '🍕', '🍭', '🎮', '🏫', '🎒', '📚', '📝', '✏️', '✂️', '🧸', '🎲', '🤖', '🛠️', '🤝', '💌', '👨‍🏫', '👩‍🏫', '🧑‍🎓', '👩‍🎓', '🏛️', '🔬', '🔭', '🧪', '🎨', '🎼', '🏀', '⚽', '🏆', '🥇', '🥈', '🥉', '📌', '📎', '📏', '📐', '🖌️', '🖍️', '🧩', '🪁', '🕹️', '🚗', '✈️', '🧼', '🧹', '🛒', '🔑', '🎤', '🎧', '🎬', '🍿', '🚕', '🚑', '🧑', '👧', '👦', '👩', '👨', '👮‍♀️', '👮‍♂️', '👷‍♀️', '👷‍♂️', '👩‍⚕️', '👨‍⚕️', '👩‍🍳', '👨‍🍳', '🦸‍♀️', '🦸‍♂️', '📅', '🗓️', '📢', '📣', '📈', '📉', '📊', '📋', '📂', '📁', '🗒️', '📇', '🗄️', '🎯', '🎳', '🪀', '🔫', '🎭', '🪄', '🔨', '🔧', '🔩', '⚙️', '🧱', '🪜', '🧰', '🧲', '⚗️', '🧑‍🌾', '🧑‍🔧', '🧑‍🏭', '🧑‍💼', '🧑‍🔬', '🧑‍💻', '🧑‍🎤', '🧑‍🎨', '🧑‍✈️', '🧑‍🚀', '🧑‍🚒', '👮', '🕵️', '💂', '👷', '🤴', '👸', '👳', '👲', '🧕', '🧔', '👱', '👨‍🦰', '👨‍🦱', '👨‍🦳', '👨‍🦲', '👴', '👵', '🙍', '🙎', '🙅', '🙆', '💁', '🙋', '🙇', '🤦', '🤷'];
 
 export default function ClassStorePage() {
   const [user, loadingUser] = useAuthState(auth);
@@ -846,19 +847,21 @@ export default function ClassStorePage() {
                 <FormItem>
                   <FormLabel>대표 이모지</FormLabel>
                   <FormControl>
-                    <div className="flex flex-wrap gap-2">
-                      {emojiList.map((emoji) => (
-                        <Button
-                          type="button"
-                          key={emoji}
-                          variant={field.value === emoji ? 'default' : 'outline'}
-                          className="text-2xl p-2 h-auto"
-                          onClick={() => field.onChange(emoji)}
-                        >
-                          {emoji}
-                        </Button>
-                      ))}
-                    </div>
+                    <ScrollArea className="h-52">
+                      <div className="flex flex-wrap gap-2">
+                        {emojiList.map((emoji) => (
+                          <Button
+                            type="button"
+                            key={emoji}
+                            variant={field.value === emoji ? 'default' : 'outline'}
+                            className="text-2xl p-2 h-auto"
+                            onClick={() => field.onChange(emoji)}
+                          >
+                            {emoji}
+                          </Button>
+                        ))}
+                      </div>
+                    </ScrollArea>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
