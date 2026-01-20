@@ -1303,7 +1303,7 @@ export default function ProfilePage() {
       </Card>
       
       <Tabs defaultValue="my-quizzes" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 gap-1 sm:grid-cols-3 md:grid-cols-5 h-auto">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 h-auto">
           <TabsTrigger value="my-quizzes">내가 만든 퀴즈</TabsTrigger>
           <TabsTrigger value="played-quizzes">내가 풀었던 문제</TabsTrigger>
           <TabsTrigger value="achievement">과목별 성취도</TabsTrigger>
