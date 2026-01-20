@@ -31,10 +31,10 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <h1 className="text-4xl font-extrabold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl text-amber-900">
+            <h1 className="text-4xl font-extrabold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl text-foreground">
               에듀칩(EduChip)
             </h1>
-            <p className="mx-auto max-w-[700px] text-amber-800/80 md:text-xl mt-6">
+            <p className="mx-auto max-w-[700px] text-muted-foreground md:text-xl mt-6">
               학습으로 자산을 모으고, 교실을 경제활동의 장으로 만들어 보세요.
             </p>
             <MotionDiv 
@@ -44,7 +44,7 @@ export default function Home() {
               transition={{ duration: 0.5, delay: 0.3, type: "spring", stiffness: 100 }}
             >
               <Image
-                src="https://i.postimg.cc/k5Ns2Mcc/Gemini-Generated-Image_m56x61m56x61m56x.png"
+                src="https://i.postimg.cc/k5Ns2Mcc/Gemini_Generated_Image_m56x61m56x61m56x.png"
                 alt="EduChip main visual"
                 width={550}
                 height={310}

@@ -5,8 +5,8 @@ import { cn } from '@/lib/utils';
 export default function AppLogo({ className, href = '/' }: { className?: string, href?: string }) {
   return (
     <Link href={href} className={cn("flex items-center gap-2", className)}>
-      <Gamepad2 className="h-6 w-6 text-primary" />
-      <span className="font-headline font-bold text-lg text-primary">
+      <Gamepad2 className="h-6 w-6 text-foreground" />
+      <span className="font-headline font-bold text-lg text-foreground">
         에듀칩(EduChip)
       </span>
     </Link>
