@@ -849,24 +849,33 @@ useEffect(() => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
-                <CardHeader>
-                    <CardTitle className="font-headline flex items-center gap-2"><LogIn className="text-primary"/>참여 코드로 입장</CardTitle>
-                    <CardDescription>친구에게 받은 참여 코드를 입력하여 게임에 참여하세요.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="flex gap-2">
-                        <Input
-                            placeholder="참여 코드 (5자리)"
-                            value={joinCode}
-                            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                            maxLength={5}
-                            className="font-mono tracking-widest text-center"
-                        />
-                        <Button onClick={handleJoinWithCode} disabled={isJoiningWithCode || joinCode.length !== 5}>
-                            {isJoiningWithCode ? <Loader2 className="h-4 w-4 animate-spin"/> : '입장'}
-                        </Button>
+                <div className="flex items-center gap-4 p-4 h-full">
+                    <Image
+                        src="https://i.postimg.cc/DwR6cKL4/geulim3.png"
+                        alt="참여 코드로 입장 아이콘"
+                        width={120}
+                        height={120}
+                        className="hidden sm:block rounded-lg"
+                    />
+                    <div className="flex-1 flex flex-col justify-center space-y-4">
+                        <div>
+                            <h3 className="font-headline font-semibold text-lg flex items-center gap-2"><LogIn className="text-primary"/>참여 코드로 입장</h3>
+                            <p className="text-sm text-muted-foreground">친구에게 받은 참여 코드를 입력하여 게임에 참여하세요.</p>
+                        </div>
+                        <div className="flex gap-2">
+                            <Input
+                                placeholder="참여 코드 (5자리)"
+                                value={joinCode}
+                                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                                maxLength={5}
+                                className="font-mono tracking-widest text-center"
+                            />
+                            <Button onClick={handleJoinWithCode} disabled={isJoiningWithCode || joinCode.length !== 5}>
+                                {isJoiningWithCode ? <Loader2 className="h-4 w-4 animate-spin"/> : '입장'}
+                            </Button>
+                        </div>
                     </div>
-                </CardContent>
+                </div>
             </Card>
             <Card>
                 <div className="flex items-center gap-4 p-4 h-full">
