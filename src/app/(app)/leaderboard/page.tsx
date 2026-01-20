@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -462,13 +463,17 @@ export default function LeaderboardPage() {
           transition={{ duration: 0.5 }}
         >
           <Card>
-            <CardHeader className="flex items-center justify-center">
-              <Image
-                src="https://i.postimg.cc/B6grjvym/Gemini_Generated_Image_h8qwx4h8qwx4h8qw-removebg-preview.png"
-                alt="리더보드"
-                width={600}
-                height={400}
-              />
+            <CardHeader className="text-center">
+              <CardTitle className="font-headline text-3xl">리더보드</CardTitle>
+              <CardDescription>전체, 학교, 학급별 순위를 확인하고 명예의 전당에 도전해보세요.</CardDescription>
+              <div className="flex justify-center pt-4">
+                <Image
+                  src="https://i.postimg.cc/B6grjvym/Gemini_Generated_Image_h8qwx4h8qwx4h8qw-removebg-preview.png"
+                  alt="리더보드"
+                  width={300}
+                  height={200}
+                />
+              </div>
             </CardHeader>
             <CardContent>
                 <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
@@ -900,3 +905,4 @@ function LeaderboardSkeleton() {
 }
 
     
+
