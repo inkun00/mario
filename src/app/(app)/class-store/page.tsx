@@ -101,7 +101,7 @@ const storeItemSchema = z.object({
 type StoreItemFormValues = z.infer<typeof storeItemSchema>;
 type InventoryItem = NonNullable<User['inventory']>[string] & { itemId: string };
 
-const emojiList = ['🎁', '🎟️', '✨', '🔥', '💯', '👍', '❤️', '🚀', '⭐', '👑', '💣', '💡', '🎉', '🍀', '💰', '💎', '🍔', '🍕', '🍭', '🎮', '🏫', '🎒', '📚', '📝', '✏️', '✂️', '🧸', '🎲', '🤖', '🛠️', '🤝', '💌', '👨‍🏫', '👩‍🏫', '🧑‍🎓', '👩‍🎓', '🏛️', '🔬', '🔭', '🧪', '🎨', '🎼', '🏀', '⚽', '🏆', '🥇', '🥈', '🥉', '📌', '📎', '📏', '📐', '🖌️', '🖍️', '🧩', '🪁', '🕹️', '🚗', '✈️', '🧼', '🧹', '🛒', '🔑', '🎤', '🎧', '🎬', '🍿', '🚕', '🚑', '🧑', '👧', '👦', '👩', '👨', '👮‍♀️', '👮‍♂️', '👷‍♀️', '👷‍♂️', '👩‍⚕️', '👨‍⚕️', '👩‍🍳', '👨‍🍳', '🦸‍♀️', '🦸‍♂️', '📅', '🗓️', '📢', '📣', '📈', '📉', '📊', '📋', '📂', '📁', '🗒️', '📇', '🗄️', '🎯', '🎳', '🪀', '🔫', '🎭', '🪄', '🔨', '🔧', '🔩', '⚙️', '🧱', '🪜', '🧰', '🧲', '⚗️', '🧑‍🌾', '🧑‍🔧', '🧑‍🏭', '🧑‍💼', '🧑‍🔬', '🧑‍💻', '🧑‍🎤', '🧑‍🎨', '🧑‍✈️', '🧑‍🚀', '👮', '🕵️', '💂', '👷', '🤴', '👸', '👳', '👲', '🧕', '🧔', '🍟', '🌭', '🥞', '🧇', '🌮', '🌯', '🥙', '🍳', '🥘', '🥗'];
+const emojiList = ['🎁', '🎟️', '✨', '🔥', '💯', '👍', '❤️', '🚀', '⭐', '👑', '💣', '💡', '🎉', '🍀', '💰', '💎', '🍔', '🍕', '🍭', '🎮', '🏫', '🎒', '📚', '📝', '✏️', '✂️', '🧸', '🎲', '🤖', '🛠️', '🤝', '💌', '👨‍🏫', '👩‍🏫', '🧑‍🎓', '👩‍🎓', '🏛️', '🔬', '🔭', '🧪', '🎨', '🎼', '🏀', '⚽', '🏆', '🥇', '🥈', '🥉', '📌', '📎', '📏', '📐', '🖌️', '🖍️', '🧩', '🪁', '🕹️', '🚗', '✈️', '🧼', '🧹', '🛒', '🔑', '🎤', '🎧', '🎬', '🍿', '🚕', '🚑', '🧑‍🌾', '🧑‍🔧', '🧑‍🏭', '🧑‍💼', '🧑‍🔬', '🧑‍💻', '🧑‍🎤', '🧑‍🎨', '🧑‍✈️', '🧑‍🚀', '👮', '🕵️', '💂', '👷', '🤴', '👸', '👳', '👲', '🧕', '🧔', '🧑', '👧', '👦', '👩', '👨', '👮‍♀️', '👮‍♂️', '👷‍♀️', '👷‍♂️', '👩‍⚕️', '👨‍⚕️', '👩‍🍳', '👨‍🍳', '🦸‍♀️', '🦸‍♂️', '📅', '🗓️', '📢', '📣', '📈', '📉', '📊', '📋', '📂', '📁', '🗒️', '📇', '🗄️', '🎯', '🎳', '🪀', '🔫', '🎭', '🪄', '🔨', '🔧', '🔩', '⚙️', '🧱', '🪜', '🧰', '🧲', '⚗️', '🍟', '🌭', '🥞', '🧇', '🌮', '🌯', '🥙', '🍳', '🥘', '🥗'];
 
 export default function ClassStorePage() {
   const [user, loadingUser] = useAuthState(auth);
@@ -739,8 +739,8 @@ export default function ClassStorePage() {
                         <p className="text-muted-foreground">판매자: {item.sellerNickname}</p>
                         <p className="text-muted-foreground">재고: {item.quantity}개</p>
                       </CardContent>
-                      <CardFooter className="flex-col items-stretch gap-2">
-                        <div className="flex items-center justify-center font-bold text-lg text-primary">
+                      <CardFooter className="flex items-center justify-between">
+                        <div className="flex items-center font-bold text-lg text-primary">
                           <Gem className="w-5 h-5 mr-2" />
                           <span>{item.price.toLocaleString()}</span>
                         </div>
