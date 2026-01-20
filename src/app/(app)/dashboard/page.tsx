@@ -794,15 +794,24 @@ useEffect(() => {
             currentUserData?.role === 'teacher' ? "grid-cols-1 md:grid-cols-2" : "grid-cols-1"
         )}>
             <Card>
-                <CardHeader>
-                    <CardTitle className="font-headline">새로운 퀴즈 만들기</CardTitle>
-                    <CardDescription>나만의 퀴즈를 만들고 친구들과 함께 플레이하세요.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Button asChild className="w-full">
-                        <Link href="/game-sets/create"><PlusCircle className="mr-2 h-4 w-4"/>만들기</Link>
-                    </Button>
-                </CardContent>
+                <div className="flex items-center gap-4 p-4">
+                    <Image
+                        src="https://i.postimg.cc/dt0qmRtc/geulim1.png"
+                        alt="퀴즈 만들기 아이콘"
+                        width={80}
+                        height={80}
+                        className="hidden sm:block rounded-lg"
+                    />
+                    <div className="flex-1 space-y-2">
+                        <h3 className="font-headline font-semibold text-lg">새로운 퀴즈 만들기</h3>
+                        <p className="text-sm text-muted-foreground">나만의 퀴즈를 만들고 친구들과 함께 플레이하세요.</p>
+                        <div className="pt-2">
+                            <Button asChild className="w-full">
+                                <Link href="/game-sets/create"><PlusCircle className="mr-2 h-4 w-4"/>만들기</Link>
+                            </Button>
+                        </div>
+                    </div>
+                </div>
             </Card>
             {currentUserData?.role === 'teacher' && (
                 <Card>
@@ -1429,6 +1438,7 @@ useEffect(() => {
     </>
   );
 }
+
 
 
 
