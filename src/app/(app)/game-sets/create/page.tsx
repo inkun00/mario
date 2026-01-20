@@ -421,11 +421,22 @@ export default function CreateGameSetPage() {
       )}
       <Card>
         <CardHeader>
-          <CardTitle className="font-headline text-2xl">새로운 퀴즈 세트 만들기</CardTitle>
-          <CardDescription>
-            다른 사람들과 플레이할 나만의 학습 퀴즈 세트를 만들어보세요.
-          </CardDescription>
-          <p className="text-sm text-destructive mt-2">5개 이상의 문제를 만들어야 저장할 수 있습니다.</p>
+          <div className="flex items-center gap-6">
+            <Image
+              src="https://i.postimg.cc/rpsVgVwy/Gemini-Generated-Image-qbrhmaqbrhmaqbrh-removebg-preview.png"
+              alt="퀴즈 만들기 아이콘"
+              width={80}
+              height={80}
+              className="hidden sm:block"
+            />
+            <div>
+              <CardTitle className="font-headline text-2xl">새로운 퀴즈 세트 만들기</CardTitle>
+              <CardDescription>
+                다른 사람들과 플레이할 나만의 학습 퀴즈 세트를 만들어보세요.
+              </CardDescription>
+              <p className="text-sm text-destructive mt-2">5개 이상의 문제를 만들어야 저장할 수 있습니다.</p>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <Form {...form}>

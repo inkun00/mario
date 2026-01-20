@@ -298,10 +298,21 @@ export default function EditGameSetPage() {
     <div className="container mx-auto py-8">
       <Card>
         <CardHeader>
-          <CardTitle className="font-headline text-2xl">퀴즈 세트 수정하기</CardTitle>
-          <CardDescription>
-            퀴즈 세트의 내용을 수정하고 저장하세요.
-          </CardDescription>
+          <div className="flex items-center gap-6">
+            <Image
+              src="https://i.postimg.cc/rpsVgVwy/Gemini-Generated-Image-qbrhmaqbrhmaqbrh-removebg-preview.png"
+              alt="퀴즈 만들기 아이콘"
+              width={80}
+              height={80}
+              className="hidden sm:block"
+            />
+            <div>
+              <CardTitle className="font-headline text-2xl">퀴즈 세트 수정하기</CardTitle>
+              <CardDescription>
+                퀴즈 세트의 내용을 수정하고 저장하세요.
+              </CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <Form {...form}>
