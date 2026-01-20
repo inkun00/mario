@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { doc, onSnapshot, updateDoc, runTransaction, Timestamp, arrayUnion } from 'firebase/firestore';
+import { doc, onSnapshot, updateDoc, runTransaction, Timestamp, arrayUnion, deleteField } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { TeamCooperationGameRoom, Question, TeamCooperationPlayer, GameItem } from '@/lib/types';
@@ -131,19 +131,19 @@ export default function TeamCooperationGamePage() {
                 const nextQuestionIndex = currentRoom.currentQuestionIndex + 1;
                 const newTeamScore = (currentRoom.teamScore || 0) + pointsFromThisAction;
 
-                let newStatus = currentRoom.status;
-                if (newTeamScore >= currentRoom.targetScore || nextQuestionIndex >= currentRoom.allQuestions.length) {
-                    newStatus = 'finished';
-                }
-
-                transaction.update(roomRef, {
+                const updateData: { [key: string]: any } = {
                     plants: updatedPlants,
                     teamScore: newTeamScore,
                     phase: 'QUIZ',
-                    plantingTurnUid: undefined,
+                    plantingTurnUid: deleteField(),
                     currentQuestionIndex: nextQuestionIndex,
-                    status: newStatus,
-                });
+                };
+                
+                if (newTeamScore >= currentRoom.targetScore || nextQuestionIndex >= currentRoom.allQuestions.length) {
+                    updateData.status = 'finished';
+                }
+
+                transaction.update(roomRef, updateData);
             });
 
              setTimeout(() => {
@@ -366,29 +366,28 @@ export default function TeamCooperationGamePage() {
                 const currentRoom = roomDoc.data() as TeamCooperationGameRoom;
     
                 const correctPlayers = currentRoom.lastQuestionResult?.correctPlayers || [];
-                let newPhase: 'QUIZ' | 'PLANTING' = 'QUIZ';
-                let newPlantingTurnUid: string | undefined = undefined;
-                let nextQuestionIndex = currentRoom.currentQuestionIndex;
+                
+                const updateData: { [key: string]: any } = {
+                    lastQuestionResult: null,
+                };
     
+                let nextQuestionIndex = currentRoom.currentQuestionIndex;
+
                 if (correctPlayers.length > 0) {
-                    newPhase = 'PLANTING';
-                    newPlantingTurnUid = correctPlayers[Math.floor(Math.random() * correctPlayers.length)];
+                    updateData.phase = 'PLANTING';
+                    updateData.plantingTurnUid = correctPlayers[Math.floor(Math.random() * correctPlayers.length)];
                 } else {
+                    updateData.phase = 'QUIZ';
                     nextQuestionIndex++;
+                    updateData.currentQuestionIndex = nextQuestionIndex;
+                    updateData.plantingTurnUid = deleteField();
                 }
                 
-                let newStatus = currentRoom.status;
-                if (nextQuestionIndex >= currentRoom.allQuestions.length) {
-                    newStatus = 'finished';
+                if (nextQuestionIndex >= currentRoom.allQuestions.length || currentRoom.teamScore >= currentRoom.targetScore) {
+                    updateData.status = 'finished';
                 }
     
-                transaction.update(roomRef, {
-                  phase: newPhase,
-                  plantingTurnUid: newPlantingTurnUid,
-                  currentQuestionIndex: nextQuestionIndex,
-                  status: newStatus,
-                  lastQuestionResult: null,
-                });
+                transaction.update(roomRef, updateData);
             });
         } catch (error) {
             console.error("Error proceeding to next step:", error);
