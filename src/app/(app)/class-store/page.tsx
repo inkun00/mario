@@ -703,7 +703,7 @@ export default function ClassStorePage() {
         <Card>
           <CardHeader>
             <CardTitle className="font-headline text-2xl flex items-center gap-2">
-              <Store className="text-primary"/>학급 매점
+              <Store className="text-primary"/>학급 상점
             </CardTitle>
             <CardDescription>
               다른 친구들이 판매하는 아이템을 구매하거나, 내 아이템을 만들어 판매할 수 있습니다.

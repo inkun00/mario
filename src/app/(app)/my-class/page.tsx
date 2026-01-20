@@ -922,21 +922,32 @@ export default function MyClassPage() {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="font-headline flex items-center gap-2">
-            <Store className="w-6 h-6 text-primary" />
-            학급 매점
-          </CardTitle>
-          <CardDescription>
-            학급 친구들이 판매하는 아이템을 구매하거나, 내 아이템을 판매할 수
-            있습니다.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild>
-            <Link href="/class-store">매점으로 이동하기</Link>
-          </Button>
-        </CardContent>
+        <div className="flex items-center gap-6 p-6">
+          <Image
+            src="https://i.postimg.cc/xTg5Z4Nj/geulim5.png"
+            alt="학급 상점 아이콘"
+            width={120}
+            height={120}
+            className="hidden sm:block rounded-lg"
+          />
+          <div className="flex-1">
+            <CardHeader className="p-0">
+              <CardTitle className="font-headline flex items-center gap-2">
+                <Store className="w-6 h-6 text-primary" />
+                학급 상점
+              </CardTitle>
+              <CardDescription>
+                학급 친구들이 판매하는 아이템을 구매하거나, 내 아이템을 판매할 수
+                있습니다.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0 mt-4">
+              <Button asChild>
+                <Link href="/class-store">상점으로 이동하기</Link>
+              </Button>
+            </CardContent>
+          </div>
+        </div>
       </Card>
 
       {/* Teacher Dialogs */}
