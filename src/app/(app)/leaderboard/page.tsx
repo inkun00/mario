@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -465,10 +464,10 @@ export default function LeaderboardPage() {
           <Card>
             <CardHeader className="flex items-center justify-center">
               <Image
-                src="https://i.postimg.cc/FRX1sf46/geulim2.png"
+                src="https://i.postimg.cc/B6grjvym/Gemini_Generated_Image_h8qwx4h8qwx4h8qw-removebg-preview.png"
                 alt="리더보드"
-                width={400}
-                height={95}
+                width={300}
+                height={200}
               />
             </CardHeader>
             <CardContent>
@@ -899,3 +898,5 @@ function LeaderboardSkeleton() {
         </div>
     )
 }
+
+    
