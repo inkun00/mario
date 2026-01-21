@@ -303,7 +303,7 @@ export default function SurvivalQuizGamePage() {
         <div className="container mx-auto py-8 text-center">
             <Card className="max-w-md mx-auto">
                 <CardHeader>
-                    <Crown className="w-20 h-20 text-yellow-400 mx-auto" />
+                    <Image src="https://i.postimg.cc/m2PL9n9h/choejong-gyeolgwa.png" alt="게임 종료" width={150} height={150} className="mx-auto" />
                     <CardTitle className="font-headline text-3xl">게임 종료!</CardTitle>
                     {survivors.length === 1 && <CardDescription>최후의 생존자: {survivors[0].nickname}</CardDescription>}
                     {survivors.length === 0 && <CardDescription>최후의 생존자가 없습니다.</CardDescription>}

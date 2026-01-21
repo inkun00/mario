@@ -1379,7 +1379,7 @@ export default function GamePage() {
           <DialogContent className="max-w-md text-center" aria-describedby="game-over-description">
               <DialogHeader>
                   <div className="flex flex-col items-center gap-2">
-                      <Crown className="w-20 h-20 text-yellow-400 fill-yellow-300" />
+                      <Image src="https://i.postimg.cc/m2PL9n9h/choejong-gyeolgwa.png" alt="게임 종료" width={150} height={150} />
                       <DialogTitle className="font-headline text-3xl">게임 종료!</DialogTitle>
                       {winner && (
                           <DialogDescription id="game-over-description" className="text-base">

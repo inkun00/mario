@@ -240,7 +240,7 @@ export default function TeamCooperationGamePage() {
             <div className="container mx-auto py-8 text-center">
                 <Card className="max-w-md mx-auto">
                     <CardHeader>
-                        {missionSuccess ? <Trophy className="w-20 h-20 text-yellow-400 mx-auto" /> : <Users className="w-20 h-20 text-muted-foreground mx-auto" />}
+                        {missionSuccess ? <Image src="https://i.postimg.cc/m2PL9n9h/choejong-gyeolgwa.png" alt="미션 성공" width={150} height={150} className="mx-auto" /> : <Users className="w-20 h-20 text-muted-foreground mx-auto" />}
                         <CardTitle className="font-headline text-3xl">{missionSuccess ? '미션 성공!' : '미션 실패'}</CardTitle>
                         <CardDescription>{missionSuccess ? `축하합니다! 목표 점수 ${gameRoom.targetScore.toLocaleString()}점을 달성했습니다.` : `아쉽지만 목표 점수 ${gameRoom.targetScore.toLocaleString()}점을 달성하지 못했습니다.`}</CardDescription>
                     </CardHeader>
