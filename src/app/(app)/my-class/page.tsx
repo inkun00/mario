@@ -803,7 +803,7 @@ export default function MyClassPage() {
                 const result = await parseQuizRanking({ imageDataUri });
 
                 const parsedRankings = result.rankings.map(item => {
-                    let bestMatch = { studentId: undefined, studentName: undefined, similarity: 0 };
+                    let bestMatch: { studentId: string | undefined, studentName: string | undefined, similarity: number } = { studentId: undefined, studentName: undefined, similarity: 0 };
                     for (const student of classmates) {
                         const similarity = calculateSimilarity(item.name, student.name || student.displayName);
                         if (similarity > bestMatch.similarity && similarity > 0.7) {
@@ -1707,4 +1707,3 @@ export default function MyClassPage() {
     </div>
   );
 }
-
