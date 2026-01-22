@@ -73,6 +73,7 @@ import {
   MessageSquare,
   ThumbsUp,
   Pencil,
+  Award,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PixelAvatar } from '@/components/pixel-avatar';
@@ -87,6 +88,8 @@ import { Tooltip as UITooltip, TooltipContent as UITooltipContent, TooltipProvid
 import Image from 'next/image';
 import { formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
+import { parseQuizRanking } from '@/ai/flows/parse-quiz-ranking-flow';
+import { Combobox } from '@/components/ui/combobox';
 
 
 const COLORS = [
@@ -205,6 +208,13 @@ const transformStats = (flatStats: SubjectStat[]): SubjectStat[] => {
   });
 };
 
+type Ranking = {
+    rank: number;
+    name: string;
+    studentId?: string;
+    studentName?: string;
+    reward: number;
+}
 
 export default function MyClassPage() {
   const [user, loadingUser] = useAuthState(auth);
@@ -253,6 +263,22 @@ export default function MyClassPage() {
   const [studentQuizComments, setStudentQuizComments] = useState<GameSetComment[]>([]);
   const [viewingWritingSubmission, setViewingWritingSubmission] = useState<WritingSubmission | null>(null);
   const [isClient, setIsClient] = useState(false);
+
+  // External Reward State
+  const [externalReward, setExternalReward] = useState<{
+    isOpen: boolean;
+    isParsing: boolean;
+    isDistributing: boolean;
+    pastedImage: string | null;
+    rankings: Ranking[];
+  }>({
+    isOpen: false,
+    isParsing: false,
+    isDistributing: false,
+    pastedImage: null,
+    rankings: [],
+  });
+
 
   useEffect(() => {
     setIsClient(true);
@@ -752,6 +778,96 @@ export default function MyClassPage() {
         return null;
     }
   }, [viewingStudent]);
+  
+  const handlePaste = async (e: React.ClipboardEvent<HTMLDivElement>) => {
+    const items = e.clipboardData.items;
+    let imageFile: File | null = null;
+
+    for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+            imageFile = items[i].getAsFile();
+            break;
+        }
+    }
+
+    if (imageFile) {
+        e.preventDefault();
+        setExternalReward(prev => ({...prev, isParsing: true, pastedImage: URL.createObjectURL(imageFile)}));
+
+        try {
+            const reader = new FileReader();
+            reader.readAsDataURL(imageFile);
+            reader.onload = async (event) => {
+                const imageDataUri = event.target?.result as string;
+                const result = await parseQuizRanking({ imageDataUri });
+
+                const parsedRankings = result.rankings.map(item => {
+                    let bestMatch = { studentId: undefined, studentName: undefined, similarity: 0 };
+                    for (const student of classmates) {
+                        const similarity = calculateSimilarity(item.name, student.name || student.displayName);
+                        if (similarity > bestMatch.similarity && similarity > 0.7) {
+                            bestMatch = { studentId: student.uid, studentName: student.name || student.displayName, similarity };
+                        }
+                    }
+                    return { ...item, studentId: bestMatch.studentId, studentName: bestMatch.studentName };
+                });
+                
+                const n = parsedRankings.length;
+                const pointStep = n > 1 ? (100 - 10) / (n - 1) : 0;
+                
+                const rankingsWithRewards: Ranking[] = parsedRankings.map(item => ({
+                    ...item,
+                    reward: n === 1 ? 100 : Math.round(100 - (item.rank - 1) * pointStep)
+                }));
+                
+                setExternalReward(prev => ({...prev, rankings: rankingsWithRewards, isParsing: false}));
+            };
+        } catch (error) {
+            console.error("Error parsing ranking image:", error);
+            toast({ variant: 'destructive', title: '오류', description: '이미지 분석에 실패했습니다.' });
+            setExternalReward(prev => ({...prev, isParsing: false}));
+        }
+    }
+  };
+
+  const handleRewardChange = (rank: number, newReward: number) => {
+    setExternalReward(prev => ({
+        ...prev,
+        rankings: prev.rankings.map(r => r.rank === rank ? {...r, reward: newReward} : r)
+    }));
+  }
+
+  const handleDistributeRewards = async () => {
+    setExternalReward(prev => ({...prev, isDistributing: true}));
+    try {
+        const batch = writeBatch(db);
+        let rewardedCount = 0;
+
+        externalReward.rankings.forEach(ranking => {
+            if (ranking.studentId && ranking.reward > 0) {
+                const userRef = doc(db, 'users', ranking.studentId);
+                batch.update(userRef, { classPoints: increment(ranking.reward) });
+                
+                const logRef = doc(collection(db, 'users', ranking.studentId, 'pointLogs'));
+                batch.set(logRef, {
+                    type: 'TEACHER_GRANT',
+                    amount: ranking.reward,
+                    timestamp: serverTimestamp(),
+                    description: '외부 퀴즈 보상',
+                } as Omit<PointLog, 'id'|'userId'>);
+                rewardedCount++;
+            }
+        });
+        await batch.commit();
+        toast({title: '성공', description: `${rewardedCount}명의 학생에게 보상을 지급했습니다.`});
+        setExternalReward({ isOpen: false, isParsing: false, isDistributing: false, pastedImage: null, rankings: [] });
+    } catch (error) {
+        console.error("Error distributing rewards:", error);
+        toast({variant: 'destructive', title: '오류', description: '보상 지급 중 오류가 발생했습니다.'});
+    } finally {
+        setExternalReward(prev => ({...prev, isDistributing: false}));
+    }
+  };
 
   if (loadingUser || isLoading) {
     return (
@@ -845,6 +961,9 @@ export default function MyClassPage() {
                     </Button>
                     <Button variant="outline" onClick={() => setShowBulkItemDialog(true)}>
                         <Gift className="mr-2 h-4 w-4"/> 상품 일괄 지급
+                    </Button>
+                    <Button variant="outline" onClick={() => setExternalReward(prev => ({...prev, isOpen: true}))}>
+                        <Award className="mr-2 h-4 w-4"/> 외부 퀴즈 보상
                     </Button>
                 </CardContent>
             </Card>
@@ -1315,6 +1434,76 @@ export default function MyClassPage() {
                  </ScrollArea>
                 </>
             )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={externalReward.isOpen} onOpenChange={(isOpen) => !isOpen && setExternalReward(prev => ({...prev, isOpen: false, rankings: [], pastedImage: null}))}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>외부 퀴즈 보상</DialogTitle>
+            <DialogDescription>퀴즈 결과 화면을 캡처하여 붙여넣으면 AI가 순위를 분석하여 보상을 지급합니다.</DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            {externalReward.rankings.length === 0 ? (
+                <div 
+                    onPaste={handlePaste} 
+                    className="h-48 border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-center text-muted-foreground p-4 cursor-pointer"
+                    tabIndex={0}
+                >
+                    {externalReward.isParsing ? (
+                        <>
+                            <Loader2 className="w-8 h-8 animate-spin text-primary mb-2"/>
+                            <p>이미지를 분석하는 중입니다...</p>
+                        </>
+                    ) : externalReward.pastedImage ? (
+                        <Image src={externalReward.pastedImage} alt="Pasted content" width={200} height={100} className="max-h-full object-contain"/>
+                    ) : (
+                        <p>여기에 퀴즈 결과 이미지를 붙여넣으세요 (Ctrl+V)</p>
+                    )}
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    <h4 className="font-semibold">분석 결과 및 보상 설정</h4>
+                     <ScrollArea className="h-72">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                <TableHead className="w-16">순위</TableHead>
+                                <TableHead>이름</TableHead>
+                                <TableHead>학생 매칭</TableHead>
+                                <TableHead className="w-32">보상</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {externalReward.rankings.map(item => (
+                                    <TableRow key={item.rank}>
+                                        <TableCell className="font-bold">{item.rank}</TableCell>
+                                        <TableCell>{item.name}</TableCell>
+                                        <TableCell>
+                                            {item.studentId ? (
+                                                <span className="flex items-center gap-1 text-green-600"><CheckCircle className="w-4 h-4" /> {item.studentName}</span>
+                                            ) : (
+                                                <span className="flex items-center gap-1 text-destructive"><XCircle className="w-4 h-4"/> 매칭 실패</span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Input type="number" value={item.reward} onChange={e => handleRewardChange(item.rank, parseInt(e.target.value) || 0)} />
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                     </ScrollArea>
+                </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setExternalReward(prev => ({...prev, isOpen: false, rankings: [], pastedImage: null}))}>취소</Button>
+            <Button onClick={handleDistributeRewards} disabled={externalReward.isDistributing || externalReward.rankings.some(r => !r.studentId)}>
+                {externalReward.isDistributing && <Loader2 className="w-4 h-4 mr-2 animate-spin"/>}
+                보상 지급
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
       
