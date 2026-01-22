@@ -899,19 +899,37 @@ useEffect(() => {
             </Card>
         </div>
         {currentUserData?.role === 'teacher' && (
-            <div className="mt-6">
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="font-headline flex items-center gap-2"><Swords className="text-primary"/>서바이벌 퀴즈 만들기</CardTitle>
-                        <CardDescription>여러 퀴즈를 묶어 최후의 1인을 가리는 퀴즈쇼를 만듭니다.</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Button asChild className="w-full">
-                            <Link href="/survival-quiz/create"><Swords className="mr-2 h-4 w-4"/>만들기</Link>
-                        </Button>
-                    </CardContent>
-                </Card>
-            </div>
+          <div className="mt-6">
+            <Card>
+              <div className="flex items-center gap-6 p-6">
+                <Image
+                  src="https://i.postimg.cc/nLL2z0qK/baeteulkwijeu.png"
+                  alt="배틀 퀴즈 만들기 아이콘"
+                  width={120}
+                  height={120}
+                  className="hidden sm:block rounded-lg"
+                />
+                <div className="flex-1">
+                  <CardHeader className="p-0">
+                    <CardTitle className="font-headline text-xl">
+                      배틀 퀴즈 만들기
+                    </CardTitle>
+                    <CardDescription>
+                      많은 학생이 참여하여 대결하는 퀴즈를 만듭니다.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-0 mt-4">
+                    <Button asChild>
+                      <Link href="/survival-quiz/create">
+                        <Swords className="mr-2 h-4 w-4" />
+                        만들기
+                      </Link>
+                    </Button>
+                  </CardContent>
+                </div>
+              </div>
+            </Card>
+          </div>
         )}
 
         <div>
