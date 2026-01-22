@@ -847,7 +847,7 @@ useEffect(() => {
           <p className="text-muted-foreground mt-1">오늘도 즐거운 학습을 시작해볼까요?</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card>
                 <div className="flex items-center gap-4 p-4 h-full">
                     <Image
@@ -857,7 +857,7 @@ useEffect(() => {
                         height={120}
                         className="hidden sm:block rounded-lg"
                     />
-                    <div className="flex-1 flex flex-col justify-center space-y-4">
+                    <div className="flex flex-col justify-center space-y-4">
                         <div>
                             <h3 className="font-headline font-semibold text-lg flex items-center gap-2"><LogIn className="text-primary"/>참여 코드로 입장</h3>
                             <p className="text-sm text-muted-foreground">친구에게 받은 참여 코드를 입력하여 게임에 참여하세요.</p>
@@ -886,51 +886,47 @@ useEffect(() => {
                         height={120}
                         className="hidden sm:block rounded-lg"
                     />
-                    <div className="flex-1 flex flex-col justify-center space-y-2">
+                    <div className="flex flex-col justify-center space-y-2">
                         <h3 className="font-headline font-semibold text-lg">새로운 퀴즈 만들기</h3>
                         <p className="text-sm text-muted-foreground">나만의 퀴즈를 만들고 친구들과 함께 플레이하세요.</p>
                         <div className="pt-2">
-                            <Button asChild className="w-full">
+                            <Button asChild>
                                 <Link href="/game-sets/create"><PlusCircle className="mr-2 h-4 w-4"/>만들기</Link>
                             </Button>
                         </div>
                     </div>
                 </div>
             </Card>
-        </div>
-        {currentUserData?.role === 'teacher' && (
-          <div className="mt-6">
-            <Card>
-              <div className="flex items-center gap-6 p-6">
-                <Image
-                  src="https://i.postimg.cc/nLL2z0qK/baeteulkwijeu.png"
-                  alt="배틀 퀴즈 만들기 아이콘"
-                  width={120}
-                  height={120}
-                  className="hidden sm:block rounded-lg"
-                />
-                <div className="flex-1">
-                  <CardHeader className="p-0">
-                    <CardTitle className="font-headline text-xl">
+            {currentUserData?.role === 'teacher' && (
+              <Card>
+                <div className="flex items-center gap-4 p-4 h-full">
+                  <Image
+                    src="https://i.postimg.cc/nLL2z0qK/baeteulkwijeu.png"
+                    alt="배틀 퀴즈 만들기 아이콘"
+                    width={120}
+                    height={120}
+                    className="hidden sm:block rounded-lg"
+                  />
+                  <div className="flex flex-col justify-center space-y-2">
+                    <h3 className="font-headline font-semibold text-lg">
                       배틀 퀴즈 만들기
-                    </CardTitle>
-                    <CardDescription>
+                    </h3>
+                    <p className="text-sm text-muted-foreground">
                       많은 학생이 참여하여 대결하는 퀴즈를 만듭니다.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="p-0 mt-4">
-                    <Button asChild>
-                      <Link href="/survival-quiz/create">
-                        <Swords className="mr-2 h-4 w-4" />
-                        만들기
-                      </Link>
-                    </Button>
-                  </CardContent>
+                    </p>
+                    <div className="pt-2">
+                      <Button asChild>
+                        <Link href="/survival-quiz/create">
+                          <Swords className="mr-2 h-4 w-4" />
+                          만들기
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </Card>
-          </div>
-        )}
+              </Card>
+            )}
+        </div>
 
         <div>
             <h2 className="text-2xl font-bold font-headline mb-4 flex items-center gap-2">
