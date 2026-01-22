@@ -468,12 +468,13 @@ export default function LeaderboardPage() {
                 <Image
                   src="https://i.postimg.cc/52gzyrd8/lideobodeu.png"
                   alt="리더보드"
-                  width={195}
-                  height={130}
+                  width={135}
+                  height={90}
                 />
                 <div className="flex-grow">
                   <CardTitle className="font-headline text-3xl">리더보드</CardTitle>
                   <CardDescription>전체, 학교, 학급별 순위를 확인하고 명예의 전당에 도전해보세요.</CardDescription>
+                  <CardDescription className="mt-2">퀴즈를 잘 만들어서 많이 활용될수록 경험치와 학급포인트를 보상으로 받을 수 있습니다.</CardDescription>
                 </div>
               </div>
             </CardHeader>
