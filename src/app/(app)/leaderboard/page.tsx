@@ -464,14 +464,14 @@ export default function LeaderboardPage() {
         >
           <Card>
             <CardHeader>
-              <div className="flex items-center gap-6">
+              <div className="flex items-start gap-4">
                 <Image
-                  src="https://i.postimg.cc/B6grjvym/Gemini_Generated_Image_h8qwx4h8qwx4h8qw-removebg-preview.png"
+                  src="https://i.postimg.cc/52gzyrd8/lideobodeu.png"
                   alt="리더보드"
-                  width={150}
-                  height={100}
+                  width={195}
+                  height={130}
                 />
-                <div>
+                <div className="flex-grow">
                   <CardTitle className="font-headline text-3xl">리더보드</CardTitle>
                   <CardDescription>전체, 학교, 학급별 순위를 확인하고 명예의 전당에 도전해보세요.</CardDescription>
                 </div>
