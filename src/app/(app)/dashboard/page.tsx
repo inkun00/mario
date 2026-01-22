@@ -890,7 +890,7 @@ useEffect(() => {
                         <h3 className="font-headline font-semibold text-lg">새로운 퀴즈 만들기</h3>
                         <p className="text-sm text-muted-foreground">나만의 퀴즈를 만들고 친구들과 함께 플레이하세요.</p>
                         <div className="pt-2">
-                            <Button asChild>
+                            <Button asChild className="w-full">
                                 <Link href="/game-sets/create"><PlusCircle className="mr-2 h-4 w-4"/>만들기</Link>
                             </Button>
                         </div>
@@ -915,7 +915,7 @@ useEffect(() => {
                       많은 학생이 참여하여 대결하는 퀴즈를 만듭니다.
                     </p>
                     <div className="pt-2">
-                      <Button asChild>
+                      <Button asChild className="w-full">
                         <Link href="/survival-quiz/create">
                           <Swords className="mr-2 h-4 w-4" />
                           만들기
