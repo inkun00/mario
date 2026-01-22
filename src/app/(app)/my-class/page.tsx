@@ -74,6 +74,7 @@ import {
   ThumbsUp,
   Pencil,
   Award,
+  Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { PixelAvatar } from '@/components/pixel-avatar';
@@ -835,7 +836,14 @@ export default function MyClassPage() {
         ...prev,
         rankings: prev.rankings.map(r => r.rank === rank ? {...r, reward: newReward} : r)
     }));
-  }
+  };
+
+  const handleDeleteRankingItem = (rank: number) => {
+    setExternalReward(prev => ({
+        ...prev,
+        rankings: prev.rankings.filter(r => r.rank !== rank)
+    }));
+  };
 
   const handleDistributeRewards = async () => {
     setExternalReward(prev => ({...prev, isDistributing: true}));
@@ -1472,6 +1480,7 @@ export default function MyClassPage() {
                                 <TableHead>이름</TableHead>
                                 <TableHead>학생 매칭</TableHead>
                                 <TableHead className="w-32">보상</TableHead>
+                                <TableHead className="w-16 text-right">삭제</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -1488,6 +1497,11 @@ export default function MyClassPage() {
                                         </TableCell>
                                         <TableCell>
                                             <Input type="number" value={item.reward} onChange={e => handleRewardChange(item.rank, parseInt(e.target.value) || 0)} />
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Button variant="ghost" size="icon" onClick={() => handleDeleteRankingItem(item.rank)}>
+                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                            </Button>
                                         </TableCell>
                                     </TableRow>
                                 ))}
@@ -1693,3 +1707,4 @@ export default function MyClassPage() {
     </div>
   );
 }
+
