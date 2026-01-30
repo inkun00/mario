@@ -847,7 +847,7 @@ useEffect(() => {
           <p className="text-muted-foreground mt-1">오늘도 즐거운 학습을 시작해볼까요?</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
                 <div className="flex items-center gap-4 p-4 h-full">
                     <Image
