@@ -1135,7 +1135,7 @@ export default function ProfilePage() {
 
   const schoolInfo = [userData?.schoolName, userData?.grade && `${userData.grade}학년`, userData?.class && `${userData.class}반`].filter(Boolean).join(' ');
 
-  if (isLoading) {
+  if (!isClient || isLoading) {
     return (
         <div className="container mx-auto flex flex-col gap-8">
             <Card>
@@ -1595,7 +1595,7 @@ export default function ProfilePage() {
                           <CardContent className="p-4 flex items-center justify-between">
                             <div className='w-full'>
                               <p className="font-semibold">{sub.topic}</p>
-                              <p className="text-sm text-muted-foreground">{isClient && sub.createdAt ? formatDistanceToNow(sub.createdAt.toDate(), { addSuffix: true, locale: ko }) : ''}</p>
+                              <p className="text-sm text-muted-foreground">{sub.createdAt ? formatDistanceToNow(sub.createdAt.toDate(), { addSuffix: true, locale: ko }) : ''}</p>
                             </div>
                             <div className="text-right">
                               <p className="text-lg font-bold text-primary">{sub.evaluation.score}점</p>
@@ -1779,7 +1779,7 @@ export default function ProfilePage() {
                         <TableBody>
                             {[...pointLogs].reverse().map(log => (
                             <TableRow key={log.id}>
-                                <TableCell className="text-xs">{isClient && log.timestamp ? format(new Date((log.timestamp as any)?.toDate()), 'yyyy.MM.dd HH:mm', { locale: ko }) : ''}</TableCell>
+                                <TableCell className="text-xs">{log.timestamp ? format(new Date((log.timestamp as any)?.toDate()), 'yyyy.MM.dd HH:mm', { locale: ko }) : ''}</TableCell>
                                 <TableCell>{log.description}</TableCell>
                                 <TableCell className={cn("text-right font-semibold", log.amount > 0 ? "text-green-600" : "text-red-600")}>
                                 {log.amount > 0 ? '+' : ''}{log.amount.toLocaleString()}
@@ -1899,7 +1899,7 @@ export default function ProfilePage() {
                                     <div className="flex items-center gap-2">
                                       <span className="font-semibold text-sm">{comment.userNickname}</span>
                                       <span className="text-xs text-muted-foreground">
-                                        {isClient && comment.createdAt ? formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko }) : ''}
+                                        {comment.createdAt ? formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko }) : ''}
                                       </span>
                                     </div>
                                     <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
