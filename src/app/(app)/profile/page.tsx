@@ -63,7 +63,7 @@ import dynamic from 'next/dynamic';
 import { PixelAvatar } from '@/components/pixel-avatar';
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart, ResponsiveContainer, Cell, Pie, PieChart, Legend } from 'recharts';
@@ -1593,7 +1593,7 @@ export default function ProfilePage() {
                       {writingSubmissions.map(sub => (
                         <Card key={sub.id} className="cursor-pointer hover:bg-accent" onClick={() => setViewingWritingSubmission(sub)}>
                           <CardContent className="p-4 flex items-center justify-between">
-                            <div>
+                            <div className='w-full'>
                               <p className="font-semibold">{sub.topic}</p>
                               <p className="text-sm text-muted-foreground">{isClient && sub.createdAt ? formatDistanceToNow(sub.createdAt.toDate(), { addSuffix: true, locale: ko }) : ''}</p>
                             </div>
@@ -1614,7 +1614,7 @@ export default function ProfilePage() {
 
     {/* Avatar Editor Dialog */}
     <Dialog open={isAvatarEditorOpen} onOpenChange={setIsAvatarEditorOpen}>
-        <DialogContent className="sm:max-w-4xl">
+        <DialogContent className="max-w-4xl">
             <DialogHeader>
                 <DialogTitle>프로필 이미지 편집</DialogTitle>
                 <DialogDescription>
@@ -1779,7 +1779,7 @@ export default function ProfilePage() {
                         <TableBody>
                             {[...pointLogs].reverse().map(log => (
                             <TableRow key={log.id}>
-                                <TableCell className="text-xs">{isClient && log.timestamp ? new Date((log.timestamp as any)?.toDate()).toLocaleString() : ''}</TableCell>
+                                <TableCell className="text-xs">{isClient && log.timestamp ? format(new Date((log.timestamp as any)?.toDate()), 'yyyy.MM.dd HH:mm', { locale: ko }) : ''}</TableCell>
                                 <TableCell>{log.description}</TableCell>
                                 <TableCell className={cn("text-right font-semibold", log.amount > 0 ? "text-green-600" : "text-red-600")}>
                                 {log.amount > 0 ? '+' : ''}{log.amount.toLocaleString()}
@@ -1899,7 +1899,7 @@ export default function ProfilePage() {
                                     <div className="flex items-center gap-2">
                                       <span className="font-semibold text-sm">{comment.userNickname}</span>
                                       <span className="text-xs text-muted-foreground">
-                                        {isClient && comment.createdAt ? formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko }) : null}
+                                        {isClient && comment.createdAt ? formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko }) : ''}
                                       </span>
                                     </div>
                                     <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
@@ -2250,3 +2250,4 @@ export default function ProfilePage() {
     </TooltipProvider>
   );
 }
+
