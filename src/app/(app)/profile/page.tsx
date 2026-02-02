@@ -459,7 +459,9 @@ export default function ProfilePage() {
             const playedInfo: Record<string, PlayedGameSet> = {};
             playedInfoSnapshot.forEach(doc => {
                 const data = doc.data() as PlayedGameSet;
-                playedInfo[data.gameSetId] = data;
+                if(data.gameSetId) {
+                  playedInfo[data.gameSetId] = data;
+                }
             });
 
             fetchedGameSets.sort((a, b) => {
@@ -1595,7 +1597,7 @@ export default function ProfilePage() {
                           <CardContent className="p-4 flex items-center justify-between">
                             <div className='w-full'>
                               <p className="font-semibold">{sub.topic}</p>
-                              <p className="text-sm text-muted-foreground">{sub.createdAt ? formatDistanceToNow(sub.createdAt.toDate(), { addSuffix: true, locale: ko }) : ''}</p>
+                              <p className="text-sm text-muted-foreground">{isClient && sub.createdAt ? formatDistanceToNow(sub.createdAt.toDate(), { addSuffix: true, locale: ko }) : ''}</p>
                             </div>
                             <div className="text-right">
                               <p className="text-lg font-bold text-primary">{sub.evaluation.score}점</p>
@@ -1779,7 +1781,7 @@ export default function ProfilePage() {
                         <TableBody>
                             {[...pointLogs].reverse().map(log => (
                             <TableRow key={log.id}>
-                                <TableCell className="text-xs">{log.timestamp ? format(new Date((log.timestamp as any)?.toDate()), 'yyyy.MM.dd HH:mm', { locale: ko }) : ''}</TableCell>
+                                <TableCell className="text-xs">{isClient && log.timestamp ? format(new Date((log.timestamp as any)?.toDate()), 'yyyy.MM.dd HH:mm', { locale: ko }) : ''}</TableCell>
                                 <TableCell>{log.description}</TableCell>
                                 <TableCell className={cn("text-right font-semibold", log.amount > 0 ? "text-green-600" : "text-red-600")}>
                                 {log.amount > 0 ? '+' : ''}{log.amount.toLocaleString()}
@@ -1899,7 +1901,7 @@ export default function ProfilePage() {
                                     <div className="flex items-center gap-2">
                                       <span className="font-semibold text-sm">{comment.userNickname}</span>
                                       <span className="text-xs text-muted-foreground">
-                                        {comment.createdAt ? formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko }) : ''}
+                                        {isClient && comment.createdAt ? formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko }) : null}
                                       </span>
                                     </div>
                                     <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
@@ -2250,4 +2252,3 @@ export default function ProfilePage() {
     </TooltipProvider>
   );
 }
-
