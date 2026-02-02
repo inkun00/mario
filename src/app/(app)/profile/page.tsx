@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -550,8 +551,10 @@ export default function ProfilePage() {
             transaction.set(newCommentRef, commentData);
             transaction.update(gameSetRef, { commentCount: increment(1) });
        });
+
        setNewComment("");
        setPreviewGameSet(prev => prev ? { ...prev, commentCount: (prev.commentCount || 0) + 1 } : null);
+
     } catch (error) {
       console.error("Error posting comment: ", error);
       toast({ variant: "destructive", title: "오류", description: "댓글 작성 중 오류가 발생했습니다."});
@@ -1064,7 +1067,7 @@ export default function ProfilePage() {
 
   const pointHistoryChartData = useMemo(() => pointLogs.reduce((acc, log) => {
     if (!log.timestamp) return acc;
-    const date = (log.timestamp as any)?.toDate().toISOString().split('T')[0];
+    const date = isClient ? format(new Date((log.timestamp as any)?.toDate()), 'yyyy-MM-dd') : '';
     const lastEntry = acc[acc.length - 1];
     const newTotal = (lastEntry ? lastEntry.totalPoints : 0) + log.amount;
 
@@ -1074,7 +1077,7 @@ export default function ProfilePage() {
       acc.push({ date, totalPoints: newTotal });
     }
     return acc;
-  }, [] as { date: string; totalPoints: number }[]), [pointLogs]);
+  }, [] as { date: string; totalPoints: number }[]), [pointLogs, isClient]);
 
   const pointAnalysisData = useMemo(() => {
     const incomeByCategory: Record<string, number> = {};
@@ -1758,7 +1761,8 @@ export default function ProfilePage() {
                                                         ))}
                                                     </div>
                                                 )}
-                                            </PieChart>
+                                            />
+                                        </PieChart>
                                     </ResponsiveContainer>
                                 </ChartContainer>
                             ) : (
@@ -2255,4 +2259,3 @@ export default function ProfilePage() {
   );
 }
 
-    
