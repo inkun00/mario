@@ -1612,170 +1612,6 @@ export default function ProfilePage() {
       </Tabs>
     </div>
 
-    {/* AI Writing Topic Dialog */}
-    <Dialog open={writingTopic.isOpen} onOpenChange={(isOpen) => !isOpen && setWritingTopic(prev => ({...prev, isOpen: false}))}>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>AI 주제 글쓰기</DialogTitle>
-          <DialogDescription>
-            AI가 나의 학습 기록을 분석하여 취약한 부분에 대한 글쓰기 주제를 만들어주었습니다.
-          </DialogDescription>
-        </DialogHeader>
-        {writingTopic.isLoading ? (
-          <div className="flex items-center justify-center h-64">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          </div>
-        ) : writingTopic.evaluation ? (
-          <ScrollArea className="max-h-[60vh] pr-4">
-            <div className="space-y-6 py-4">
-                <div className="text-center">
-                    <p className="text-sm text-muted-foreground">총점</p>
-                    <p className="text-5xl font-bold text-primary">{writingTopic.evaluation.score}</p>
-                </div>
-                 <Card>
-                    <CardHeader><CardTitle className="text-lg">글쓰기 주제</CardTitle></CardHeader>
-                    <CardContent>
-                        <p className="text-sm whitespace-pre-wrap">{writingTopic.prompt}</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader><CardTitle className="text-lg">내 답안</CardTitle></CardHeader>
-                    <CardContent>
-                        <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{writingTopic.response}</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader><CardTitle className="text-lg">AI 종합 평가</CardTitle></CardHeader>
-                    <CardContent>
-                        <p className="text-sm">{writingTopic.evaluation.finalFeedback}</p>
-                    </CardContent>
-                </Card>
-                 <Card>
-                    <CardHeader><CardTitle className="text-lg">내용 타당성</CardTitle></CardHeader>
-                    <CardContent>
-                        <p className="text-sm">{writingTopic.evaluation.contentFeedback}</p>
-                    </CardContent>
-                </Card>
-                 <Card>
-                    <CardHeader><CardTitle className="text-lg">논리적 구조</CardTitle></CardHeader>
-                    <CardContent>
-                        <p className="text-sm">{writingTopic.evaluation.organizationFeedback}</p>
-                    </CardContent>
-                </Card>
-                <Card>
-                    <CardHeader><CardTitle className="text-lg">표현의 적절성</CardTitle></CardHeader>
-                    <CardContent>
-                        <p className="text-sm">{writingTopic.evaluation.expressionFeedback}</p>
-                    </CardContent>
-                </Card>
-                 <Card>
-                    <CardHeader><CardTitle className="text-lg">AI 교정 답안</CardTitle></CardHeader>
-                    <CardContent>
-                        <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{writingTopic.evaluation.correctedText}</p>
-                    </CardContent>
-                </Card>
-            </div>
-          </ScrollArea>
-        ) : (
-          <div className="space-y-4 py-4">
-            <div>
-              <Label className="font-semibold text-base">주제: {writingTopic.topic}</Label>
-              <p className="p-4 bg-secondary rounded-md mt-2 text-sm">{writingTopic.prompt}</p>
-            </div>
-            <Textarea
-              value={writingTopic.response}
-              onChange={(e) => setWritingTopic(prev => ({ ...prev, response: e.target.value }))}
-              placeholder="여기에 글을 작성해주세요."
-              rows={10}
-              className="text-base"
-              disabled={writingTopic.isEvaluating}
-            />
-          </div>
-        )}
-        <DialogFooter>
-          {writingTopic.evaluation ? (
-            <Button onClick={() => setWritingTopic(prev => ({...prev, isOpen: false}))}>닫기</Button>
-          ) : (
-            <>
-              <Button variant="ghost" onClick={() => setWritingTopic(prev => ({...prev, isOpen: false}))}>취소</Button>
-              <Button onClick={handleEvaluateWriting} disabled={writingTopic.isEvaluating || !writingTopic.response}>
-                {writingTopic.isEvaluating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                채점 받기
-              </Button>
-            </>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-    
-    {viewingWritingSubmission && (
-      <Dialog open={!!viewingWritingSubmission} onOpenChange={() => setViewingWritingSubmission(null)}>
-        <DialogContent className="sm:max-w-3xl">
-            <DialogHeader>
-                <DialogTitle>AI 글쓰기 평가 결과</DialogTitle>
-                <DialogDescription>
-                    주제: {viewingWritingSubmission?.topic}
-                </DialogDescription>
-            </DialogHeader>
-            {viewingWritingSubmission?.evaluation ? (
-              <ScrollArea className="max-h-[60vh] pr-4">
-                <div className="space-y-6 py-4">
-                    <div className="text-center">
-                        <p className="text-sm text-muted-foreground">총점</p>
-                        <p className="text-5xl font-bold text-primary">{viewingWritingSubmission.evaluation.score}</p>
-                    </div>
-                    <Card>
-                        <CardHeader><CardTitle className="text-lg">글쓰기 주제</CardTitle></CardHeader>
-                        <CardContent>
-                            <p className="text-sm whitespace-pre-wrap">{viewingWritingSubmission.prompt}</p>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader><CardTitle className="text-lg">학생 답안</CardTitle></CardHeader>
-                        <CardContent>
-                            <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{viewingWritingSubmission.response}</p>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader><CardTitle className="text-lg">AI 종합 평가</CardTitle></CardHeader>
-                        <CardContent>
-                            <p className="text-sm">{viewingWritingSubmission.evaluation.finalFeedback}</p>
-                        </CardContent>
-                    </Card>
-                     <Card>
-                        <CardHeader><CardTitle className="text-lg">내용 타당성</CardTitle></CardHeader>
-                        <CardContent>
-                            <p className="text-sm">{viewingWritingSubmission.evaluation.contentFeedback}</p>
-                        </CardContent>
-                    </Card>
-                     <Card>
-                        <CardHeader><CardTitle className="text-lg">논리적 구조</CardTitle></CardHeader>
-                        <CardContent>
-                            <p className="text-sm">{viewingWritingSubmission.evaluation.organizationFeedback}</p>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader><CardTitle className="text-lg">표현의 적절성</CardTitle></CardHeader>
-                        <CardContent>
-                            <p className="text-sm">{viewingWritingSubmission.evaluation.expressionFeedback}</p>
-                        </CardContent>
-                    </Card>
-                     <Card>
-                        <CardHeader><CardTitle className="text-lg">AI 교정 답안</CardTitle></CardHeader>
-                        <CardContent>
-                            <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{viewingWritingSubmission.evaluation.correctedText}</p>
-                        </CardContent>
-                    </Card>
-                </div>
-              </ScrollArea>
-            ) : (
-                <div className="text-center py-10">평가 정보가 없습니다.</div>
-            )}
-        </DialogContent>
-      </Dialog>
-    )}
-
-
     {/* Avatar Editor Dialog */}
     <Dialog open={isAvatarEditorOpen} onOpenChange={setIsAvatarEditorOpen}>
         <DialogContent className="sm:max-w-4xl">
@@ -2248,6 +2084,169 @@ export default function ProfilePage() {
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
+
+    {/* AI Writing Topic Dialog */}
+    <Dialog open={writingTopic.isOpen} onOpenChange={(isOpen) => !isOpen && setWritingTopic(prev => ({...prev, isOpen: false}))}>
+      <DialogContent className="sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>AI 주제 글쓰기</DialogTitle>
+          <DialogDescription>
+            AI가 나의 학습 기록을 분석하여 취약한 부분에 대한 글쓰기 주제를 만들어주었습니다.
+          </DialogDescription>
+        </DialogHeader>
+        {writingTopic.isLoading ? (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : writingTopic.evaluation ? (
+          <ScrollArea className="max-h-[60vh] pr-4">
+            <div className="space-y-6 py-4">
+                <div className="text-center">
+                    <p className="text-sm text-muted-foreground">총점</p>
+                    <p className="text-5xl font-bold text-primary">{writingTopic.evaluation.score}</p>
+                </div>
+                 <Card>
+                    <CardHeader><CardTitle className="text-lg">글쓰기 주제</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm whitespace-pre-wrap">{writingTopic.prompt}</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader><CardTitle className="text-lg">내 답안</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{writingTopic.response}</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader><CardTitle className="text-lg">AI 종합 평가</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm">{writingTopic.evaluation.finalFeedback}</p>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader><CardTitle className="text-lg">내용 타당성</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm">{writingTopic.evaluation.contentFeedback}</p>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader><CardTitle className="text-lg">논리적 구조</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm">{writingTopic.evaluation.organizationFeedback}</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader><CardTitle className="text-lg">표현의 적절성</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm">{writingTopic.evaluation.expressionFeedback}</p>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader><CardTitle className="text-lg">AI 교정 답안</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{writingTopic.evaluation.correctedText}</p>
+                    </CardContent>
+                </Card>
+            </div>
+          </ScrollArea>
+        ) : (
+          <div className="space-y-4 py-4">
+            <div>
+              <Label className="font-semibold text-base">주제: {writingTopic.topic}</Label>
+              <p className="p-4 bg-secondary rounded-md mt-2 text-sm">{writingTopic.prompt}</p>
+            </div>
+            <Textarea
+              value={writingTopic.response}
+              onChange={(e) => setWritingTopic(prev => ({ ...prev, response: e.target.value }))}
+              placeholder="여기에 글을 작성해주세요."
+              rows={10}
+              className="text-base"
+              disabled={writingTopic.isEvaluating}
+            />
+          </div>
+        )}
+        <DialogFooter>
+          {writingTopic.evaluation ? (
+            <Button onClick={() => setWritingTopic(prev => ({...prev, isOpen: false}))}>닫기</Button>
+          ) : (
+            <>
+              <Button variant="ghost" onClick={() => setWritingTopic(prev => ({...prev, isOpen: false}))}>취소</Button>
+              <Button onClick={handleEvaluateWriting} disabled={writingTopic.isEvaluating || !writingTopic.response}>
+                {writingTopic.isEvaluating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                채점 받기
+              </Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    
+    {viewingWritingSubmission && (
+      <Dialog open={!!viewingWritingSubmission} onOpenChange={() => setViewingWritingSubmission(null)}>
+        <DialogContent className="sm:max-w-3xl">
+            <DialogHeader>
+                <DialogTitle>AI 글쓰기 평가 결과</DialogTitle>
+                <DialogDescription>
+                    주제: {viewingWritingSubmission?.topic}
+                </DialogDescription>
+            </DialogHeader>
+            {viewingWritingSubmission?.evaluation ? (
+              <ScrollArea className="max-h-[60vh] pr-4">
+                <div className="space-y-6 py-4">
+                    <div className="text-center">
+                        <p className="text-sm text-muted-foreground">총점</p>
+                        <p className="text-5xl font-bold text-primary">{viewingWritingSubmission.evaluation.score}</p>
+                    </div>
+                    <Card>
+                        <CardHeader><CardTitle className="text-lg">글쓰기 주제</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm whitespace-pre-wrap">{viewingWritingSubmission.prompt}</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader><CardTitle className="text-lg">학생 답안</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{viewingWritingSubmission.response}</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader><CardTitle className="text-lg">AI 종합 평가</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm">{viewingWritingSubmission.evaluation.finalFeedback}</p>
+                        </CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader><CardTitle className="text-lg">내용 타당성</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm">{viewingWritingSubmission.evaluation.contentFeedback}</p>
+                        </CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader><CardTitle className="text-lg">논리적 구조</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm">{viewingWritingSubmission.evaluation.organizationFeedback}</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader><CardTitle className="text-lg">표현의 적절성</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm">{viewingWritingSubmission.evaluation.expressionFeedback}</p>
+                        </CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader><CardTitle className="text-lg">AI 교정 답안</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{viewingWritingSubmission.evaluation.correctedText}</p>
+                        </CardContent>
+                    </Card>
+                </div>
+              </ScrollArea>
+            ) : (
+                <div className="text-center py-10">평가 정보가 없습니다.</div>
+            )}
+        </DialogContent>
+      </Dialog>
+    )}
     </TooltipProvider>
   );
 }
