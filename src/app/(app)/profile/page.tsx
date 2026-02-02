@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -1305,7 +1304,7 @@ export default function ProfilePage() {
       </Card>
       
       <Tabs defaultValue="my-quizzes" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 h-auto">
+        <TabsList className="grid w-full grid-cols-5 h-auto">
           <TabsTrigger value="my-quizzes">내가 만든 퀴즈</TabsTrigger>
           <TabsTrigger value="played-quizzes">내가 풀었던 문제</TabsTrigger>
           <TabsTrigger value="achievement">과목별 성취도</TabsTrigger>
@@ -1597,7 +1596,9 @@ export default function ProfilePage() {
                           <CardContent className="p-4 flex items-center justify-between">
                             <div className='w-full'>
                               <p className="font-semibold">{sub.topic}</p>
-                              <p className="text-sm text-muted-foreground">{isClient && sub.createdAt ? formatDistanceToNow(sub.createdAt.toDate(), { addSuffix: true, locale: ko }) : ''}</p>
+                              {isClient && sub.createdAt && (
+                                <p className="text-sm text-muted-foreground">{formatDistanceToNow(sub.createdAt.toDate(), { addSuffix: true, locale: ko })}</p>
+                              )}
                             </div>
                             <div className="text-right">
                               <p className="text-lg font-bold text-primary">{sub.evaluation.score}점</p>
@@ -1757,8 +1758,7 @@ export default function ProfilePage() {
                                                         ))}
                                                     </div>
                                                 )}
-                                            />
-                                        </PieChart>
+                                            </PieChart>
                                     </ResponsiveContainer>
                                 </ChartContainer>
                             ) : (
@@ -1900,9 +1900,11 @@ export default function ProfilePage() {
                                   <div className="flex-grow">
                                     <div className="flex items-center gap-2">
                                       <span className="font-semibold text-sm">{comment.userNickname}</span>
-                                      <span className="text-xs text-muted-foreground">
-                                        {isClient && comment.createdAt ? formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko }) : null}
-                                      </span>
+                                      {isClient && comment.createdAt && (
+                                        <span className="text-xs text-muted-foreground">
+                                          {formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko })}
+                                        </span>
+                                      )}
                                     </div>
                                     <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
                                   </div>
@@ -2252,3 +2254,5 @@ export default function ProfilePage() {
     </TooltipProvider>
   );
 }
+
+    
