@@ -1000,7 +1000,7 @@ useEffect(() => {
                   <SelectContent>
                     <SelectItem value="all">전체</SelectItem>
                     {Array.from({ length: 6 }, (_, i) => i + 1).map(grade => (
-                      <SelectItem key={grade} value={`${grade}학년`}>{grade}학년</SelectItem>
+                      <SelectItem key={grade} value={`$\{grade}학년`}>{grade}학년</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
