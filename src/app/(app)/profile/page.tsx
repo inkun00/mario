@@ -44,7 +44,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, GameSet, GameSetComment, PlayedGameSet, PointLog, WritingSubmission } from '@/lib/types';
+import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, GameSet, GameSetComment, PlayedGameSet, PointLog, WritingSubmission, EvaluateWritingOutput } from '@/lib/types';
 import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction, addDoc, QueryDocumentSnapshot, DocumentSnapshot, QuerySnapshot, writeBatch } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
 import { Loader2, FileWarning, School, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye, MessageSquare, LineChart, PieChart as PieChartIcon, History, ThumbsUp } from 'lucide-react';
@@ -68,7 +68,7 @@ import { ko } from 'date-fns/locale';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart, ResponsiveContainer, Cell, Pie, PieChart, Legend } from 'recharts';
 import { generateWritingTopic } from '@/ai/flows/generate-writing-topic-flow';
-import { evaluateWriting, type EvaluateWritingOutput } from '@/ai/flows/evaluate-writing-flow';
+import { evaluateWriting } from '@/ai/flows/evaluate-writing-flow';
 
 
 const PixelEditor = dynamic(() => import('@/components/pixel-editor').then(mod => mod.PixelEditor), {
@@ -951,6 +951,81 @@ export default function ProfilePage() {
         setIsPointHistoryLoading(false);
     }
   }
+  
+  const handleOpenWritingTopicDialog = async () => {
+    if (subjectStats.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "데이터 부족",
+        description: "학습 기록이 부족하여 글쓰기 주제를 생성할 수 없습니다. 퀴즈를 더 풀어보세요.",
+      });
+      return;
+    }
+    setWritingTopic({
+      isOpen: true,
+      isLoading: true,
+      isEvaluating: false,
+      topic: null,
+      prompt: null,
+      response: "",
+      evaluation: null,
+    });
+    try {
+      const result = await generateWritingTopic({ subjectStats });
+      setWritingTopic(prev => ({
+        ...prev,
+        isLoading: false,
+        topic: result.topic,
+        prompt: result.prompt,
+      }));
+    } catch (error) {
+      console.error("Error generating writing topic:", error);
+      toast({ variant: "destructive", title: "오류", description: "AI 주제 생성 중 오류가 발생했습니다." });
+      setWritingTopic(prev => ({ ...prev, isOpen: false, isLoading: false }));
+    }
+  };
+
+  const handleEvaluateWriting = async () => {
+    if (!writingTopic.prompt || !writingTopic.topic || !writingTopic.response || !userData) return;
+
+    setWritingTopic(prev => ({ ...prev, isEvaluating: true }));
+
+    try {
+      const evaluationResult = await evaluateWriting({
+        prompt: writingTopic.prompt,
+        userResponse: writingTopic.response,
+        topic: writingTopic.topic,
+        grade: userData.grade || "5학년", // Fallback grade
+      });
+
+      setWritingTopic(prev => ({ ...prev, isEvaluating: false, evaluation: evaluationResult }));
+      
+      const submission: Omit<WritingSubmission, 'id' | 'createdAt'> = {
+        topic: writingTopic.topic,
+        prompt: writingTopic.prompt,
+        response: writingTopic.response,
+        evaluation: evaluationResult,
+      };
+
+      if(user) {
+        const submissionRef = doc(collection(db, 'users', user.uid, 'writingSubmissions'));
+        await setDoc(submissionRef, {
+            ...submission,
+            id: submissionRef.id,
+            createdAt: serverTimestamp(),
+        });
+        setWritingSubmissions(prev => [{...submission, id: submissionRef.id, createdAt: Timestamp.now() } as WritingSubmission, ...prev]);
+      }
+      
+      toast({ title: "채점 완료!", description: `AI 평가 점수는 ${evaluationResult.score}점 입니다.` });
+
+    } catch (error) {
+      console.error("Error evaluating writing:", error);
+      toast({ variant: "destructive", title: "오류", description: "글쓰기 채점 중 오류가 발생했습니다." });
+      setWritingTopic(prev => ({ ...prev, isEvaluating: false }));
+    }
+  };
+
 
   const pointHistoryChartData = useMemo(() => {
     if (!isClient) return [];
