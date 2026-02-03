@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -951,7 +950,7 @@ export default function ProfilePage() {
         setIsPointHistoryLoading(false);
     }
   }
-  
+
   const handleOpenWritingTopicDialog = async () => {
     if (subjectStats.length === 0) {
       toast({

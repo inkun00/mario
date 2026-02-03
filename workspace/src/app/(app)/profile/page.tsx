@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -44,10 +43,10 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, GameSet, GameSetComment, PlayedGameSet, PointLog } from '@/lib/types';
-import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction, addDoc, QueryDocumentSnapshot, DocumentSnapshot, QuerySnapshot } from 'firebase/firestore';
+import type { User, IncorrectAnswer, Question, SubjectStat, SolvedIncorrectAnswer, GameSet, GameSetComment, PlayedGameSet, PointLog, WritingSubmission, EvaluateWritingOutput } from '@/lib/types';
+import { doc, getDoc, collection, getDocs, updateDoc, increment, deleteDoc, query, orderBy, setDoc, serverTimestamp, where, Timestamp, onSnapshot, limit, runTransaction, addDoc, QueryDocumentSnapshot, DocumentSnapshot, QuerySnapshot, writeBatch } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
-import { Loader2, FileWarning, School, Trophy, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye, MessageSquare, LineChart, PieChart as PieChartIcon } from 'lucide-react';
+import { Loader2, FileWarning, School, BookOpen, BarChart2, CheckCircle, XCircle, Pencil, Save, X, Users, KeyRound, Edit, Gem, Package, Send,MinusCircle, LogOut, Undo2, Settings, Trash2, Eye, MessageSquare, LineChart, PieChart as PieChartIcon, History, ThumbsUp } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -63,10 +62,12 @@ import dynamic from 'next/dynamic';
 import { PixelAvatar } from '@/components/pixel-avatar';
 import { Textarea } from '@/components/ui/textarea';
 import Link from 'next/link';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart, ResponsiveContainer, Cell, Pie, PieChart, Legend } from 'recharts';
+import { generateWritingTopic } from '@/ai/flows/generate-writing-topic-flow';
+import { evaluateWriting } from '@/ai/flows/evaluate-writing-flow';
 
 
 const PixelEditor = dynamic(() => import('@/components/pixel-editor').then(mod => mod.PixelEditor), {
@@ -80,46 +81,114 @@ interface ReviewQuestion extends IncorrectAnswer {
     isSubmitting?: boolean;
 }
 
+const calculateSimilarity = (a: string, b: string): number => {
+  const s1 = a.replace(/\s+/g, '');
+  const s2 = b.replace(/\s+/g, '');
+
+  if (s1.length === 0) return s2.length === 0 ? 100 : 0;
+  if (s2.length === 0) return s1.length === 0 ? 100 : 0;
+
+  const matrix = [];
+
+  for (let i = 0; i <= s2.length; i++) {
+    matrix[i] = [i];
+  }
+
+  for (let j = 0; j <= s1.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= s2.length; i++) {
+    for (let j = 1; j <= s1.length; j++) {
+      if (s2.charAt(i - 1) === s1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+
+  const distance = matrix[s2.length][s1.length];
+  const maxLength = Math.max(s1.length, s2.length);
+  if (maxLength === 0) return 100;
+
+  return (1 - distance / maxLength) * 100;
+};
+
+
 const transformStats = (flatStats: SubjectStat[]): SubjectStat[] => {
   return flatStats.map(stat => {
+    let unitsObject: { [unitName: string]: { totalCorrect: number; totalIncorrect: number; } } = {};
     if (stat.units && typeof stat.units === 'object' && !Array.isArray(stat.units)) {
-      const sanitizedStat = {
-        ...stat,
-        totalCorrect: stat.totalCorrect || 0,
-        totalIncorrect: stat.totalIncorrect || 0,
-        units: { ...stat.units },
-      };
-      for (const unit in sanitizedStat.units) {
-        sanitizedStat.units[unit] = {
-          totalCorrect: sanitizedStat.units[unit].totalCorrect || 0,
-          totalIncorrect: sanitizedStat.units[unit].totalIncorrect || 0,
+      unitsObject = stat.units;
+      for (const unit of Object.keys(unitsObject)) {
+        unitsObject[unit] = {
+          totalCorrect: unitsObject[unit].totalCorrect || 0,
+          totalIncorrect: unitsObject[unit].totalIncorrect || 0,
         };
       }
-      return sanitizedStat;
-    }
-
-    const newStat: SubjectStat = {
-      id: stat.id,
-      totalCorrect: stat.totalCorrect || 0,
-      totalIncorrect: stat.totalIncorrect || 0,
-      units: {},
-    };
-
-    for (const key in stat) {
-      if (key.startsWith('units.')) {
-        const parts = key.split('.');
-        const unitName = parts.slice(1, -1).join('.');
-        const metric = parts[parts.length - 1];
-
-        if (unitName && (metric === 'totalCorrect' || metric === 'totalIncorrect')) {
-          if (!newStat.units![unitName]) {
-            newStat.units![unitName] = { totalCorrect: 0, totalIncorrect: 0 };
+    } else {
+      for (const key in stat) {
+        if (key.startsWith('units.')) {
+          const parts = key.split('.');
+          const unitName = parts.slice(1, -1).join('.');
+          const metric = parts[parts.length - 1];
+          if (unitName && (metric === 'totalCorrect' || metric === 'totalIncorrect')) {
+            if (!unitsObject[unitName]) {
+              unitsObject[unitName] = { totalCorrect: 0, totalIncorrect: 0 };
+            }
+            (unitsObject[unitName] as any)[metric] = (stat[key as keyof SubjectStat] as number) || 0;
           }
-          newStat.units![unitName][metric as 'totalCorrect' | 'totalIncorrect'] = (stat[key as keyof SubjectStat] as number) || 0;
         }
       }
     }
-    return newStat;
+
+    const unitNames = Object.keys(unitsObject);
+    const groups: string[][] = [];
+
+    for (const unitName of unitNames) {
+      let foundGroup = false;
+      for (const group of groups) {
+        if (calculateSimilarity(unitName.replace(/\s+/g, ''), group[0].replace(/\s+/g, '')) > 70) {
+          group.push(unitName);
+          foundGroup = true;
+          break;
+        }
+      }
+      if (!foundGroup) {
+        groups.push([unitName]);
+      }
+    }
+
+    const mergedUnits: { [unitName: string]: { totalCorrect: number; totalIncorrect: number; } } = {};
+    let totalCorrectAggregated = 0;
+    let totalIncorrectAggregated = 0;
+
+    for (const group of groups) {
+      const canonicalName = group.reduce((a, b) => (a.length <= b.length ? a : b));
+      
+      const aggregatedStats = { totalCorrect: 0, totalIncorrect: 0 };
+
+      for (const unitName of group) {
+        aggregatedStats.totalCorrect += unitsObject[unitName]?.totalCorrect || 0;
+        aggregatedStats.totalIncorrect += unitsObject[unitName]?.totalIncorrect || 0;
+      }
+      
+      mergedUnits[canonicalName] = aggregatedStats;
+      totalCorrectAggregated += aggregatedStats.totalCorrect;
+      totalIncorrectAggregated += aggregatedStats.totalIncorrect;
+    }
+
+    return {
+      id: stat.id,
+      totalCorrect: totalCorrectAggregated,
+      totalIncorrect: totalIncorrectAggregated,
+      units: mergedUnits,
+    };
   });
 };
 
@@ -172,6 +241,8 @@ export default function ProfilePage() {
 
   const [myGameSets, setMyGameSets] = useState<GameSet[]>([]);
   const [isLoadingMyGameSets, setIsLoadingMyGameSets] = useState(false);
+  const [playedGameSets, setPlayedGameSets] = useState<GameSet[]>([]);
+  const [isLoadingPlayedGameSets, setIsLoadingPlayedGameSets] = useState(true);
   const [previewGameSet, setPreviewGameSet] = useState<GameSet | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<GameSet | null>(null);
   
@@ -184,6 +255,32 @@ export default function ProfilePage() {
   const [pointLogs, setPointLogs] = useState<PointLog[]>([]);
   const [isPointHistoryLoading, setIsPointHistoryLoading] = useState(false);
   const [chartView, setChartView] = useState<'income' | 'expense'>('income');
+  const [isClient, setIsClient] = useState(false);
+
+  const [writingTopic, setWritingTopic] = useState<{
+    isOpen: boolean;
+    isLoading: boolean;
+    isEvaluating: boolean;
+    topic: string | null;
+    prompt: string | null;
+    response: string;
+    evaluation: EvaluateWritingOutput | null;
+  }>({
+    isOpen: false,
+    isLoading: false,
+    isEvaluating: false,
+    topic: null,
+    prompt: null,
+    response: "",
+    evaluation: null,
+  });
+  const [writingSubmissions, setWritingSubmissions] = useState<WritingSubmission[]>([]);
+  const [viewingWritingSubmission, setViewingWritingSubmission] = useState<WritingSubmission | null>(null);
+
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
 
   const fetchProfileData = useCallback(async () => {
@@ -193,12 +290,15 @@ export default function ProfilePage() {
     }
     
     setIsLoading(true);
+    setIsLoadingMyGameSets(true);
 
     const userRef = doc(db, 'users', user.uid);
     const incorrectAnswersRef = collection(db, 'users', user.uid, 'incorrect-answers');
     const solvedIncorrectAnswersRef = collection(db, 'users', user.uid, 'solved-incorrect-answers');
     const subjectStatsRef = collection(db, 'users', user.uid, 'subjectStats');
     const myGameSetsQuery = query(collection(db, 'game-sets'), where('creatorId', '==', user.uid));
+    const playedSetsQuery = query(collection(db, 'users', user.uid, 'playedGameSets'));
+    const writingSubmissionsRef = collection(db, 'users', user.uid, 'writingSubmissions');
     
     try {
       const [
@@ -207,15 +307,17 @@ export default function ProfilePage() {
         solvedIncorrectSnapshot, 
         subjectStatsSnapshot, 
         myGameSetsSnapshot, 
-        playedSetsSnapshot
+        playedSetsSnapshot,
+        writingSubmissionsSnapshot
       ] = await Promise.all([
         getDoc(userRef),
         getDocs(query(incorrectAnswersRef, where('timestamp', '<=', new Date(Date.now() - 24 * 60 * 60 * 1000)), orderBy('timestamp', 'asc'))),
         getDocs(query(solvedIncorrectAnswersRef, orderBy('timestamp', 'desc'))),
         getDocs(subjectStatsRef),
         getDocs(myGameSetsQuery),
-        getDocs(query(collection(db, 'users', user.uid, 'playedGameSets'))),
-      ]) as [DocumentSnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot];
+        getDocs(playedSetsQuery),
+        getDocs(query(writingSubmissionsRef, orderBy('createdAt', 'desc')))
+      ]) as [DocumentSnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot, QuerySnapshot];
 
       if (userSnap.exists()) {
         const fetchedUserData = userSnap.data() as User;
@@ -259,12 +361,16 @@ export default function ProfilePage() {
         }
       });
       setPlayedGameSetIds(ids);
+      
+      const submissions = writingSubmissionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as WritingSubmission));
+      setWritingSubmissions(submissions);
 
     } catch (error) {
         console.error("Error fetching profile data:", error);
         toast({ variant: 'destructive', title: '오류', description: '프로필 데이터를 불러오는 중 오류가 발생했습니다.' });
     } finally {
         setIsLoading(false);
+        setIsLoadingMyGameSets(false);
     }
   }, [user, toast]);
 
@@ -321,6 +427,61 @@ export default function ProfilePage() {
       fetchClassmates();
     }
   }, [userData, fetchClassmates]);
+  
+  useEffect(() => {
+    const fetchPlayedSets = async () => {
+        if (!user || playedGameSetIds.size === 0) {
+            setPlayedGameSets([]);
+            setIsLoadingPlayedGameSets(false);
+            return;
+        }
+
+        setIsLoadingPlayedGameSets(true);
+        try {
+            const playedSetIds = Array.from(playedGameSetIds);
+            const chunks: string[][] = [];
+            for (let i = 0; i < playedSetIds.length; i += 30) {
+                chunks.push(playedSetIds.slice(i, i + 30));
+            }
+
+            let fetchedGameSets: GameSet[] = [];
+            for (const chunk of chunks) {
+                if (chunk.length > 0) {
+                    const q = query(collection(db, 'game-sets'), where('__name__', 'in', chunk));
+                    const snapshot = await getDocs(q);
+                    fetchedGameSets = [...fetchedGameSets, ...snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GameSet))];
+                }
+            }
+            
+            const playedInfoQuery = query(collection(db, 'users', user.uid, 'playedGameSets'));
+            const playedInfoSnapshot = await getDocs(playedInfoQuery);
+            const playedInfo: Record<string, PlayedGameSet> = {};
+            playedInfoSnapshot.forEach(doc => {
+                const data = doc.data() as PlayedGameSet;
+                if(data.gameSetId) {
+                  playedInfo[data.gameSetId] = data;
+                }
+            });
+
+            fetchedGameSets.sort((a, b) => {
+                const timeA = playedInfo[a.id]?.playedAt?.toMillis() || 0;
+                const timeB = playedInfo[b.id]?.playedAt?.toMillis() || 0;
+                return timeB - timeA;
+            });
+            
+            setPlayedGameSets(fetchedGameSets);
+        } catch (error) {
+            console.error('Error fetching played game sets:', error);
+            toast({ variant: 'destructive', title: '오류', description: '플레이한 퀴즈 목록을 불러오는 중 오류가 발생했습니다.' });
+        } finally {
+            setIsLoadingPlayedGameSets(false);
+        }
+    };
+
+    if (user) {
+        fetchPlayedSets();
+    }
+  }, [playedGameSetIds, user, toast]);
 
   useEffect(() => {
     if (!previewGameSet) {
@@ -337,20 +498,62 @@ export default function ProfilePage() {
     return () => unsubscribe();
   }, [previewGameSet]);
 
+  const handleLike = async (gameSet: GameSet) => {
+    if (!user) return;
+    const gameSetRef = doc(db, 'game-sets', gameSet.id);
+    const alreadyLiked = (gameSet.likedBy || []).includes(user.uid);
+    const newLikeCount = (gameSet.likeCount || 0) + (alreadyLiked ? -1 : 1);
+    const newLikedBy = alreadyLiked 
+      ? (gameSet.likedBy || []).filter(uid => uid !== user.uid)
+      : [...(gameSet.likedBy || []), user.uid];
+
+    try {
+      await updateDoc(gameSetRef, {
+        likeCount: newLikeCount,
+        likedBy: newLikedBy,
+      });
+
+      const updater = (set: GameSet) => {
+          if (set.id === gameSet.id) {
+              return { ...set, likeCount: newLikeCount, likedBy: newLikedBy };
+          }
+          return set;
+      };
+
+      setMyGameSets(prev => prev.map(updater));
+      setPlayedGameSets(prev => prev.map(updater));
+      setPreviewGameSet(prev => (prev && prev.id === gameSet.id ? updater(prev) : prev));
+
+    } catch (error) {
+      console.error("Error liking game set:", error);
+      toast({ variant: "destructive", title: "오류", description: "좋아요 처리 중 오류가 발생했습니다." });
+    }
+  };
+
   const handlePostComment = async () => {
     if (!newComment.trim() || !user || !previewGameSet || !userData) return;
 
     setIsPostingComment(true);
+    const gameSetRef = doc(db, 'game-sets', previewGameSet.id);
+    const newCommentRef = doc(collection(gameSetRef, 'comments'));
+    
     try {
-      const commentData = {
-        userId: user.uid,
-        userNickname: userData.displayName,
-        userAvatar: userData.pixelAvatar || null,
-        comment: newComment,
-        createdAt: serverTimestamp()
-      };
-      await addDoc(collection(db, 'game-sets', previewGameSet.id, 'comments'), commentData);
-      setNewComment("");
+       await runTransaction(db, async (transaction) => {
+            const commentData = {
+                id: newCommentRef.id,
+                userId: user.uid,
+                userNickname: userData.displayName,
+                userAvatar: userData.pixelAvatar || null,
+                comment: newComment,
+                createdAt: serverTimestamp()
+            };
+            transaction.set(newCommentRef, commentData);
+            transaction.update(gameSetRef, { commentCount: increment(1) });
+       });
+
+       setNewComment("");
+       setPreviewGameSet(prev => prev ? { ...prev, commentCount: (prev.commentCount || 0) + 1 } : null);
+
     } catch (error) {
       console.error("Error posting comment: ", error);
       toast({ variant: "destructive", title: "오류", description: "댓글 작성 중 오류가 발생했습니다."});
@@ -748,19 +951,97 @@ export default function ProfilePage() {
     }
   }
 
-  const pointHistoryChartData = useMemo(() => pointLogs.reduce((acc, log) => {
-    if (!log.timestamp) return acc;
-    const date = (log.timestamp as any)?.toDate().toISOString().split('T')[0];
-    const lastEntry = acc[acc.length - 1];
-    const newTotal = (lastEntry ? lastEntry.totalPoints : 0) + log.amount;
-
-    if (lastEntry && lastEntry.date === date) {
-      lastEntry.totalPoints = newTotal;
-    } else {
-      acc.push({ date, totalPoints: newTotal });
+  const handleOpenWritingTopicDialog = async () => {
+    if (subjectStats.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "데이터 부족",
+        description: "학습 기록이 부족하여 글쓰기 주제를 생성할 수 없습니다. 퀴즈를 더 풀어보세요.",
+      });
+      return;
     }
-    return acc;
-  }, [] as { date: string; totalPoints: number }[]), [pointLogs]);
+    setWritingTopic({
+      isOpen: true,
+      isLoading: true,
+      isEvaluating: false,
+      topic: null,
+      prompt: null,
+      response: "",
+      evaluation: null,
+    });
+    try {
+      const result = await generateWritingTopic({ subjectStats });
+      setWritingTopic(prev => ({
+        ...prev,
+        isLoading: false,
+        topic: result.topic,
+        prompt: result.prompt,
+      }));
+    } catch (error) {
+      console.error("Error generating writing topic:", error);
+      toast({ variant: "destructive", title: "오류", description: "AI 주제 생성 중 오류가 발생했습니다." });
+      setWritingTopic(prev => ({ ...prev, isOpen: false, isLoading: false }));
+    }
+  };
+
+  const handleEvaluateWriting = async () => {
+    if (!writingTopic.prompt || !writingTopic.topic || !writingTopic.response || !userData) return;
+
+    setWritingTopic(prev => ({ ...prev, isEvaluating: true }));
+
+    try {
+      const evaluationResult = await evaluateWriting({
+        prompt: writingTopic.prompt,
+        userResponse: writingTopic.response,
+        topic: writingTopic.topic,
+        grade: userData.grade || "5학년", // Fallback grade
+      });
+
+      setWritingTopic(prev => ({ ...prev, isEvaluating: false, evaluation: evaluationResult }));
+      
+      const submission: Omit<WritingSubmission, 'id' | 'createdAt'> = {
+        topic: writingTopic.topic,
+        prompt: writingTopic.prompt,
+        response: writingTopic.response,
+        evaluation: evaluationResult,
+      };
+
+      if(user) {
+        const submissionRef = doc(collection(db, 'users', user.uid, 'writingSubmissions'));
+        await setDoc(submissionRef, {
+            ...submission,
+            id: submissionRef.id,
+            createdAt: serverTimestamp(),
+        });
+        setWritingSubmissions(prev => [{...submission, id: submissionRef.id, createdAt: Timestamp.now() } as WritingSubmission, ...prev]);
+      }
+      
+      toast({ title: "채점 완료!", description: `AI 평가 점수는 ${evaluationResult.score}점 입니다.` });
+
+    } catch (error) {
+      console.error("Error evaluating writing:", error);
+      toast({ variant: "destructive", title: "오류", description: "글쓰기 채점 중 오류가 발생했습니다." });
+      setWritingTopic(prev => ({ ...prev, isEvaluating: false }));
+    }
+  };
+
+
+  const pointHistoryChartData = useMemo(() => {
+    if (!isClient) return [];
+    return pointLogs.reduce((acc, log) => {
+        if (!log.timestamp) return acc;
+        const date = format(new Date((log.timestamp as any)?.toDate()), 'yyyy-MM-dd');
+        const lastEntry = acc[acc.length - 1];
+        const newTotal = (lastEntry ? lastEntry.totalPoints : 0) + log.amount;
+
+        if (lastEntry && lastEntry.date === date) {
+        lastEntry.totalPoints = newTotal;
+        } else {
+        acc.push({ date, totalPoints: newTotal });
+        }
+        return acc;
+    }, [] as { date: string; totalPoints: number }[]);
+  }, [pointLogs, isClient]);
 
   const pointAnalysisData = useMemo(() => {
     const incomeByCategory: Record<string, number> = {};
@@ -822,7 +1103,7 @@ export default function ProfilePage() {
 
   const schoolInfo = [userData?.schoolName, userData?.grade && `${userData.grade}학년`, userData?.class && `${userData.class}반`].filter(Boolean).join(' ');
 
-  if (isLoading) {
+  if (!isClient || isLoading) {
     return (
         <div className="container mx-auto flex flex-col gap-8">
             <Card>
@@ -990,10 +1271,12 @@ export default function ProfilePage() {
       </Card>
       
       <Tabs defaultValue="my-quizzes" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-5 h-auto">
           <TabsTrigger value="my-quizzes">내가 만든 퀴즈</TabsTrigger>
+          <TabsTrigger value="played-quizzes">내가 풀었던 문제</TabsTrigger>
           <TabsTrigger value="achievement">과목별 성취도</TabsTrigger>
           <TabsTrigger value="review-notes">오답노트</TabsTrigger>
+          <TabsTrigger value="writing-activity">글쓰기 활동</TabsTrigger>
         </TabsList>
         <TabsContent value="my-quizzes">
             <Card>
@@ -1020,26 +1303,90 @@ export default function ProfilePage() {
                             <div className="space-y-2">
                                 {myGameSets.map(set => (
                                     <Card key={set.id}>
+                                        <CardHeader className="pb-2">
+                                            <CardTitle className="font-headline text-lg truncate">{set.title}</CardTitle>
+                                            <CardDescription>
+                                                {set.questions.length} 문제 · {set.isPublic ? '공개' : '비공개'}
+                                            </CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="grid grid-cols-3 gap-1 text-center text-sm text-muted-foreground py-2">
+                                            <div className="flex items-center justify-center gap-1">
+                                                <Users className="h-4 w-4"/>
+                                                <span>활용 {set.playCount || 0}</span>
+                                            </div>
+                                            <div className="flex items-center justify-center gap-1">
+                                                <ThumbsUp className="h-4 w-4"/>
+                                                <span>{set.likeCount || 0}</span>
+                                            </div>
+                                            <div className="flex items-center justify-center gap-1">
+                                                <MessageSquare className="h-4 w-4"/>
+                                                <span>{set.commentCount || 0}</span>
+                                            </div>
+                                        </CardContent>
+                                        <CardFooter className="flex flex-wrap justify-end gap-2 pt-2">
+                                            <Button variant="outline" size="sm" onClick={() => setPreviewGameSet(set)}>
+                                                <Eye className="mr-2 h-4 w-4"/> 미리보기
+                                            </Button>
+                                            <Button variant="secondary" size="sm" asChild>
+                                                <Link href={`/game-sets/edit/${set.id}`}>
+                                                    <Pencil className="mr-2 h-4 w-4"/> 수정
+                                                </Link>
+                                            </Button>
+                                            <Button variant="destructive" size="sm" onClick={() => setDeleteCandidate(set)}>
+                                                <Trash2 className="mr-2 h-4 w-4"/> 삭제
+                                            </Button>
+                                        </CardFooter>
+                                    </Card>
+                                ))}
+                            </div>
+                        </ScrollArea>
+                    )}
+                </CardContent>
+            </Card>
+        </TabsContent>
+        <TabsContent value="played-quizzes">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="font-headline flex items-center gap-2">
+                        <History className="text-primary"/> 내가 풀었던 문제
+                    </CardTitle>
+                    <CardDescription>
+                        내가 플레이했던 퀴즈 목록입니다. 퀴즈에 대한 피드백을 남겨보세요.
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {isLoadingPlayedGameSets ? (
+                        <div className="text-center py-8"><Loader2 className="mx-auto h-8 w-8 animate-spin text-primary" /></div>
+                    ) : playedGameSets.length === 0 ? (
+                        <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                            <p className="text-muted-foreground">아직 플레이한 퀴즈가 없습니다.</p>
+                            <Button asChild className="mt-4">
+                                <Link href="/dashboard">퀴즈 풀러 가기</Link>
+                            </Button>
+                        </div>
+                    ) : (
+                        <ScrollArea className="h-96 pr-4">
+                            <div className="space-y-2">
+                                {playedGameSets.map(set => (
+                                    <Card key={set.id}>
                                         <CardContent className="p-4 flex items-center justify-between gap-2">
                                             <div className="flex-grow overflow-hidden">
                                                 <p className="font-semibold truncate">{set.title}</p>
                                                 <p className="text-sm text-muted-foreground">
-                                                    {set.questions.length} 문제 · {set.isPublic ? '공개' : '비공개'}
+                                                    제작자: {set.creatorNickname}
                                                 </p>
+                                                <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                                                    <span className="flex items-center gap-1">
+                                                        <ThumbsUp className="h-4 w-4" /> {set.likeCount || 0}
+                                                    </span>
+                                                    <span className="flex items-center gap-1">
+                                                        <MessageSquare className="h-4 w-4" /> {set.commentCount || 0}
+                                                    </span>
+                                                </div>
                                             </div>
-                                            <div className="flex items-center gap-2 flex-shrink-0">
-                                                <Button variant="outline" size="sm" onClick={() => setPreviewGameSet(set)}>
-                                                    <Eye className="mr-2 h-4 w-4"/> 미리보기
-                                                </Button>
-                                                <Button variant="secondary" size="sm" asChild>
-                                                    <Link href={`/game-sets/edit/${set.id}`}>
-                                                        <Pencil className="mr-2 h-4 w-4"/> 수정
-                                                    </Link>
-                                                </Button>
-                                                <Button variant="destructive" size="sm" onClick={() => setDeleteCandidate(set)}>
-                                                    <Trash2 className="mr-2 h-4 w-4"/> 삭제
-                                                </Button>
-                                            </div>
+                                            <Button variant="outline" size="sm" onClick={() => setPreviewGameSet(set)}>
+                                                <Edit className="mr-2 h-4 w-4"/> 피드백 남기기
+                                            </Button>
                                         </CardContent>
                                     </Card>
                                 ))}
@@ -1110,12 +1457,19 @@ export default function ProfilePage() {
         <TabsContent value="review-notes">
             <Card>
                 <CardHeader>
-                    <CardTitle className="font-headline flex items-center gap-2">
-                        <FileWarning className="text-primary"/> 오답노트
-                    </CardTitle>
-                    <CardDescription>
-                        틀렸던 문제들을 다시 풀어보고 점수를 만회하세요! 복습 효과를 높이기 위해 틀린 문제는 24시간 후에 공개됩니다.
-                    </CardDescription>
+                    <div className="flex justify-between items-center">
+                        <div>
+                            <CardTitle className="font-headline flex items-center gap-2">
+                                <FileWarning className="text-primary"/> 오답노트
+                            </CardTitle>
+                            <CardDescription>
+                                틀렸던 문제들을 다시 풀어보고 점수를 만회하세요! 복습 효과를 높이기 위해 틀린 문제는 24시간 후에 공개됩니다.
+                            </CardDescription>
+                        </div>
+                        <Button onClick={handleOpenWritingTopicDialog} variant="outline">
+                            <Pencil className="mr-2 h-4 w-4"/> AI 주제 글쓰기
+                        </Button>
+                    </div>
                 </CardHeader>
                 <CardContent>
                     {reviewQuestions.length === 0 ? (
@@ -1186,42 +1540,46 @@ export default function ProfilePage() {
                 </CardContent>
             </Card>
         </TabsContent>
+        <TabsContent value="writing-activity">
+            <Card>
+              <CardHeader>
+                <CardTitle className="font-headline flex items-center gap-2">
+                  <Pencil className="text-primary" /> 글쓰기 활동
+                </CardTitle>
+                <CardDescription>
+                  AI가 생성한 주제에 대해 작성했던 글과 평가 결과를 확인합니다.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {writingSubmissions.length === 0 ? (
+                  <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                    <p className="text-muted-foreground">아직 글쓰기 활동 기록이 없습니다.</p>
+                  </div>
+                ) : (
+                  <ScrollArea className="h-96 pr-4">
+                    <div className="space-y-2">
+                      {writingSubmissions.map(sub => (
+                        <Card key={sub.id} className="cursor-pointer hover:bg-accent" onClick={() => setViewingWritingSubmission(sub)}>
+                          <CardContent className="p-4 flex items-center justify-between">
+                            <div className='w-full'>
+                              <p className="font-semibold">{sub.topic}</p>
+                              {isClient && sub.createdAt && (
+                                <p className="text-sm text-muted-foreground">{formatDistanceToNow(sub.createdAt.toDate(), { addSuffix: true, locale: ko })}</p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <p className="text-lg font-bold text-primary">{sub.evaluation.score}점</p>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                )}
+              </CardContent>
+            </Card>
+        </TabsContent>
       </Tabs>
-
-      <Card>
-        <CardHeader>
-            <CardTitle className="font-headline flex items-center gap-2">
-                <Trophy className="text-primary" /> 레벨 엠블럼 컬렉션
-            </CardTitle>
-            <CardDescription>지금까지 획득한 엠블럼들을 확인해보세요!</CardDescription>
-        </CardHeader>
-        <CardContent>
-            <TooltipProvider>
-                <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-4">
-                    {levelSystem.filter(level => userData.xp >= level.xpThreshold).map((level) => (
-                        <Tooltip key={level.level}>
-                            <TooltipTrigger asChild>
-                                <div className={cn(
-                                    "group relative aspect-square flex items-center justify-center p-1 rounded-full transition-all duration-300",
-                                    'bg-secondary'
-                                )}>
-                                    <span className={cn(
-                                        "text-4xl transition-all duration-300 group-hover:scale-110"
-                                    )}>
-                                        {level.icon}
-                                    </span>
-                                </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p className="font-semibold">Lv. {level.level}: {level.title}</p>
-                                <p className="text-sm text-muted-foreground">필요 XP: {level.xpThreshold.toLocaleString()}</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    ))}
-                </div>
-            </TooltipProvider>
-        </CardContent>
-      </Card>
     </div>
 
     {/* Avatar Editor Dialog */}
@@ -1242,7 +1600,7 @@ export default function ProfilePage() {
 
     {/* Send Points Dialog */}
     <Dialog open={isSendPointsDialogOpen} onOpenChange={setIsSendPointsDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
             <DialogHeader>
                 <DialogTitle>학급 포인트 보내기</DialogTitle>
                 <DialogDescription>
@@ -1285,7 +1643,7 @@ export default function ProfilePage() {
 
     {/* Point History Dialog */}
     <Dialog open={isPointHistoryOpen} onOpenChange={setIsPointHistoryOpen}>
-       <DialogContent className="max-w-4xl">
+       <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
           <DialogTitle>포인트 활동 내역</DialogTitle>
           <DialogDescription>
@@ -1362,9 +1720,7 @@ export default function ProfilePage() {
                                                         {payload?.map((entry, index) => (
                                                             <div key={`item-${index}`} className="flex items-center">
                                                                 <div className="w-2 h-2 rounded-full mr-2" style={{ backgroundColor: entry.color }} />
-                                                                <span>{entry.value} (
-  {(((entry.payload as any)?.percent ?? 0) * 100).toFixed(0)}
-  %)</span>
+                                                                <span>{entry.value} ({(((entry.payload as any)?.percent ?? 0) * 100).toFixed(0)}%)</span>
                                                             </div>
                                                         ))}
                                                     </div>
@@ -1393,7 +1749,7 @@ export default function ProfilePage() {
                         <TableBody>
                             {[...pointLogs].reverse().map(log => (
                             <TableRow key={log.id}>
-                                <TableCell className="text-xs">{log.timestamp ? new Date((log.timestamp as any)?.toDate()).toLocaleString() : ''}</TableCell>
+                                <TableCell className="text-xs">{isClient && log.timestamp ? format(new Date((log.timestamp as any)?.toDate()), 'yyyy.MM.dd HH:mm', { locale: ko }) : ''}</TableCell>
                                 <TableCell>{log.description}</TableCell>
                                 <TableCell className={cn("text-right font-semibold", log.amount > 0 ? "text-green-600" : "text-red-600")}>
                                 {log.amount > 0 ? '+' : ''}{log.amount.toLocaleString()}
@@ -1512,9 +1868,11 @@ export default function ProfilePage() {
                                   <div className="flex-grow">
                                     <div className="flex items-center gap-2">
                                       <span className="font-semibold text-sm">{comment.userNickname}</span>
-                                      <span className="text-xs text-muted-foreground">
-                                        {comment.createdAt && formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko })}
-                                      </span>
+                                      {isClient && comment.createdAt && (
+                                        <span className="text-xs text-muted-foreground">
+                                          {formatDistanceToNow(comment.createdAt.toDate(), { addSuffix: true, locale: ko })}
+                                        </span>
+                                      )}
                                     </div>
                                     <p className="text-sm whitespace-pre-wrap">{comment.comment}</p>
                                   </div>
@@ -1526,17 +1884,22 @@ export default function ProfilePage() {
                       </ScrollArea>
                       {hasUserPlayedSelectedSet && (
                         <div className="mt-4 pt-4 border-t">
-                          <div className="flex gap-2">
-                            <Input 
-                              placeholder="댓글을 입력하세요..." 
-                              value={newComment}
-                              onChange={(e) => setNewComment(e.target.value)}
-                              disabled={isPostingComment}
-                            />
-                            <Button onClick={handlePostComment} disabled={isPostingComment || !newComment.trim()}>
-                              {isPostingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                            </Button>
-                          </div>
+                           <div className="flex items-center gap-2">
+                              <Button variant="outline" size="sm" onClick={() => previewGameSet && handleLike(previewGameSet)}>
+                                <ThumbsUp className={cn("mr-2 h-4 w-4", (previewGameSet.likedBy || []).includes(user.uid) && "fill-primary text-primary-foreground")} />
+                                  좋아요 {previewGameSet.likeCount || 0}
+                              </Button>
+                              <Input 
+                                placeholder="댓글을 입력하세요..." 
+                                value={newComment}
+                                onChange={(e) => setNewComment(e.target.value)}
+                                disabled={isPostingComment}
+                                className="flex-grow"
+                              />
+                              <Button onClick={handlePostComment} disabled={isPostingComment || !newComment.trim()}>
+                                {isPostingComment ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                              </Button>
+                           </div>
                         </div>
                       )}
                     </div>
@@ -1693,6 +2056,169 @@ export default function ProfilePage() {
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
+
+    {/* AI Writing Topic Dialog */}
+    <Dialog open={writingTopic.isOpen} onOpenChange={(isOpen) => !isOpen && setWritingTopic(prev => ({...prev, isOpen: false}))}>
+      <DialogContent className="sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>AI 주제 글쓰기</DialogTitle>
+          <DialogDescription>
+            AI가 나의 학습 기록을 분석하여 취약한 부분에 대한 글쓰기 주제를 만들어주었습니다.
+          </DialogDescription>
+        </DialogHeader>
+        {writingTopic.isLoading ? (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : writingTopic.evaluation ? (
+          <ScrollArea className="max-h-[60vh] pr-4">
+            <div className="space-y-6 py-4">
+                <div className="text-center">
+                    <p className="text-sm text-muted-foreground">총점</p>
+                    <p className="text-5xl font-bold text-primary">{writingTopic.evaluation.score}</p>
+                </div>
+                 <Card>
+                    <CardHeader><CardTitle className="text-lg">글쓰기 주제</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm whitespace-pre-wrap">{writingTopic.prompt}</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader><CardTitle className="text-lg">내 답안</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{writingTopic.response}</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader><CardTitle className="text-lg">AI 종합 평가</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm">{writingTopic.evaluation.finalFeedback}</p>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader><CardTitle className="text-lg">내용 타당성</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm">{writingTopic.evaluation.contentFeedback}</p>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader><CardTitle className="text-lg">논리적 구조</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm">{writingTopic.evaluation.organizationFeedback}</p>
+                    </CardContent>
+                </Card>
+                <Card>
+                    <CardHeader><CardTitle className="text-lg">표현의 적절성</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm">{writingTopic.evaluation.expressionFeedback}</p>
+                    </CardContent>
+                </Card>
+                 <Card>
+                    <CardHeader><CardTitle className="text-lg">AI 교정 답안</CardTitle></CardHeader>
+                    <CardContent>
+                        <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{writingTopic.evaluation.correctedText}</p>
+                    </CardContent>
+                </Card>
+            </div>
+          </ScrollArea>
+        ) : (
+          <div className="space-y-4 py-4">
+            <div>
+              <Label className="font-semibold text-base">주제: {writingTopic.topic}</Label>
+              <p className="p-4 bg-secondary rounded-md mt-2 text-sm">{writingTopic.prompt}</p>
+            </div>
+            <Textarea
+              value={writingTopic.response}
+              onChange={(e) => setWritingTopic(prev => ({ ...prev, response: e.target.value }))}
+              placeholder="여기에 글을 작성해주세요."
+              rows={10}
+              className="text-base"
+              disabled={writingTopic.isEvaluating}
+            />
+          </div>
+        )}
+        <DialogFooter>
+          {writingTopic.evaluation ? (
+            <Button onClick={() => setWritingTopic(prev => ({...prev, isOpen: false}))}>닫기</Button>
+          ) : (
+            <>
+              <Button variant="ghost" onClick={() => setWritingTopic(prev => ({...prev, isOpen: false}))}>취소</Button>
+              <Button onClick={handleEvaluateWriting} disabled={writingTopic.isEvaluating || !writingTopic.response}>
+                {writingTopic.isEvaluating && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                채점 받기
+              </Button>
+            </>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    
+    {viewingWritingSubmission && (
+      <Dialog open={!!viewingWritingSubmission} onOpenChange={() => setViewingWritingSubmission(null)}>
+        <DialogContent className="sm:max-w-3xl">
+            <DialogHeader>
+                <DialogTitle>AI 글쓰기 평가 결과</DialogTitle>
+                <DialogDescription>
+                    주제: {viewingWritingSubmission?.topic}
+                </DialogDescription>
+            </DialogHeader>
+            {viewingWritingSubmission?.evaluation ? (
+              <ScrollArea className="max-h-[60vh] pr-4">
+                <div className="space-y-6 py-4">
+                    <div className="text-center">
+                        <p className="text-sm text-muted-foreground">총점</p>
+                        <p className="text-5xl font-bold text-primary">{viewingWritingSubmission.evaluation.score}</p>
+                    </div>
+                    <Card>
+                        <CardHeader><CardTitle className="text-lg">글쓰기 주제</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm whitespace-pre-wrap">{viewingWritingSubmission.prompt}</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader><CardTitle className="text-lg">학생 답안</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{viewingWritingSubmission.response}</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader><CardTitle className="text-lg">AI 종합 평가</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm">{viewingWritingSubmission.evaluation.finalFeedback}</p>
+                        </CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader><CardTitle className="text-lg">내용 타당성</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm">{viewingWritingSubmission.evaluation.contentFeedback}</p>
+                        </CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader><CardTitle className="text-lg">논리적 구조</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm">{viewingWritingSubmission.evaluation.organizationFeedback}</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader><CardTitle className="text-lg">표현의 적절성</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm">{viewingWritingSubmission.evaluation.expressionFeedback}</p>
+                        </CardContent>
+                    </Card>
+                     <Card>
+                        <CardHeader><CardTitle className="text-lg">AI 교정 답안</CardTitle></CardHeader>
+                        <CardContent>
+                            <p className="text-sm whitespace-pre-wrap bg-secondary/50 p-4 rounded-md">{viewingWritingSubmission.evaluation.correctedText}</p>
+                        </CardContent>
+                    </Card>
+                </div>
+              </ScrollArea>
+            ) : (
+                <div className="text-center py-10">평가 정보가 없습니다.</div>
+            )}
+        </DialogContent>
+      </Dialog>
+    )}
     </TooltipProvider>
   );
 }
