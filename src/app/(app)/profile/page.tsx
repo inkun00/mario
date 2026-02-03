@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -951,132 +952,22 @@ export default function ProfilePage() {
     }
   }
 
-  const handleOpenWritingTopicDialog = async () => {
-    if (userData?.lastWritingSubmission) {
-      const lastSubmissionTime = (userData.lastWritingSubmission as Timestamp).toDate();
-      const twentyFourHours = 24 * 60 * 60 * 1000;
-      const timeSinceLast = new Date().getTime() - lastSubmissionTime.getTime();
-      if (timeSinceLast < twentyFourHours) {
-        const waitTime = twentyFourHours - timeSinceLast;
-        const hours = Math.floor(waitTime / (1000 * 60 * 60));
-        const minutes = Math.floor((waitTime % (1000 * 60 * 60)) / (1000 * 60));
-        toast({
-          variant: 'destructive',
-          title: '아직 글을 쓸 수 없습니다',
-          description: `다음 글쓰기는 ${hours}시간 ${minutes}분 후에 가능합니다.`,
-        });
-        return;
-      }
-    }
+  const pointHistoryChartData = useMemo(() => {
+    if (!isClient) return [];
+    return pointLogs.reduce((acc, log) => {
+        if (!log.timestamp) return acc;
+        const date = format(new Date((log.timestamp as any)?.toDate()), 'yyyy-MM-dd');
+        const lastEntry = acc[acc.length - 1];
+        const newTotal = (lastEntry ? lastEntry.totalPoints : 0) + log.amount;
 
-    setWritingTopic({
-      isOpen: true,
-      isLoading: true,
-      isEvaluating: false,
-      topic: null,
-      prompt: null,
-      response: "",
-      evaluation: null,
-    });
-
-    if (subjectStats.length === 0) {
-      toast({
-        variant: 'destructive',
-        title: '데이터 부족',
-        description: '글쓰기 주제를 생성하려면 학습 기록이 더 필요합니다.',
-      });
-      setWritingTopic(prev => ({ ...prev, isOpen: false, isLoading: false }));
-      return;
-    }
-
-    try {
-      const result = await generateWritingTopic({ subjectStats });
-      setWritingTopic(prev => ({
-        ...prev,
-        isLoading: false,
-        topic: result.topic,
-        prompt: result.prompt,
-      }));
-    } catch (error) {
-      console.error("Error generating writing topic:", error);
-      toast({ variant: 'destructive', title: '오류', description: '글쓰기 주제 생성 중 오류가 발생했습니다.'});
-      setWritingTopic(prev => ({ ...prev, isOpen: false, isLoading: false }));
-    }
-  };
-
-  const handleEvaluateWriting = async () => {
-    if (!writingTopic.prompt || !writingTopic.response) {
-      toast({ variant: 'destructive', title: '오류', description: '글을 작성해주세요.'});
-      return;
-    }
-
-    setWritingTopic(prev => ({ ...prev, isEvaluating: true }));
-
-    try {
-      const result = await evaluateWriting({
-        prompt: writingTopic.prompt,
-        userResponse: writingTopic.response,
-        topic: writingTopic.topic || '',
-        grade: userData?.grade || '',
-      });
-      
-      const points = Math.round(30 * (result.score / 100));
-
-      setWritingTopic(prev => ({ ...prev, isEvaluating: false, evaluation: result }));
-
-      if (user) {
-        const batch = writeBatch(db);
-        const userRef = doc(db, 'users', user.uid);
-        batch.update(userRef, { 
-            xp: increment(points), 
-            classPoints: increment(points),
-            lastWritingSubmission: serverTimestamp() 
-        });
-
-        const submissionRef = doc(collection(db, 'users', user.uid, 'writingSubmissions'));
-        const submissionData: Omit<WritingSubmission, 'id'> = {
-          topic: writingTopic.topic || '알 수 없는 주제',
-          prompt: writingTopic.prompt || '알 수 없는 프롬프트',
-          response: writingTopic.response,
-          evaluation: result,
-          createdAt: serverTimestamp(),
-        };
-        batch.set(submissionRef, submissionData);
-
-        await batch.commit();
-        
-        setUserData(prev => prev ? {
-            ...prev, 
-            xp: prev.xp + points, 
-            classPoints: (prev.classPoints || 0) + points,
-            lastWritingSubmission: new Date(), // Optimistic update for UI
-        } : null);
-
-        setWritingSubmissions(prev => [{...submissionData, id: submissionRef.id, createdAt: new Date() }, ...prev]);
-        
-        toast({ title: '채점 완료!', description: `AI 글쓰기 평가가 완료되었습니다. ${points} XP와 ${points} 학급 포인트를 획득했습니다!` });
-      }
-    } catch (error) {
-      console.error("Error evaluating writing:", error);
-      toast({ variant: 'destructive', title: '오류', description: '글쓰기 평가 중 오류가 발생했습니다.'});
-      setWritingTopic(prev => ({ ...prev, isEvaluating: false }));
-    }
-  };
-
-
-  const pointHistoryChartData = useMemo(() => pointLogs.reduce((acc, log) => {
-    if (!log.timestamp) return acc;
-    const date = isClient ? format(new Date((log.timestamp as any)?.toDate()), 'yyyy-MM-dd') : '';
-    const lastEntry = acc[acc.length - 1];
-    const newTotal = (lastEntry ? lastEntry.totalPoints : 0) + log.amount;
-
-    if (lastEntry && lastEntry.date === date) {
-      lastEntry.totalPoints = newTotal;
-    } else {
-      acc.push({ date, totalPoints: newTotal });
-    }
-    return acc;
-  }, [] as { date: string; totalPoints: number }[]), [pointLogs, isClient]);
+        if (lastEntry && lastEntry.date === date) {
+        lastEntry.totalPoints = newTotal;
+        } else {
+        acc.push({ date, totalPoints: newTotal });
+        }
+        return acc;
+    }, [] as { date: string; totalPoints: number }[]);
+  }, [pointLogs, isClient]);
 
   const pointAnalysisData = useMemo(() => {
     const incomeByCategory: Record<string, number> = {};
