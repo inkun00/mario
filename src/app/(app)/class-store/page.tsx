@@ -725,36 +725,38 @@ export default function ClassStorePage() {
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="store" className="mt-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {classStoreItems.filter(item => item.quantity > 0).map(item => (
-                    <Card key={item.id} className="flex flex-col">
-                      <CardHeader>
-                         <div className="flex justify-between items-start gap-2">
-                            <CardTitle className="font-headline">{item.name}</CardTitle>
-                            <span className="text-5xl">{item.emoji || '🎁'}</span>
-                         </div>
-                        <CardDescription>{item.description}</CardDescription>
-                      </CardHeader>
-                      <CardContent className="flex-grow space-y-1 text-sm">
-                        <p className="text-muted-foreground">판매자: {item.sellerNickname}</p>
-                        <p className="text-muted-foreground">재고: {item.quantity}개</p>
-                      </CardContent>
-                      <CardFooter className="flex items-center justify-between">
-                        <div className="flex items-center font-bold text-lg text-primary">
-                          <Gem className="w-5 h-5 mr-2" />
-                          <span>{item.price.toLocaleString()}</span>
-                        </div>
-                        <Button 
-                          onClick={() => setBuyCandidate(item)} 
-                          disabled={item.sellerId === user?.uid}
-                        >
-                          <ShoppingBag className="w-4 h-4 mr-2"/>
-                          {item.sellerId === user?.uid ? '내 판매 상품' : '구매하기'}
-                        </Button>
-                      </CardFooter>
-                    </Card>
-                  ))}
-                </div>
+                <ScrollArea className="h-[60vh] pr-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {classStoreItems.filter(item => item.quantity > 0).map(item => (
+                      <Card key={item.id} className="flex flex-col">
+                        <CardHeader>
+                          <div className="flex justify-between items-start gap-2">
+                              <CardTitle className="font-headline">{item.name}</CardTitle>
+                              <span className="text-5xl">{item.emoji || '🎁'}</span>
+                          </div>
+                          <CardDescription>{item.description}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="flex-grow space-y-1 text-sm">
+                          <p className="text-muted-foreground">판매자: {item.sellerNickname}</p>
+                          <p className="text-muted-foreground">재고: {item.quantity}개</p>
+                        </CardContent>
+                        <CardFooter className="flex items-center justify-between">
+                          <div className="flex items-center font-bold text-lg text-primary">
+                            <Gem className="w-5 h-5 mr-2" />
+                            <span>{item.price.toLocaleString()}</span>
+                          </div>
+                          <Button 
+                            onClick={() => setBuyCandidate(item)} 
+                            disabled={item.sellerId === user?.uid}
+                          >
+                            <ShoppingBag className="w-4 h-4 mr-2"/>
+                            {item.sellerId === user?.uid ? '내 판매 상품' : '구매하기'}
+                          </Button>
+                        </CardFooter>
+                      </Card>
+                    ))}
+                  </div>
+                </ScrollArea>
               </TabsContent>
               <TabsContent value="inventory" className="mt-6">
                  {inventoryItems.length === 0 ? (
@@ -762,28 +764,30 @@ export default function ClassStorePage() {
                         <p className="text-muted-foreground">보관함이 비어있습니다. 상점에서 아이템을 구매해보세요!</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {inventoryItems.map(item => (
-                            <Card key={item.itemId} className="flex flex-col bg-secondary/30">
-                                <CardHeader>
-                                    <div className="flex justify-between items-start gap-2">
-                                        <CardTitle className="font-headline">{item.name}</CardTitle>
-                                        <span className="text-5xl">{item.emoji || '🎁'}</span>
-                                    </div>
-                                    <CardDescription>{item.description}</CardDescription>
-                                </CardHeader>
-                                <CardContent className="flex-grow space-y-1 text-sm">
-                                    <p className="text-muted-foreground">판매자: {item.sellerNickname}</p>
-                                    <p className="font-semibold">보유 수량: {item.quantity}개</p>
-                                </CardContent>
-                                <CardFooter className="grid grid-cols-3 gap-2">
-                                    <Button size="sm" variant="outline" onClick={() => setUseCandidate(item)}>사용</Button>
-                                    <Button size="sm" variant="outline" onClick={() => setGiftCandidate(item)}>선물</Button>
-                                    <Button size="sm" variant="destructive" onClick={() => setRefundCandidate(item)}>환불</Button>
-                                </CardFooter>
-                            </Card>
-                        ))}
-                    </div>
+                    <ScrollArea className="h-[60vh] pr-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                          {inventoryItems.map(item => (
+                              <Card key={item.itemId} className="flex flex-col bg-secondary/30">
+                                  <CardHeader>
+                                      <div className="flex justify-between items-start gap-2">
+                                          <CardTitle className="font-headline">{item.name}</CardTitle>
+                                          <span className="text-5xl">{item.emoji || '🎁'}</span>
+                                      </div>
+                                      <CardDescription>{item.description}</CardDescription>
+                                  </CardHeader>
+                                  <CardContent className="flex-grow space-y-1 text-sm">
+                                      <p className="text-muted-foreground">판매자: {item.sellerNickname}</p>
+                                      <p className="font-semibold">보유 수량: {item.quantity}개</p>
+                                  </CardContent>
+                                  <CardFooter className="grid grid-cols-3 gap-2">
+                                      <Button size="sm" variant="outline" onClick={() => setUseCandidate(item)}>사용</Button>
+                                      <Button size="sm" variant="outline" onClick={() => setGiftCandidate(item)}>선물</Button>
+                                      <Button size="sm" variant="destructive" onClick={() => setRefundCandidate(item)}>환불</Button>
+                                  </CardFooter>
+                              </Card>
+                          ))}
+                      </div>
+                    </ScrollArea>
                 )}
               </TabsContent>
               <TabsContent value="history" className="mt-6">
@@ -797,24 +801,26 @@ export default function ClassStorePage() {
                         <p className="text-muted-foreground">판매중인 아이템이 없습니다.</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {classStoreItems.filter(item => item.sellerId === user?.uid).map(item => (
-                        <Card key={item.id}>
-                          <CardHeader>
-                            <CardTitle>{item.name}</CardTitle>
-                            <CardDescription>재고: {item.quantity} / 가격: {item.price}P</CardDescription>
-                          </CardHeader>
-                          <CardFooter className="grid grid-cols-3 gap-2">
-                            <Button size="sm" onClick={() => handleManageSellingItem(item)}>판매 내역</Button>
-                            <Button size="sm" variant="outline" onClick={() => {
-                                setAdjustQuantityCandidate(item);
-                                setNewQuantity(item.quantity);
-                            }}>수량 변경</Button>
-                            <Button size="sm" variant="destructive" onClick={() => setDeleteCandidate(item)}>삭제</Button>
-                          </CardFooter>
-                        </Card>
-                      ))}
-                    </div>
+                    <ScrollArea className="h-[60vh] pr-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {classStoreItems.filter(item => item.sellerId === user?.uid).map(item => (
+                          <Card key={item.id}>
+                            <CardHeader>
+                              <CardTitle>{item.name}</CardTitle>
+                              <CardDescription>재고: {item.quantity} / 가격: {item.price}P</CardDescription>
+                            </CardHeader>
+                            <CardFooter className="grid grid-cols-3 gap-2">
+                              <Button size="sm" onClick={() => handleManageSellingItem(item)}>판매 내역</Button>
+                              <Button size="sm" variant="outline" onClick={() => {
+                                  setAdjustQuantityCandidate(item);
+                                  setNewQuantity(item.quantity);
+                              }}>수량 변경</Button>
+                              <Button size="sm" variant="destructive" onClick={() => setDeleteCandidate(item)}>삭제</Button>
+                            </CardFooter>
+                          </Card>
+                        ))}
+                      </div>
+                    </ScrollArea>
                   )}
                 </div>
               </TabsContent>
