@@ -555,6 +555,32 @@ export default function GamePage() {
     }
   }
 
+  const handleMysteryBoxChoice = async (option: MysteryEffect) => {
+    if (!isMyTurn || !gameRoom || typeof gameRoomId !== 'string') return;
+    
+    let effectValue = 0;
+    if (option.type === 'bonus' || option.type === 'penalty') {
+        effectValue = (Math.floor(Math.random() * 5) + 1) * 10 * (option.type === 'penalty' ? -1 : 1);
+    }
+    
+    const effectWithDetails: MysteryEffect = {
+        ...option,
+        value: effectValue,
+    };
+
+    const roomRef = doc(db, 'game-rooms', gameRoomId);
+    try {
+        await updateDoc(roomRef, { currentMysteryEffect: effectWithDetails });
+        setShowMysteryChoicePopup(false);
+    } catch (error) {
+        toast({
+            variant: 'destructive',
+            title: '오류',
+            description: '미스터리 박스 선택 중 오류가 발생했습니다.',
+        });
+    }
+  };
+
 
   const handleMysteryEffect = async () => {
     if (!gameRoom?.currentMysteryEffect || !gameRoom || typeof gameRoomId !== 'string' || !gameSet || !user) return;
