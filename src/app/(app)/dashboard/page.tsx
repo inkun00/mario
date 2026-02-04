@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
-import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn, ShieldCheck, List, Gamepad2, Sparkles, Smartphone, Tv, Gem, MessageSquare, Send, ThumbsUp, Swords } from 'lucide-react';
+import { Book, PlusCircle, Users, Star, Pencil, Trash2, HelpCircle, Lock, Globe, Search, RotateCcw, Loader2, BarChart3, AlertTriangle, ShieldOff, LogIn, ShieldCheck, List, Gamepad2, Sparkles, Smartphone, Tv, Gem, MessageSquare, Send, ThumbsUp, Swords, KeyRound } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useState, useRef, useMemo } from 'react';
@@ -846,6 +846,27 @@ useEffect(() => {
           <h1 className="text-3xl font-bold font-headline">안녕하세요, {(user && !loadingUser) ? currentUserData?.displayName || user.displayName : '게스트'}님!</h1>
           <p className="text-muted-foreground mt-1">오늘도 즐거운 학습을 시작해볼까요?</p>
         </div>
+
+        {currentUserData?.role === 'teacher' && (
+          <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">학급 참여 코드</CardTitle>
+                  <KeyRound className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                  {currentUserData.classCode ? (
+                      <div className="text-3xl font-bold font-mono tracking-widest">{currentUserData.classCode}</div>
+                  ) : (
+                      <div className="pt-2">
+                          <p className="text-sm text-muted-foreground">아직 학급 참여 코드가 설정되지 않았습니다. 학생들이 참여하려면 코드를 설정해야 합니다.</p>
+                          <Button size="sm" className="mt-2" asChild>
+                              <Link href="/profile">프로필에서 코드 설정하기</Link>
+                          </Button>
+                      </div>
+                  )}
+              </CardContent>
+          </Card>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
