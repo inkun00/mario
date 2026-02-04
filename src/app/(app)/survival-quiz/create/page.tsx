@@ -83,7 +83,7 @@ export default function CreateSurvivalQuizPage() {
           const data = doc.data() as User;
           setUserData(data);
           if (data.role !== 'teacher') {
-            toast({ variant: 'destructive', title: '권한 없음', description: '교사만 서바이벌 퀴즈를 만들 수 있습니다.' });
+            toast({ variant: 'destructive', title: '권한 없음', description: '교사만 배틀 퀴즈를 만들 수 있습니다.' });
             router.push('/dashboard');
           }
         }
@@ -253,7 +253,7 @@ export default function CreateSurvivalQuizPage() {
                 revivalHappened: false,
             };
             await setDoc(doc(db, 'survival-game-rooms', newRoomId), newRoomData);
-            toast({ title: '성공', description: '서바이벌 퀴즈방을 만들었습니다! 로비로 이동합니다.' });
+            toast({ title: '성공', description: '배틀 퀴즈방을 만들었습니다! 로비로 이동합니다.' });
             router.push(`/survival-quiz/${newRoomId}/lobby`);
         } else if (gameMode === 'team-cooperation') {
             const newRoomData: Omit<TeamCooperationGameRoom, 'id'> = {
@@ -333,10 +333,10 @@ export default function CreateSurvivalQuizPage() {
             <CardHeader>
                 <CardTitle className="font-headline text-2xl flex items-center gap-2">
                     <Swords className="text-primary"/>
-                    서바이벌 퀴즈방 만들기
+                    배틀 퀴즈방 만들기
                 </CardTitle>
                 <CardDescription>
-                    여러 퀴즈 세트를 조합하여 대규모 서바이벌 퀴즈를 만듭니다.
+                    여러 퀴즈 세트를 조합하여 대규모 배틀 퀴즈를 만듭니다.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-8">
@@ -344,7 +344,7 @@ export default function CreateSurvivalQuizPage() {
                     <Label htmlFor="room-title" className="text-lg font-semibold">방 제목</Label>
                     <Input 
                         id="room-title"
-                        placeholder="예: 제 1회 에듀칩 서바이벌 퀴즈쇼"
+                        placeholder="예: 제 1회 에듀칩 배틀 퀴즈쇼"
                         value={roomTitle}
                         onChange={(e) => setRoomTitle(e.target.value)}
                         className="text-base"
@@ -606,7 +606,7 @@ export default function CreateSurvivalQuizPage() {
                     onClick={handleCreateQuiz}
                 >
                     {isCreating ? <Loader2 className="mr-2 h-5 w-5 animate-spin"/> : <Swords className="mr-2 h-5 w-5" />}
-                    서바이벌 퀴즈방 만들기
+                    배틀 퀴즈방 만들기
                 </Button>
 
             </CardContent>
