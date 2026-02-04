@@ -111,7 +111,13 @@ export default function TeamCooperationGamePage() {
         setIsSubmitting(true);
         try {
             const roomRef = doc(db, 'team-cooperation-rooms', gameRoomId as string);
-            await updateDoc(roomRef, { [`currentAnswers.${user.uid}`]: { answer: userAnswer, submittedAt: Timestamp.now() } });
+            await updateDoc(roomRef, { 
+                [`currentAnswers.${user.uid}`]: { 
+                    answer: userAnswer, 
+                    submittedAt: Timestamp.now(),
+                    questionId: currentQuestion.id 
+                } 
+            });
             toast({ title: '답변 제출 완료!', description: '다른 플레이어들의 답변을 기다려주세요.' });
         } catch (error) {
             toast({ variant: 'destructive', title: '오류', description: '답변 제출에 실패했습니다.' });
@@ -142,18 +148,13 @@ export default function TeamCooperationGamePage() {
                     const player = players[uid];
                     const submission = currentAnswers[uid];
                     
-                    let playerQuestion: Question | null = null;
-                    if (typeof currentRoom.currentQuestionIndex === 'number' && player.questionOrder) {
-                        const questionOrderIndex = currentRoom.currentQuestionIndex;
-                        if (questionOrderIndex < player.questionOrder.length) {
-                             const questionId = player.questionOrder[questionOrderIndex];
-                             playerQuestion = currentRoom.allQuestions[questionId] ?? null;
-                        }
-                    }
+                    if (!submission || typeof submission.questionId === 'undefined') continue;
+                
+                    const playerQuestion = currentRoom.allQuestions.find(q => q.id === submission.questionId);
 
                     if (!playerQuestion) continue;
 
-                    const isCorrect = submission ? checkAnswer(playerQuestion, submission.answer) : false;
+                    const isCorrect = checkAnswer(playerQuestion, submission.answer);
                     
                     let points = 0;
                     if (isCorrect) {

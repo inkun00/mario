@@ -410,6 +410,7 @@ export interface TeamCooperationGameRoom {
   currentAnswers?: Record<string, {
       answer: string;
       submittedAt: Timestamp;
+      questionId?: number;
   }>;
   isAnswerRevealed?: boolean;
   lastQuestionResult?: {
