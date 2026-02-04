@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
@@ -78,41 +77,49 @@ export default function SurvivalLobbyPage() {
     }, [gameRoomId, router, toast]);
 
     useEffect(() => {
-        if (!gameRoomId || typeof gameRoomId !== 'string' || loadingUser || !user) return;
+        if (!gameRoomId || typeof gameRoomId !== 'string' || loadingUser || !user) {
+            setIsLoading(false);
+            return;
+        }
         
-        const roomRef = doc(db, 'survival-game-rooms', gameRoomId);
-        
-        const initializeLobby = async () => {
-            const initialRoomSnap = await getDoc(roomRef);
-            if (!initialRoomSnap.exists()) {
-                toast({ variant: 'destructive', title: '오류', description: '게임방을 찾을 수 없습니다.' });
-                router.push('/dashboard');
-                return;
-            }
+        const roomRef = doc(db, 'survival-game-rooms', gameRoomId as string);
 
-            const isPlayerInRoom = !!initialRoomSnap.data().players[user.uid];
-            if (!isPlayerInRoom) {
-              const userSnap = await getDoc(doc(db, 'users', user.uid));
-              if (userSnap.exists()) {
-                await joinRoom(userSnap.data() as FsUser, roomRef);
-              }
-            }
-        };
-
-        initializeLobby();
-
-        const unsubscribe = onSnapshot(roomRef, (docSnap) => {
+        const unsubscribe = onSnapshot(roomRef, async (docSnap) => {
             if (docSnap.exists()) {
                 const roomData = { id: docSnap.id, ...docSnap.data() } as SurvivalGameRoom;
+                const isPlayerInRoom = !!roomData.players[user.uid];
+
+                // If player is not in the room, attempt to join them.
+                if (!isPlayerInRoom) {
+                    // To prevent re-joining a game they explicitly left or were kicked from,
+                    // we could add more logic here, but for now, we allow re-joining.
+                    const userSnap = await getDoc(doc(db, 'users', user.uid));
+                    if (userSnap.exists()) {
+                        // We show loader while joining
+                        setIsLoading(true);
+                        await joinRoom(userSnap.data() as FsUser, roomRef);
+                        // The snapshot will re-fire after join, so we just return.
+                        return;
+                    } else {
+                         toast({ variant: 'destructive', title: '오류', description: '사용자 정보를 찾을 수 없습니다.' });
+                         router.push('/dashboard');
+                         return;
+                    }
+                }
+                
                 if (gameRoom && gameRoom.players[user.uid] && !roomData.players[user.uid]) {
                     toast({ variant: "destructive", title: "방에서 내보내졌습니다." });
                     router.push('/dashboard');
                     return;
                 }
+                
                 setGameRoom(roomData);
+
                 if (roomData.status === 'playing') {
                     router.push(`/survival-quiz/${gameRoomId}`);
+                    return;
                 }
+                
             } else {
                 toast({ variant: 'destructive', title: '방이 삭제되었습니다.' });
                 router.push('/dashboard');
@@ -257,3 +264,5 @@ export default function SurvivalLobbyPage() {
         </div>
     );
 }
+
+    
