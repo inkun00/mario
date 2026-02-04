@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -11,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Users, Trophy, Send, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Users, Trophy, Send, CheckCircle, XCircle, Copy } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -53,6 +54,12 @@ export default function TeamCooperationGamePage() {
         return !!gameRoom.currentAnswers?.[user.uid];
     }, [gameRoom, user]);
 
+    const copyToClipboard = () => {
+        if (!gameRoomId || typeof gameRoomId !== 'string') return;
+        navigator.clipboard.writeText(gameRoomId).then(() => {
+            toast({ title: '성공', description: '참여 코드가 복사되었습니다.' });
+        });
+    };
 
     // Firestore listener
     useEffect(() => {
@@ -276,6 +283,15 @@ export default function TeamCooperationGamePage() {
             <Card>
                 <CardHeader>
                     <CardTitle>문제 {gameRoom.currentQuestionIndex + 1} / {gameRoom.allQuestions.length}</CardTitle>
+                    {isHost && (
+                         <div className="bg-secondary/50 rounded-lg p-3 my-2 flex items-center justify-between gap-2">
+                            <div className="text-left">
+                                <p className="text-sm font-medium text-muted-foreground">참여 코드</p>
+                                <p className="text-xl font-bold font-mono tracking-widest">{gameRoom.id}</p>
+                            </div>
+                            <Button onClick={copyToClipboard} variant="outline" size="sm"><Copy className="w-4 h-4 mr-2" />코드 복사</Button>
+                        </div>
+                    )}
                     {gameRoom.timeLimitPerQuestion > 0 && (
                         <>
                         <Progress value={timeProgress} className="mt-2" />

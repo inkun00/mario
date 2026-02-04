@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -13,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { PixelAvatar } from '@/components/pixel-avatar';
-import { Loader2, Crown, Shield, Skull, Swords, Send, CheckCircle, XCircle, HeartPulse } from 'lucide-react';
+import { Loader2, Crown, Shield, Skull, Swords, Send, CheckCircle, XCircle, HeartPulse, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { Input } from '@/components/ui/input';
@@ -85,6 +86,13 @@ export default function SurvivalQuizGamePage() {
   const currentPlayer = user && gameRoom ? gameRoom.players[user.uid] : null;
   const currentQuestion = gameRoom && gameRoom.currentQuestionIndex >= 0 ? gameRoom.allQuestions[gameRoom.currentQuestionIndex] : null;
   const hasAnswered = user && gameRoom?.currentAnswers && gameRoom.currentAnswers[user.uid];
+
+  const copyToClipboard = () => {
+    if (!gameRoomId || typeof gameRoomId !== 'string') return;
+    navigator.clipboard.writeText(gameRoomId).then(() => {
+        toast({ title: '성공', description: '참여 코드가 복사되었습니다.' });
+    });
+  };
 
   // Timer logic
   useEffect(() => {
@@ -529,13 +537,20 @@ export default function SurvivalQuizGamePage() {
              <Card>
                 <CardHeader>
                   <CardTitle>호스트 컨트롤</CardTitle>
+                   <div className="bg-secondary/50 rounded-lg p-3 my-2 flex items-center justify-between gap-2">
+                    <div className="text-left">
+                        <p className="text-sm font-medium text-muted-foreground">참여 코드</p>
+                        <p className="text-xl font-bold font-mono tracking-widest">{gameRoom.id}</p>
+                    </div>
+                    <Button onClick={copyToClipboard} variant="outline" size="sm"><Copy className="w-4 h-4 mr-2" />코드 복사</Button>
+                  </div>
                   {!gameRoom.isAnswerRevealed && (
                     <CardDescription>
                       답변 제출 현황: {answeredCount} / {totalPlayers}
                     </CardDescription>
                   )}
                 </CardHeader>
-                <CardContent className="flex gap-2">
+                <CardContent className="flex flex-wrap gap-2">
                     {gameRoom.isAnswerRevealed ? (
                        <>
                         <Button onClick={handleNextQuestion}>다음 문제</Button>

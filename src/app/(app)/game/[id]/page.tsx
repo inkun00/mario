@@ -9,7 +9,7 @@ import { useAuthState } from 'react-firebase-hooks/auth';
 import { auth, db } from '@/lib/firebase';
 import type { GameRoom, GameSet, Player, Question, MysteryEffectType, AnswerLog, IncorrectAnswer, SubjectStat, MysteryEffect, AnswerResult, User, PointLog } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb, Save, StopCircle, Check, CheckCircle, XCircle, X } from 'lucide-react';
+import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb, Save, StopCircle, Check, CheckCircle, XCircle, X, Copy } from 'lucide-react';
 import Image from 'next/image';
 import { Progress } from '@/components/ui/progress';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
@@ -195,7 +195,12 @@ export default function GamePage() {
     }
   }, [gameRoom?.timeLimit, currentQuestionInfo, gameRoom?.questionStartTime, handleTimeOut, gameRoom?.currentAnswerResult]);
 
-
+  const copyToClipboard = () => {
+    if (!gameRoomId || typeof gameRoomId !== 'string') return;
+    navigator.clipboard.writeText(gameRoomId).then(() => {
+        toast({ title: '성공', description: '참여 코드가 복사되었습니다.' });
+    });
+  };
 
   // Fetch GameRoom and GameSet data
   useEffect(() => {
@@ -375,39 +380,6 @@ export default function GamePage() {
     
     setMysteryOptions(finalOptions);
     setShowMysteryChoicePopup(true);
-  };
-  
-  const handleMysteryBoxChoice = async (chosenEffect: MysteryEffect) => {
-    if (!gameRoom || typeof gameRoomId !== 'string') return;
-    
-    if (!isMyTurn) return;
-
-    setShowMysteryChoicePopup(false);
-
-    let effectDetails: MysteryEffect;
-    const randomPoints = (Math.floor(Math.random() * 5) + 1) * 10;
-
-    switch (chosenEffect.type) {
-        case 'bonus':
-            effectDetails = { type: 'bonus', title: '점수 보너스!', description: `축하합니다! ${randomPoints}점을 추가로 획득합니다.`, value: randomPoints };
-            break;
-        case 'double':
-            effectDetails = { type: 'double', title: '점수 2배!', description: '행운의 주인공! 현재까지 누적된 모든 점수가 2배가 됩니다.' };
-            break;
-        case 'penalty':
-            effectDetails = { type: 'penalty', title: '점수 감점...', description: `이런! ${randomPoints}점이 감점됩니다.`, value: -randomPoints };
-            break;
-        case 'half':
-            effectDetails = { type: 'half', title: '점수 반감', description: '치명적인 실수! 현재까지 누적된 모든 점수가 절반으로 줄어듭니다.' };
-            break;
-        case 'swap':
-            effectDetails = { type: 'swap', title: '점수 바꾸기!', description: '전략적 선택! 다른 플레이어와 점수를 바꿀 수 있습니다.' };
-            break;
-        default:
-             effectDetails = { type: 'bonus', title: '점수 보너스!', description: `축하합니다! ${randomPoints}점을 추가로 획득합니다.`, value: randomPoints };
-    }
-    const roomRef = doc(db, 'game-rooms', gameRoomId);
-    await updateDoc(roomRef, { currentMysteryEffect: effectDetails });
   };
   
   const handleBlockClick = (block: GameBlock) => {
@@ -1052,6 +1024,22 @@ export default function GamePage() {
 
         {/* Scoreboard & Info */}
         <aside className="w-full lg:w-80 xl:w-96 flex flex-col gap-4">
+          {isHost && (
+            <Card>
+                <CardHeader className="pb-2">
+                    <CardTitle className="text-lg">호스트 컨트롤</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="bg-secondary/50 rounded-lg p-3 flex items-center justify-between gap-2">
+                        <div className="text-left">
+                            <p className="text-sm font-medium text-muted-foreground">참여 코드</p>
+                            <p className="text-xl font-bold font-mono tracking-widest">{gameRoom.id}</p>
+                        </div>
+                        <Button onClick={copyToClipboard} variant="outline" size="sm"><Copy className="w-4 h-4 mr-2" />복사</Button>
+                    </div>
+                </CardContent>
+            </Card>
+          )}
           <Card className="flex-grow flex flex-col">
             <div className="p-4 border-b flex justify-between items-center">
               <h2 className="font-headline text-xl font-bold">스코어보드</h2>

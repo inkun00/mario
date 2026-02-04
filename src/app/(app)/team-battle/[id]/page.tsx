@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -11,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Crown, Shield, Send, CheckCircle, XCircle, Clock, Swords } from 'lucide-react';
+import { Loader2, Crown, Shield, Send, CheckCircle, XCircle, Clock, Swords, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { Input } from '@/components/ui/input';
@@ -54,6 +55,13 @@ export default function TeamBattleGamePage() {
         if (!currentPlayer || !currentQuestion) return false;
         return currentPlayer.answers?.some(a => a.questionId === currentQuestion.id);
     }, [currentPlayer, currentQuestion]);
+
+    const copyToClipboard = () => {
+        if (!gameRoomId || typeof gameRoomId !== 'string') return;
+        navigator.clipboard.writeText(gameRoomId).then(() => {
+            toast({ title: '성공', description: '참여 코드가 복사되었습니다.' });
+        });
+    };
 
     // Firestore listener
     useEffect(() => {
@@ -306,6 +314,24 @@ export default function TeamBattleGamePage() {
                 </CardContent>
             </Card>
 
+            {isHost && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>호스트 컨트롤</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        <div className="bg-secondary/50 rounded-lg p-3 flex items-center justify-between gap-2">
+                            <div className="text-left">
+                                <p className="text-sm font-medium text-muted-foreground">참여 코드</p>
+                                <p className="text-xl font-bold font-mono tracking-widest">{gameRoom.id}</p>
+                            </div>
+                            <Button onClick={copyToClipboard} variant="outline" size="sm"><Copy className="w-4 h-4 mr-2" />코드 복사</Button>
+                        </div>
+                        <Button variant="destructive" onClick={() => setShowEndGameConfirm(true)}>게임 강제 종료</Button>
+                    </CardContent>
+                </Card>
+            )}
+
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -362,11 +388,6 @@ export default function TeamBattleGamePage() {
                         </div>
                     )}
                  </CardContent>
-                 {isHost && (
-                    <CardFooter>
-                       <Button variant="destructive" onClick={() => setShowEndGameConfirm(true)}>게임 강제 종료</Button>
-                    </CardFooter>
-                 )}
             </Card>
 
              <AlertDialog open={showEndGameConfirm} onOpenChange={setShowEndGameConfirm}>
