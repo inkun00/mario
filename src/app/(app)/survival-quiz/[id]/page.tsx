@@ -33,19 +33,15 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 const checkAnswer = (question: Question, userAnswer: string) => {
     if (question.type === 'subjective') {
-      return userAnswer.trim().toLowerCase() === question.answer?.trim().toLowerCase();
+      return userAnswer.trim().toLowerCase() === (question.answer || '').trim().toLowerCase();
     }
-    return userAnswer === question.correctAnswer;
+    return userAnswer.trim() === (question.correctAnswer || '').trim();
 };
 
 const PlayerStatus = ({ player, result }: { player: SurvivalPlayer, result?: { isCorrect: boolean, points: number }}) => (
     <div className="flex items-center justify-between p-2 rounded-md bg-secondary">
         <div className="flex items-center gap-2">
-            <Avatar className="w-8 h-8">
-                <PixelAvatar pixels={player.pixelAvatar ? JSON.parse(player.pixelAvatar) : null} />
-                <AvatarFallback>{player.nickname.substring(0,1)}</AvatarFallback>
-            </Avatar>
-            <span className="text-sm font-medium truncate">{player.nickname}</span>
+            <span className="text-sm font-medium">{player.nickname}</span>
         </div>
         {result && (
             <div className="flex items-center gap-1 text-sm">
@@ -260,23 +256,48 @@ export default function SurvivalQuizGamePage() {
     setShowEndGameConfirm(false);
   }
 
+  const { players, lastQuestionResults, hostId } = gameRoom || {};
+  const allPlayingPlayers = useMemo(() => 
+    players ? Object.values(players).filter(p => p.uid !== hostId).sort((a, b) => b.score - a.score) : [],
+    [players, hostId]
+  );
+
   const renderPlayerList = (title: string, players: SurvivalPlayer[], icon: React.ReactNode) => (
     <Card>
         <CardHeader className="p-4">
             <CardTitle className="text-lg flex items-center gap-2">{icon} {title} ({players.length})</CardTitle>
         </CardHeader>
         <CardContent className="p-4 pt-0">
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+            <div className="flex flex-wrap gap-2">
                 {players.map(p => (
-                    <div key={p.uid} className="flex items-center gap-2 p-2 rounded-md bg-secondary">
-                        <Avatar className="w-6 h-6">
-                            <PixelAvatar pixels={p.pixelAvatar ? JSON.parse(p.pixelAvatar) : null} />
-                            <AvatarFallback>{p.nickname.substring(0,1)}</AvatarFallback>
-                        </Avatar>
-                        <span className="text-sm font-medium truncate">{p.nickname}</span>
+                    <div key={p.uid} className="flex items-center gap-2 px-3 py-1 rounded-full bg-secondary">
+                        <span className="text-sm font-medium">{p.nickname}</span>
                     </div>
                 ))}
             </div>
+        </CardContent>
+    </Card>
+  );
+  
+  const renderEliminatedPlayerList = (title: string, players: SurvivalPlayer[], icon: React.ReactNode) => (
+    <Card>
+        <CardHeader className="p-4">
+            <CardTitle className="text-lg flex items-center gap-2">{icon} {title} ({players.length})</CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 pt-0">
+            <ScrollArea className="h-40">
+                <div className="space-y-2 pr-4">
+                    {players.map((p) => (
+                        <div key={p.uid} className="flex items-center justify-between p-2 rounded-md bg-secondary/70">
+                            <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold w-6 text-center text-muted-foreground">{allPlayingPlayers.indexOf(p) + 1}.</span>
+                                <span className="text-sm font-medium">{p.nickname}</span>
+                            </div>
+                            <span className="text-sm font-bold text-primary">{p.score}점</span>
+                        </div>
+                    ))}
+                </div>
+            </ScrollArea>
         </CardContent>
     </Card>
   );
@@ -289,16 +310,13 @@ export default function SurvivalQuizGamePage() {
       return <div className="text-center p-8">게임을 찾을 수 없거나 참여자가 아닙니다.</div>
   }
 
-  const { players, lastQuestionResults, hostId } = gameRoom;
-  const allPlayingPlayers = Object.values(players).filter(p => p.uid !== hostId).sort((a,b)=> b.score - a.score);
-  
   const survivors = allPlayingPlayers.filter(p => !p.isEliminated);
   const eliminated = allPlayingPlayers.filter(p => p.isEliminated);
   const answeredCount = gameRoom.currentAnswers ? Object.keys(gameRoom.currentAnswers).length : 0;
   const totalPlayers = allPlayingPlayers.length;
 
   if (gameRoom.status === 'finished') {
-    const finalPlayers = Object.values(players).filter(p => !p.isHost).sort((a,b)=> b.score - a.score);
+    const finalPlayers = Object.values(gameRoom.players).filter(p => !p.isHost).sort((a,b)=> b.score - a.score);
     return (
         <div className="container mx-auto py-8 text-center">
             <Card className="max-w-md mx-auto">
@@ -465,7 +483,7 @@ export default function SurvivalQuizGamePage() {
 
       <aside className="w-full lg:w-80 xl:w-96 flex flex-col gap-4">
         {renderPlayerList('생존자', survivors, <Shield className="text-green-500"/>)}
-        {renderPlayerList('탈락자', eliminated, <Skull className="text-red-500"/>)}
+        {renderEliminatedPlayerList('탈락자', eliminated, <Skull className="text-red-500"/>)}
       </aside>
       
       <AlertDialog open={showEndGameConfirm} onOpenChange={setShowEndGameConfirm}>
