@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Crown, HelpCircle, Loader2, Star, Gift, TrendingDown, Repeat, Bomb, ChevronsRight, Lightbulb, Save, StopCircle, Check, CheckCircle, XCircle, X, Copy } from 'lucide-react';
 import Image from 'next/image';
 import { Progress } from '@/components/ui/progress';
-import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import {
   AlertDialog,
