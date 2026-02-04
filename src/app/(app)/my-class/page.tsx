@@ -17,6 +17,7 @@ import {
   getDoc,
   serverTimestamp,
   orderBy,
+  runTransaction,
 } from 'firebase/firestore';
 import type { User, ClassStoreItem, PointLog, GameSet, PlayedGameSet, SubjectStat, SolvedIncorrectAnswer, GameSetComment, WritingSubmission, EvaluateWritingOutput } from '@/lib/types';
 import { getLevelInfo, getNextLevelInfo, LevelInfo, levelSystem } from '@/lib/level-system';
@@ -514,7 +515,7 @@ export default function MyClassPage() {
 
   const handleBulkItemSend = async () => {
     const selectedStudentIds = Object.keys(selectedStudents).filter(id => selectedStudents[id]);
-     if (selectedStudentIds.length === 0) {
+    if (selectedStudentIds.length === 0) {
         toast({variant: 'destructive', title: '오류', description: '상품을 받을 학생을 선택해주세요.'});
         return;
     }
@@ -531,57 +532,74 @@ export default function MyClassPage() {
     try {
         const itemToSend = classStoreItems.find(item => item.id === selectedItemForBulkSend);
         if (!itemToSend) {
-             throw new Error('Selected item not found');
+             throw new Error('선택된 상품을 찾을 수 없습니다.');
         }
 
-        const studentDocs = await Promise.all(selectedStudentIds.map(id => getDoc(doc(db, 'users', id))));
-        
-        const batch = writeBatch(db);
+        await runTransaction(db, async (transaction) => {
+            const itemRef = doc(db, 'class-store-items', itemToSend.id);
+            const itemDoc = await transaction.get(itemRef);
 
-        studentDocs.forEach(studentDoc => {
-            if (studentDoc.exists()) {
-                const studentData = studentDoc.data() as User;
-                const studentRef = studentDoc.ref;
-                const itemInInventory = studentData.inventory?.[itemToSend.id];
+            if (!itemDoc.exists()) {
+                throw new Error("상품 정보를 찾을 수 없습니다.");
+            }
 
-                if (itemInInventory) {
-                    batch.update(studentRef, {[`inventory.${itemToSend.id}.quantity`]: increment(bulkItemQuantity)});
-                } else {
-                    const newInventoryItem = {
-                        name: itemToSend.name,
-                        itemId: itemToSend.id,
-                        quantity: bulkItemQuantity,
-                        description: itemToSend.description,
-                        sellerId: itemToSend.sellerId,
-                        sellerNickname: itemToSend.sellerNickname,
-                        price: itemToSend.price,
-                        emoji: itemToSend.emoji,
-                    };
-                    batch.set(studentRef, { inventory: { [itemToSend.id]: newInventoryItem } }, { merge: true });
+            const currentQuantity = itemDoc.data().quantity;
+            const totalQuantityToDistribute = selectedStudentIds.length * bulkItemQuantity;
+
+            if (currentQuantity < totalQuantityToDistribute) {
+                throw new Error(`재고가 부족합니다. (현재 재고: ${currentQuantity}개)`);
+            }
+
+            // 1. Decrement store item quantity
+            transaction.update(itemRef, { quantity: increment(-totalQuantityToDistribute) });
+
+            // 2. Update each student's inventory
+            for (const studentId of selectedStudentIds) {
+                const studentRef = doc(db, 'users', studentId);
+                const studentDoc = await transaction.get(studentRef);
+
+                if (studentDoc.exists()) {
+                    const studentData = studentDoc.data() as User;
+                    const itemInInventory = studentData.inventory?.[itemToSend.id];
+                    
+                    if (itemInInventory) {
+                        transaction.update(studentRef, {[`inventory.${itemToSend.id}.quantity`]: increment(bulkItemQuantity)});
+                    } else {
+                        const newInventoryItem = {
+                            name: itemToSend.name,
+                            itemId: itemToSend.id,
+                            quantity: bulkItemQuantity,
+                            description: itemToSend.description,
+                            sellerId: itemToSend.sellerId,
+                            sellerNickname: itemToSend.sellerNickname,
+                            price: itemToSend.price,
+                            emoji: itemToSend.emoji,
+                        };
+                        transaction.set(studentRef, { inventory: { [itemToSend.id]: newInventoryItem } }, { merge: true });
+                    }
+
+                    const logRef = doc(collection(db, 'users', studentId, 'pointLogs'));
+                    transaction.set(logRef, {
+                        type: 'ITEM_GIFT_RECEIVE',
+                        amount: 0,
+                        timestamp: serverTimestamp(),
+                        description: `'${itemToSend.name}' ${bulkItemQuantity}개 지급 받음 (선생님으로부터)`,
+                        relatedItemId: itemToSend.id,
+                        relatedUserId: user?.uid,
+                    } as Omit<PointLog, 'id'|'userId'>);
                 }
-
-                const logRef = doc(collection(db, 'users', studentDoc.id, 'pointLogs'));
-                batch.set(logRef, {
-                    type: 'ITEM_GIFT_RECEIVE',
-                    amount: 0,
-                    timestamp: serverTimestamp(),
-                    description: `'${itemToSend.name}' ${bulkItemQuantity}개 지급 받음 (선생님으로부터)`,
-                    relatedItemId: itemToSend.id,
-                    relatedUserId: user?.uid,
-                } as Omit<PointLog, 'id'|'userId'>);
             }
         });
-        
-        await batch.commit();
+
         toast({title: '성공', description: `${selectedStudentIds.length}명의 학생에게 '${itemToSend.name}' ${bulkItemQuantity}개를 지급했습니다.`});
         setShowBulkItemDialog(false);
         setSelectedItemForBulkSend('');
         setBulkItemQuantity(1);
         setSelectedStudents({});
 
-    } catch (error) {
+    } catch (error: any) {
          console.error("Error sending bulk items: ", error);
-        toast({variant: 'destructive', title: '오류', description: '상품 지급 중 오류가 발생했습니다.'});
+        toast({variant: 'destructive', title: '오류', description: error.message || '상품 지급 중 오류가 발생했습니다.'});
     } finally {
         setIsSubmitting(false);
     }
