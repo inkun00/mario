@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { PixelAvatar } from '@/components/pixel-avatar';
-import { Loader2, Crown, Shield, Skull, Swords, Send, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, Crown, Shield, Skull, Swords, Send, CheckCircle, XCircle, HeartPulse } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Image from 'next/image';
 import { Input } from '@/components/ui/input';
@@ -38,22 +38,25 @@ const checkAnswer = (question: Question, userAnswer: string) => {
     return userAnswer.trim() === (question.correctAnswer || '').trim();
 };
 
-const PlayerStatus = ({ player, result }: { player: SurvivalPlayer, result?: { isCorrect: boolean, points: number }}) => (
+const PlayerStatus = ({ player, result, rank }: { player: SurvivalPlayer, result?: { isCorrect: boolean, points: number }, rank: number }) => (
     <div className="flex items-center justify-between p-2 rounded-md bg-secondary">
         <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold w-6 text-center text-muted-foreground">{rank}.</span>
             <span className="text-sm font-medium">{player.nickname}</span>
         </div>
-        {result && (
+        {result ? (
             <div className="flex items-center gap-1 text-sm">
                 {result.isCorrect ? (
                     <CheckCircle className="w-4 h-4 text-green-500" />
                 ) : (
                     <XCircle className="w-4 h-4 text-red-500" />
                 )}
-                <span className={cn("font-semibold", result.isCorrect ? "text-green-600" : "text-red-600")}>
+                <span className={cn("font-semibold w-10 text-right", result.isCorrect ? "text-green-600" : "text-red-600")}>
                     {result.isCorrect ? `+${result.points}` : ''}
                 </span>
             </div>
+        ) : (
+          <span className="text-sm font-bold text-primary w-14 text-right">{player.score}점</span>
         )}
     </div>
 );
@@ -250,6 +253,69 @@ export default function SurvivalQuizGamePage() {
         });
     }
   };
+  
+  const handleRevival = async () => {
+    if (!isHost || !gameRoom || !gameRoom.revivalEnabled || gameRoom.revivalHappened) {
+      toast({
+        variant: 'destructive',
+        title: '패자부활 불가',
+        description: '패자부활을 실행할 수 없는 상태입니다.',
+      });
+      return;
+    }
+
+    const eliminatedPlayers = Object.values(gameRoom.players).filter(p => !p.isHost && p.isEliminated);
+
+    if (eliminatedPlayers.length === 0) {
+      toast({
+        title: '패자부활',
+        description: '탈락한 학생이 없어 패자부활을 진행하지 않습니다.',
+      });
+      return;
+    }
+
+    eliminatedPlayers.sort((a, b) => b.score - a.score);
+
+    const revivalCount = Math.ceil(eliminatedPlayers.length * (gameRoom.revivalPercentage / 100));
+    const playersToRevive = eliminatedPlayers.slice(0, revivalCount);
+
+    if (playersToRevive.length === 0) {
+        toast({
+            title: '패자부활',
+            description: '부활할 학생이 없습니다.',
+        });
+        return;
+    }
+
+    try {
+      const roomRef = doc(db, 'survival-game-rooms', gameRoomId as string);
+      const updates: Record<string, any> = {
+        revivalHappened: true,
+      };
+      const revivedPlayerNames: string[] = [];
+
+      playersToRevive.forEach(player => {
+        updates[`players.${player.uid}.isEliminated`] = false;
+        revivedPlayerNames.push(player.nickname);
+      });
+
+      await updateDoc(roomRef, updates);
+
+      toast({
+        title: '패자부활 성공!',
+        description: `${revivedPlayerNames.join(', ')} 학생이 부활했습니다.`,
+      });
+
+    } catch (error) {
+      console.error("Error during revival:", error);
+      toast({
+        variant: 'destructive',
+        title: '오류',
+        description: '패자부활 처리 중 오류가 발생했습니다.',
+      });
+    }
+  };
+
 
   const handleEndGame = async () => {
     await updateDoc(doc(db, 'survival-game-rooms', gameRoomId as string), { status: 'finished' });
@@ -261,6 +327,10 @@ export default function SurvivalQuizGamePage() {
     players ? Object.values(players).filter(p => p.uid !== hostId).sort((a, b) => b.score - a.score) : [],
     [players, hostId]
   );
+
+  const survivors = useMemo(() => allPlayingPlayers.filter(p => !p.isEliminated), [allPlayingPlayers]);
+  const eliminated = useMemo(() => allPlayingPlayers.filter(p => p.isEliminated), [allPlayingPlayers]);
+
 
   const renderPlayerList = (title: string, players: SurvivalPlayer[], icon: React.ReactNode) => (
     <Card>
@@ -287,14 +357,8 @@ export default function SurvivalQuizGamePage() {
         <CardContent className="p-4 pt-0">
             <ScrollArea className="h-40">
                 <div className="space-y-2 pr-4">
-                    {players.map((p) => (
-                        <div key={p.uid} className="flex items-center justify-between p-2 rounded-md bg-secondary/70">
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold w-6 text-center text-muted-foreground">{allPlayingPlayers.indexOf(p) + 1}.</span>
-                                <span className="text-sm font-medium">{p.nickname}</span>
-                            </div>
-                            <span className="text-sm font-bold text-primary">{p.score}점</span>
-                        </div>
+                    {players.map((p, index) => (
+                        <PlayerStatus key={p.uid} player={p} rank={index + 1} />
                     ))}
                 </div>
             </ScrollArea>
@@ -310,8 +374,6 @@ export default function SurvivalQuizGamePage() {
       return <div className="text-center p-8">게임을 찾을 수 없거나 참여자가 아닙니다.</div>
   }
 
-  const survivors = allPlayingPlayers.filter(p => !p.isEliminated);
-  const eliminated = allPlayingPlayers.filter(p => p.isEliminated);
   const answeredCount = gameRoom.currentAnswers ? Object.keys(gameRoom.currentAnswers).length : 0;
   const totalPlayers = allPlayingPlayers.length;
 
@@ -349,9 +411,7 @@ export default function SurvivalQuizGamePage() {
   }
 
   const correctPlayers = survivors.filter(p => lastQuestionResults?.[p.uid]?.isCorrect);
-  
   const incorrectPlayers = allPlayingPlayers.filter(p => lastQuestionResults && lastQuestionResults[p.uid] && !lastQuestionResults[p.uid].isCorrect);
-  
   const noAnswerPlayers = allPlayingPlayers.filter(p => !lastQuestionResults?.[p.uid]);
 
 
@@ -379,19 +439,19 @@ export default function SurvivalQuizGamePage() {
                                 <Card>
                                     <CardHeader className="p-3"><CardTitle className="text-base text-green-600">정답자 ({correctPlayers.length})</CardTitle></CardHeader>
                                     <CardContent className="p-3 pt-0 h-40 overflow-y-auto space-y-2">
-                                        {correctPlayers.map(p => <PlayerStatus key={p.uid} player={p} result={lastQuestionResults?.[p.uid]}/>)}
+                                        {correctPlayers.map((p, i) => <PlayerStatus key={p.uid} player={p} result={lastQuestionResults?.[p.uid]} rank={i+1}/>)}
                                     </CardContent>
                                 </Card>
                                 <Card>
                                     <CardHeader className="p-3"><CardTitle className="text-base text-red-600">오답자 ({incorrectPlayers.length})</CardTitle></CardHeader>
                                     <CardContent className="p-3 pt-0 h-40 overflow-y-auto space-y-2">
-                                        {incorrectPlayers.map(p => <PlayerStatus key={p.uid} player={p} result={lastQuestionResults?.[p.uid]}/>)}
+                                        {incorrectPlayers.map((p, i) => <PlayerStatus key={p.uid} player={p} result={lastQuestionResults?.[p.uid]} rank={i+1}/>)}
                                     </CardContent>
                                 </Card>
                                 <Card>
                                     <CardHeader className="p-3"><CardTitle className="text-base text-muted-foreground">미제출 ({noAnswerPlayers.length})</CardTitle></CardHeader>
                                     <CardContent className="p-3 pt-0 h-40 overflow-y-auto space-y-2">
-                                        {noAnswerPlayers.map(p => <PlayerStatus key={p.uid} player={p} />)}
+                                        {noAnswerPlayers.map((p, i) => <PlayerStatus key={p.uid} player={p} rank={i+1}/>)}
                                     </CardContent>
                                 </Card>
                            </div>
@@ -471,7 +531,15 @@ export default function SurvivalQuizGamePage() {
                 </CardHeader>
                 <CardContent className="flex gap-2">
                     {gameRoom.isAnswerRevealed ? (
+                       <>
                         <Button onClick={handleNextQuestion}>다음 문제</Button>
+                        {gameRoom.revivalEnabled && !gameRoom.revivalHappened && eliminated.length > 0 && (
+                            <Button onClick={handleRevival} variant="outline">
+                                <HeartPulse className="w-4 h-4 mr-2" />
+                                패자부활
+                            </Button>
+                        )}
+                       </>
                     ) : (
                         <Button onClick={handleShowResults} disabled={timeRemaining > 0 && totalPlayers > answeredCount}>결과 보기</Button>
                     )}
