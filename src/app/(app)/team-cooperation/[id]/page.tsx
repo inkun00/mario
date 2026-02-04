@@ -156,7 +156,6 @@ export default function TeamCooperationGamePage() {
                         submittedAt: submission?.submittedAt || Timestamp.now(),
                     };
                     player.answers = [...(player.answers || []), newAnswer];
-                    player.currentQuestionIndex = (player.currentQuestionIndex ?? -1) + 1;
                 }
                 
                 const newTeamScore = currentRoom.teamScore + pointsFromThisRound;
@@ -304,6 +303,11 @@ export default function TeamCooperationGamePage() {
                 <CardContent>
                         {currentQuestion ? (
                         <div className="space-y-6">
+                            {currentQuestion.imageUrl && (
+                                <div className="relative aspect-video w-full">
+                                    <Image src={currentQuestion.imageUrl} alt="질문 이미지" fill className="rounded-md object-contain" />
+                                </div>
+                            )}
                             <p className="text-lg font-medium whitespace-pre-wrap">{currentQuestion.question}</p>
                             {currentPlayer && !isHost && (
                                 <div className="space-y-4 pt-4 border-t">
