@@ -126,12 +126,22 @@ export default function TeamCooperationLobbyPage() {
         if (!isHost || !gameRoom) return;
         const roomRef = doc(db, 'team-cooperation-rooms', gameRoom.id);
         try {
-            await updateDoc(roomRef, { 
-                status: 'playing', 
+            const updates: Record<string, any> = {
+                status: 'playing',
                 currentQuestionIndex: 0,
                 currentQuestionStartedAt: serverTimestamp(),
                 currentQuestionEndsAt: new Date(Date.now() + gameRoom.timeLimitPerQuestion * 1000)
+            };
+
+            const questionIndices = Array.from({ length: gameRoom.allQuestions.length }, (_, i) => i);
+            Object.values(gameRoom.players).forEach(player => {
+                if (!player.isHost) {
+                    const shuffledIndices = [...questionIndices].sort(() => Math.random() - 0.5);
+                    updates[`players.${player.uid}.questionOrder`] = shuffledIndices;
+                }
             });
+
+            await updateDoc(roomRef, updates);
         } catch (error) {
             toast({ variant: 'destructive', title: '오류', description: '게임 시작에 실패했습니다.' });
         }

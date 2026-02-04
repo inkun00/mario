@@ -44,9 +44,12 @@ export default function TeamCooperationGamePage() {
     const currentPlayer = user && gameRoom ? gameRoom.players[user.uid] : null;
 
     const currentQuestion = useMemo(() => {
-        if (!gameRoom || typeof gameRoom.currentQuestionIndex !== 'number' || gameRoom.currentQuestionIndex < 0) return null;
-        return gameRoom.allQuestions[gameRoom.currentQuestionIndex] || null;
-    }, [gameRoom]);
+        if (!gameRoom || !currentPlayer || currentPlayer.isHost || !currentPlayer.questionOrder || typeof gameRoom.currentQuestionIndex !== 'number') return null;
+        const currentRoundIndex = gameRoom.currentQuestionIndex;
+        if (currentRoundIndex >= currentPlayer.questionOrder.length) return null;
+        const questionId = currentPlayer.questionOrder[currentRoundIndex];
+        return gameRoom.allQuestions[questionId] ?? null;
+    }, [gameRoom, currentPlayer]);
     
     const hasAnsweredCurrentQuestion = useMemo(() => {
         if (!gameRoom || !user) return false;
@@ -118,7 +121,7 @@ export default function TeamCooperationGamePage() {
     };
     
     const handleTallyAndProceed = async () => {
-        if (!isHost || !gameRoom || !currentQuestion) return;
+        if (!isHost || !gameRoom) return;
     
         try {
             await runTransaction(db, async (transaction) => {
@@ -136,13 +139,25 @@ export default function TeamCooperationGamePage() {
                 for (const uid of Object.keys(players)) {
                     if (players[uid].isHost) continue;
     
-                    const submission = currentAnswers[uid];
-                    const isCorrect = submission ? checkAnswer(currentQuestion, submission.answer) : false;
                     const player = players[uid];
-    
+                    const submission = currentAnswers[uid];
+                    
+                    let playerQuestion: Question | null = null;
+                    if (typeof currentRoom.currentQuestionIndex === 'number' && player.questionOrder) {
+                        const questionOrderIndex = currentRoom.currentQuestionIndex;
+                        if (questionOrderIndex < player.questionOrder.length) {
+                             const questionId = player.questionOrder[questionOrderIndex];
+                             playerQuestion = currentRoom.allQuestions[questionId] ?? null;
+                        }
+                    }
+
+                    if (!playerQuestion) continue;
+
+                    const isCorrect = submission ? checkAnswer(playerQuestion, submission.answer) : false;
+                    
                     let points = 0;
                     if (isCorrect) {
-                        points = currentQuestion.points > 0 ? currentQuestion.points : 30;
+                        points = playerQuestion.points > 0 ? playerQuestion.points : 30;
                         pointsFromThisRound += points;
                         correctPlayers.push(uid);
                     }
@@ -150,7 +165,7 @@ export default function TeamCooperationGamePage() {
                     player.score = (player.score || 0) + points;
                     
                     const newAnswer = {
-                        questionId: currentQuestion.id,
+                        questionId: playerQuestion.id,
                         isCorrect,
                         points,
                         submittedAt: submission?.submittedAt || Timestamp.now(),
