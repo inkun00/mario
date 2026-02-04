@@ -507,7 +507,7 @@ export default function CreateSurvivalQuizPage() {
                 <div className="space-y-4">
                     <h3 className="text-lg font-semibold">문제로 사용할 퀴즈 세트 선택</h3>
                     <Card className="p-4">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
                             <div className="sm:col-span-2 lg:col-span-2 space-y-1">
                                 <Label htmlFor="search-keyword">제목/설명</Label>
                                 <Input 
@@ -526,7 +526,7 @@ export default function CreateSurvivalQuizPage() {
                                 <SelectContent>
                                     <SelectItem value="all">전체</SelectItem>
                                     {Array.from({ length: 6 }, (_, i) => i + 1).map(grade => (
-                                    <SelectItem key={grade} value={`$\{grade}학년`}>{grade}학년</SelectItem>
+                                    <SelectItem key={grade} value={`${grade}학년`}>{grade}학년</SelectItem>
                                     ))}
                                 </SelectContent>
                                 </Select>
@@ -569,11 +569,11 @@ export default function CreateSurvivalQuizPage() {
                                 {filteredGameSets.map(set => (
                                     <div key={set.id} className="flex items-center space-x-3 p-2 rounded-md hover:bg-secondary">
                                         <Checkbox 
-                                            id={`set-$\{set.id}`}
+                                            id={`set-${set.id}`}
                                             checked={selectedSets[set.id] || false}
                                             onCheckedChange={(checked) => handleSetSelection(set.id, !!checked)}
                                         />
-                                        <Label htmlFor={`set-$\{set.id}`} className="w-full cursor-pointer flex-grow">
+                                        <Label htmlFor={`set-${set.id}`} className="w-full cursor-pointer flex-grow">
                                             <p className="font-semibold">{set.title}</p>
                                             <p className="text-sm text-muted-foreground">
                                                 {set.questions.length} 문제 · 제작자: {set.creatorNickname} · {set.isPublic ? '공개' : '내 퀴즈'}
@@ -638,3 +638,5 @@ export default function CreateSurvivalQuizPage() {
     </>
   );
 }
+
+    
