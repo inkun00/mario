@@ -75,6 +75,11 @@ export default function SurvivalQuizGamePage() {
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [timeProgress, setTimeProgress] = useState(100);
   const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   
   const isHost = user?.uid === gameRoom?.hostId;
   const currentPlayer = user && gameRoom ? gameRoom.players[user.uid] : null;
@@ -365,7 +370,7 @@ export default function SurvivalQuizGamePage() {
         </CardContent>
     </Card>
   );
-
+  
   if (isLoading || loadingUser) {
     return <div className="flex justify-center items-center h-screen"><Loader2 className="w-12 h-12 animate-spin text-primary" /></div>;
   }
@@ -376,6 +381,7 @@ export default function SurvivalQuizGamePage() {
 
   const answeredCount = gameRoom.currentAnswers ? Object.keys(gameRoom.currentAnswers).length : 0;
   const totalPlayers = allPlayingPlayers.length;
+  const allAnswered = answeredCount >= totalPlayers;
 
   if (gameRoom.status === 'finished') {
     const finalPlayers = Object.values(gameRoom.players).filter(p => !p.isHost).sort((a,b)=> b.score - a.score);
@@ -425,7 +431,7 @@ export default function SurvivalQuizGamePage() {
                 <span className="text-lg font-normal">문제 {gameRoom.currentQuestionIndex + 1} / {gameRoom.allQuestions.length}</span>
             </CardTitle>
             {currentQuestion && <Progress value={timeProgress} className="mt-2" />}
-            {timeRemaining > 0 && !gameRoom.isAnswerRevealed && <p className="text-center text-sm text-muted-foreground mt-1">남은 시간: {Math.ceil(timeRemaining/1000)}초</p>}
+            {isClient && timeRemaining > 0 && !gameRoom.isAnswerRevealed && <p className="text-center text-sm text-muted-foreground mt-1">남은 시간: {Math.ceil(timeRemaining/1000)}초</p>}
           </CardHeader>
           <CardContent>
             {currentQuestion ? (
@@ -541,7 +547,7 @@ export default function SurvivalQuizGamePage() {
                         )}
                        </>
                     ) : (
-                        <Button onClick={handleShowResults} disabled={timeRemaining > 0 && totalPlayers > answeredCount}>결과 보기</Button>
+                        <Button onClick={handleShowResults} disabled={!allAnswered && timeRemaining > 0}>결과 보기</Button>
                     )}
                     <Button variant="destructive" onClick={() => setShowEndGameConfirm(true)}>게임 종료</Button>
                 </CardContent>
