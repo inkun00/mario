@@ -424,7 +424,7 @@ export default function SurvivalQuizGamePage() {
     )
   }
 
-  const correctPlayers = survivors.filter(p => lastQuestionResults?.[p.uid]?.isCorrect);
+  const correctPlayers = allPlayingPlayers.filter(p => lastQuestionResults?.[p.uid]?.isCorrect);
   const incorrectPlayers = allPlayingPlayers.filter(p => lastQuestionResults && lastQuestionResults[p.uid] && !lastQuestionResults[p.uid].isCorrect);
   const noAnswerPlayers = allPlayingPlayers.filter(p => !lastQuestionResults?.[p.uid]);
 
@@ -571,8 +571,34 @@ export default function SurvivalQuizGamePage() {
       </div>
 
       <aside className="w-full lg:w-80 xl:w-96 flex flex-col gap-4">
-        {renderPlayerList('생존자', survivors, <Shield className="text-green-500"/>)}
-        {renderEliminatedPlayerList('탈락자', eliminated, <Skull className="text-red-500"/>)}
+        <Card>
+            <CardHeader className="p-4">
+                <CardTitle className="text-lg flex items-center gap-2"><Shield className="text-green-500"/> 생존자 ({survivors.length})</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+                <div className="flex flex-wrap gap-2">
+                    {survivors.map(p => (
+                        <div key={p.uid} className="flex items-center gap-2 px-3 py-1 rounded-full bg-secondary">
+                            <span className="text-sm font-medium">{p.nickname}</span>
+                        </div>
+                    ))}
+                </div>
+            </CardContent>
+        </Card>
+        <Card>
+            <CardHeader className="p-4">
+                <CardTitle className="text-lg flex items-center gap-2"><Skull className="text-red-500"/> 탈락자 ({eliminated.length})</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 pt-0">
+                <ScrollArea className="h-40">
+                    <div className="space-y-2 pr-4">
+                        {eliminated.map((p, index) => (
+                            <PlayerStatus key={p.uid} player={p} rank={index + 1} />
+                        ))}
+                    </div>
+                </ScrollArea>
+            </CardContent>
+        </Card>
       </aside>
       
       <AlertDialog open={showEndGameConfirm} onOpenChange={setShowEndGameConfirm}>

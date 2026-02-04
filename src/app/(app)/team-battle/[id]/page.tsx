@@ -46,7 +46,7 @@ export default function TeamBattleGamePage() {
     const currentPlayer = user && gameRoom ? gameRoom.players[user.uid] : null;
     
     const currentQuestion = useMemo(() => {
-        if (!gameRoom || !currentPlayer || !currentPlayer.questionOrder || typeof currentPlayer.currentQuestionIndex !== 'number') return null;
+        if (!gameRoom || !currentPlayer || currentPlayer.isHost || !currentPlayer.questionOrder || typeof currentPlayer.currentQuestionIndex !== 'number') return null;
         const questionIndex = currentPlayer.questionOrder[currentPlayer.currentQuestionIndex];
         return gameRoom.allQuestions[questionIndex] || null;
     }, [gameRoom, currentPlayer]);

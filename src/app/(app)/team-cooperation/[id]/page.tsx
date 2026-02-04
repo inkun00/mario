@@ -44,10 +44,9 @@ export default function TeamCooperationGamePage() {
     const currentPlayer = user && gameRoom ? gameRoom.players[user.uid] : null;
 
     const currentQuestion = useMemo(() => {
-        if (!gameRoom || !currentPlayer || !currentPlayer.questionOrder || typeof currentPlayer.currentQuestionIndex !== 'number') return null;
-        const questionIndex = currentPlayer.questionOrder[currentPlayer.currentQuestionIndex];
-        return gameRoom.allQuestions[questionIndex] || null;
-    }, [gameRoom, currentPlayer]);
+        if (!gameRoom || typeof gameRoom.currentQuestionIndex !== 'number' || gameRoom.currentQuestionIndex < 0) return null;
+        return gameRoom.allQuestions[gameRoom.currentQuestionIndex] || null;
+    }, [gameRoom]);
     
     const hasAnsweredCurrentQuestion = useMemo(() => {
         if (!gameRoom || !user) return false;
@@ -120,41 +119,44 @@ export default function TeamCooperationGamePage() {
     
     const handleTallyAndProceed = async () => {
         if (!isHost || !gameRoom || !currentQuestion) return;
-
+    
         try {
             await runTransaction(db, async (transaction) => {
                 const roomRef = doc(db, 'team-cooperation-rooms', gameRoomId as string);
                 const roomDoc = await transaction.get(roomRef);
                 if (!roomDoc.exists()) throw "Game room not found";
-
+    
                 const currentRoom = roomDoc.data() as TeamCooperationGameRoom;
                 const players = { ...currentRoom.players };
                 const currentAnswers = currentRoom.currentAnswers || {};
                 
                 let pointsFromThisRound = 0;
                 const correctPlayers: string[] = [];
-
+    
                 for (const uid of Object.keys(players)) {
                     if (players[uid].isHost) continue;
+    
                     const submission = currentAnswers[uid];
                     const isCorrect = submission ? checkAnswer(currentQuestion, submission.answer) : false;
-                    
+                    const player = players[uid];
+    
+                    let points = 0;
                     if (isCorrect) {
-                        const points = currentQuestion.points > 0 ? currentQuestion.points : 30;
+                        points = currentQuestion.points > 0 ? currentQuestion.points : 30;
                         pointsFromThisRound += points;
-                        players[uid].score = (players[uid].score || 0) + points;
                         correctPlayers.push(uid);
-
-                        const player = players[uid];
-                        const newAnswer = {
-                            questionId: currentQuestion.id,
-                            isCorrect,
-                            points,
-                            submittedAt: submission?.submittedAt || Timestamp.now(),
-                        };
-                        player.answers = [...(player.answers || []), newAnswer];
-                        player.currentQuestionIndex = (player.currentQuestionIndex ?? -1) + 1;
                     }
+                    
+                    player.score = (player.score || 0) + points;
+                    
+                    const newAnswer = {
+                        questionId: currentQuestion.id,
+                        isCorrect,
+                        points,
+                        submittedAt: submission?.submittedAt || Timestamp.now(),
+                    };
+                    player.answers = [...(player.answers || []), newAnswer];
+                    player.currentQuestionIndex = (player.currentQuestionIndex ?? -1) + 1;
                 }
                 
                 const newTeamScore = currentRoom.teamScore + pointsFromThisRound;
@@ -333,7 +335,7 @@ export default function TeamCooperationGamePage() {
                 )}
             </Card>
 
-            <Dialog open={gameRoom.isAnswerRevealed}>
+            <Dialog open={!!gameRoom.isAnswerRevealed}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>퀴즈 결과</DialogTitle>
