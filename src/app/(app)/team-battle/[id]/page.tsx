@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -41,6 +40,11 @@ export default function TeamBattleGamePage() {
     const [gameTimeRemaining, setGameTimeRemaining] = useState(0);
     const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [isClient, setIsClient] = useState(false);
+
+    useEffect(() => {
+        setIsClient(true);
+    }, []);
 
     const isHost = user?.uid === gameRoom?.hostId;
     const currentPlayer = user && gameRoom ? gameRoom.players[user.uid] : null;
@@ -298,7 +302,7 @@ export default function TeamBattleGamePage() {
                         <span>{gameRoom.roomTitle}</span>
                         <div className="flex items-center gap-2 text-lg font-mono">
                            <Clock className="w-5 h-5"/>
-                           <span>{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}</span>
+                           {isClient && <span>{String(minutes).padStart(2, '0')}:{String(seconds).padStart(2, '0')}</span>}
                         </div>
                     </CardTitle>
                 </CardHeader>

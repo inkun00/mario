@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
@@ -39,6 +38,11 @@ export default function TeamCooperationGamePage() {
     const [isSaving, setIsSaving] = useState(false);
     const [timeRemaining, setTimeRemaining] = useState(0);
     const [timeProgress, setTimeProgress] = useState(100);
+    const [isClient, setIsClient] = useState(false);
+
+    useEffect(() => {
+        setIsClient(true);
+    }, []);
 
     const isHost = user?.uid === gameRoom?.hostId;
     const currentPlayer = user && gameRoom ? gameRoom.players[user.uid] : null;
@@ -309,7 +313,7 @@ export default function TeamCooperationGamePage() {
                             <Button onClick={copyToClipboard} variant="outline" size="sm"><Copy className="w-4 h-4 mr-2" />코드 복사</Button>
                         </div>
                     )}
-                    {gameRoom.timeLimitPerQuestion > 0 && (
+                    {isClient && gameRoom.timeLimitPerQuestion > 0 && (
                         <>
                         <Progress value={timeProgress} className="mt-2" />
                         {!gameRoom.isAnswerRevealed && timeRemaining > 0 && <p className="text-center text-sm text-muted-foreground mt-1">남은 시간: {Math.ceil(timeRemaining/1000)}초</p>}
