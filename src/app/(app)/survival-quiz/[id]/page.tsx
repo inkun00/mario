@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
@@ -389,8 +388,7 @@ export default function SurvivalQuizGamePage() {
 
   const answeredCount = gameRoom.currentAnswers ? Object.keys(gameRoom.currentAnswers).length : 0;
   const totalPlayers = allPlayingPlayers.length;
-  const allAnswered = answeredCount >= totalPlayers;
-
+  
   if (gameRoom.status === 'finished') {
     const finalPlayers = Object.values(gameRoom.players).filter(p => !p.isHost).sort((a,b)=> b.score - a.score);
     return (
@@ -562,9 +560,9 @@ export default function SurvivalQuizGamePage() {
                         )}
                        </>
                     ) : (
-                        <Button onClick={handleShowResults} disabled={!allAnswered && timeRemaining > 0}>결과 보기</Button>
+                        <Button onClick={handleShowResults}>결과 보기</Button>
                     )}
-                    <Button variant="destructive" onClick={() => setShowEndGameConfirm(true)}>게임 종료</Button>
+                    <Button variant="destructive" onClick={() => setShowEndGameConfirm(true)}>게임 강제 종료</Button>
                 </CardContent>
             </Card>
         )}

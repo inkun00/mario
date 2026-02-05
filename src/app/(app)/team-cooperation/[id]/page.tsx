@@ -145,8 +145,9 @@ export default function TeamCooperationGamePage() {
                 
                 let pointsFromThisRound = 0;
                 const correctPlayers: string[] = [];
+                const playersWhoAnswered = Object.keys(currentAnswers);
     
-                for (const uid of Object.keys(players)) {
+                for (const uid of playersWhoAnswered) {
                     if (players[uid].isHost) continue;
     
                     const player = players[uid];
@@ -179,6 +180,13 @@ export default function TeamCooperationGamePage() {
                 }
                 
                 const newTeamScore = currentRoom.teamScore + pointsFromThisRound;
+
+                const allPlayerIdsInRoom = Object.keys(players).filter(pId => !players[pId].isHost);
+                allPlayerIdsInRoom.forEach(playerId => {
+                    if (!playersWhoAnswered.includes(playerId)) {
+                        delete players[playerId];
+                    }
+                });
                 
                 transaction.update(roomRef, {
                   players,
@@ -289,7 +297,6 @@ export default function TeamCooperationGamePage() {
 
     const answeredCount = gameRoom.currentAnswers ? Object.keys(gameRoom.currentAnswers).length : 0;
     const totalPlayers = Object.keys(gameRoom.players).filter(uid => uid !== gameRoom.hostId).length;
-    const allAnswered = answeredCount >= totalPlayers;
 
     return (
         <div className="container mx-auto py-8 flex flex-col gap-6">
@@ -353,7 +360,7 @@ export default function TeamCooperationGamePage() {
                     <CardFooter>
                         <div className="w-full flex justify-between items-center">
                             <span>답변 제출 현황: {answeredCount} / {totalPlayers}</span>
-                             <Button onClick={handleTallyAndProceed} disabled={!allAnswered && timeRemaining > 0}>정답 확인</Button>
+                             <Button onClick={handleTallyAndProceed}>정답 확인</Button>
                         </div>
                     </CardFooter>
                 )}
