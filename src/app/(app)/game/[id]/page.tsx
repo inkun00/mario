@@ -130,6 +130,11 @@ export default function GamePage() {
 
   // useRef to hold a reference to the unsubscribe function
   const unsubscribeRef = useRef<() => void | undefined>();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
   
   const handleTimeOut = useCallback(() => {
     if (isMyTurn) {
@@ -1328,7 +1333,7 @@ export default function GamePage() {
                         {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin"/> : "정답 제출"}
                     </Button>
                     
-                    {gameRoom?.timeLimit && gameRoom.timeLimit > 0 && currentQuestionInfo && !answerResult && (
+                    {isClient && gameRoom?.timeLimit && gameRoom.timeLimit > 0 && currentQuestionInfo && !answerResult && (
                         <div className="mt-4 space-y-1">
                             <Progress value={timeProgress} className="h-2" />
                             <p className="text-sm text-muted-foreground text-center">남은 시간: {Math.ceil(timeRemaining / 1000)}초</p>
