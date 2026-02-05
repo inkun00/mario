@@ -85,6 +85,34 @@ export default function TeamBattleGamePage() {
         return () => unsubscribe();
     }, [gameRoomId, user, router, toast]);
 
+    // Add questionOrder to rejoining players
+    useEffect(() => {
+        if (
+            gameRoom &&
+            gameRoom.status === 'playing' &&
+            user &&
+            currentPlayer &&
+            !currentPlayer.isHost &&
+            !currentPlayer.questionOrder
+        ) {
+            const assignQuestionOrder = async () => {
+                const roomRef = doc(db, 'team-battle-rooms', gameRoomId as string);
+                const questionIndices = Array.from({ length: gameRoom.allQuestions.length }, (_, i) => i);
+                const shuffledIndices = [...questionIndices].sort(() => Math.random() - 0.5);
+
+                try {
+                    await updateDoc(roomRef, {
+                        [`players.${user.uid}.questionOrder`]: shuffledIndices,
+                        [`players.${user.uid}.currentQuestionIndex`]: 0
+                    });
+                } catch (e) {
+                    console.error("Failed to assign question order to rejoining player", e);
+                }
+            };
+            assignQuestionOrder();
+        }
+    }, [gameRoom, user, currentPlayer, gameRoomId]);
+
     // Game Timer Logic
     useEffect(() => {
         if (!gameRoom || !gameRoom.gameEndTime || gameRoom.status !== 'playing') return;

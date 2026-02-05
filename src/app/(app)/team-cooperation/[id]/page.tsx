@@ -52,7 +52,7 @@ export default function TeamCooperationGamePage() {
         const currentRoundIndex = gameRoom.currentQuestionIndex;
         if (currentRoundIndex >= currentPlayer.questionOrder.length) return null;
         const questionId = currentPlayer.questionOrder[currentRoundIndex];
-        return gameRoom.allQuestions[questionId] ?? null;
+        return gameRoom.allQuestions.find(q => q.id === questionId) ?? null;
     }, [gameRoom, currentPlayer]);
     
     const hasAnsweredCurrentQuestion = useMemo(() => {
@@ -88,6 +88,33 @@ export default function TeamCooperationGamePage() {
         });
         return () => unsubscribe();
     }, [gameRoomId, user, router, toast]);
+
+    // Add questionOrder to rejoining players
+    useEffect(() => {
+        if (
+            gameRoom &&
+            gameRoom.status === 'playing' &&
+            user &&
+            currentPlayer &&
+            !currentPlayer.isHost &&
+            !currentPlayer.questionOrder
+        ) {
+            const assignQuestionOrder = async () => {
+                const roomRef = doc(db, 'team-cooperation-rooms', gameRoomId as string);
+                const questionIndices = Array.from({ length: gameRoom.allQuestions.length }, (_, i) => i);
+                const shuffledIndices = [...questionIndices].sort(() => Math.random() - 0.5);
+
+                try {
+                    await updateDoc(roomRef, {
+                        [`players.${user.uid}.questionOrder`]: shuffledIndices
+                    });
+                } catch (e) {
+                    console.error("Failed to assign question order to rejoining player", e);
+                }
+            };
+            assignQuestionOrder();
+        }
+    }, [gameRoom, user, currentPlayer, gameRoomId]);
 
     // Question Timer
     useEffect(() => {
@@ -146,23 +173,20 @@ export default function TeamCooperationGamePage() {
                 let pointsFromThisRound = 0;
                 const correctPlayers: string[] = [];
                 const playersWhoAnswered = Object.keys(currentAnswers);
+
+                const allPlayerIdsInRoom = Object.keys(players).filter(pId => !players[pId].isHost);
     
-                for (const uid of playersWhoAnswered) {
+                for (const uid of allPlayerIdsInRoom) {
                     if (players[uid].isHost) continue;
     
                     const player = players[uid];
                     const submission = currentAnswers[uid];
-                    
-                    if (!submission || typeof submission.questionId === 'undefined') continue;
-                
-                    const playerQuestion = currentRoom.allQuestions.find(q => q.id === submission.questionId);
+                    const playerQuestion = submission ? gameRoom.allQuestions.find(q => q.id === submission.questionId) : undefined;
 
-                    if (!playerQuestion) continue;
-
-                    const isCorrect = checkAnswer(playerQuestion, submission.answer);
+                    const isCorrect = submission && playerQuestion ? checkAnswer(playerQuestion, submission.answer) : false;
                     
                     let points = 0;
-                    if (isCorrect) {
+                    if (isCorrect && playerQuestion) {
                         points = playerQuestion.points > 0 ? playerQuestion.points : 30;
                         pointsFromThisRound += points;
                         correctPlayers.push(uid);
@@ -171,7 +195,7 @@ export default function TeamCooperationGamePage() {
                     player.score = (player.score || 0) + points;
                     
                     const newAnswer = {
-                        questionId: playerQuestion.id,
+                        questionId: playerQuestion?.id ?? -1,
                         isCorrect,
                         points,
                         submittedAt: submission?.submittedAt || Timestamp.now(),
@@ -181,7 +205,6 @@ export default function TeamCooperationGamePage() {
                 
                 const newTeamScore = currentRoom.teamScore + pointsFromThisRound;
 
-                const allPlayerIdsInRoom = Object.keys(players).filter(pId => !players[pId].isHost);
                 allPlayerIdsInRoom.forEach(playerId => {
                     if (!playersWhoAnswered.includes(playerId)) {
                         delete players[playerId];
