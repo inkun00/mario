@@ -163,9 +163,14 @@ export default function Home() {
       </main>
 
       <footer className="bg-background border-t">
-        <div className="container mx-auto py-6 px-4 md:px-6 flex justify-between items-center text-sm text-muted-foreground">
+        <div className="container mx-auto py-6 px-4 md:px-6 flex flex-col sm:flex-row justify-between items-center text-sm text-muted-foreground gap-4">
           <AppLogo />
-          <p>&copy; {new Date().getFullYear()} 에듀칩(EduChip). All rights reserved.</p>
+          <div className="flex items-center gap-4">
+             <p>&copy; {new Date().getFullYear()} 에듀칩(EduChip). All rights reserved.</p>
+            <Link href="/privacy" className="hover:text-primary transition-colors">
+              개인정보처리방침
+            </Link>
+          </div>
         </div>
       </footer>
     </div>
