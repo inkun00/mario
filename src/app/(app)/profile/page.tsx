@@ -68,6 +68,7 @@ import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from '
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Bar, BarChart, ResponsiveContainer, Cell, Pie, PieChart, Legend } from 'recharts';
 import { generateWritingTopic } from '@/ai/flows/generate-writing-topic-flow';
 import { evaluateWriting } from '@/ai/flows/evaluate-writing-flow';
+import { useRouter } from 'next/navigation';
 
 
 const PixelEditor = dynamic(() => import('@/components/pixel-editor').then(mod => mod.PixelEditor), {
@@ -201,6 +202,7 @@ export default function ProfilePage() {
   const [subjectStats, setSubjectStats] = useState<SubjectStat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
+  const router = useRouter();
 
   const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
   const [nextLevelInfo, setNextLevelInfo] = useState<LevelInfo | null>(null);
@@ -276,6 +278,9 @@ export default function ProfilePage() {
   });
   const [writingSubmissions, setWritingSubmissions] = useState<WritingSubmission[]>([]);
   const [viewingWritingSubmission, setViewingWritingSubmission] = useState<WritingSubmission | null>(null);
+
+  const [isWithdrawDialogOpen, setIsWithdrawDialogOpen] = useState(false);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
 
 
   useEffect(() => {
@@ -1025,6 +1030,56 @@ export default function ProfilePage() {
     }
   };
 
+  const handleWithdrawAccount = async () => {
+    if (!user) {
+        toast({ variant: 'destructive', title: '오류', description: '로그인이 필요합니다.' });
+        return;
+    }
+
+    setIsWithdrawing(true);
+
+    try {
+        const userId = user.uid;
+
+        const batch = writeBatch(db);
+
+        const myGameSetsQuery = query(collection(db, 'game-sets'), where('creatorId', '==', userId));
+        const myGameSetsSnapshot = await getDocs(myGameSetsQuery);
+        myGameSetsSnapshot.forEach(doc => batch.delete(doc.ref));
+
+        const myStoreItemsQuery = query(collection(db, 'class-store-items'), where('sellerId', '==', userId));
+        const myStoreItemsSnapshot = await getDocs(myStoreItemsQuery);
+        myStoreItemsSnapshot.forEach(doc => batch.delete(doc.ref));
+        
+        const subcollections = ['incorrect-answers', 'playedGameSets', 'pointLogs', 'solved-incorrect-answers', 'subjectStats', 'writingSubmissions'];
+        for (const sub of subcollections) {
+            const subcollectionRef = collection(db, 'users', userId, sub);
+            const subcollectionSnapshot = await getDocs(subcollectionRef);
+            subcollectionSnapshot.forEach(doc => batch.delete(doc.ref));
+        }
+
+        const userRef = doc(db, 'users', userId);
+        batch.delete(userRef);
+
+        await batch.commit();
+
+        await user.delete();
+
+        toast({ title: '회원 탈퇴 완료', description: '이용해주셔서 감사합니다.' });
+        router.push('/');
+
+    } catch (error: any) {
+        console.error("Error withdrawing account: ", error);
+        toast({
+            variant: 'destructive',
+            title: '회원 탈퇴 실패',
+            description: '회원 탈퇴 중 오류가 발생했습니다. 보안을 위해 다시 로그인한 후 시도해주세요.',
+        });
+    } finally {
+        setIsWithdrawing(false);
+    }
+  };
+
 
   const pointHistoryChartData = useMemo(() => {
     if (!isClient) return [];
@@ -1267,6 +1322,9 @@ export default function ProfilePage() {
                 </Button>
               </>
             )}
+             <Button variant="destructive" className="ml-auto" onClick={() => setIsWithdrawDialogOpen(true)}>
+                <Trash2 className="mr-2 h-4 w-4"/> 회원 탈퇴
+            </Button>
         </CardFooter>
       </Card>
       
@@ -2219,7 +2277,24 @@ export default function ProfilePage() {
         </DialogContent>
       </Dialog>
     )}
+
+    <AlertDialog open={isWithdrawDialogOpen} onOpenChange={setIsWithdrawDialogOpen}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>정말 탈퇴하시겠습니까?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    이 작업은 되돌릴 수 없습니다. 계정을 삭제하면 회원님의 모든 정보와 직접 만든 퀴즈, 상점 아이템 등의 모든 콘텐츠가 영구적으로 삭제됩니다.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel>취소</AlertDialogCancel>
+                <AlertDialogAction onClick={handleWithdrawAccount} className="bg-destructive hover:bg-destructive/90" disabled={isWithdrawing}>
+                    {isWithdrawing && <Loader2 className="mr-2 h-4 w-4 animate-spin"/>}
+                    탈퇴하기
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
     </TooltipProvider>
   );
 }
-
