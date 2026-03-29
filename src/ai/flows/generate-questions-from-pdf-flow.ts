@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A Genkit flow for generating quiz questions from a PDF file.
@@ -54,7 +53,7 @@ const generateQuestionsPrompt = ai.definePrompt({
   name: 'generateQuestionsFromPdfPrompt',
   input: { schema: PdfQuestionGenerationInputSchema },
   output: { schema: PdfQuestionGenerationOutputSchema },
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.1-flash-lite-preview',
   prompt: `You are an expert educator in South Korea specializing in creating quiz content for students.
 Your task is to analyze the provided PDF document and generate a set of at least 5-10 diverse and high-quality quiz questions based on its content. You must also extract metadata about the quiz.
 

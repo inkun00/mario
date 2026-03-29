@@ -34,7 +34,7 @@ const evaluateWritingPrompt = ai.definePrompt({
   name: 'evaluateWritingPrompt',
   input: { schema: EvaluateWritingInputSchema },
   output: { schema: EvaluateWritingOutputSchema },
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.1-flash-lite-preview',
   prompt: `You are an AI assistant for evaluating elementary school students' descriptive writing in Korean.
 Your task is to score the student's response based on the provided prompt and a detailed rubric, and provide constructive feedback. All feedback and analysis MUST use vocabulary and sentence structures appropriate for the student's grade level.
 

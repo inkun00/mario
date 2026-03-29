@@ -41,7 +41,7 @@ const generateWritingTopicPrompt = ai.definePrompt({
   name: 'generateWritingTopicPrompt',
   input: { schema: PromptInputSchema },
   output: { schema: GenerateWritingTopicOutputSchema },
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.1-flash-lite-preview',
   prompt: `You are an expert elementary school teacher in South Korea.
 Your task is to analyze the provided student learning data to identify their weakest subject and unit, and then create a descriptive writing prompt about a key concept from that topic.
 

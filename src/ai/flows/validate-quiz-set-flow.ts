@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A quiz set validation AI agent.
@@ -47,7 +46,7 @@ const evaluateQuizSetPrompt = ai.definePrompt({
   name: 'evaluateQuizSetPrompt',
   input: { schema: QuizSetEvaluationInputSchema },
   output: { schema: QuizSetEvaluationOutputSchema },
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.1-flash-lite-preview',
   prompt: `You are an expert in educational content evaluation for elementary school students in South Korea.
 Your task is to evaluate the provided quiz set based on the following criteria and provide a single score from 0 to 100.
 

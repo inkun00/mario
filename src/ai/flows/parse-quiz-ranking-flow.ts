@@ -33,7 +33,7 @@ const parseRankingPrompt = ai.definePrompt({
   name: 'parseQuizRankingPrompt',
   input: { schema: ParseRankingInputSchema },
   output: { schema: ParseRankingOutputSchema },
-  model: 'googleai/gemini-2.5-flash',
+  model: 'googleai/gemini-3.1-flash-lite-preview',
   prompt: `You are an OCR and data extraction expert.
 Your task is to analyze the provided image of a quiz ranking screen and extract the rank and name of each student.
 The names are in Korean. The output must be a sorted list based on the rank.
