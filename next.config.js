@@ -24,6 +24,10 @@ const nextConfig = {
     ],
   },
   webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals.push('genkit', '@genkit-ai/google-genai');
+    }
+
     if (!isServer) {
       config.resolve = config.resolve || {};
       config.resolve.fallback = {

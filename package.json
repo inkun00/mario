@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev -p 9002",
-    "build": "rm -rf .next && next build",
+    "build": "node -e \"require('fs').rmSync('.next', { recursive: true, force: true })\" && next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
